@@ -1,0 +1,23 @@
+'''
+Installation note for StarEV: all important dependencies
+'''
+
+1) Install gurobipy
+
+
+   a) use the following command for python 3.0+
+
+   python -m pip install -i https://pypi.gurobi.com gurobipy
+
+   b) obtain the relevant license and activate using grbgetkey (have to download gurobi install files from website to access grbgetkey as that's not installed using pip
+
+   c) copy the gurobi.lic file wherever you initially installed it to the following directory: [your python dir]/site-packages/gurobipy/.libs **note there is an existing restricted install license in the directory, simply replace it.
+
+2) Install glpk: pip3 install glpk
+
+error may come: ERROR: could not build wheels for glpk which use PEP 517 and cannot be installed directly
+Sollution: 
+
+sudo apt install libglpk-dev python3.8-dev libgmp3-dev
+
+pip install glpk
