@@ -50,15 +50,15 @@ Event-driven Monitoring and Verification Codesign for Learning-enabled Cyber-Phy
 
 - Our experiment is done on a computer with the following configuration: Intel Core i7-10700 CPU @ 2.9GHz x 8 Processors, 63.7 GiB Memory, 64-bit Ubuntu 18.04.6 LTS OS. 
 
-### Figure 5 & Table 1:
+- Figure 5 & Table 1:
    
         python3 HSCC2023_run_tinyNet.py
         
-### Table 2: 
+- Table 2: 
 
         python3 HSCC2023_run_ACASXu_small.py
         
-### Table 3: 
+- Table 3: 
       
         python3 HSCC2023_run_RocketNet.py
         
