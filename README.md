@@ -4,11 +4,8 @@ Event-driven Monitoring and Verification Codesign for Distributed Learning-enabl
  - Python version: 3.0+
  - Independencies: gurobipy, glpk, polytope, pypoman, tabulate, mathplotlib
  - Key features: 
-    1) Qualitative and quantitative verification algorithms for deep neural networks and distributed Le-CPS
-      a) qualitative: support exact-star, approx-star, relax-star, zonotope, abstract-domain, imagestar reachability
-      b) quantitative: probstar reachability
+    1) Qualitative and quantitative verification algorithms for deep neural networks and distributed Le-CPS 
     2) Probabilistic Star Temporal Logic (under development)
-      a) aim to quantitatively verify temporal behaviors of Le-CPS 
     3) Monitoring algorithms (under development)
     4) Target ROS-based applications (under development)
  
