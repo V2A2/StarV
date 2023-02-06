@@ -1,5 +1,5 @@
 """
-Test verifier module
+Verify RocketNet
 Author: Dung Tran
 Date: 8/10/2022
 """

@@ -1,5 +1,5 @@
 """
-Test verifier module
+Verify ACASXU networks, small table
 Author: Dung Tran
 Date: 8/10/2022
 """

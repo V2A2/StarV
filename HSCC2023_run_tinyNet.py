@@ -1,5 +1,5 @@
 """
-Test verifier module
+Verify Tiny Network
 Author: Dung Tran
 Date: 8/10/2022
 """
