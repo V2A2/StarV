@@ -4,6 +4,14 @@ Event-driven Monitoring and Verification Codesign for Learning-enabled Cyber-Phy
  - Python version: 3.0+
  - Independencies: gurobipy, glpk, polytope, pypoman, tabulate, mathplotlib
  
+# StarV installation, tests and artifacts
+
+  - No installation, just clone the repository:
+  
+        git clone https://github.com/V2A2/StarV
+        
+  - Go inside StarV and run tests or artifacts
+ 
 # Dependencies installation
  
 - Install gurobipy: 
