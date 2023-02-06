@@ -1,6 +1,6 @@
 """
 Probabilistics Star Class
-Dung Tran, 8/10/2022
+Dung Tran, 9/13/2022
 
 """
 
@@ -10,19 +10,19 @@ import scipy.sparse as sp
 import gurobipy as gp
 from gurobipy import GRB
 from scipy.optimize import linprog
+from scipy.linalg import block_diag
 import glpk
-import traceback
-import logging
+import polytope as pc
 
 
 import copy
 
 
-class ProbStar(object):
+class Star(object):
     """
-        Probabilistic Star Class for quatitative reachability
+        Star Class for reachability
         author: Dung Tran
-        date: 8/9/2022
+        date: 9/13/2022
         Representation of a ProbStar
         ==========================================================================
         Star set defined by
@@ -42,25 +42,14 @@ class ProbStar(object):
            C = []; % constraint matrix
            d = []; % constraint vector
            dim = 0; % dimension of the probabilistic star set
-           mu = []; % mean of the multivariate normal distribution
-           Sig = []; % covariance (positive semidefinite matrix)
            nVars = []; number of predicate variables
-           prob = []; % probability of the probabilistic star
-           predicate_lb = []; % lower bound of predicate variables
-           predicate_ub = []; % upper bound of predicate variables
+           pred_lb = []; % lower bound of predicate variables
+           pred_ub = []; % upper bound of predicate variables
         """
-        if len(args) == 7:
-            [V, C, d, mu, Sig, pred_lb, pred_ub] = copy.deepcopy(args)
+        if len(args) == 5:
+            [V, C, d, pred_lb, pred_ub] = copy.deepcopy(args)
             assert isinstance(V, np.ndarray), 'error: \
             basis matrix should be a 2D numpy array'
-            assert isinstance(C, np.ndarray), 'error: \
-            constraint matrix should be a 2D numpy array'
-            assert isinstance(d, np.ndarray), 'error: \
-            constraint vector should be a 1D numpy array'
-            assert isinstance(mu, np.ndarray), 'error: \
-            median vector should be a 1D numpy array'
-            assert isinstance(Sig, np.ndarray), 'error: \
-            covariance matrix should be a 2D numpy array'
             assert isinstance(pred_lb, np.ndarray), 'error: \
             lower bound vector should be a 1D numpy array'
             assert isinstance(pred_ub, np.ndarray), 'error: \
@@ -76,98 +65,107 @@ class ProbStar(object):
                 Inconsistency between basic matrix and constraint matrix'
                 assert C.shape[0] == d.shape[0], 'error: \
                 Inconsistency between constraint matrix and constraint vector'
-                assert d.shape[0] == pred_lb.shape[0] and \
-                    d.shape[0] == pred_ub.shape[0], 'error: \
+                assert C.shape[1] == pred_lb.shape[0] and \
+                    C.shape[1] == pred_ub.shape[0], 'error: \
                     Inconsistency between number of predicate variables and \
                     predicate lower- or upper-bound vectors'
-                assert C.shape[1] == mu.shape[0], 'error: Inconsistency \
-                between the number of predicate variables and median vector'
-                assert C.shape[1] == Sig.shape[1] and \
-                    C.shape[1] == Sig.shape[0], 'error: Inconsistency between \
-                    the number of predicate variables and covariance matrix'
-            assert len(mu.shape) == 1, 'error: \
-            median vector should be a 1D numpy array'
-            assert len(Sig.shape) == 2, 'error: \
-            covariance matrix should be a 2D numpy array'
+                
             assert len(pred_lb.shape) == 1, 'error: \
             lower bound vector should be a 1D numpy array'
             assert len(pred_ub.shape) == 1, 'error: \
             upper bound vector should be a 1D numpy array'
-            assert np.all(np.linalg.eigvals(Sig) > 0), 'error: \
-            covariance matrix should be positive definite'
-
+            
             self.V = V
             self.C = C
             self.d = d
             self.dim = V.shape[0]
             self.nVars = V.shape[1] - 1
-            self.mu = mu
-            self.Sig = Sig
             self.pred_lb = pred_lb
             self.pred_ub = pred_ub
 
-        elif len(args) == 4:  # the most common use
-            [mu, Sig, pred_lb, pred_ub] = copy.deepcopy(args)
+        elif len(args) == 2:  # the most common use
+            [lb, ub] = copy.deepcopy(args)
 
-            assert isinstance(mu, np.ndarray), 'error: \
-            median vector should be a 1D numpy array'
-            assert isinstance(Sig, np.ndarray), 'error: \
-            covariance matrix should be a 2D numpy array'
-            assert isinstance(pred_lb, np.ndarray), 'error: \
+            assert isinstance(lb, np.ndarray), 'error: \
             lower bound vector should be a 1D numpy array'
-            assert isinstance(pred_ub, np.ndarray), 'error: \
+            assert isinstance(ub, np.ndarray), 'error: \
             upper bound vector should be a 1D numpy array'
-            assert len(mu.shape) == 1, 'error: \
-            median vector should be a 1D numpy array'
-            assert len(Sig.shape) == 2, 'error: \
-            covariance matrix should be a 2D numpy array'
-            assert len(pred_lb.shape) == 1, 'error: \
+            assert len(lb.shape) == 1, 'error: \
             lower bound vector should be a 1D numpy array'
-            assert len(pred_ub.shape) == 1, 'error: \
+            assert len(ub.shape) == 1, 'error: \
             upper bound vector should be a 1D numpy array'
 
-            assert pred_lb.shape[0] == pred_ub.shape[0], 'error: \
+            assert lb.shape[0] == ub.shape[0], 'error: \
             inconsistency between predicate lower bound and upper bound'
-            assert pred_lb.shape[0] == mu.shape[0], 'error: \
-            inconsitency between predicate lower bound and median vector'
-            assert mu.shape[0] == Sig.shape[0] and \
-                mu.shape[0] == Sig.shape[1], 'error: \
-                inconsistency between median vector and covariance matrix'
-            assert np.all(np.linalg.eigvals(Sig) > 0), 'error: \
-            covariance matrix should be positive definite'
-
-            self.dim = pred_lb.shape[0]
-            self.nVars = pred_lb.shape[0]
-            self.mu = mu
-            self.Sig = Sig
-            self.V = np.hstack((np.zeros((self.dim, 1)), np.eye(self.dim)))
+            if np.any(ub < lb):
+                raise RuntimeError("Upper bound (ub) must be greater or equal the lower bound (lb) for all D dimensions!")
+            
+            self.dim = lb.shape[0]
+            nVars = int(sum(ub[i] > lb[i] for i in range(0, self.dim)))
+            V = np.zeros((self.dim, nVars+1))
+            pred_lb = np.zeros(nVars,)
+            pred_ub = np.zeros(nVars,)
+            j = 0
+            for i in range(0, self.dim):
+                if ub[i] > lb[i]:
+                    pred_lb[j] = lb[i]
+                    pred_ub[j] = ub[i]
+                    V[i, j+1] = 1.
+                    j = j + 1
+            
+            self.V = V
             self.C = np.array([])
             self.d = np.array([])
             self.pred_lb = pred_lb
             self.pred_ub = pred_ub
+            self.nVars = nVars        
+            
+        elif len(args) == 0:  # create an empty ProStar
+            self.dim = 0
+            self.nVars = 0
+            self.V = np.array([])
+            self.C = np.array([])
+            self.d = np.array([])
+            self.pred_lb = np.array([])
+            self.pred_ub = np.array([])
         else:
             raise Exception('error: \
-            Invalid number of input arguments (should be 4 or 7)')
+            Invalid number of input arguments (should be 2 or 5)')
 
     def __str__(self):
-        print('ProbStar Set:')
+        print('Star Set:')
         print('V: {}'.format(self.V))
+        print('Predicate Constraints:')
         print('C: {}'.format(self.C))
         print('d: {}'.format(self.d))
         print('dim: {}'.format(self.dim))
         print('nVars: {}'.format(self.nVars))
         print('pred_lb: {}'.format(self.pred_lb))
         print('pred_ub: {}'.format(self.pred_ub))
-        print('mu: {}'.format(self.mu))
-        print('Sig: {}'.format(self.Sig))
         return '\n'
 
+    def getMinimizedConstraints(self):
+        """minimize constraints of a probstar"""
+
+        if len(self.C) == 0:
+            Cmin = self.C
+            dmin = self.d
+        else:
+
+            P = pc.Polytope(self.C, self.d)
+            pc.reduce(P)
+            Cmin = P.A
+            dmin = P.b
+
+        return Cmin, dmin
+            
+      
     def estimateRange(self, index):
         """Quickly estimate minimum value of a state x[index]"""
 
         assert index >= 0 and index <= self.dim-1, 'error: invalid index'
 
-        v = self.V[index, 1:self.dim+1]
+        v = self.V[index, 1:self.nVars+1]
         c = self.V[index, 0]
         v1 = copy.deepcopy(v)
         v2 = copy.deepcopy(v)
@@ -183,6 +181,25 @@ class ProbStar(object):
             np.matmul(v2, self.pred_ub)
 
         return min_val, max_val
+
+    def estimateRanges(self):
+        """Quickly estimate lower bound and upper bound of x"""
+
+        v = self.V[:, 1:self.nVars+1]
+        c = self.V[:, 0]
+        v1 = copy.deepcopy(v)
+        v2 = copy.deepcopy(v)
+        c1 = copy.deepcopy(c)
+        v1[v1 > 0] = 0  # negative part
+        v2[v1 < 0] = 0  # positive part
+        
+        lb = c1 + np.matmul(v1, self.pred_ub) + \
+            np.matmul(v2, self.pred_lb)
+        ub = c1 + np.matmul(v1, self.pred_lb) + \
+            np.matmul(v2, self.pred_ub)
+        
+        return lb, ub
+
 
     def getMin(self, index, lp_solver='gurobi'):
         """get exact minimum value of state x[index] by solving LP
@@ -202,8 +219,7 @@ class ProbStar(object):
                 min_.Params.LogToConsole = 0
                 min_.Params.OptimalityTol = 1e-9
                 if self.pred_lb.size and self.pred_ub.size:
-                    x = min_.addMVar(shape=self.nVars,
-                                     lb=self.pred_lb, ub=self.pred_ub)
+                    x = min_.addMVar(shape=self.nVars, lb=self.pred_lb, ub=self.pred_ub)
                 else:
                     x = min_.addMVar(shape=self.nVars)
                 min_.setObjective(f @ x, GRB.MINIMIZE)
@@ -398,28 +414,79 @@ class ProbStar(object):
                 unknown lp solver, should be gurobi or linprog or glpk')
         return xmax
 
-    def affineMap(self, A, b):
-        """Affine mapping of a probstar: S = A*self + b"""
+    def getRanges(self, lp_solver='gurobi'):
+        """get lower bound and upper bound by solving LP"""
 
-        assert isinstance(A, np.ndarray), 'error: \
+        l = np.zeros(self.dim)
+        u = np.zeros(self.dim)
+        for i in range(0, self.dim):
+            l[i] = self.getMin(i, lp_solver)
+            u[i] = self.getMax(i, lp_solver)
+
+        return l, u
+
+        
+    def affineMap(self, A=None, b=None):
+        """Affine mapping of a star: S = A*self + b"""
+
+        if A is not None:
+            assert isinstance(A, np.ndarray), 'error: \
         mapping matrix should be an 2D numpy array'
-        assert isinstance(b, np.ndarray), 'error: \
-        offset vector should be an 1D numpy array'
-
-        assert A.shape[1] == self.dim, 'error: \
+            assert A.shape[1] == self.dim, 'error: \
         inconsistency between mapping matrix and ProbStar dimension'
-        assert A.shape[0] == b.shape[0], 'error: \
+
+        if b is not None:
+            assert isinstance(b, np.ndarray), 'error: \
+        offset vector should be an 1D numpy array'
+            if A is not None:
+                assert A.shape[0] == b.shape[0], 'error: \
         inconsistency between mapping matrix and offset vector'
-        assert len(b.shape) == 1, 'error: \
+            assert len(b.shape) == 1, 'error: \
         offset vector should be a 1D numpy array '
 
-        V = np.matmul(A, self.V)
-        V[:, 0] = V[:, 0] + b
 
-        new_set = ProbStar(V, self.C, self.d, self.mu,
-                           self.Sig, self.pred_lb, self.pred_ub)
+        if A is None and b is None:
+            new_set = copy.deepcopy(self)
 
+        if A is None and b is not None:
+            V = copy.deepcopy(self.V)
+            V[:, 0] = V[:, 0] + b
+            new_set = Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
+
+        if A is not None and b is None:
+            V = np.matmul(A, self.V)
+            new_set = Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
+
+        if A is not None and b is not None:
+            V = np.matmul(A, self.V)
+            V[:, 0] = V[:, 0] + b
+
+            new_set = Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
         return new_set
+
+    def minKowskiSum(self, Y):
+        """MinKowskiSum of two stars"""
+
+        assert isinstance(Y, Star), 'error: input is not a probstar'
+        assert self.dim == Y.dim, 'error: inconsistent dimension between the input and the self object'
+
+        V1 = copy.deepcopy(self.V)
+        V2 = copy.deepcopy(Y.V)
+        V1[:, 0] = V1[:, 0] + V2[:, 0]
+        V3 = np.delete(V2, 0, 1)
+        V = np.hstack((V1, V3))
+        pred_lb = np.concatenate((self.pred_lb, Y.pred_lb))
+        pred_ub = np.concatenate((self.pred_ub, Y.pred_ub))  
+        C = block_diag(self.C, Y.C)
+        d = np.concatenate((self.d, Y.d))
+        if len(d) == 0:
+            C = []
+            d = []
+        
+        R = Star(V, C, d, pred_lb, pred_ub)
+
+        return R
+        
 
     def isEmptySet(self, lp_solver='gurobi'):
         """Check if a probstar is an empty set"""
@@ -518,12 +585,12 @@ class ProbStar(object):
 
         if len(self.C) != 0:
             self.C = np.vstack((newC, self.C))
-            self.d = np.vstack((newd, self.d))
+            self.d = np.concatenate([newd, self.d])
+            
         else:
-            self.C = newC
+            self.C = newC.reshape(1, self.nVars)
             self.d = newd
-
-        new_pred_lb, new_pred_ub = ProbStar.updatePredicateRanges(newC, newd,
+        new_pred_lb, new_pred_ub = Star.updatePredicateRanges(newC, newd,
                                                                   self.pred_lb,
                                                                   self.pred_ub)
         self.pred_lb = new_pred_lb
@@ -532,363 +599,41 @@ class ProbStar(object):
         return self
 
     def addMultipleConstraints(self, C, d):
-        """ Add multiple constraint to a ProbStar, self & Cx <= d"""
-        pass
+        """ Add multiple constraint to a Star, self & Cx <= d"""
 
-
-class Test(object):
-    """
-       Testing ProbStar class methods
-    """
-
-    def __init__(self):
-
-        self.n_fails = 0
-        self.n_tests = 0
-
-    def test_constructor(self):
-
-        self.n_tests = self.n_tests + 1
-
-        # len(agrs) = 4
-        mu = np.random.rand(3,)
-        Sig = np.eye(3)
-        pred_lb = np.random.rand(3,)
-        pred_ub = pred_lb + 0.2
-        try:
-            print('Testing ProbStar Constructor...')
-            ProbStar(mu, Sig, pred_lb, pred_ub)
-        except Exception as e:
-            print("Fail in constructing probstar object with \
-            len(args)= {}".format(4))
-            logging.error(traceback.format_exc(e))
-            self.n_fails = self.n_fails + 1
+        assert isinstance(C, np.ndarray), 'error: constraint matrix should be a numpy array'
+        assert isinstance(d, np.ndarray), 'error: constraint vector should be a numpy array'
+        assert C.shape[0] == d.shape[0], 'error: inconsistency between \
+        constraint matrix and constraint vector'
+        print(len(d.shape))
+        assert len(d.shape) == 1, 'error: constraint vector should be a 1D numpy array'
+        
+        if C.shape[0] == 1:
+            self.addConstraint(C, d)
         else:
-            print("Test Successfull!")
+            for i in range(0, C.shape[0]):
+                self.addConstraint(C[i, :], np.array([d[i]]))
 
-    def test_str(self):
+        return self
 
-        self.n_tests = self.n_tests + 1
+    def resetRow(self, index):
+        """Reset a row with index"""
 
-        mu = np.random.rand(3,)
-        Sig = np.eye(3)
-        pred_lb = np.random.rand(3,)
-        pred_ub = pred_lb + 0.2
-        S = ProbStar(mu, Sig, pred_lb, pred_ub)
+        if index < 0 or index > self.dim - 1:
+            raise Exception('error: invalid index, \
+            should be between {} and {}'.format(0, self.dim - 1))
+        V = self.V
+        V[index, :] = 0.0
+        S = Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
 
-        try:
-            print('\nTesting __str__ method...')
-            print(S.__str__())
-        except Exception as e:
-            print("Test Fail :( !")
-            logging.error(traceback.format_exc(e))
-            self.n_fails = self.n_fails + 1
-        else:
-            print("Test Successfull!")
+        return S
 
-    def test_estimateRange(self):
+    @staticmethod
+    def rand(dim):
+        """ Randomly generate a Star """
 
-        self.n_tests = self.n_tests + 1
-
-        mu = np.random.rand(3,)
-        Sig = np.eye(3)
-        pred_lb = np.random.rand(3,)
-        pred_ub = pred_lb + 0.2
-        S = ProbStar(mu, Sig, pred_lb, pred_ub)
-
-        try:
-            print('\nTesting estimateMin method...')
-            min_val, max_val = S.estimateRange(0)
-            print('MinValue = {}, true_val = {}'.format(min_val, pred_lb[0]))
-            print('MaxValue = {}, true_val = {}'.format(max_val, pred_ub[0]))
-            assert min_val == pred_lb[0] and \
-                max_val == pred_ub[0], 'error: wrong results'
-        except Exception as e:
-            print("Test Fail!")
-            logging.error(traceback.format_(e))
-            self.n_fails = self.n_fails + 1
-        else:
-            print("Test Successfull!")
-
-    def test_getMin(self):
-
-        self.n_tests = self.n_tests + 3
-
-        mu = np.random.rand(3,)
-        Sig = np.eye(3)
-        pred_lb = np.random.rand(3,)
-        pred_ub = pred_lb + 0.2
-        S = ProbStar(mu, Sig, pred_lb, pred_ub)
-        min_val = S.getMin(0, 'gurobi')
-
-        try:
-            print('\nTesting getMin method using gurobi...')
-            min_val = S.getMin(0, 'gurobi')
-            print('MinValue = {}, true_val = {}'.format(min_val, pred_lb[0]))
-            assert min_val == pred_lb[0], 'error: wrong results'
-        except Exception as e:
-            print("Test Fail!")
-            logging.error(traceback.format_exc(e))
-            self.n_fails = self.n_fails + 1
-        else:
-            print("Test Successfull!")
-
-        try:
-            print('\nTesting getMin method using glpk...')
-            min_val = S.getMin(0, 'glpk')
-            print('MinValue = {}, true_val = {}'.format(min_val, pred_lb[0]))
-            assert min_val == pred_lb[0], 'error: wrong results'
-        except Exception as e:
-            print("Test Fail!")
-            logging.error(traceback.format_exc(e))
-            self.n_fails = self.n_fails + 1
-        else:
-            print("Test Successfull!")
-
-        try:
-            print('\nTesting getMin method using linprog...')
-            min_val = S.getMin(0, 'linprog')
-            print('MinValue = {}, true_val = {}'.format(min_val, pred_lb[0]))
-            assert min_val == pred_lb[0], 'error: wrong results'
-        except Exception as e:
-            print("Test Fail!")
-            logging.error(traceback.format_exc(e))
-            self.n_fails = self.n_fails + 1
-        else:
-            print("Test Successfull!")
-
-    def test_glpk(self):
-        """
-        test glpk example from here: \
-        https://pyglpk.readthedocs.io/en/latest/examples.html
-
-        """
-
-        self.n_tests = self.n_tests + 1
-        lp = glpk.LPX()
-        lp.name = 'test_glpk'
-        lp.obj.maximize = True
-        lp.rows.add(3)
-        for r in lp.rows:
-            r.name = chr(ord('p') + r.index)
-        lp.rows[0].bounds = None, 100.0
-        lp.rows[1].bounds = None, 600.0
-        lp.rows[2].bounds = None, 300.0
-        lp.cols.add(3)
-        for c in lp.cols:
-            c.name = 'x%d' % c.index
-            c.bounds = 0.0, None
-
-        f = np.array([10.0, 6.0, 4.0])
-        lp.obj[:] = f.tolist()
-        # lp.obj[:] = [10.0, 6.0, 4.0]
-        A = np.array([[1.0, 1.0, 1.0], [10.0, 4.0, 5.0], [2.0, 2.0, 6.0]])
-        B = A.reshape(9,)
-        a = B.tolist()
-        lp.matrix = a
-        # lp.matrix = [1.0, 1.0, 1.0,
-        #             10.0, 4.0, 5.0,
-        #             2.0, 2.0, 6.0]
-
-        try:
-            print('\nTest glpk...')
-            lp.simplex()
-            print('Z = {}'.format(lp.obj.value))
-        except Exception as e:
-            print("Test Fail!")
-            logging.error(traceback.format_exc(e))
-            self.n_fails = self.n_fails + 1
-        else:
-            print("Test Successfull!")
-
-    def test_getMax(self):
-
-        self.n_tests = self.n_tests + 3
-
-        mu = np.random.rand(3,)
-        Sig = np.eye(3)
-        pred_lb = np.random.rand(3,)
-        pred_ub = pred_lb + 0.2
-        S = ProbStar(mu, Sig, pred_lb, pred_ub)
-        try:
-            print('\nTesting getMax method using gurobi...')
-            max_val = S.getMax(0, 'gurobi')
-            print('MaxValue = {}, true_val = {}'.format(max_val, pred_ub[0]))
-            assert max_val == pred_ub[0], 'error: wrong results'
-        except Exception as e:
-            print("Test Fail!")
-            logging.error(traceback.format_exc(e))
-            self.n_fails = self.n_fails + 1
-        else:
-            print("Test Successfull!")
-
-        try:
-            print('\nTesting getMax method using glpk...')
-            max_val = S.getMax(0, 'glpk')
-            print('MaxValue = {}, true_val = {}'.format(max_val, pred_ub[0]))
-            assert max_val == pred_ub[0], 'error: wrong results'
-        except Exception as e:
-            print("Test Fail!")
-            logging.error(traceback.format_exc(e))
-            self.n_fails = self.n_fails + 1
-        else:
-            print("Test Successfull!")
-
-        try:
-            print('\nTesting getMax method using linprog...')
-            max_val = S.getMax(0, 'linprog')
-            print('MaxValue = {}, true_val = {}'.format(max_val, pred_ub[0]))
-            assert max_val == pred_ub[0], 'error: wrong results'
-        except Exception as e:
-            print("Test Fail!")
-            logging.error(traceback.format_exc(e))
-            self.n_fails = self.n_fails + 1
-        else:
-            print("Test Successfull!")
-
-    def test_affineMap(self):
-
-        self.n_tests = self.n_tests + 1
-
-        mu = np.random.rand(3,)
-        Sig = np.eye(3)
-        pred_lb = np.random.rand(3,)
-        pred_ub = pred_lb + 0.2
-        S = ProbStar(mu, Sig, pred_lb, pred_ub)
-
-        A = np.random.rand(2, 3)
-        b = np.random.rand(2,)
-
-        try:
-            print('\nTesting affine mapping method...')
-            S1 = S.affineMap(A, b)
-            print('original probstar:')
-            print(S.__str__())
-            print('new probstar:')
-            print(S1.__str__())
-        except Exception as e:
-            print("Test Fail!")
-            logging.error(traceback.format_exc(e))
-            self.n_fails = self.n_fails + 1
-        else:
-            print("Test Successfull!")
-
-    def test_isEmptySet(self):
-
-        self.n_tests = self.n_tests + 1
-
-        mu = np.random.rand(3,)
-        Sig = np.eye(3)
-        pred_lb = np.random.rand(3,)
-        pred_ub = pred_lb + 0.2
-        S = ProbStar(mu, Sig, pred_lb, pred_ub)
-
-        try:
-            print('\nTesting isEmptySet method...')
-            res = S.isEmptySet('gurobi')
-            print('res: {}'.format(res))
-        except Exception as e:
-            print("Test Fail!")
-            logging.error(traceback.format_exc(e))
-            self.n_fails = self.n_fails + 1
-        else:
-            print("Test Successfull!")
-
-    def test_updatePredicateRanges(self):
-
-        self.n_tests = self.n_tests + 2
-
-        pred_lb = np.array([-1.0, -1.0])
-        pred_ub = np.array([1.0, 1.0])
-        newC = np.array([-0.25, 1.0])
-        newd = np.array([0.25])
-
-        try:
-            print('\nTesting updatePredicateRanges method 1...')
-            new_pred_lb, new_pred_ub = ProbStar.updatePredicateRanges(newC,
-                                                                      newd,
-                                                                      pred_lb,
-                                                                      pred_ub)
-            print('new_pred_lb: {}, new_pred_ub: {}'.format(new_pred_lb,
-                                                            new_pred_ub))
-            assert new_pred_ub[1] == 0.5, 'error: wrong results'
-        except Exception as e:
-            print("Test Fail!")
-            logging.error(traceback.format_exc(e))
-            self.n_fails = self.n_fails + 1
-        else:
-            print("Test Successfull!")
-
-        newC = np.array([0.25, -1.0])
-        newd = np.array([-0.25])
-
-        try:
-            print('\nTesting updatePredicateRanges method 2...')
-            new_pred_lb, new_pred_ub = ProbStar.updatePredicateRanges(newC,
-                                                                      newd,
-                                                                      pred_lb,
-                                                                      pred_ub)
-            print('new_pred_lb: {}, new_pred_ub: {}'.format(new_pred_lb,
-                                                            new_pred_ub))
-            assert new_pred_lb[1] == 0.0, 'error: wrong results'
-        except Exception as e:
-            print("Test Fail!")
-            logging.error(traceback.format_exc(e))
-            self.n_fails = self.n_fails + 1
-        else:
-            print("Test Successfull!")
-
-    def test_addConstraint(self):
-
-        self.n_tests = self.n_tests + 1
-
-        mu = np.random.rand(2,)
-        Sig = np.eye(2)
-        pred_lb = np.array([-1.0, -1.0])
-        pred_ub = np.array([1.0, 1.0])
-        S = ProbStar(mu, Sig, pred_lb, pred_ub)
-        C = np.array([-0.25, 1.0])
-        d = np.array([0.25])
-
-        S.addConstraint(C, d)
-
-        try:
-            print('\nTesting addConstraint method...')
-            print('Before adding new constraint')
-            S.__str__()
-            S.addConstraint(C, d)
-            print('After adding new constraint')
-            S.__str__()
-        except Exception as e:
-            print("Test Fail!")
-            logging.error(traceback.format_exc(e))
-            self.n_fails = self.n_fails + 1
-        else:
-            print("Test Successfull!")
-
-
-if __name__ == "__main__":
-
-    test_probstar = Test()
-    print('\n=======================\
-    ================================\
-    ================================\
-    ===============================\n')
-    test_probstar.test_constructor()
-    test_probstar.test_str()
-    test_probstar.test_estimateRange()
-    test_probstar.test_glpk()
-    test_probstar.test_getMin()
-    test_probstar.test_getMax()
-    test_probstar.test_affineMap()
-    test_probstar.test_isEmptySet()
-    test_probstar.test_updatePredicateRanges()
-    test_probstar.test_addConstraint()
-    print('\n========================\
-    =================================\
-    =================================\
-    =================================\n')
-    print('Testing ProbStar Class: fails: {}, successfull: {}, \
-    total tests: {}'.format(test_probstar.n_fails,
-                            test_probstar.n_tests - test_probstar.n_fails,
-                            test_probstar.n_tests))
+        assert dim > 0, 'error: invalid dimension'
+        lb = -np.random.rand(dim,)
+        ub = np.random.rand(dim,)
+        
+        return Star(lb, ub)

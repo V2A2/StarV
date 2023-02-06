@@ -21,3 +21,34 @@ Sollution:
 sudo apt install libglpk-dev python3.8-dev libgmp3-dev
 
 pip install glpk
+
+3) install timebudget: sudo pip install timebudget
+
+4) install ipyparallel: sudo pip install ipyparallel (under testing, not finished yet)
+
+	***NOTE: You may need (before installing ipyparallel): sudo pip install python-dateutil==2.8.2
+
+5) intall Ray (for parallel computing) (under testing, not finished yet): pip install -U "ray[default]"
+
+	***Link: https://docs.ray.io/en/master/ray-overview/installation.html
+	*** Some incompatible error in tensorflow may come
+	
+	ERROR: tensorflow 2.5.0 has requirement typing-extensions~=3.7.4, but you'll have typing-extensions 4.3.0 which is 	      incompatible.
+        ERROR: google-api-core 2.10.1 has requirement protobuf<5.0.0dev,>=3.20.1, but you'll have protobuf 3.17.3 which is incompatible.
+
+
+6) install pypolycontain: pip install pypolycontain (this is a polytopic package supporting all relevant polytope operations but have a problem with plotting)
+
+7) install polytope: pip install polytope (used in set/probstar and star module)
+
+8) install pypoman: pip install pypoman (commone operations for polyhredon used in util/plot module)
+
+https://scaron.info/doc/pypoman/
+
+9) install tabulate: pip install tabulate
+
+10) install mathplotlib: pip install mathplotlib
+
+
+	
+

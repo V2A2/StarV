@@ -1,0 +1,82 @@
+"""
+Fully Connected Layer Class
+Dung Tran, 9/9/2022
+"""
+
+import numpy as np
+import multiprocessing
+
+class fullyConnectedLayer(object):
+    """fullyConnectedLayer class
+
+        properties: 
+            @W: weight matrix
+            @b: bias vector
+        methods:
+            @evaluate: evaluate method
+            @reach: reach method
+            @rand: random generate a fullyConnectedLayer
+    """
+
+    def __init__(self, W, b):
+
+        assert isinstance(W, np.ndarray), 'error: weight matrix should be a numpy array'
+        assert isinstance(b, np.ndarray), 'error: bias vector should be a numpy array'
+
+        assert W.shape[0] == b.shape[0], 'error: inconsistent dimension between weight matrix and bias vector'
+        self.W = W
+        self.b = b
+        self.in_dim = W.shape[1]
+        self.out_dim = W.shape[0]
+
+    def evaluate(self, x):
+        'evaluation on an input vector x'
+
+        assert isinstance(x, np.ndarray), 'error: input vector should be a numpy array'
+        assert x.shape[0] != self.in_dim, 'error: inconsistent dimension between the weight matrix and input vector'
+
+        y = np.matmul(self.W, x) + self.b
+        return y
+
+    @staticmethod
+    def rand(in_dim, out_dim):
+        """ Random generate a fullyConnectedLayer"""
+
+        W = np.random.rand(out_dim, in_dim)
+        b = np.random.rand(out_dim)
+
+        return fullyConnectedLayer(W, b)
+
+    def reachExactSingleInput(self, In):
+        return In.affineMap(self.W, self.b)
+        
+    def reach(self, *args):
+        """main reachability method
+           Args:
+               @I: a list of input set (Star or ProbStar)
+               @pool: parallel pool: None or multiprocessing.pool.Pool
+               
+            Return: 
+               @R: a list of reachable set
+
+        """
+
+        pool = None
+        
+        if len(args) == 1:
+            In = args[0]
+        elif len(args) == 2:
+            [In, pool] = args
+        else:
+            raise Exception('error: invalid number of arguments, should be 1 or 2')
+
+        S = []
+        if pool is None:
+            for i in range(0, len(In)):
+                S.append(self.reachExactSingleInput(In[i]))
+        elif isinstance(pool, multiprocessing.pool.Pool):
+            S = S + pool.map(self.reachExactSingleInput, In)
+        else:
+            raise Exception('error: unknown/unsupport pool type')              
+                
+        return S
