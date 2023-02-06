@@ -1,8 +1,17 @@
 # StarV
-Event-driven Monitoring and Verification Codesign for Learning-enabled Cyber-Physical Systems with Star Reachability
+Event-driven Monitoring and Verification Codesign for Distributed Learning-enabled Cyber-Physical Systems with Star Reachability
  - Operating System: Ubuntu 18., 20.
  - Python version: 3.0+
  - Independencies: gurobipy, glpk, polytope, pypoman, tabulate, mathplotlib
+ - Key features: 
+    1) Qualitative and quantitative verification algorithms for deep neural networks and distributed Le-CPS
+      a) qualitative: support exact-star, approx-star, relax-star, zonotope, abstract-domain, imagestar reachability
+      b) quantitative: probstar reachability
+    2) Probabilistic Star Temporal Logic (under development)
+      a) aim to quantitatively verify temporal behaviors of Le-CPS 
+    3) Monitoring algorithms (under development)
+    4) Target ROS-based applications (under development)
+ 
  
 # StarV installation, tests and artifacts
 
