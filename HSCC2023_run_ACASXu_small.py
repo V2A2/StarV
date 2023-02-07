@@ -5,12 +5,12 @@ Date: 8/10/2022
 """
 
 
-from StarEV.verifier.verifier import quantiVerifyBFS
-from StarEV.set.probstar import ProbStar
+from StarV.verifier.verifier import quantiVerifyBFS
+from StarV.set.probstar import ProbStar
 import numpy as np
-from StarEV.util.load import load_ACASXU
+from StarV.util.load import load_ACASXU
 import time
-from StarEV.set.star import Star
+from StarV.set.star import Star
 from tabulate import tabulate
 import os
 
