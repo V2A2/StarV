@@ -50,7 +50,7 @@ Event-driven Monitoring and Verification Codesign for Distributed Learning-enabl
         
 - Install mathplotlib: 
 
-        pip install mathplotlib
+        pip install matplotlib
         
         
         
