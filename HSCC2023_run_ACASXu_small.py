@@ -16,7 +16,7 @@ import os
 
 
 
-def quantiverify_ACASXU_all(self, x, y, spec_ids, numCores, unsafe_mat, unsafe_vec, p_filters):
+def quantiverify_ACASXU_all(x, y, spec_ids, numCores, unsafe_mat, unsafe_vec, p_filters):
     """Verify all ACASXU networks with spec_id"""
 
     data = []
