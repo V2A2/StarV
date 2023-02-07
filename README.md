@@ -2,7 +2,7 @@
 Event-driven Monitoring and Verification Codesign for Distributed Learning-enabled Cyber-Physical Systems with Star Reachability
  - Operating System: Ubuntu 18., 20.
  - Python version: 3.0+
- - Independencies: gurobipy, glpk, polytope, pypoman, tabulate, mathplotlib
+ - Independencies: gurobipy, glpk, polytope, pypoman, tabulate, mathplotlib, ipyparallel
  - Key features: 
     1) Qualitative and quantitative verification algorithms for deep neural networks and distributed Le-CPS 
     2) Probabilistic Star Temporal Logic (under development)
@@ -67,6 +67,10 @@ Event-driven Monitoring and Verification Codesign for Distributed Learning-enabl
 - Install mathplotlib: 
 
         pip install matplotlib
+
+- Install ipyparallel:
+
+        pip install ipyparallel
         
         
         
