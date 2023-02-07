@@ -19,12 +19,16 @@ Event-driven Monitoring and Verification Codesign for Distributed Learning-enabl
   - Go inside StarV and run tests or artifacts
  
 # Dependencies installation
+
+- Intall pip for Python3:
+
+        sudo apt install python3-pip
  
 - Install gurobipy: 
   
     a) use the following command for python 3.0+
   
-        python -m pip install - https://pypi.gurobi.com gurobipy
+        python3 -m pip install gurobipy==10.0.1
     
     b) obtain the relevant license and activate using grbgetkey (have to download gurobi install files from website to access    grbgetkey as that's not installed using pip
     
@@ -33,8 +37,12 @@ Event-driven Monitoring and Verification Codesign for Distributed Learning-enabl
 - Install glpk: 
    
         pip3 install glpk
-        notes: error may come: ERROR: could not build wheels for glpk which use PEP 517 and cannot be installed directly
-        sollution: sudo apt install libglpk-dev python3.8-dev libgmp3-dev, pip install glpk
+	
+  * notes: error may come: ERROR: could not build wheels for glpk which use PEP 517 and cannot be installed directly
+  * sollution:
+  
+	sudo apt install libglpk-dev libgmp3-dev
+	pip install glpk
    
 - Install polytope: (polytope operations)
         
@@ -42,7 +50,15 @@ Event-driven Monitoring and Verification Codesign for Distributed Learning-enabl
    
 - Install pypoman: (plot star sets) 
    
-        pip install pypoman 
+        pip install pypoman
+
+  * Error may come when you try to install pypoman on Ubuntu 22.04
+  * Solution: intall pycddlib first: then install pypoman
+  
+        sudo apt-get install libgmp-dev python3-dev
+	pip install pypoman
+	
+  * Check out alternative solution here [https://github.com/mcmtroffaes/pycddlib/issues/53]
      
 - Install tabulate: (print latex table)
 
