@@ -42,6 +42,7 @@ Event-driven Monitoring and Verification Codesign for Distributed Learning-enabl
   * sollution:
   
 	sudo apt install libglpk-dev libgmp3-dev
+	
 	pip install glpk
    
 - Install polytope: (polytope operations)
@@ -56,6 +57,7 @@ Event-driven Monitoring and Verification Codesign for Distributed Learning-enabl
   * Solution: intall pycddlib first: then install pypoman
   
         sudo apt-get install libgmp-dev python3-dev
+	
 	pip install pypoman
 	
   * Check out alternative solution here [https://github.com/mcmtroffaes/pycddlib/issues/53]
