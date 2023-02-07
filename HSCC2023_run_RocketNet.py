@@ -107,4 +107,4 @@ def quantiverify_RocketNet(numCores, net_ids, spec_ids, p_filters):
 
 if __name__ == "__main__":
 
-    quantiverify_RocketNet(numCores=8, net_ids=[0, 1], spec_ids=[1,2], p_filters=[0.0, 1e-8, 1e-5, 1e-3])
+    quantiverify_RocketNet(numCores=4, net_ids=[0, 1], spec_ids=[1,2], p_filters=[0.0, 1e-8, 1e-5, 1e-3])
