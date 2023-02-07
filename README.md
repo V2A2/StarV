@@ -82,7 +82,9 @@ Event-driven Monitoring and Verification Codesign for Distributed Learning-enabl
 
 - Run following commands, a new folder named artifact will be generated to store all the results (figures and tables), the tables and figures will be also printed on the screen. 
 
-- Our experiment is done on a computer with the following configuration: Intel Core i7-10700 CPU @ 2.9GHz x 8 Processors, 63.7 GiB Memory, 64-bit Ubuntu 18.04.6 LTS OS. 
+- Our experiment is done on a computer with the following configuration: Intel Core i7-10700 CPU @ 2.9GHz x 8 Processors, 63.7 GiB Memory, 64-bit Ubuntu 18.04.6 LTS OS.
+
+- Only 4 cores are used in the verification due to memory consumption (ACASXu full and RocketNet)
 
 - Figure 5 & Table 1:
    
