@@ -38,12 +38,10 @@ Event-driven Monitoring and Verification Codesign for Distributed Learning-enabl
    
         pip3 install glpk
 	
-  * notes: error may come: ERROR: could not build wheels for glpk which use PEP 517 and cannot be installed directly
+  * notes: error may come: ERROR: could not build wheels for glpk 
   * sollution:
   
-	sudo apt install libglpk-dev libgmp3-dev
-	
-	pip install glpk
+	sudo apt install libglpk-dev libgmp3-dev pip install glpk
    
 - Install polytope: (polytope operations)
         
@@ -56,9 +54,7 @@ Event-driven Monitoring and Verification Codesign for Distributed Learning-enabl
   * Error may come when you try to install pypoman on Ubuntu 22.04
   * Solution: intall pycddlib first: then install pypoman
   
-        sudo apt-get install libgmp-dev python3-dev
-	
-	pip install pypoman
+        sudo apt-get install libgmp-dev python3-dev pip install pypoman
 	
   * Check out alternative solution here [https://github.com/mcmtroffaes/pycddlib/issues/53]
      
