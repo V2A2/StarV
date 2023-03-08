@@ -6,7 +6,11 @@ Date: 9/11/2022
 
 import numpy as np
 from StarV.set.probstar import ProbStar
-from StarV.util.plot import probstar2polytope, plot_probstar
+#from StarV.util.plot import probstar2polytope, plot_probstar, plot_2D_Star
+
+from StarV.util.plot import plot_probstar, plot_2D_Star, plot_quantstar
+from StarV.set.star import Star
+from StarV.set.quantstar import QuantizedStar
 
 
 class Test(object):
@@ -65,7 +69,20 @@ class Test(object):
             self.n_fails = self.n_fails + 1
         else:
             print("Test Successfull!")
+            
+    def test_plot_quantstar(self):        
+        self.n_tests += 1
+        
+        star_lb = np.array([-4.5, -3.3])
+        star_ub = np.array([4.5, 3.3])
+        
+        test_star = Star(star_lb, star_ub)
 
+        #plot_2D_Star(test_star)
+        
+        test_quant_star = QuantizedStar(test_star)
+        
+        plot_quantstar(test_quant_star)
 
 
 if __name__ == "__main__":
@@ -75,8 +92,9 @@ if __name__ == "__main__":
     ================================\
     ================================\
     ===============================\n')
-    test_plot.test_probstar2polytope()
-    test_plot.test_plot_probstar()
+    #test_plot.test_probstar2polytope()
+    #test_plot.test_plot_probstar()
+    test_plot.test_plot_quantstar()
     
     print('\n========================\
     =================================\
