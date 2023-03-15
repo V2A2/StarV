@@ -68,9 +68,9 @@ def quantiverify_ACASXU_all(x, y, spec_ids, numCores, unsafe_mat, unsafe_vec, p_
 
 if __name__ == "__main__":
    
-    x = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-    y = [2, 3, 4, 5, 6, 7, 8, 9, 7, 8, 9] 
-    s = [2, 2, 2, 2, 2, 3, 3, 3, 4, 4, 4] # property id
+    x = [1, 2, 2, 3, 3, 3, 4, 4, 5, 1, 1]
+    y = [6, 2, 9, 1, 6, 7, 1, 7, 3, 7, 9] 
+    s = [2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 4] # property id
     quantiverify_ACASXU_all(x=x, y=y, spec_ids=s, numCores=8, unsafe_mat=None, unsafe_vec=None, p_filters=[0.0, 1e-5])
 
     
