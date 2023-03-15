@@ -1,0 +1,11 @@
+gurobipy==10.0.1
+glpk
+pycddlib
+polytope
+pypoman
+tabulate
+matplotlib
+numpy
+scipy
+ipyparallel
+torchvision
