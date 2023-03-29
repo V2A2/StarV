@@ -12,7 +12,7 @@ from gurobipy import GRB
 from scipy.optimize import linprog
 from scipy.stats import mvn
 from scipy.linalg import block_diag
-import glpk
+#import glpk
 import polytope as pc
 from StarV.util.minimax_tilting_sampler import TruncatedMVN
 

@@ -11,7 +11,7 @@ import gurobipy as gp
 from gurobipy import GRB
 from scipy.optimize import linprog
 from scipy.linalg import block_diag
-import glpk
+#import glpk
 import polytope as pc
 
 

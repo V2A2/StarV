@@ -9,7 +9,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pypoman
 import warnings
-from sklearn.utils.extmath import cartesian
 
 def getVertices(I):
     """Get all vertices of a star"""
@@ -151,16 +150,10 @@ def plot_star(I, dir_mat=None, dir_vec=None, label=('$y_1$', '$y_2$'), show=True
         plt.show()
 
 def plot_quantstar(I, show = True):
-    import math
     
-    vertices = []
-    
-    for i in range(I.nVars):
-        vertices.append(np.array(range(math.ceil(I.lb[i]), math.floor(I.ub[i]), 1)))
-            
-    result = cartesian(vertices)
-    
-    plotting_lists = [plt_list for plt_list in [result[:, i] for i in range(result.shape[1])]]
+    qStar_vertices = I.generate_vertices()
+
+    plotting_lists = [plt_list for plt_list in [qStar_vertices[:, i] for i in range(qStar_vertices.shape[1])]]
     print(plotting_lists)
     plt.scatter(*plotting_lists)
     

@@ -1,6 +1,8 @@
-from StarV.set.star import Star
+from StarV.set.star import Star, pc
 
 import numpy as np
+
+from StarV.set.polyhedron import Polyhedron
 
 class QuantizedStar:
     """
@@ -34,7 +36,45 @@ class QuantizedStar:
         else:
             raise NotImplementedError('The given input is not supported by the constructor')
         
-        
+    def contains(self, vertex):
+        """
+        """
+
+        assert vertex.shape[0] == 1, 'error: Dimension mismatch'
+        assert vertex.shape[1] != 1, 'error: Invalid Star point'
+    
+    def generate_vertices(self):
+        import math
+        from sklearn.utils.extmath import cartesian
+
+        """
+            Generates a set of vertices for the current QuantizedStar
+            using the initialized Quantizer
+
+            return -> np.array([*]) - a set of vertices
+        """
+
+        vertices = []
+    
+        for i in range(self.nVars):
+            vertices.append(np.array(range(math.ceil(self.lb[i]), math.floor(self.ub[i]) + 1, 1)))
+            
+        vertices_cartesian = cartesian(vertices)
+
+        p = Polyhedron.from_bounds(self.lb, self.ub)
+
+        result = np.array([])
+
+        i = 0
+        for vertex in vertices_cartesian:
+            if not p.contains(vertex):
+                vertices_cartesian = np.delete(vertices_cartesian, i)
+                i -= 1
+
+            i += 1
+
+        return vertices_cartesian
+
     # ======================================================================================
     def _validate_set_args(self, set):
         assert isinstance(set.V, np.ndarray), 'error: \

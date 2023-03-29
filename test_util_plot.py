@@ -70,7 +70,7 @@ class Test(object):
         else:
             print("Test Successfull!")
             
-    def test_plot_quantstar(self):        
+    def test_plot_quantstar_square(self):        
         self.n_tests += 1
         
         star_lb = np.array([-4.5, -3.3])
@@ -78,11 +78,15 @@ class Test(object):
         
         test_star = Star(star_lb, star_ub)
 
-        #plot_2D_Star(test_star)
+        plot_2D_Star(test_star)
         
         test_quant_star = QuantizedStar(test_star)
         
         plot_quantstar(test_quant_star)
+
+    def test_plot_quantstar(self):
+        self.test_plot_quantstar_square()
+
 
 
 if __name__ == "__main__":
