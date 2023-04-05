@@ -483,3 +483,129 @@ def combineProbStars(probstar_sig):
     # S is a probstar that contains all points for satisfaction
 
     return S
+
+
+class TimedAtomicPredicate(object):
+    'Timed Atomic Predicate has the form Ax[t] <= b'
+
+    def __init__(self, A, b, t):
+        
+        assert isinstance(A, np.ndarray), 'error: A should be a numpy array'
+        assert isinstance(b, np.ndarray), 'error: b should be a numpy array'
+        assert len(b.shape) == 1, 'error: b should be 1D numpy array'
+        assert len(A.shape) == 1, 'error: A should be 1D numpy array'
+        assert b.shape[0] == 1, 'error: b should be a scalar'
+
+        self.A = A
+        self.b = b
+
+        assert t >= 0, 'error: t should be >= 0'
+        self.t = t
+
+
+    @staticmethod
+    def rand(nVars, t_limit):
+        A = np.random.rand(nVars)
+        b = np.random.rand(1)
+        t = np.random.randi(1, t_limit)
+
+        P = TimedAtomicPredicate(A, b, t)
+
+        return P
+        
+class DynamicFormula(object):
+    '''
+    Dynamic formular F = [[] [] [] [] ... []] list of n lists
+
+    [] : [C1 C2 ... Ck] timed atomic predicate (TAP)
+
+    Timed atomic predicate: is a predicate at a time step t
+
+    convention: outer list <-> OR, inner list <-> AND
+
+    For example: [[P0 P1] [P2 P3]] <-> (P0 AND P1) OR (P2 AND P3)
+
+    Author: Dung Tran, Date 4/3/2022
+    '''
+
+    def __init__(self, F):
+
+        assert isinstance(F, list), 'error: input should be a list'
+        self.F = F
+        self.length = len(F)
+
+    def OR_expand(self, P):
+        'expand the formula with OR operation'
+
+        assert isinstance(P, TimedAtomicPredicate), 'error: input should be a timed atomic predicate'
+
+        self.F.append([P])
+        self.length = self.length + 1
+            
+
+    def AND_expand(self, P):
+        'expand the formula with AND operation'
+
+        # [[P0] [P1]] AND P = [[P0 P] [P1 P]] 
+        
+        assert isinstance(P, TimedAtomicPredicate), 'error: input should be a timed atomic predicate'
+
+        if self.length == 0:
+            self.F.append([P])
+        else:
+            for i in range(0, self.length):
+                self.F[i].append(P)
+
+    
+    def OR_EVENTUALLY_expand(self, P, t_start, t_final):
+        'expand the formula with EVENTUALLY temporal operator'
+
+        # [[P0] [P1]] OR EV[k1, k2](P) <-> [[P0] [P1] [P_k1] ... [P_k2]]
+
+        assert isinstance(P, AtomicPredicate), 'error: input predicate should be an atomic predicate'
+
+        for t in range(t_start, t_final + 1):
+            P1 = TimedAtomicPredicate(P.A, P.b, t)
+            self.OR_expand(P1)
+
+    def AND_EVENTUALLY_expand(self, P, t_start, t_final):
+        'expand the formula with EVENTUALLY temporal operator'
+
+        # [[P0] [P1]] AND EV_[k1, k2] (P) <-> ([P0] OR [P1]) AND ([P_k1] OR ... OR [P_k2])
+
+        # = [[P0 Pk1] ... [P0 Pk2] [P1 Pk1] ... [P1 Pk2]] 
+
+        assert isinstance(P, AtomicPredicate), 'error: input predicate should be an atomic predicate'
+
+        Pt = []
+
+        for t in range(t_start, t_final + 1):
+            P1 = TimedAtomicPredicate(P.A, P.b, t)
+            Pt.append(P1)
+
+        if self.length == 0:
+            for i in range(0,len(Pt)):
+                self.F.append([Pt[i]])
+        else:
+                
+            newF = []
+            for i in range(0, self.length):
+                for j in range(0, len(Pt)):
+                    newF.append(self.F[i].append(Pt[i]))
+
+            self.F = newF
+
+        self.length = len(self.F)
+                
+
+        
+
+    
+            
+            
+        
+        
+        
+        
+
+    
