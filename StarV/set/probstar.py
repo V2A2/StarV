@@ -2,6 +2,8 @@
 Probabilistics Star Class
 Dung Tran, 8/10/2022
 
+Update: 8/13/2023
+
 """
 
 # !/usr/bin/python3
@@ -209,7 +211,9 @@ class ProbStar(object):
                 # U'*U = L'*L = I_r
                 U, Q, L = np.linalg.svd(C)
                 Q1 = np.diag(Q)
-                Q1 = np.matmul(Q1, L)
+                r = L.shape[0] - Q1.shape[0]
+                L1 = L[0:r, :]
+                Q1 = np.matmul(Q1, L1)
 
                 # linear transformation a_r' = Q1*a_r of original normal variables
                 mu1 = np.matmul(Q1, self.mu)
@@ -689,6 +693,31 @@ class ProbStar(object):
 
         return self
 
+    def addConstraintWithoutUpdateBounds(self, C, d):
+
+        """ Add a single constraint to a ProbStar, self & Cx <= d"""
+        
+        assert isinstance(C, np.ndarray) and len(C.shape) == 1, 'error: \
+        constraint matrix should be 1D numpy array'
+        assert isinstance(d, np.ndarray) and len(d.shape) == 1, 'error: \
+        constraint vector should be a 1D numpy array'
+        assert C.shape[0] == self.dim, 'error: \
+        inconsistency between the constraint matrix and the probstar dimension'
+
+        v = np.matmul(C, self.V)
+        newC = v[1:self.nVars+1]
+        newd = d - v[0]
+
+        if len(self.C) != 0:
+            self.C = np.vstack((newC, self.C))
+            self.d = np.concatenate([newd, self.d])
+            
+        else:
+            self.C = newC.reshape(1, self.nVars)
+            self.d = newd
+
+        return self
+
     def addMultipleConstraints(self, C, d):
         """ Add multiple constraint to a ProbStar, self & Cx <= d"""
 
@@ -724,6 +753,8 @@ class ProbStar(object):
     def rand(*args):
         """ Randomly generate a ProbStar """
 
+        # Update: 8/13/2023 by Dung Tran
+
         if len(args) == 1:
             dim = args[0]
             nVars = dim
@@ -731,13 +762,25 @@ class ProbStar(object):
             dim = args[0]
             nVars = args[1]
 
+        elif len(args) == 4:
+            dim = args[0]
+            nVars = args[1]
+            pred_lb = args[2]
+            pred_ub = args[3]
+
+            assert isinstance(pred_lb, np.ndarray), 'predicate_lb should be a 1-d numpy array'
+            assert isinstance(pred_ub, np.ndarray), 'predicate_ub should be a 1-d numpy array'
+
+            assert pred_lb.shape[0] == pred_ub.shape[0], 'inconsistency between predicate_lb and predicate_ub'
+            assert pred_lb.shape[0] == nVars, 'inconsistency between the length of predicate_lb and number of predicate variables'
         else:
             raise RuntimeError('invalid number of arguments, should be 1 or 2')
             
         V = np.random.rand(dim, nVars + 1)
-        mu = np.random.rand(nVars,)
-        pred_lb = -np.random.rand(nVars,)
-        pred_ub = np.random.rand(nVars,)
+        if len(args) != 4:    
+            pred_lb = -np.random.rand(nVars,)
+            pred_ub = np.random.rand(nVars,)
+            
         mu = 0.5*(pred_lb + pred_ub)
         a = 3.0
         sig = (mu - pred_lb)/a

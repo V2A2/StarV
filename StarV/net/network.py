@@ -44,7 +44,7 @@ class NeuralNetwork(object):
     def info(self):
         """print information of the network"""
 
-        print('Network Information:')
+        print('\n=============NETWORK===============')
         print('Network type: {}'.format(self.type))
         print('Input Dimension: {}'.format(self.in_dim))
         print('Output Dimension: {}'.format(self.out_dim))

@@ -80,6 +80,7 @@ dProbStarTL QUANTITATIVE SEMANTICS
 
 import numpy as np
 from StarV.set.probstar import ProbStar
+from itertools import combinations
 import copy
 
 
@@ -87,7 +88,7 @@ class AtomicPredicate(object):
 
     'P:= Ax <= b'
 
-    def __init__(self, A, b):
+    def __init__(self, A, b, t=None):
 
         assert isinstance(A, np.ndarray), 'error: A should be a numpy array'
         assert isinstance(b, np.ndarray), 'error: b should be a numpy array'
@@ -98,6 +99,13 @@ class AtomicPredicate(object):
         self.A = A
         self.b = b
         self.type = 'AtomicPredicate'
+        self.t = t
+
+    def at_time(self, t):
+
+        assert t >= 0, 'error: invalid time step, t should be >= 0'
+        
+        return AtomicPredicate(self.A, self.b, t)
 
     def print(self):
 
@@ -113,6 +121,10 @@ class AtomicPredicate(object):
         str = str + '{}'.format(self.b[0])
 
         return str
+
+    def print_info(self):
+
+        print('{} * x[t={}] <= {}\n'.format(self.A, self.t, self.b))
 
     def render(self, probstar_sig):
         'obtain a concrete set of constraints for satisfaction of an atomic predicate on multiple reach set'
@@ -163,12 +175,14 @@ class AtomicPredicate(object):
         return S
 
     @staticmethod
-    def rand(nVars):
+    def rand(nVars, t=None):
         'generate random predicate'
 
         A = np.random.rand(nVars)
         b = np.random.rand(1)
         P = AtomicPredicate(A, b)
+        if t is not None:
+            P.at_time(t)
 
         return P    
     
@@ -378,6 +392,100 @@ class Formula(object):
         
         return str
 
+    def getDynamicFormula(self):
+        'automatically generate dynamic formula: a abstract disjunctive normal form for verification'
+
+        # This works like a parser
+        # Dung Tran: 06/2023
+
+
+
+        # an example EV_[0,5](P1 AND EV_[2,4] (P2 AND P3)), P1, P2, P3 are atomic predicates
+        # formula F = [op1 lb1 P1 op2 op3 lb2 P2 op4 P3 rb2 rb1]
+
+        # Automatically generate the abstract constraints of this formula
+
+        # algorithm: idea: inner loop to outer loop algorithm, start from inner most loop and expand to outer most loop
+        # Inner most loop  (loop 0): (P2 AND P3)
+        # Inner loop 1: EV_[2,4] (P2 AND P3)
+        # Inner loop 2: P1 AND E_[2,4] (P2 AND P3)
+        # Outer loop EV_[0,5] (P1 AND EV_[2,4] (P2 AND P3))
+
+        # We start with an empty dynamic formula F0 = [],
+        # We expand the dynamic formula F0 from the right to the left of the fomula
+
+        # Step 0: F0 = []
+        # Step 1: F0 = P3 AND P2
+        # Step 2: F0 = EV_[2,4] F0 = (P3 AND P2)_t=2 OR (P3 AND P2)_t=3 OR (P3 AND P2)_t=4
+
+        # Step 3: F0 = P1 AND F0
+        # Step 4: F0 = EV_[0,5] F0
+
+        lb_idxes, rb_idxes = self.getLoopIds()
+        inner_f = self.getInnerMostLoopFormula()
+        # expand the formula from inner loop to outer loop
+
+        DF = DynamicFormula(F=[])
+        DF.subFormula_expand(inner_f)
+        
+
+        if len(lb_idxes) >= 2:
+        
+            for i in range(len(lb_idxes), 1, -1):
+                # search for next outer loop
+                start_id = lb_idxes[i-2]
+                end_id = lb_idxes[i-1]
+                sub_f = self.getSubFormula(start_id+1, end_id)
+                DF.subFormula_expand(sub_f)
+
+            if start_id > 0:
+                sub_f = self.getSubFormula(0, start_id)
+                DF.subFormula_expand(sub_f)
+
+        if len(lb_idxes) == 1:
+            sub_f = self.getSubFormula(0, lb_idxes[0])
+            DF.subFormula_expand(sub_f)
+            
+        return DF
+        
+                     
+    def getSubFormula(self, start_id, end_id):
+        return self.formula[start_id:end_id]
+
+    def getInnerMostLoopFormula(self):
+        'get the inner most loop subformula'
+
+        lb_idxes, rb_idxes = self.getLoopIds()
+        nloops = len(lb_idxes)
+        if nloops == 0:
+            F = self.formula
+        else:
+            lb_id = lb_idxes[nloops-1]
+            rb_id = rb_idxes[0]
+            F = self.formula[lb_id +1:rb_id]
+
+        return F
+        
+    def getLoopIds(self):
+        'get all loop ids'
+
+        lb_idxes = []  # indexes of left brackets
+        rb_idxes = []  # indexes of right brackets
+
+        # we use left bracket and right brackets' indexes to determine inner loops
+        
+        for id in range(0,self.length):
+            if isinstance(self.formula[id], _LeftBracket_):
+                lb_idxes.append(id)
+            if isinstance(self.formula[id], _RightBracket_):
+                rb_idxes.append(id)
+
+        if len(lb_idxes) != len(rb_idxes):
+            raise RuntimeError('error: syntax error, number of left brackets is not equal to number of right brackets')
+
+        return lb_idxes, rb_idxes
+        
+
     def render(self, probstar_signal):
         'render a formula on a probstar_signal, return a concrete probstar with constraints for statisfaction'
     
@@ -438,9 +546,28 @@ def renderConjunctiveAlwaysFormula(f, probstar_signal):
 def combineProbStars(probstar_sig):
     'combine multiple probstars with the same distribution for the predicates into a single one'
 
+    # Update 8/13/2023 by Dung Tran
+
+    # In a probstar signal S = [S0, S1, ..., St] we may have several cases:
+    
+    # case 1) S0, S1, S2, ...St have the same number of predicates and their pred_lb, pred_ub are the same
+    #    --> This happen when we perform reachability analysis for linear system x[t+1] = Ax[t] + b
+    #    --> In this case, we use S0's predicate bounds for the combined probstar
+
+    # case 2) S0, S1, S2, ... St have the same number of predicates, but their pred_lb, pred_ub are different
+    #    --> This may hapen when we do exact reachability analysis Neural Network Control System (NNCS)
+    #    --> In this case the S0's bound is the largest bound, we will use it for the combined probstar
+    
+    # case 3) S0, S1, S2 .. St have different number of predicates
+    #    --> This may happen when we do approximate analysis for NNCS or RNN
+    #    --> In this case, we use the bound for the Si that has the maximum number of predicates
+    
+  
+    
+
     assert isinstance(probstar_sig, list), 'error: input should be a list of probstars'
 
-    
+        
     C = None
     d = None
     nVarMax = 0
@@ -461,7 +588,7 @@ def combineProbStars(probstar_sig):
                 dC = np.zeros((n, m1-m))
                 C = np.append(C, dC, axis=1)
             if m1 < m: # not usually happen
-                dC = np.zeros((n, m-m1))
+                dC = np.zeros((n1, m-m1))
                 C1 = np.append(C1, dC, axis=1)
 
             C = np.concatenate((C, C1), axis=0)
@@ -472,139 +599,325 @@ def combineProbStars(probstar_sig):
                 nVarMaxID = i
 
 
-    # combine all constraints into a single set of constraints
+        # combine all constraints into a single set of constraints, we use the lower bound and upper bound vectors of
+        # the probstar that has the maximum number of predicate variables
+        _, m = C.shape
+        V = np.eye(m,m)
+        center = np.zeros((m, 1))
+        V = np.append(center, V, axis=1)
+        S = ProbStar(V, C, d, probstar_sig[nVarMaxID].mu, probstar_sig[nVarMaxID].Sig,\
+                     probstar_sig[nVarMaxID].pred_lb, probstar_sig[nVarMaxID].pred_ub)
+        # S is a probstar that contains all points for satisfaction
+        # nVarMaxID is the index of the probstar contains all predicate variables
 
-    _, m = C.shape
-    V = np.eye(m,m)
-    center = np.zeros((m, 1))
-    V = np.append(center, V, axis=1)
-    S = ProbStar(V, C, d, probstar_sig[nVarMaxID].mu, probstar_sig[nVarMaxID].Sig,\
-                 probstar_sig[nVarMaxID].pred_lb, probstar_sig[nVarMaxID].pred_ub)
-    # S is a probstar that contains all points for satisfaction
 
     return S
 
-
-class TimedAtomicPredicate(object):
-    'Timed Atomic Predicate has the form Ax[t] <= b'
-
-    def __init__(self, A, b, t):
-        
-        assert isinstance(A, np.ndarray), 'error: A should be a numpy array'
-        assert isinstance(b, np.ndarray), 'error: b should be a numpy array'
-        assert len(b.shape) == 1, 'error: b should be 1D numpy array'
-        assert len(A.shape) == 1, 'error: A should be 1D numpy array'
-        assert b.shape[0] == 1, 'error: b should be a scalar'
-
-        self.A = A
-        self.b = b
-
-        assert t >= 0, 'error: t should be >= 0'
-        self.t = t
+def combineProbStars_with_indexes(probstar_sig, idxs):
+    'combine ProbStars in a probstar signal with specific indexes'
 
 
-    @staticmethod
-    def rand(nVars, t_limit):
-        A = np.random.rand(nVars)
-        b = np.random.rand(1)
-        t = np.random.randi(1, t_limit)
-
-        P = TimedAtomicPredicate(A, b, t)
-
-        return P
+    assert isinstance(idxs, tuple), 'error: indexes should be in a list'
+    S0 = []
+    for id in idxs:
+        S0.append(probstar_sig[id])
+    S = combineProbStars(S0)
+    
+    return S
+   
         
 class DynamicFormula(object):
     '''
-    Dynamic formular F = [[] [] [] [] ... []] list of n lists
+    Dynamic formula F = [[P0] [P1] [P2] [] ... [Pn]] list of n lists
 
-    [] : [C1 C2 ... Ck] timed atomic predicate (TAP)
+    Dynamic formula F is in disjunctive normal form (DNF): i.e., P0 OR P1 OR P2 ... OR Pn
+
+    [Pi] : [C1 C2 ... Ck], Ci: is a timed atomic predicate (TAP) (a linear constraint)
 
     Timed atomic predicate: is a predicate at a time step t
 
-    convention: outer list <-> OR, inner list <-> AND
-
-    For example: [[P0 P1] [P2 P3]] <-> (P0 AND P1) OR (P2 AND P3)
-
-    Author: Dung Tran, Date 4/3/2022
+    Author: Dung Tran, Date 4/3/2022, last update: 23/6/2023
     '''
 
-    def __init__(self, F):
+    def __init__(self, F=[]):
 
         assert isinstance(F, list), 'error: input should be a list'
         self.F = F
         self.length = len(F)
 
+    def print(self):
+        'print the dynamic formula'
+
+        if self.length == 0:
+            print('{}'.format(self.F))
+
+        else:
+            if self.length == 1:
+                print('Timed-Abstract Dynamic Formula: F = [[P0]], where:')
+            elif self.length == 2:
+                print('Timed-Abstract Dynamic Formula: F = [[P0] [P1]], where')
+            else:
+                print('Timed-Abstract Dynamic Formula: F = [[P0] OR ...OR [P{}]]'.format(self.length - 1))
+    
+            for i in range(0, self.length):
+                print('\nP{}:\n'.format(i))
+                Pi = self.F[i]
+                for j in range(0, len(Pi)):
+                    Pi[j].print_info()
+                
+
     def OR_expand(self, P):
         'expand the formula with OR operation'
 
-        assert isinstance(P, TimedAtomicPredicate), 'error: input should be a timed atomic predicate'
+        assert isinstance(P, AtomicPredicate), 'error: input should be a atomic predicate'
 
         self.F.append([P])
         self.length = self.length + 1
-            
+
+    def OR_concatenate(self, df):
+        'or expand with other dynamics formula'
+
+        # [[P0] [P1]] OR [[P2] [P3]] = [[P0] [P1] [P2] [P3]]
+
+        
+        assert isinstance(df, DynamicFormula), 'error: input should be a dynamcicFormula object'
+
+        if df.length >=1:
+            self.F = self.F + df.F
+            self.length = len(self.F)
+
+    def OR_concatenate_multiple_formulas(self, dfs):
+
+        if len(dfs) > 0:
+            for df in dfs:
+                self.OR_concatenate(df)
+
+    def AND_concatenate(self, df):
+        'AND expansion with other dynamic formula'
+
+        # [[P0] [P1]] AND [[P2] [P3]] = [[P0 P2] [P1 P2] [P0 P3] [P1 P3]]
+
+        assert isinstance(df, DynamicFormula), 'error: input should be a dynamic formula object'
+
+        if len(self.F) == 0:
+            self.F = df.F
+        else:
+            F1 = []
+            if df.length >= 1:
+                F1 = [x + y for x in self.F for y in df.F]
+            self.F = F1
+        self.length = len(self.F)
+
+    def AND_concatenate_multiple_formulas(self, dfs):
+
+        if len(dfs) > 0:
+            for df in dfs:
+                self.AND_concatenate(df)
+        
+    def EVENTUALLY_expand(self, P, t_start, t_final):
+        'only work when self is an empty dynamicformula'
+
+        if self.length > 0:
+            raise RuntimeError ('Eventually_expand operation only work with an empty dynamic formula ')
+
+        assert isinstance(P, AtomicPredicate), 'error: input predicate should be an atomic predicate'
+        assert t_start >= 0, 'error: t_start should be >= 0'
+        assert t_start < t_final, 'error: t_start should be smaller than t_final'
+
+        for t in range(t_start, t_final + 1):
+            self.OR_expand(P.at_time(t))
+
+    def EVENTUALLY_selfExpand(self, t_start, t_final):
+        'work when self is a none-empty dynamicformula'
+
+        if self.length == 0:
+            raise RuntimeError ('Eventually_selfExpand operation only work with a none-empty dynamic formula')
+
+        assert t_start >= 0, 'error: t_start should be >= 0'
+        assert t_start < t_final, 'error: t_start should be smaller than t_final'
+
+        # Example: Eventually_[2,3] [[P0] [P1]] = [[P0] [P1]]_t=2 OR [[P0] [P1]]_t=3
+        df = copy.deepcopy(self)
+        newDF = DynamicFormula(F=[])       
+        for t in range(t_start, t_final + 1):
+            df1 = copy.deepcopy(df)
+            df1.update_time(t)
+            newDF.OR_concatenate(df1)
+
+        self.F = newDF.F
+        self.length = len(self.F)
+        
+
+    def ALWAYS_expand(self, P, t_start, t_final):
+        
+        if self.length > 0:
+            raise RuntimeError ('Always_expand operation only work with an empty dynamic formula ')
+
+        assert isinstance(P, AtomicPredicate), 'error: input predicate should be an atomic predicate'
+        assert t_start >= 0, 'error: t_start should be >= 0'
+        assert t_start < t_final, 'error: t_start should be smaller than t_final'
+
+        for t in range(t_start, t_final + 1):
+            self.AND_expand(P.at_time(t))
+
+    def ALWAYS_selfExpand(self, t_start, t_final):
+
+        'work when self is a none-empty dynamicformula'
+
+        if self.length == 0:
+            raise RuntimeError ('Eventually_selfExpand operation only work with a none-empty dynamic formula')
+
+        assert t_start >= 0, 'error: t_start should be >= 0'
+        assert t_start < t_final, 'error: t_start should be smaller than t_final'
+
+        # Example: ALWAYS_[2,3] [[P0] [P1]] = [[P0] [P1]]_t=2 AND [[P0] [P1]]_t=3
+
+        df = copy.deepcopy(self)
+        newDF = DynamicFormula(F=[])       
+        for t in range(t_start, t_final + 1):
+            df1 = copy.deepcopy(df)
+            df1.update_time(t)
+            newDF.AND_concatenate(df1)
+
+        self.F = newDF.F
+        self.length = len(self.F)
 
     def AND_expand(self, P):
         'expand the formula with AND operation'
 
         # [[P0] [P1]] AND P = [[P0 P] [P1 P]] 
         
-        assert isinstance(P, TimedAtomicPredicate), 'error: input should be a timed atomic predicate'
+        assert isinstance(P, AtomicPredicate), 'error: input should be a atomic predicate'
 
         if self.length == 0:
             self.F.append([P])
         else:
             for i in range(0, self.length):
                 self.F[i].append(P)
-
-    
-    def OR_EVENTUALLY_expand(self, P, t_start, t_final):
-        'expand the formula with EVENTUALLY temporal operator'
-
-        # [[P0] [P1]] OR EV[k1, k2](P) <-> [[P0] [P1] [P_k1] ... [P_k2]]
-
-        assert isinstance(P, AtomicPredicate), 'error: input predicate should be an atomic predicate'
-
-        for t in range(t_start, t_final + 1):
-            P1 = TimedAtomicPredicate(P.A, P.b, t)
-            self.OR_expand(P1)
-
-    def AND_EVENTUALLY_expand(self, P, t_start, t_final):
-        'expand the formula with EVENTUALLY temporal operator'
-
-        # [[P0] [P1]] AND EV_[k1, k2] (P) <-> ([P0] OR [P1]) AND ([P_k1] OR ... OR [P_k2])
-
-        # = [[P0 Pk1] ... [P0 Pk2] [P1 Pk1] ... [P1 Pk2]] 
-
-        assert isinstance(P, AtomicPredicate), 'error: input predicate should be an atomic predicate'
-
-        Pt = []
-
-        for t in range(t_start, t_final + 1):
-            P1 = TimedAtomicPredicate(P.A, P.b, t)
-            Pt.append(P1)
-
-        if self.length == 0:
-            for i in range(0,len(Pt)):
-                self.F.append([Pt[i]])
-        else:
-                
-            newF = []
-            for i in range(0, self.length):
-                for j in range(0, len(Pt)):
-                    newF.append(self.F[i].append(Pt[i]))
-
-            self.F = newF
-
         self.length = len(self.F)
-                
-
-        
-
     
-            
-            
+    def update_time(self, time_offset):
+        'update time information of all predicates in a dynamic formula'
+
+        # Predicate P: P.t = P.t + time_offset
+
+        # F = [[P0] [P1]]
+
+        for i in range(0, len(self.F)):
+            C = copy.deepcopy(self.F[i])
+            for j in range(0, len(C)):
+                C[j].t = C[j].t + time_offset          
+            self.F[i] = C
+
+    def set_time(self, t):
+        'set time information of all predicates in a dynamic formula'
+
+        # Predicate P: P.t = t
+        # F = [[P0] [P1]]
+
+        for i in range(0, len(self.F)):
+            C = copy.deepcopy(self.F[i])
+            for j in range(0, len(C)):
+                C[j].t = t
+                
+            self.F[i] = C
+
         
-        
+    def subFormula_expand(self, sub_formula):
+        'generate subdynamic formula from inner subformula'
+
+        assert isinstance(sub_formula, list), 'error: sub_formula should be a list'
+
+        # we go from the right to the left
+        # ex: sub_formula = [P2 AND P3]
+
+        i = len(sub_formula)-1
+        while i >= 0:
+            item = sub_formula[i]
+            if isinstance(item, AtomicPredicate):
+                self.AND_expand(item.at_time(0))
+            elif isinstance(item, _AND_):
+                i = i-1
+                item = sub_formula[i]
+                if isinstance(item, AtomicPredicate):
+                    self.AND_expand(item.at_time(0))
+                else:
+                    raise RuntimeError('Invalid subformula')
+            elif isinstance(item, _OR_):
+                i = i-1
+                item = sub_formula[i]
+                if isinstance(item, AtomicPredicate):
+                    self.OR_expand(item.at_time(0))
+                else:
+                    raise RuntimeError('Ivalid subformula')
+            elif isinstance(item, _EVENTUALLY_):
+                self.EVENTUALLY_selfExpand(item.start_time, item.end_time)
+            elif isinstance(item, _ALWAYS_):
+                self.ALWAYS_selfExpand(item.start_time, item.end_time)
+            else:
+                raise RuntimeError('Unknown item')
+                
+            i = i-1
+
+
+    def realization(self, probstar_sig):
+        'realization of abstract, timed dynamic formula on a probstar signal'
+            
+        assert isinstance(probstar_sig, list), 'error: probstar signal should be a list'
+        T = len(probstar_sig)  # time
+        for i in range(0, T):
+            S = probstar_sig[i]  # a star set
+            if not isinstance(S, ProbStar):
+                raise RuntimeError('item {} is not a probstar'.format(i))
+
+        res = []
+        for P in self.F:
+            resi = []
+            i  = 0
+            for Pi in P:
+                if Pi.t >= T:
+                    resi = []
+                    break
+                else:
+                    X = copy.deepcopy(probstar_sig[Pi.t])
+                    X.addConstraintWithoutUpdateBounds(Pi.A, Pi.b)
+                    resi.append(X)
+                
+            if len(resi) != 0:
+                S1 = combineProbStars(resi)
+                res.append(S1)
+
+        return res
+
+    def evaluate(self, probstar_sig, semantics='exact'):
+        'evaluate the satisfaction of the abtract-timed dyanmic formula on a probstar signal'
+
+        res = self.realization(probstar_sig)
+
+        SAT = []
+        for i in range(0, len(res)):
+            SAT.append(res[i].estimateProbability())
+        SAT_MIN = max(SAT)
+
+        SAT_EXACT = 0.0
+        N = range(0, len(res))
+        for i in range(0, len(res)):
+            SAT1 = 0.0
+            # get combinations
+            comb = combinations(N, i+1)   # get all combinations
+            for j in list(comb):
+                # compute probability of sub-combincation , i.e., Pj[1] AND Pj[2]
+                S = combineProbStars_with_indexes(res, j)
+                prob = (-1)**i * S.estimateProbability()
+                SAT1 = SAT1 + prob
+            SAT_EXACT = SAT_EXACT + SAT1
+            
+
+        # SAT_EXACT should be always >= SAT_MIN, however, \
+        # due to the uncertainties in probability estimation SAT_EXACT may be slightly smaller than SAT_MIN
+        SAT_EXACT = max(SAT_MIN, SAT_EXACT) 
+            
+        return SAT, SAT_MIN, SAT_EXACT
         
         
 

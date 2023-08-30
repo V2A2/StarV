@@ -547,17 +547,18 @@ class Test(object):
         op = _ALWAYS_(0,4)
         spec3 = Formula([op, P])
 
-        # spec4: always_[0, 2] (x[1]>=0.5 AND x[0] <= 0)
+        # spec4: always_[0, 4] (-x[0] + x[1] <= 0.0)
         A = np.array([0, -1.0])
         b = np.array([-0.5])
         P1 = AtomicPredicate(A, b)
 
-        A = np.array([-1.0, 0])
-        b = np.array([-8.0])
+        A = np.array([-1.0, -1.0])
+        b = np.array([0.0])
         P2 = AtomicPredicate(A,b)
 
         op1 = _AND_()
-        op = _ALWAYS_(0,2)
+
+        op = _ALWAYS_(2,4)
 
         spec4 = Formula([op, P2])
 
