@@ -3,7 +3,7 @@ Main Verifier Class
 Dung Tran, 9/10/2022
 """
 
-from StarV.net.network import NeuralNetwork
+from StarV.net.network import NeuralNetwork, reachExactBFS
 from StarV.set.probstar import ProbStar
 from StarV.spec.dProbStarTL import Formula
 from StarV.plant.dlode import DLODE
@@ -42,21 +42,6 @@ class Verifier(object):
         assert isinstance(net, NeuralNetwork), 'error: input is not a NeuralNetwork object'
         pass
 
-def reachExactBFS(net, inputSet, lp_solver='gurobi', pool=None, show=True):
-    """Compute Reachable Set layer-by-layer"""
-
-    assert isinstance(net, NeuralNetwork), 'error: first input should be a NeuralNetwork object'
-    assert isinstance(inputSet, list), 'error: second input should be a list of Star/ProbStar set'
-
-    S = copy.deepcopy(inputSet)
-    for i in range(0, net.n_layers):
-        if show:
-            print('Computing layer {} reachable set...'.format(i))
-        S = net.layers[i].reach(S, method='exact', lp_solver=lp_solver, pool=pool)
-        if show:
-            print('Number of stars/probstars: {}'.format(len(S)))
-
-    return S
 
 def checkSafetyStar(unsafe_mat, unsafe_vec, S):
     """Intersect with unsafe region, can work in parallel"""

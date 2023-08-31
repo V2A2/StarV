@@ -7,6 +7,8 @@
 import numpy as np
 from StarV.layer.fullyConnectedLayer import fullyConnectedLayer
 from StarV.layer.ReLULayer import ReLULayer
+import copy
+import multiprocessing
 
 class NeuralNetwork(object):
     """Generic serial Neural Network class
@@ -83,4 +85,19 @@ def rand_ffnn(arch, actvs):
 
     return NeuralNetwork(layers, 'ffnn')
 
-    
+def reachExactBFS(net, inputSet, lp_solver='gurobi', pool=None, show=True):
+    """Compute Reachable Set layer-by-layer"""
+
+    assert isinstance(net, NeuralNetwork), 'error: first input should be a NeuralNetwork object'
+    assert isinstance(inputSet, list), 'error: second input should be a list of Star/ProbStar set'
+
+    S = copy.deepcopy(inputSet)
+    for i in range(0, net.n_layers):
+        if show:
+            print('Computing layer {} reachable set...'.format(i))
+        S = net.layers[i].reach(S, method='exact', lp_solver=lp_solver, pool=pool)
+        if show:
+            print('Number of stars/probstars: {}'.format(len(S)))
+
+    return S
+

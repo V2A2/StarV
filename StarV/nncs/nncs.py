@@ -4,9 +4,22 @@
   Dung Tran, 8/14/2023
 """
 
-from StarV.net.network import NeuralNetwork
+from StarV.net.network import NeuralNetwork, reachExactBFS
 from StarV.plant.dlode import DLODE
 from StarV.plant.lode import LODE
+
+class ReachPRM_NNCS(object):
+    'reachability parameters for NNCS'
+
+    def __init__(self):
+        self.initSet = None
+        self.numSteps = 1
+        self.refInput = None
+        self.method = 'exact-probStar'
+        self.lpSolver = 'gurobi'
+        self.show = True
+        self.numCores = 1
+
 
 class NNCS(object):
     """Generic neural network control system class
@@ -94,6 +107,9 @@ class NNCS(object):
         self.nI_fb = plant.nO    # number of feedback inputs to the controller
         self.nI_ref = controller_net.in_dim - self.nI_fb   # number of reference inputs to the controller
         self.type = type
+        self.RX = None     # state reachable set
+        self.RY = None     # output reachable set
+        self.RU = None     # control set
         
     def info(self):
         """print information of the neural network control system"""
@@ -107,10 +123,96 @@ class NNCS(object):
         'reachability analysis'
 
         # reachPRM: reachability parameters
-        #   1) reachPRM.init_set
-        #   2) reachPRM.ref_input
+        #   1) reachPRM.initSet
+        #   2) reachPRM.refInput
         #   3) reachPRM.numSteps
         #   4) reachPRM.method
         #   5) reachPRM.numCores
+        #   6) reachPRM.lpSolver
+        #   7) reachPRM.show
 
+        if self.type == 'DLNNCS': # discrete linear NNCS
+            self.RX, self.RY, self.RU = reach_DLNNCS(self.controller, self.plant, reachPRM)
+        else:
+            raise RuntimeError('We are have not support \
+            reachability analysis for type = {} yet'.format(self.type))
+
+    def visualizeReachSet(self, rs='state', dis='box', dim=[0, 1]):
+        'visualize reachable set'
+
+        if self.RX is None:
+            raise RuntimeError('No reachable set, please call reach function first')
+
+        if rs == 'state':
+            pass
+        elif rs == 'output':
+            pass
+        elif rs == 'control':
+            pass
+        elif rs == 'all':
+            pass
+        else:
+            raise RuntimeError('Unknown display option')
+            
+                
+        
+def reach_DLNNCS(net, plant, reachPRM):
+    'reachability of discrete linear NNCS'
+
+    assert isinstance(reachPRM, ReachPRM_NNCS), 'error: reachability parameter should be an ReachPRM_NNCS object'
+    assert reachPRM.initSet is not None, 'error: there is no initial set for reachability'
+    assert reachPRM.numSteps >= 1, 'error: number of time steps should be >= 1'
+    
+    if reachPRM.numCores > 1:
+        pool = multiprocessing.Pool(reachPRM.numCores)
+    else:
+        pool = None
+
+
+    if reachPRM.show:
+        print('\nReachability analysis of discrete linear NNCS for {} steps...'.format(reachPRM.numSteps))
+                
+    RX = []   # state reachable set RX = [RX1, ..., RYN], RXi = [RXi1, RXi2, ...RXiM]
+    RY = []   # output reachable set RY = [RY1, RY2, ... RYN], RYi = [RYi1, RYi2, ..., RYiM]
+    RU = []   # control set RU = [RU1, RU2, ..., RUN], RUi = [RUi1, RUi2, ...,RUiM]
+    
+    if reachPRM.method == 'exact-star' or reachPRM.method == 'exact-probstar':
+        for i in range(0, reachPRM.numSteps+1):
+            if reachPRM.show:
+                print('\nReachability analysis at step {}...'.format(i))
+                
+            if i==0:
+                RX.append([reachPRM.initSet])
+            elif i==1:
+                X0 = RX[0]
+                X1, Y1 = plant.stepReach(X0[0], U=None, subSetPredicate=False)
+                RX.append([X1])
+                RY.append([Y1])
+            else:
+                
+                IS = RX[i-1]       # initSet at step i 
+                FS = RY[i-2]       # feedback set at step i, len(FS) == len(IS)
+                RXi = []           # state reachable set at step i
+                RYi = []           # output reachable set at step i
+                RUi = []
+                for j in range(0, len(FS)):
+                    Ui = reachExactBFS(net, [FS[j]], lp_solver=reachPRM.lpSolver, pool=pool, show=False)
+                    for u in Ui:
+                        RX1, RY1 = plant.stepReach(X0=IS[j], U=u, subSetPredicate=True)
+                        RXi.append(RX1)
+                        RYi.append(RY1)
+                        RUi.append(u)
+                RX.append(RXi)
+                RY.append(RYi)
+                RU.append(RUi)
+                
+        if reachPRM.show:
+            print('\nReachability analysis is done successfully!')
+        
+    elif reachPRM.method == 'approx-star':
         pass
+    else:
+        raise RuntimeError('Unknow/Unsupported reachability method')
+
+
+    return RX, RY, RU
