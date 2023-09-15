@@ -7,6 +7,7 @@
 from StarV.net.network import NeuralNetwork, reachExactBFS
 from StarV.plant.dlode import DLODE
 from StarV.plant.lode import LODE
+import multiprocessing
 
 class ReachPRM_NNCS(object):
     'reachability parameters for NNCS'
@@ -156,7 +157,7 @@ class NNCS(object):
             
                 
         
-def reach_DLNNCS(net, plant, reachPRM):
+def reachBFS_DLNNCS(net, plant, reachPRM):
     'reachability of discrete linear NNCS'
 
     assert isinstance(reachPRM, ReachPRM_NNCS), 'error: reachability parameter should be an ReachPRM_NNCS object'
@@ -216,3 +217,36 @@ def reach_DLNNCS(net, plant, reachPRM):
 
 
     return RX, RY, RU
+
+
+def stepReach_DLNNCS(net, plant, X0, Y0, numCores=1, lp_solver='Gurobi'):
+    'one-step reachability analysis of Discrete linear NNCS'
+
+    # X0: initial set of state of the plant
+    # Y0: feedback to the network controller
+
+    if numCores > 1:
+        pool = multiprocessing.Pool(numCores)
+    else:
+        pool = None
+
+    RX = []
+    RY = []
+    RU = reachExactBFS(net, Y0, lp_solver, pool=pool, show=False)
+    for U in RU:
+        RX1, RY1 = plant.stepReach(X0=X0, U=U, subSetPredicate=True)
+        RX.append(RX1)
+        RY.append(RY1)
+
+    return RX, RY, RU
+
+def reachDFS_DLNNCS(net, plant, reachPRM):
+    'Depth First Search Reachability Analysis for Discrete Linear NNCS'
+
+    assert isinstance(reachPRM, ReachPRM_NNCS), 'error: reachability parameter should be an ReachPRM_NNCS object'
+    assert reachPRM.initSet is not None, 'error: there is no initial set for reachability'
+    assert reachPRM.numSteps >= 1, 'error: number of time steps should be >= 1'
+
+    k = reachPRM.numSteps  # number of reachability steps
+
+    pass

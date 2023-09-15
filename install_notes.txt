@@ -49,6 +49,8 @@ https://scaron.info/doc/pypoman/
 
 10) install mathplotlib: pip install mathplotlib
 
+11) install treelib: pip install treelib
+
 
 	
 

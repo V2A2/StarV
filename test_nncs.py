@@ -5,10 +5,9 @@ Dung Tran
 """
 
 from StarV.net.network import rand_ffnn
-from StarV.nncs.nncs import NNCS, reach_DLNNCS, ReachPRM_NNCS
+from StarV.nncs.nncs import NNCS, ReachPRM_NNCS
 from StarV.plant.dlode import DLODE
 from StarV.set.probstar import ProbStar
-from StarV.util.plot import plot_probstar
 import numpy as np
 
 class Test(object):
