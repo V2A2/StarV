@@ -1,0 +1,96 @@
+"""
+Fully Connected Layer Class
+Sung Woo Choi, 07/06/2023
+"""
+
+import torch
+import numpy as np
+import multiprocessing
+
+class FullyConnectedLayer(object):
+    """ FullyConnectedLayer class
+
+        properties: 
+            @W: weight matrix
+            @b: bias vector
+        methods:
+            @evaluate: evaluate method
+            @reach: reach method
+            @rand: random generate a FullyConnectedLayer
+    """
+
+    def __init__(self, layer):
+
+        if isinstance(layer, list):
+            W, b = layer
+
+        elif isinstance(layer, torch.nn.Linear):
+            W = layer.weight.detach().numpy()
+            b = layer.bias.detach().numpy()
+
+        else:
+            raise Exception('error: unsupported neural network module')
+
+        assert isinstance(W, np.ndarray) and len(W.shape) == 2, 'error: weight matrix should be a 2D numpy array'
+        assert isinstance(b, np.ndarray) and len(b.shape) == 1, 'error: bias vector should be a 1D numpy array'
+        
+        assert W.shape[0] == b.shape[0], 'error: inconsistent dimension between weight matrix and bias vector'
+        self.W = W
+        self.b = b
+        self.in_dim = W.shape[1]
+        self.out_dim = W.shape[0]
+
+    def evaluate(self, x):
+        """evaluation on an input vector/array x"""
+
+        assert isinstance(x, np.ndarray), 'error: input vector should be a numpy array'
+        assert x.shape[0] == self.in_dim, 'error: inconsistent dimension between the weight matrix and input vector'
+        
+        len_ = len(x.shape)
+        if len_ == 1:
+            return np.matmul(self.W, x) + self.b
+        else:
+            return np.matmul(self.W, x) + self.b[:, np.newaxis]
+
+    @staticmethod
+    def rand(in_dim, out_dim):
+        """ Random generate a FullyConnectedLayer"""
+
+        W = np.random.rand(out_dim, in_dim)
+        b = np.random.rand(out_dim)
+
+        return FullyConnectedLayer(layer=[W, b], module='default')
+
+    def reachExactSingleInput(self, In):
+        return In.affineMap(self.W, self.b)
+        
+    def reach(self, inputSet, method=None, lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
+        """main reachability method
+           Args:
+               @inputSet: a list of input set (Star, ProbStar, or SparseStar)
+               @pool: parallel pool: None or multiprocessing.pool.Pool
+               @RF: relaxation factor
+               @DR: depth reduction; maximum depth allowed for predicate variables
+               
+            Return: 
+               @R: a list of reachable set
+            Unused inputs: method, lp_solver, RF (relaxation factor), DR (depth reduction)
+
+        """
+
+        pool = None
+        
+        if isinstance(inputSet, list):
+            S = []
+            if pool is None:
+                for i in range(0, len(inputSet)):
+                    S.append(self.reachExactSingleInput(inputSet[i]))
+            elif isinstance(pool, multiprocessing.pool.Pool):
+                S = S + pool.map(self.reachExactSingleInput, inputSet)
+            else:
+                raise Exception('error: unknown/unsupport pool type')         
+
+        else:
+            S = self.reachExactSingleInput(inputSet)
+                
+        return S
