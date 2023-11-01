@@ -1,0 +1,37 @@
+{
+  "name": "StarV Dev Container",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "star-v",
+  "workspaceFolder": "/home/StarV",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "[python]": {
+          "editor.defaultFormatter": "ms-python.black-formatter",
+          "editor.formatOnSave": true,
+          "editor.codeActionsOnSave": {
+            "source.organizeImports": true
+          }
+        },
+        "isort.args": ["--profile", "black"]
+      },
+      "extensions": [
+        "ms-python.python",
+        "esbenp.prettier-vscode",
+        "redhat.vscode-yaml",
+        "aaron-bond.better-comments",
+        "shardulm94.trailing-spaces"
+      ],
+      "configurations": [
+        {
+          "name": "Python: Current File",
+          "type": "python",
+          "request": "launch",
+          "program": "${file}",
+          "console": "integratedTerminal",
+          "justMyCode": true
+        }
+      ]
+    }
+  }
+}
