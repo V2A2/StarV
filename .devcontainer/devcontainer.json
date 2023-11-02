@@ -5,22 +5,13 @@
   "workspaceFolder": "/home/StarV",
   "customizations": {
     "vscode": {
-      "settings": {
-        "[python]": {
-          "editor.defaultFormatter": "ms-python.black-formatter",
-          "editor.formatOnSave": true,
-          "editor.codeActionsOnSave": {
-            "source.organizeImports": true
-          }
-        },
-        "isort.args": ["--profile", "black"]
-      },
       "extensions": [
         "ms-python.python",
         "esbenp.prettier-vscode",
         "redhat.vscode-yaml",
         "aaron-bond.better-comments",
-        "shardulm94.trailing-spaces"
+        "shardulm94.trailing-spaces",
+        "ms-python.black-formatter"
       ],
       "configurations": [
         {
@@ -31,7 +22,19 @@
           "console": "integratedTerminal",
           "justMyCode": true
         }
-      ]
+      ],
+      "settings": {
+        "[python]": {
+          "editor.defaultFormatter": "ms-python.black-formatter",
+          "python.formatting.provider": "black",
+          "editor.formatOnSave": true,
+          "editor.codeActionsOnSave": {
+            "source.organizeImports": true
+          },
+          "python.formatting.blackArgs": ["--line-length", "88", "--skip-magic-trailing-comma"]
+        },
+        "isort.args": ["--profile", "black"]
+      }
     }
   }
 }
