@@ -16,7 +16,9 @@ RUN apt-get update && \
     unzip \
     nano \
     tmux \
-    wget
+    wget && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY ../requirements.txt /tmp/
 
