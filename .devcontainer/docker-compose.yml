@@ -6,6 +6,5 @@ services:
     build:
       context: ../
       dockerfile: .devcontainer/Dockerfile
-    network_mode: "host"
     volumes:
       - ../../StarV:/home/StarV
