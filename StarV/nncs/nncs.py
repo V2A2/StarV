@@ -133,7 +133,7 @@ class NNCS(object):
         #   7) reachPRM.show
 
         if self.type == 'DLNNCS': # discrete linear NNCS
-            self.RX, self.RY, self.RU = reach_DLNNCS(self.controller, self.plant, reachPRM)
+            self.RX, self.RY, self.RU = reachBFS_DLNNCS(self.controller, self.plant, reachPRM)
         else:
             raise RuntimeError('We are have not support \
             reachability analysis for type = {} yet'.format(self.type))
@@ -248,5 +248,57 @@ def reachDFS_DLNNCS(net, plant, reachPRM):
     assert reachPRM.numSteps >= 1, 'error: number of time steps should be >= 1'
 
     k = reachPRM.numSteps  # number of reachability steps
+    traces = []  # contains all reachable traces, traces = [T1, T2, ..., TN], Ti = [Xi0, Xi1, ..., Xik]
+    remains = [] # contains all remaining reachable set at all k steps, remains = [RM1, RM2, ..., RMk], RMi = [X1, X2, ..., Xm]
 
+    # The algorithm works as follows:
+    # step: t = 0, X0, U = 0
+    # * strore X0 to a trace T <-X0
+    # 
+    # step:t = 1, X0, U = f(Y0) = f(CX0) = [U1, ..., Um] -> [X1, ....,Xm]
+    #    * pop X0 from trace T: X0 <- T[0] = T[t-1]
+    #    * get output feedback Y0 = CX0
+    #    * compute control output U = F(Y0) = [U1, ..., Um]
+    #    * get new state reachable set X1 = [X11, ..., X1m]
+    #    * store the first X11 to trace T: T <- X11
+    #    * store the remaining sets in a remain RM1 = [X12, ...., X1m]
+    #    * store the remain RM1 to remains RMs: RMs <- RM1
+    # step: t = 2:
+    #    * pop the newest reach set in trace T, X11<- T[1] = T[t-1]
+    #    * get output feedback Y1 = CX11
+    #    * compute control output U = F(Y1) = [U1, ...., Un]
+    #    * get new state reachable set X2 = [X21, X22, ..., X2n]
+    #    * store the first X21 into trace T: T<-X21
+    #    * store the remaining sets in a remain RM2 = [X22, ...., X2n]
+    #    * store the remain RM2 to remain RMs:  RMs <- RM2 
+    #    .
+    #    .
+    #    .
+    # step: t = k:
+    #    * pop the newest reach set in trace T, X[k-1,1] <- T[k-1]
+    #    * (substep k1) get output feedback Y[k-1] = CX[k-1,1]
+    #    * (substep k2) compute control output U = F(Y[k-1]) = [U1, ...., Up]
+    #    * (substep k3) get new state reachable set Xk = [Xk1, Xk2, ..., Xkp]
+    #    * (substep k4) get p copies of trace T: T1, T2, ... Tp
+    #    * (substep k5) store Xki into trace Ti, Ti<-Xki  
+    #    * (substep k6) store all traces into traces Ts: Ts <- [T1, T2, ..., Tp]
+    #    * we finish construct a partial reachable set trace here, i.e., T1, T2, ..., Tp
+    #    *** We can verify traces T1, ...., Tp and get one partial verification result here, and then ignore them
+    #    *** LOOP here:
+    #    *** get RM[k-1] from RMs, i.e., RM[k-1] <- RMs[k-2]
+    #    *** if RM[k-1] is not empty,  
+    #    *** (substep k9) pop the next newest reach set, e.g, X[k-1,2] <- RM[k-1]
+    #    *** (substep k10) replace the newest reach set in trace T, X[k-1,1] by X[k-1,2]
+    #    *** (substep k11) Recall substeps k1, k2, k3, k4, k5, k6
+    #    *** repeat substeps k9, k10, k11 until RM[k-1] empty
+    #    if length RM[k-1]== 0, i.e., RM[k-1] is empty,
+    #    *** pop RM[k-2] <- RMs[k-3]
+    #    *** delete the 2 newest reach set2 in trace T, i.e., X[k-1, 1], X[k-2,1]
+    #    *** pop the next newest reach set X[k-2, 2]
+    #    *** repeat ...
+    
+    
+    
+    
+    
     pass

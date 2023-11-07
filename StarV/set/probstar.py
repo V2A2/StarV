@@ -211,7 +211,7 @@ class ProbStar(object):
                 # U'*U = L'*L = I_r
                 U, Q, L = np.linalg.svd(C)
                 Q1 = np.diag(Q)
-                r = L.shape[0] - Q1.shape[0]
+                r = Q1.shape[0]
                 L1 = L[0:r, :]
                 Q1 = np.matmul(Q1, L1)
 
