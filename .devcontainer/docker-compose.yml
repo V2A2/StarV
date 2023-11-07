@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  star-v:
+    platform: linux/amd64
+    build:
+      context: ../
+      dockerfile: .devcontainer/Dockerfile
+    volumes:
+      - ../../StarV:/home/StarV
