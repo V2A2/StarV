@@ -367,6 +367,7 @@ def plot_star2D(I, color='r', transparency=1.0, edgecolor='k', edgewidth=1.0, sh
     plot_polytope2d(I, ax, color, transparency, edgecolor, edgewidth)
     if show:
         plt.show()
+    return ax
     
 
 def plot_probstar(I, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True):
