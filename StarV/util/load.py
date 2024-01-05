@@ -17,6 +17,7 @@ import numpy as np
 import torch
 import math
 import onnx
+import onnx2pytorch
 import csv
 
 def load_2017_IEEE_TNNLS():
@@ -350,10 +351,33 @@ def load_sigmoidal_networks(data_type='mnist', net_size='small', func='tanh', op
 
     return net, data, label
 
+def load_neural_network_file(file_path, show=False):
+    
+    assert isinstance(file_path, str), 'error: file_path should be a string'
+
+    file_path = file_path.lower()
+
+    if file_path.endswith('.onnx'):
+        if show: print('loading onnx module')
+        model = onnx.load(file_path)
+        model = onnx2pytorch.ConvertModel(model)
+        model.eval()
+        return load_neural_network(model)
+
+    elif file_path.endswith('.pt') or file_path.endswith('.pth'):
+        if show: print('loading pytorch module')
+        model = torch.load(file_path)
+        model.eval()
+        return load_neural_network(model)
+    
+    else:
+        raise Exception('error: unsupported file format {} (supports .onnx, .pt, .pth)'.format(os.path.splitext(file_path)[1]))
+
 
 def load_neural_network(model, net_type=None, show=False):
         
         if isinstance(model, torch.nn.Module):
+            if show: print('converting to StarV module')
 
             layers = []
             for idx, layer in enumerate(model.modules()):
@@ -379,9 +403,15 @@ def load_neural_network(model, net_type=None, show=False):
                     elif isinstance(layer, torch.nn.ReLU):
                         layers.append(ReLULayer())
 
+
                     else:
-                        raise Exception('error: unsupported neural network layer')
+                        raise Exception('error: unsupported neural network layer {}'.format(type(layer)))
 
             return NeuralNetwork(layers, net_type=net_type)
+        
+        elif isinstance(model, onnx.onnx_ml_pb2.ModelProtolProto):
+            pytorch_model = onnx2pytorch.ConvertModel(model)
+            return load_neural_network(pytorch_model, net_type, show)
+        
         else:
-            raise Exception('error: unsupported neural network module')
+            raise Exception('error: unsupported neural network module {}'.format(type(model)))

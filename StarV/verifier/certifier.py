@@ -57,7 +57,7 @@ def reachBFS(net, inputSet, reachMethod='approx', lp_solver='gurobi', pool=None,
 
     return outputSet, totalReachTime
 
-def certifyRobustness(net, input, label=None, epsilon=0.01, veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
+def certifyRobustness_sigmoid(net, input, label=None, epsilon=0.01, veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
     """
         Certify robustness of neural networks with given inputs
 
@@ -379,3 +379,49 @@ def certifyRobustness_sequence(net, inputs, epsilon=0.01, veriMethod='BFS', reac
     
 #     r = sum(cnt) / N
 #     return r, rb, ce, cands, vt
+
+def certifyRobustness(net, input, epsilon=0.01, veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, data_type='default', show=False):
+         
+    start = time.time()
+    
+    X = [Star.inf_attack(data=input, epsilon=epsilon, data_type=data_type)]
+
+    # Compute output reachable sets
+    if veriMethod == 'BFS':
+        Y, _ = reachBFS(net=net, inputSet=X, reachMethod=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
+    else:
+        raise Exception('other verification methods is not yet implemented, i.e. DFS')
+
+    # Certify whether the neural network is robust 
+    y = net.evaluate(input)
+    max_id = np.argmax(y[np.newaxis], axis=1) # find the classified output
+
+    len_ = len(Y)
+    rb = np.zeros(len_)
+    vt = np.zeros(len_)
+    st = time.time()
+    for i in range(len_):
+        max_cands = Y[i].get_max_point_cadidates()
+        if len(max_cands) == 1:
+            if max_cands == max_id:
+                rb[i] = 1
+                
+        else:
+            a = [max_cands == max_id][0]
+            if sum(a) == 0:
+                rb = 0
+            
+            else:
+                max_cands = np.delete(max_cands, max_cands == max_id)
+                m = len(max_cands)
+
+                for j in range(m):
+                    if Y.is_p1_larger_than_p2(max_cands[j], max_id):
+                        rb[i] = 2
+                        break
+                    
+                    else:
+                        rb[i] = 1
+        vt[i] = time.time() - st 
+    vt_total = time.time() - start  
+    return rb, vt, vt_total, Y

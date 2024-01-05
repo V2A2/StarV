@@ -133,9 +133,9 @@ class Star(object):
 
     def __str__(self):
         print('Star Set:')
-        print('V: {}'.format(self.V))
+        print('V:\n{}'.format(self.V))
         print('Predicate Constraints:')
-        print('C: {}'.format(self.C))
+        print('C:\n{}'.format(self.C))
         print('d: {}'.format(self.d))
         print('dim: {}'.format(self.dim))
         print('nVars: {}'.format(self.nVars))
@@ -153,6 +153,7 @@ class Star(object):
         print('nVars: {}'.format(self.nVars))
         print('pred_lb: {}'.format(self.pred_lb.shape))
         print('pred_ub: {}'.format(self.pred_ub.shape))
+        print('')
         return '\n'
     
     def __len__(self):
@@ -464,7 +465,7 @@ class Star(object):
             assert isinstance(A, np.ndarray), 'error: \
         mapping matrix should be an 2D numpy array'
             assert A.shape[1] == self.dim, 'error: \
-        inconsistency between mapping matrix and ProbStar dimension'
+        inconsistency between mapping matrix and Star dimension'
 
         if b is not None:
             assert isinstance(b, np.ndarray), 'error: \
@@ -730,15 +731,59 @@ class Star(object):
             return False
         else:
             raise Exception('error: exitflat = %d' % (m.status))
+        
+    def get_max_point_cadidates(self):
+        """ Quickly estimate max-point candidates """
+
+        lb, ub = self.getRanges('estimate')
+        max_id = np.argmax(lb)
+        a = (ub > lb[max_id])
+        if sum(a) == 1:
+            return [max_id]
+        else:
+            return np.where(a)[0]
+        
+    def is_p1_larger_than_p2(self, p1_indx, p2_indx):
+        """
+            Check if an index is larger than the other
+
+            Arg:
+                @p1_indx: an index of point 1
+                @p2_indx: an index of point 2
+
+            return:
+                @bool = 1 if there exists the case that p1 >= p2
+                        2 if there is no case that p1 >= p2; p1 < p2
+        """
+
+        assert p1_indx >= 0 and p1_indx < self.dim, 'error: invalid index for point 1'
+        assert p2_indx >= 0 and p2_indx < self.dim, 'error: invalid index for point 2'
+
+        d1 = self.V[p1_indx, 0] - self.V[p2_indx, 0]
+        C1 = self.V[p2_indx, 1:self.nVars+1] - self.V[p1_indx, 1:self.nVars+1]
+
+        new_d = np.hstack((self.d, d1))
+        new_C = np.vstack((self.C, C1))
+        S = Star(self.V, new_C, new_d, self.pred_lb, self.pred_ub)
+        
+        if S.isEmptySet():
+            return False
+        else:
+            return True
 
     @staticmethod
-    def inf_attack(data, epsilon=0.01, data_type='default'):
+    def inf_attack(data, epsilon=0.01, data_type='default', dtype='float64'):
         """Generate a SparseStar set by infinity norm attack on input dataset"""
 
         assert isinstance(data, np.ndarray), \
         'error: the data should be a 1D numpy array'
         assert len(data.shape) == 1, \
         'error: the data should be a 1D numpy array'
+
+        if dtype =='float64':
+            data = data.astype(np.float64)
+        else:
+            data = data.astype(np.float32)
 
         lb = data - epsilon
         ub = data + epsilon
