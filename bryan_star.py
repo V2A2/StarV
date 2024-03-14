@@ -15,9 +15,13 @@ class Star(object):
     Star set implemented by Bryan
 
     Attributes:
-    center: center of the star set
-    V: matrix of input directions
-    P: matrix of input ranges
+    - V: matrix of centers and unit vectors
+    - C: matrix of constraints
+    - d: vector of constraints
+    - pred_lb: lower bound of the predicate
+    - pred_ub: upper bound of the predicate
+    - nVars: number of variables
+
     """
 
     def __init__(self, *args) -> None:
@@ -130,57 +134,3 @@ class Star(object):
             h = matrix(self.d)
             sol = solvers.lp(c, G, h, solver="glpk")
             return sol["primal objective"]
-
-    def getMax(self, i, lp_solver="gurobi"):
-        """
-        Get maximum value of the star set in the i-th dimension
-        """
-        if lp_solver == "linprog":
-            opt = linprog(
-                -1 * self.V[i, 1:],
-                A_ub=self.C,
-                b_ub=self.d,
-                bounds=(self.pred_lb, self.pred_ub),
-            )
-            return opt.fun
-
-        elif lp_solver == "gurobi":
-            # Define the coefficients of the objective function
-            c = self.V[i, 1 : self.nVars + 1]
-
-            # Create a new model
-            m = gp.Model()
-
-            # Add variables to the model
-            x = m.addMVar(shape=self.nVars)
-
-            # Set the objective function to maximize
-            m.setObjective(c @ x, GRB.MAXIMIZE)
-
-            # Add constraints to the model
-            if len(self.C) > 0 and len(self.d) > 0:
-                m.addConstr(self.C @ x <= self.d)
-
-            # Solve the model
-            m.optimize()
-
-            # Check if the optimization was successful
-            if m.status == GRB.OPTIMAL:
-                return m.objVal
-            else:
-                raise Exception("LP solver error: optimization was not successful")
-
-        elif lp_solver == "glpk":
-            c = matrix(-self.V[i, 1 : self.nVars + 1])  # Negate c for maximization
-            G = matrix(self.C)
-            h = matrix(self.d)
-            sol = solvers.lp(c, G, h, solver="glpk")
-            return -sol["primal objective"]
-
-    def getRanges(self, lp_solver="gurobi"):
-        """Calculate and return the lower and upper bounds for each dimension of the state space."""
-
-        l = np.array([self.getMin(i, lp_solver) for i in range(self.dim)])
-        u = np.array([self.getMax(i, lp_solver) for i in range(self.dim)])
-
-        return l, u
