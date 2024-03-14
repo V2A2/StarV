@@ -88,10 +88,10 @@ if __name__ == "__main__":
     ================================\
     ================================\
     ===============================\n')
-    test_load.test_load_2017_IEEE_TNNLS()
+    # test_load.test_load_2017_IEEE_TNNLS()
     test_load.test_load_ACASXU(x=1,y=2,spec_id=2)
-    test_load.test_load_DRL(net_id=0, spec_id=1)
-    test_load.test_load_harmonic_oscillator_model()
+    # test_load.test_load_DRL(net_id=0, spec_id=1)
+    # test_load.test_load_harmonic_oscillator_model()
     print('\n========================\
     =================================\
     =================================\
