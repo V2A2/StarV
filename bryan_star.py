@@ -22,6 +22,12 @@ class Star(object):
     - pred_ub: upper bound of the predicate
     - nVars: number of variables
 
+    Methods:
+    - __init__(): constructor
+    - __str__(): print the star set
+    - affineMap(): affine map of the star set
+    - getMin(): get minimum value of the star set in the i-th dimension
+
     """
 
     def __init__(self, *args) -> None:
