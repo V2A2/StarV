@@ -63,18 +63,19 @@ def construct_star_sets() -> Tuple[Star, nStar]:
     """
     Construct Star sets
     """
-    lb = np.array([0, 0])
-    ub = np.array([1, 1])
-    S1 = Star(lb, ub)
-    S2 = nStar(lb, ub)
+    # lb = np.array([0, 0])
+    # ub = np.array([1, 1])
+    # S1 = Star(lb, ub)
+    # S2 = nStar(lb, ub)
 
-    # V = np.array([[0, 1, 0], [0, 0, 1]])
-    # C = np.array([[1, -1], [2, 1]])
-    # d = np.array([3, 0])
-    # pred_lb = np.array([-5, -2])
-    # pred_ub = np.array([1, 9])
-    # S1 = Star(V, C, d, pred_lb, pred_ub)
-    # S2 = nStar(V, C, d, pred_lb, pred_ub)
+    V = np.array([[0, 1, 0], [0, 0, 1]])
+    C = np.array([[1, -1], [2, 1]])
+    # C = np.array([[1, -1], [2, 0]])
+    d = np.array([3, 0])
+    pred_lb = np.array([-5, -2])
+    pred_ub = np.array([1, 9])
+    S1 = Star(V, C, d, pred_lb, pred_ub)
+    S2 = nStar(V, C, d, pred_lb, pred_ub)
 
     print("---------construct()---------")
     return S1, S2
@@ -97,11 +98,33 @@ def test_get_min(S1: Star, S2: nStar) -> None:
     """
     Test getMin() method
     """
-    min1 = S1.getMin(1, lp_solver="linprog")
-    min2 = S2.getMin(1, lp_solver="linprog")
+    min1 = S1.getMin(1, lp_solver="glpk")
+    min2 = S2.getMin(1, lp_solver="glpk")
     print("-------------------")
     print("original Starset {} \nmin = {}\n".format(S1, min1))
     print("new Starset {} \nmin = {}\n".format(S2, min2))
+
+
+def test_get_max(S1: Star, S2: nStar) -> None:
+    """
+    Test getMax() method
+    """
+    max1 = S1.getMax(1, lp_solver="glpk")
+    print("-------------------")
+    print("original Starset {}".format(max1))
+    max2 = S2.getMax(1, lp_solver="glpk")
+    print("new Starset {}".format(max2))
+
+
+def test_get_ranges(S1: Star, S2: nStar) -> None:
+    """
+    Test getRanges() method
+    """
+    ranges1 = S1.getRanges(lp_solver="glpk")
+    ranges2 = S2.getRanges(lp_solver="glpk")
+    print("-------------------")
+    print("original Starset {}".format(ranges1))
+    print("new Starset {}".format(ranges2))
 
 
 def main():
@@ -112,6 +135,9 @@ def main():
     S1, S2 = construct_star_sets()
     test_star_methods(S1)
     test_affine_map(S1, S2)
+    test_get_min(S1, S2)
+    test_get_max(S1, S2)
+    test_get_ranges(S1, S2)
 
 
 if __name__ == "__main__":
