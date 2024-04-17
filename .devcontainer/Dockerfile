@@ -24,5 +24,3 @@ COPY ../requirements.txt /tmp/
 
 RUN pip install --no-cache-dir -r /tmp/requirements.txt && \
     rm /tmp/requirements.txt
-
-CMD ["tail", "-f", "/dev/null"]
