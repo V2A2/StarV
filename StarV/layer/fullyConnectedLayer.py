@@ -62,6 +62,7 @@ class fullyConnectedLayer(object):
             Unused inputs: method, lp_solver, RF (relaxation factor)
 
         """
+        print("\nfullyConnectedLayer reach function\n")
 
         pool = None
         

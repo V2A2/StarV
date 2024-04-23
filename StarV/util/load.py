@@ -9,7 +9,7 @@ from StarV.layer.ReLULayer import ReLULayer
 from StarV.net.network import NeuralNetwork
 from StarV.plant.lode import LODE
 import numpy as np
-import torch
+# import torch
 import math
 
 def load_2017_IEEE_TNNLS():
@@ -40,7 +40,7 @@ def load_2017_IEEE_TNNLS():
 
     return net
 
-def load_ACASXU(x,y,spec_id):
+def load_ACASXU(x, y, spec_id, actv='relu'):
     """Load ACASXU networks
        Args:
            @ network id (x,y)
