@@ -583,10 +583,10 @@ if __name__ == "__main__":
     ================================\
     ================================\
     ===============================\n')
-    # test_verifier.test_reachExactBFS()
+    test_verifier.test_reachExactBFS()
     # test_verifier.test_reach_2017_IEEE_TNNLS()
     # test_verifier.test_reach_ACASXU(x=3,y=7,spec_id=3)
-    # test_verifier.test_checkSafetyStar()
+    test_verifier.test_checkSafetyStar()
     # test_verifier.test_quantiverify_ACASXU(x=3,y=7,spec_id=3,numCores=8)
     # test_verifier.test_quantiverify_tiny_network(numCores=4)
 
@@ -613,7 +613,7 @@ if __name__ == "__main__":
 
     # test_verifier.test_quantiverify_RocketNet(numCores=8, net_ids=[0, 1], spec_ids=[1,2], p_filters=[0.0, 1e-8, 1e-5, 1e-3])
 
-    test_verifier.test_quantiverifyProbStarTL_harmonic_oscillator()
+    # test_verifier.test_quantiverifyProbStarTL_harmonic_oscillator()
     print('\n========================\
     =================================\
     =================================\

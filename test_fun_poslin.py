@@ -22,6 +22,26 @@ class Test(object):
         self.n_fails = 0
         self.n_tests = 0
 
+
+    def test_evaluate(self):
+        self.n_tests = self.n_tests + 1
+        print('\nTesting evaluate method...')
+        # x = np.array([[-1], [2]])
+        x = np.array([[-1, 2], [-3, -4]])
+
+        try:
+            y = PosLin.evaluate(x)
+            print('\nInput: ')
+            print(x)
+            print('\nOutput: ')
+            print(y)
+        except Exception:
+            print('Test Fail!')
+            self.n_fails = self.n_fails + 1
+        else:
+            print('Test Successfull!')
+
+
     def test_stepReach(self):
 
         self.n_tests = self.n_tests + 1
@@ -33,7 +53,7 @@ class Test(object):
         inputSet = ProbStar(mu, Sig, pred_lb, pred_ub)
 
         try:
-            S = PosLin.stepReach(inputSet, 1)
+            S = PosLin.stepReach(inputSet, 0)
             print('\nInput Set:')
             inputSet.__str__()
             print('\nOutput Set 1:')
@@ -45,6 +65,7 @@ class Test(object):
             self.n_fails = self.n_fails + 1
         else:
             print('Test Successfull!')
+
 
     def test_stepReachMultiInputs(self):
 
@@ -69,6 +90,7 @@ class Test(object):
         else:
             print('Test Successfull!')
 
+
     def test_reachExactSingleInput(self):
 
         self.n_tests = self.n_tests + 1
@@ -88,6 +110,7 @@ class Test(object):
         else:
             print('Test Successfull!')
 
+
     def test_reachExactMultiInputs(self):
 
         self.n_tests = self.n_tests + 2
@@ -100,8 +123,20 @@ class Test(object):
         In = []
         In.append(inputSet)
         In.append(inputSet)
+
         try:
-            print('\n1) using multiprocessing package....')
+            print('\n1) using default....')
+            S = PosLin.reachExactMultiInputs(In, 'gurobi')
+            print('\nNumber of input sets = {}'.format(len(In)))
+            print('\nNumber of output sets = {}'.format(len(S)))
+        except Exception:
+            print('\nTest Fail!')
+            self.n_fails = self.n_fails + 1
+        else:
+            print('Test Successfull!')
+
+        try:
+            print('\n2) using multiprocessing package....')
             pool = multiprocessing.Pool(2)
             S = PosLin.reachExactMultiInputs(In, 'gurobi', pool)
             print('\nNumber of input sets = {}'.format(len(In)))
@@ -112,11 +147,9 @@ class Test(object):
             self.n_fails = self.n_fails + 1
         else:
             print('Test Successfull!')
-        
-
-        
+                
         try:
-            print('\n2) using ipyparallel package....')
+            print('\n3) using ipyparallel package....')
             # print('\nstart ipcluster...')
             # subprocess.Popen(["ipcluster", "start", "-n=2"])
             # clientIDs = ipp.Client()
@@ -139,6 +172,7 @@ if __name__ == "__main__":
     ================================\
     ================================\
     ===============================\n')
+    test_PosLin.test_evaluate()
     test_PosLin.test_stepReach()
     test_PosLin.test_stepReachMultiInputs()
     test_PosLin.test_reachExactSingleInput()

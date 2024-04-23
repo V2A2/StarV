@@ -637,3 +637,36 @@ class Star(object):
         ub = np.random.rand(dim,)
         
         return Star(lb, ub)
+
+
+    def toPolytope(self):
+        """
+            Converts to Polytope
+            Yuntao Li, 2/4/2024
+        """
+        if self.pred_lb.size and self.pred_ub.size:
+            I = np.eye(self.dim)
+            C1 = np.vstack([I, -I])
+            d1 = np.hstack([self.pred_ub, -self.pred_lb])
+
+            if len(self.C) == 0:
+                C = C1
+            else:
+                C = np.vstack([self.C, C1])
+
+            if len(self.d) == 0:
+                d = d1
+            else:
+                d = np.hstack([self.d, d1])
+        else:
+            C = self.C
+            d = self.d
+
+        c = self.V[:, 0]
+        V = self.V[:, 1:]
+
+        X, residuals, rank, s = np.linalg.lstsq(V.T, C.T, rcond=None)
+        new_C = X.T
+
+        new_d = d + np.dot(new_C, c)
+        return pc.Polytope(new_C, new_d)
