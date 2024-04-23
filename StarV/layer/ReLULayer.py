@@ -11,6 +11,7 @@ class ReLULayer(object):
         Author: Dung Tran
         Date: 9/10/2022
     """
+    
 
     @staticmethod
     def evaluate(x):
@@ -29,6 +30,8 @@ class ReLULayer(object):
             Return: 
                @R: a list of reachable set
         """
+
+        print("\nReLULayer reach function\n")
 
         if method == 'exact':
             return PosLin.reachExactMultiInputs(In, lp_solver, pool)

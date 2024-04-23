@@ -17,6 +17,9 @@ from scipy.linalg import block_diag
 import glpk
 import polytope as pc
 from StarV.util.minimax_tilting_sampler import TruncatedMVN
+import matplotlib.pyplot as plt
+from StarV.util.print_util import print_util
+
 
 
 import copy
@@ -190,19 +193,30 @@ class ProbStar(object):
             
         else:
             # C, d = self.getMinimizedConstraints()
+            # print_util('h4')
             C1 = np.vstack((np.eye(self.nVars), -np.eye(self.nVars)))
+            # print("C1: ", C1)
             d1 = np.concatenate([self.pred_ub, -self.pred_lb])
+            # print("d1: ", d1)
             C = np.vstack((self.C, C1))
-            d = np.concatenate([self.d, d1])       
+            # print("C: ", C)
+            d = np.concatenate([self.d, d1])
+            # print("d: ", d)
             A = np.matmul(np.matmul(C, self.Sig), np.transpose(C)) # A = C*Sig*C'
+            # print("A: ", A)
 
             if np.all(np.linalg.eigvals(A) > 0):  # No need to introduce auxilary normal variables
                 # Check Truncated Normal Matlab Toolbox of Botev to understand this conversion
                 new_lb = np.NINF*np.ones(len(d),)  # lb = l - A*mu
+                # print("new_lb: ", new_lb)
                 new_ub = d - np.matmul(C, self.mu)  # ub = u - A*mu 
+                # print("new_ub: ", new_ub)
                 new_mu = np.zeros(len(d),)          # new_mu = 0
+                # print("new_mu: ", new_mu)
                 new_Sig = np.matmul(np.matmul(C, self.Sig), np.transpose(C)) # new_Sig = A*Sig*A'
+                # print("new_Sig: ", new_Sig)
                 prob, _ = mvn.mvnun(new_lb, new_ub, new_mu, new_Sig)
+                # print("prob: ", prob)
 
             else:  # Need to introduce auxilary normal variables
                 # step 1: SVD decomposition
@@ -210,26 +224,44 @@ class ProbStar(object):
                 # decompose Q = [Q_(r x r); 0_(m-r x r)]
                 # U'*U = L'*L = I_r
                 U, Q, L = np.linalg.svd(C)
+                # print("U: ", U)
+                # print("Q: ", Q)
+                # print("L: ", L)
                 Q1 = np.diag(Q)
+                # print("Q1: ", Q1)
                 r = Q1.shape[0]
+                # print("r: ", r)
                 L1 = L[0:r, :]
+                # print("L1: ", L1)
                 Q1 = np.matmul(Q1, L1)
+                # print("Q1: ", Q1)
 
                 # linear transformation a_r' = Q1*a_r of original normal variables
                 mu1 = np.matmul(Q1, self.mu)
+                # print("mu1: ", mu1)
                 Sig1 = np.matmul(np.matmul(Q1, self.Sig), np.transpose(Q1))
+                # print("Sig1: ", Sig1)
                 m = U.shape[0] - len(Q)  # number of auxilary variables
+                # print("m: ", m)
                 mu2 = np.zeros(m,)  # auxilary normal variables mean
+                # print("mu2: ", mu2)
                 Sig2 = (1e-10)*np.eye(m)  # auxilary normal variables variance
+                # print("Sig2: ", Sig2)
 
                 new_mu = np.concatenate([mu1, mu2])
+                # print("new_mu: ", new_mu)
                 new_Sig = block_diag(Sig1, Sig2)
+                # print("new_Sig: ", new_Sig)
 
                 new_lb = np.NINF*np.ones(len(d),)
+                # print("new_lb: ", new_lb)
                 new_ub = d - np.matmul(U, new_mu)
+                # print("new_ub: ", new_ub)
                 new_Sig = np.matmul(np.matmul(U, new_Sig), np.transpose(U))
+                # print("new_Sig: ", new_Sig)
 
                 prob, _ = mvn.mvnun(new_lb, new_ub, np.zeros(len(d),), new_Sig)
+            # print_util('h4')
 
         return prob
 
@@ -748,6 +780,37 @@ class ProbStar(object):
                      self.pred_lb, self.pred_ub)
 
         return S
+    
+    def resetRowWithFactor(self, index, factor):
+        """Reset a row with index and factor
+        Author: Yuntao, Date: 1/30/2024
+        """
+
+        if index < 0 or index > self.dim - 1:
+            raise Exception('error: invalid index, \
+            should be between {} and {}'.format(0, self.dim - 1))
+        V = self.V
+        V[index, :] *= factor
+        S = ProbStar(V, self.C, self.d, self.mu, self.Sig,
+                     self.pred_lb, self.pred_ub)
+
+        return S
+    
+    def resetRowWithUpdatedCenter(self, index, new_c):
+        """Reset a row with index, and with new center
+        Author: Yuntao, Date: 1/30/2024
+        """
+
+        if index < 0 or index > self.dim - 1:
+            raise Exception('error: invalid index, \
+            should be between {} and {}'.format(0, self.dim - 1))
+        V = self.V
+        V[index, :] = 0.0
+        V[index, 0] = new_c
+        S = ProbStar(V, self.C, self.d, self.mu, self.Sig,
+                     self.pred_lb, self.pred_ub)
+
+        return S
 
     @staticmethod
     def rand(*args):
@@ -807,3 +870,38 @@ class ProbStar(object):
         samples = np.unique(samples, axis=1)
 
         return samples
+    
+
+    def toPolytope(self):
+        """
+            Converts to Polytope
+            Yuntao Li, 2/4/2024
+        """
+        if self.pred_lb.size and self.pred_ub.size:
+            I = np.eye(self.dim)
+            C1 = np.vstack([I, -I])
+            d1 = np.hstack([self.pred_ub, -self.pred_lb])
+
+            if len(self.C) == 0:
+                C = C1
+            else:
+                C = np.vstack([self.C, C1])
+
+            if len(self.d) == 0:
+                d = d1
+            else:
+                d = np.hstack([self.d, d1])
+        else:
+            C = self.C
+            d = self.d
+
+        c = self.V[:, 0]
+        V = self.V[:, 1:]
+
+        X, residuals, rank, s = np.linalg.lstsq(V.T, C.T, rcond=None)
+        new_C = X.T
+
+        new_d = d + np.dot(new_C, c)
+
+        P = pc.Polytope(new_C, new_d)
+        return P

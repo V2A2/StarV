@@ -6,7 +6,10 @@ Date: 9/11/2022
 
 import numpy as np
 from StarV.set.probstar import ProbStar
-from StarV.util.plot import probstar2polytope, plot_probstar
+from StarV.set.star import Star
+# from StarV.util.plot import probstar2polytope, plot_probstar
+from StarV.util.plot import plot_probstar, plot_probstar_using_Polytope, plot_star, plot_star_using_Polytope
+
 
 
 class Test(object):
@@ -66,6 +69,33 @@ class Test(object):
         else:
             print("Test Successfull!")
 
+    
+    def test_plot_probstar_using_polyhedron(self):
+
+        self.n_tests = self.n_tests + 1
+        
+        try:
+            V = np.array([[-1.2, 1.0, -0.5],
+                        [0.0, -1.0, 0.5]])
+            C = np.array([[1.0, 1.5],
+                        [1.0, -2.0]])
+            d = np.array([0.5, -0.5])
+
+            mu = np.random.rand(2,)
+            Sig = np.eye(2)
+            
+            pred_lb = np.array([-2.0, -0.75])
+            pred_ub = np.array([1.5, 1.0])
+
+            S = ProbStar(V, C, d, mu, Sig, pred_lb, pred_ub)
+            plot_probstar_using_Polytope(S)
+
+        except Exception:
+            print('Test Fail!')
+            self.n_fails = self.n_fails + 1
+        else:
+            print("Test Successfull!")
+
 
 
 if __name__ == "__main__":
@@ -75,8 +105,9 @@ if __name__ == "__main__":
     ================================\
     ================================\
     ===============================\n')
-    test_plot.test_probstar2polytope()
-    test_plot.test_plot_probstar()
+    # test_plot.test_probstar2polytope()
+    # test_plot.test_plot_probstar()
+    test_plot.test_plot_probstar_using_polyhedron()
     
     print('\n========================\
     =================================\
