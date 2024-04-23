@@ -7,6 +7,7 @@
 import numpy as np
 from StarV.layer.fullyConnectedLayer import fullyConnectedLayer
 from StarV.layer.ReLULayer import ReLULayer
+from StarV.set.probstar import ProbStar
 import copy
 import multiprocessing
 
@@ -85,6 +86,27 @@ def rand_ffnn(arch, actvs):
 
     return NeuralNetwork(layers, 'ffnn')
 
+def filterProbStar(*args):
+    """Filtering out some probstars"""
+
+    if isinstance(args[0], tuple):
+        args1 = args[0]
+    else:
+        args1 = args
+    p_filter = args1[0]
+    S = args1[1]
+    assert isinstance(S, ProbStar), 'error: input is not a probstar'
+    prob = S.estimateProbability()
+    if prob >= p_filter:
+        P = S
+        p_ignored = 0.0
+    else:
+        P = []
+        p_ignored = prob
+
+    return P, p_ignored
+    
+
 def reachExactBFS(net, inputSet, lp_solver='gurobi', pool=None, show=True):
     """Compute Reachable Set layer-by-layer"""
 
@@ -101,3 +123,43 @@ def reachExactBFS(net, inputSet, lp_solver='gurobi', pool=None, show=True):
 
     return S
 
+def reachApproxBFS(net, inputSet, p_filter, lp_solver='gurobi', pool=None, show=True):
+    """Compute Approximate Reachable Set layer-by-layer"""
+
+    assert isinstance(net, NeuralNetwork), 'error: first input should be a NeuralNetwork object'
+    assert isinstance(inputSet, list), 'error: second input should be a list of Star/ProbStar set'
+
+    # compute and filter reachable sets
+    I = copy.deepcopy(inputSet)
+    p_ignored = 0.0
+    for i in range(0, net.n_layers):
+        if show:
+            print('================ Layer {} ================='.format(i))
+            print('Computing layer {} reachable set...'.format(i))
+        S = net.layers[i].reach(I, method='exact', lp_solver=lp_solver, pool=pool)
+        if show:
+            print('Number of probstars: {}'.format(len(S)))
+            print('Filtering probstars whose probabilities < {}...'.format(p_filter))
+        P = []
+        if pool is None:
+            for S1 in S:
+                P1, prob1 = filterProbStar(p_filter, S1)
+                if isinstance(P1, ProbStar):
+                    P.append(P1)
+                p_ignored = p_ignored + prob1  # update the total probability of ignored sets
+        else:
+            S1 = pool.map(filterProbStar, zip([p_filter]*len(S), S))
+            for S2 in S1:
+                if isinstance(S2[0], ProbStar):
+                    P.append(S2[0])
+                p_ignored = p_ignored + S2[1]
+        I = P            
+        if show:
+            print('Number of ignored probstars: {}'.format(len(S) - len(I)))
+            print('Number of remaining probstars: {}'.format(len(I)))
+
+        if len(I) == 0:
+            break
+
+
+    return I, p_ignored

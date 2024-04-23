@@ -82,6 +82,7 @@ import numpy as np
 from StarV.set.probstar import ProbStar
 from itertools import combinations
 import copy
+import polytope as pc
 
 
 class AtomicPredicate(object):
@@ -163,12 +164,15 @@ class AtomicPredicate(object):
                 
 
         # combine all constraints into a single set of constraints
-        
-        _, m = C.shape
+        P = pc.Polytope(C, d)
+        P1 = pc.reduce(P)
+        Cmin = P1.A
+        dmin = P1.b
+        _, m = Cmin.shape
         V = np.eye(m,m)
         center = np.zeros((m, 1))
         V = np.append(center, V, axis=1)
-        S = ProbStar(V, C, d, probstar_sig[nVarMaxID].mu, probstar_sig[nVarMaxID].Sig,\
+        S = ProbStar(V, Cmin, dmin, probstar_sig[nVarMaxID].mu, probstar_sig[nVarMaxID].Sig,\
                      probstar_sig[nVarMaxID].pred_lb, probstar_sig[nVarMaxID].pred_ub)
         # S is a probstar that contains all points for satisfaction
         
@@ -301,12 +305,110 @@ class _RightBracket_(object):
     def print(self):
 
         return self.operator
-        
 
+
+class CDNF(object):
+    """
+     This is the computable disjuctive normal form of a formula
+
+     Dung Tran: 1/24/2024
+
+    """
+
+    def __init__(self, constraints, base_probstar):
+
+        # constraints should be in a list constraints = [H1 or H2 or ... Hn]  # after realization
+        # base_probstar shares common constraints among all probstar in probstar signal
+        assert isinstance(constraints, list), 'error: ADNF is not a Formula object'
+        assert isinstance(base_probstar, ProbStar), 'error: base_probstar should be a ProbStar object'
+
+        self.constraints = constraints
+        self.base_probstar = base_probstar
+        self.length = len(constraints)
+
+        
+    def print(self):
+        'print cdnf formula'
+
+        print('=======CDNF formula information======:')
+        print('***Length of CDNF = {}\n'.format(self.length))
+        print('***Constraints:')
+        for i in range(0, self.length):
+            print('=========P{}=========:'.format(i))
+            const = self.constraints[i]
+            print('C{} = {}'.format(i, const[0]))
+            print('d{} = {}'.format(i, const[1]))
+
+        print('\n***Shared base probstar:')
+        self.base_probstar.__str__()
+
+    def estimateProbability(self, combination_ids):
+        'estimate probability of a combination of constraints'
+
+        assert isinstance(combination_ids, tuple), 'error: combination_ids should be a tuple'
+
+        for i in range(0, len(combination_ids)):
+            id = combination_ids[i]
+            const = self.constraints[id]
+            if i==0:
+                C = const[0]
+                d = const[1]
+            else:
+                C = np.vstack((C, const[0]))
+                d = np.concatenate((d, const[1]))
+
+        if len(self.base_probstar.C) != 0:
+            C = np.vstack((C, self.base_probstar.C))
+            d = np.concatenate((d, self.base_probstar.d))
+
+        if len(C.shape) == 1:
+            C = C.reshape(1, self.base_probstar.nVars)
+
+        S = ProbStar(self.base_probstar.V, C, d, self.base_probstar.mu, self.base_probstar.Sig, self.base_probstar.pred_lb, self.base_probstar.pred_ub)
+
+        prob = S.estimateProbability()
+
+        return prob
+
+    def toProbStarSignals(self, probstar_signal):
+        'return a set of probstar signals (for plotting)'
+
+        probstar_signals = []
+        for i in range(0, self.length):
+            const = self.constraints[i]
+            C = const[0]
+            d = const[1]
+
+            if len(C.shape) == 1:
+                C = C.reshape(1, self.base_probstar.nVars)
+
+            if len(self.base_probstar.C) != 0:
+                
+                newC = np.vstack((C, self.base_probstar.C))
+                newd = np.concatenate((d, self.base_probstar.d))
+
+            else:
+                newC = C
+                newd = d
+
+            probstar_sig_out = []
+            for PS in probstar_signal:
+                newPS = ProbStar(PS.V, newC, newd, PS.mu, PS.Sig, self.base_probstar.pred_lb, self.base_probstar.pred_ub)
+
+                if not newPS.isEmptySet():
+                    probstar_sig_out.append(newPS)
+
+            probstar_signals.append(probstar_sig_out)
+
+        return probstar_signals
+
+    
 class Formula(object):
     """
       Specification is made by Predicate & OPERATORS & Brackets
       A list of objects including Predicate, OPERATORS and Brackets
+    
+      This is abstract disjunctive normal form (ADNF)
     """
     
     def __init__(self, formula):
@@ -566,52 +668,56 @@ def combineProbStars(probstar_sig):
     
 
     assert isinstance(probstar_sig, list), 'error: input should be a list of probstars'
-
         
-    C = None
-    d = None
-    nVarMax = 0
-    nVarMaxID = 0
-    for i in range(0, len(probstar_sig)):
-        R = copy.deepcopy(probstar_sig[i])
-        C1 = R.C
-        d1 = R.d
-        if C is None:
-            C = copy.deepcopy(C1)
-            d = copy.deepcopy(d1)
-            nVarMax = R.nVars
-        else:
-            n, m = C.shape  # m is the number of predicate variables in the current constraint
-            n1, m1 = C1.shape # m1 is the number of predicate variables in the new constraint
-
-            if m < m1:  # usually happen
-                dC = np.zeros((n, m1-m))
-                C = np.append(C, dC, axis=1)
-            if m1 < m: # not usually happen
-                dC = np.zeros((n1, m-m1))
-                C1 = np.append(C1, dC, axis=1)
-
-            C = np.concatenate((C, C1), axis=0)
-            d = np.concatenate((d, d1))
-
-            if R.nVars > nVarMax:
+    if len(probstar_sig) == 1:
+        return probstar_sig[0]
+    else:
+        
+        C = None
+        d = None
+        nVarMax = 0
+        nVarMaxID = 0
+        for i in range(0, len(probstar_sig)):
+            R = copy.deepcopy(probstar_sig[i])
+            C1 = R.C
+            d1 = R.d
+            if C is None:
+                C = copy.deepcopy(C1)
+                d = copy.deepcopy(d1)
                 nVarMax = R.nVars
-                nVarMaxID = i
+            else:
+                n, m = C.shape  # m is the number of predicate variables in the current constraint
+                n1, m1 = C1.shape # m1 is the number of predicate variables in the new constraint
+
+                if m < m1:  # usually happen
+                    dC = np.zeros((n, m1-m))
+                    C = np.append(C, dC, axis=1)
+                if m1 < m: # not usually happen
+                    dC = np.zeros((n1, m-m1))
+                    C1 = np.append(C1, dC, axis=1)
+
+                C = np.concatenate((C, C1), axis=0)
+                d = np.concatenate((d, d1))
+
+                if R.nVars > nVarMax:
+                    nVarMax = R.nVars
+                    nVarMaxID = i
 
 
         # combine all constraints into a single set of constraints, we use the lower bound and upper bound vectors of
         # the probstar that has the maximum number of predicate variables
+
         _, m = C.shape
         V = np.eye(m,m)
         center = np.zeros((m, 1))
         V = np.append(center, V, axis=1)
+
         S = ProbStar(V, C, d, probstar_sig[nVarMaxID].mu, probstar_sig[nVarMaxID].Sig,\
                      probstar_sig[nVarMaxID].pred_lb, probstar_sig[nVarMaxID].pred_ub)
         # S is a probstar that contains all points for satisfaction
         # nVarMaxID is the index of the probstar contains all predicate variables
 
-
-    return S
+        return S
 
 def combineProbStars_with_indexes(probstar_sig, idxs):
     'combine ProbStars in a probstar signal with specific indexes'
@@ -859,65 +965,141 @@ class DynamicFormula(object):
                 
             i = i-1
 
-
     def realization(self, probstar_sig):
-        'realization of abstract, timed dynamic formula on a probstar signal'
+        'realization of abstract, timed dynamic formula on a probstar signal'     
             
         assert isinstance(probstar_sig, list), 'error: probstar signal should be a list'
-        T = len(probstar_sig)  # time
-        for i in range(0, T):
-            S = probstar_sig[i]  # a star set
-            if not isinstance(S, ProbStar):
-                raise RuntimeError('item {} is not a probstar'.format(i))
-
-        res = []
+        T = len(probstar_sig)
+        constraints = []
+        base_probstar = copy.deepcopy(probstar_sig[0])
+        nVars = base_probstar.nVars
         for P in self.F:
-            resi = []
-            i  = 0
+            H = []
+            C = None
+            d = None
             for Pi in P:
                 if Pi.t >= T:
-                    resi = []
                     break
                 else:
-                    X = copy.deepcopy(probstar_sig[Pi.t])
-                    X.addConstraintWithoutUpdateBounds(Pi.A, Pi.b)
-                    resi.append(X)
+                    
+                    if C is None:
+                        d = Pi.b - np.matmul(Pi.A, probstar_sig[Pi.t].V[:,0])
+                        C = np.matmul(Pi.A, probstar_sig[Pi.t].V[:, 1:nVars+1])
+                    else:
+                        d1 = Pi.b - np.matmul(Pi.A, probstar_sig[Pi.t].V[:,0])
+                        C1 = np.matmul(Pi.A, probstar_sig[Pi.t].V[:, 1:nVars+1])
+
+                        C = np.vstack((C, C1))
+                        d = np.concatenate((d, d1))
+                    
+            if C is not None:
+                if len(base_probstar.C) != 0:
+                    C1 = np.vstack((C, base_probstar.C))
+                    d1 = np.concatenate((d, base_probstar.d))
+                else:
+                    C1 = C
+                    d1 = d
+
+                if len(C1.shape) == 1:
+                    C1 = C1.reshape(1,nVars)
+               
+                S1 = ProbStar(base_probstar.V, C1, d1, base_probstar.mu, \
+                              base_probstar.Sig, base_probstar.pred_lb, base_probstar.pred_ub)
+
+                if not S1.isEmptySet():
+                    H = [C, d]
+                    constraints.append(H)
                 
-            if len(resi) != 0:
-                S1 = combineProbStars(resi)
-                res.append(S1)
+        cdnf = CDNF(constraints, base_probstar)
 
-        return res
+        return cdnf
 
-    def evaluate(self, probstar_sig, semantics='exact'):
+
+    def evaluate(self, probstar_sig):
         'evaluate the satisfaction of the abtract-timed dyanmic formula on a probstar signal'
 
-        res = self.realization(probstar_sig)
+        print('Realizing Abstract DNF specification on a ProbStar Signal...')
+        cdnf = self.realization(probstar_sig)
+        print('Length of Computable DNF = {}'.format(cdnf.length))
 
+        p_trace = cdnf.base_probstar.estimateProbability()  # probability of the probstar signal
         SAT = []
-        for i in range(0, len(res)):
-            SAT.append(res[i].estimateProbability())
-        SAT_MIN = max(SAT)
+        p_SAT_MIN = 0.0
+        p_SAT_MAX = 0.0
 
-        SAT_EXACT = 0.0
-        N = range(0, len(res))
-        for i in range(0, len(res)):
-            SAT1 = 0.0
-            # get combinations
-            comb = combinations(N, i+1)   # get all combinations
-            for j in list(comb):
-                # compute probability of sub-combincation , i.e., Pj[1] AND Pj[2]
-                S = combineProbStars_with_indexes(res, j)
-                prob = (-1)**i * S.estimateProbability()
-                SAT1 = SAT1 + prob
-            SAT_EXACT = SAT_EXACT + SAT1
-            
+        if cdnf.length != 0:
+            for i in range(0, cdnf.length):
+               SAT.append(cdnf.estimateProbability((i,)))
+               p_SAT_MIN = max(SAT)
 
-        # SAT_EXACT should be always >= SAT_MIN, however, \
-        # due to the uncertainties in probability estimation SAT_EXACT may be slightly smaller than SAT_MIN
-        SAT_EXACT = max(SAT_MIN, SAT_EXACT) 
-            
-        return SAT, SAT_MIN, SAT_EXACT
+            if cdnf.length > 11:
+                print('*****WARNING*****: CDNF (len = {}) is too large for exact verification'.format(cdnf.length))
+                print('We ignore this CDNF, return the estimate probability uperbound')
+                p_SAT_MAX = max(p_SAT_MIN, p_trace) # this eleminates the numerical issue in estimating probability
+            else:
+                N = range(0, cdnf.length)
+                print('Computing exact probability of satisfaction...')
+                for i in range(0, cdnf.length):
+                    print('i = {}/{}'.format(i, cdnf.length))
+                    SAT1 = 0.0
+                    # get combinations
+                    comb = combinations(N, i+1)   # get all combinations
+                    for j in list(comb):
+                        # compute probability of sub-combincation , i.e., Pj[1] AND Pj[2]
+                        prob = (-1)**i * cdnf.estimateProbability(j)
+                        SAT1 = SAT1 + prob
+                    p_SAT_MAX = p_SAT_MAX + SAT1
+                p_SAT_MAX = max(p_SAT_MIN, p_SAT_MAX) # to eliminate numerical issues in estimating probability
+
+
+        return p_SAT_MAX, p_SAT_MIN
+
+
+    def evaluate_for_full_analysis(self, probstar_sig):
+        'evaluate the satisfaction of the abtract-timed dyanmic formula on a probstar signal'
+
+        print('Realizing Abstract DNF specification on a ProbStar Signal...')
+        cdnf = self.realization(probstar_sig)
+        print('Length of Computable DNF = {}'.format(cdnf.length))
+
+        p_trace = cdnf.base_probstar.estimateProbability()  # probability of the probstar signal
+        SAT = []
+        p_SAT_MIN = 0.0
+        p_SAT_MAX = 0.0
+        p_ig = 0.0
+        cdnf_SAT = []
+        cdnf_IG = []
+        sat_trace = []
+        if cdnf.length != 0:
+            for i in range(0, cdnf.length):
+               SAT.append(cdnf.estimateProbability((i,)))
+               p_SAT_MIN = max(SAT)
+
+            if cdnf.length > 11:
+                print('*****WARNING*****: CDNF (len = {}) is too large for exact verification'.format(cdnf.length))
+                print('We ignore this CDNF, return the estimate probability uperbound')
+                p_SAT_MAX = max(p_SAT_MIN, p_trace) # this eleminates the numerical issue in estimating probability
+                p_ig = p_trace
+                cdnf_IG = cdnf
+            else:
+                cdnf_SAT = cdnf
+                N = range(0, cdnf.length)
+                print('Computing exact probability of satisfaction...')
+                for i in range(0, cdnf.length):
+                    print('i = {}/{}'.format(i, cdnf.length))
+                    SAT1 = 0.0
+                    # get combinations
+                    comb = combinations(N, i+1)   # get all combinations
+                    for j in list(comb):
+                        # compute probability of sub-combincation , i.e., Pj[1] AND Pj[2]
+                        prob = (-1)**i * cdnf.estimateProbability(j)
+                        SAT1 = SAT1 + prob
+                    p_SAT_MAX = p_SAT_MAX + SAT1
+                p_SAT_MAX = max(p_SAT_MIN, p_SAT_MAX) # to eliminate numerical issues in estimating probability
+                sat_trace = [probstar_sig, cdnf]
+
+
+        return p_SAT_MAX, p_SAT_MIN, p_ig, cdnf_SAT, cdnf_IG, sat_trace
         
         
 

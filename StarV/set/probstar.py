@@ -250,6 +250,25 @@ class ProbStar(object):
             dmin = P1.b
 
         return Cmin, dmin
+
+    def minimizeConstraints(self):
+
+        if len(self.C) == 0:
+            return self
+        else:
+            C1 = np.vstack((np.eye(self.nVars), -np.eye(self.nVars)))
+            d1 = np.concatenate([self.pred_ub, -self.pred_lb])
+            C = np.vstack((self.C, C1))
+            d = np.concatenate([self.d, d1])       
+            P = pc.Polytope(C, d)
+            P1 = pc.reduce(P)
+            Cmin = P1.A
+            dmin = P1.b
+            self.C = Cmin
+            self.d = dmin
+
+            return self
+        
             
       
     def estimateRange(self, index):
@@ -725,14 +744,26 @@ class ProbStar(object):
         assert isinstance(d, np.ndarray), 'error: constraint vector should be a numpy array'
         assert C.shape[0] == d.shape[0], 'error: inconsistency between \
         constraint matrix and constraint vector'
-        print(len(d.shape))
         assert len(d.shape) == 1, 'error: constraint vector should be a 1D numpy array'
         
-        if C.shape[0] == 1:
-            self.addConstraint(C, d)
-        else:
-            for i in range(0, C.shape[0]):
-                self.addConstraint(C[i, :], np.array([d[i]]))
+     
+        for i in range(0, C.shape[0]):
+            self.addConstraint(C[i, :], np.array([d[i]]))
+
+        return self
+
+    def addMultipleConstraintsWithoutUpdateBounds(self, C, d):
+        """ Add multiple constraint to a ProbStar, self & Cx <= d"""
+
+        assert isinstance(C, np.ndarray), 'error: constraint matrix should be a numpy array'
+        assert isinstance(d, np.ndarray), 'error: constraint vector should be a numpy array'
+        assert C.shape[0] == d.shape[0], 'error: inconsistency between \
+        constraint matrix and constraint vector'
+        assert len(d.shape) == 1, 'error: constraint vector should be a 1D numpy array'
+
+
+        for i in range(0, C.shape[0]):
+            self.addConstraintWithoutUpdateBounds(C[i, :], np.array([d[i]]))
 
         return self
 
@@ -748,6 +779,26 @@ class ProbStar(object):
                      self.pred_lb, self.pred_ub)
 
         return S
+
+    def concatenate_with_vector(self, v=[]):
+        """
+           concatenate a probstar with a vector
+           Dung Tran: 11/19/2023
+        """
+
+        if len(v) != 0:
+            assert isinstance(v, np.ndarray), 'error: input should be a 1-d array'
+            assert len(v.shape) == 1, 'error: input should be a 1-d array'
+
+            n = v.shape[0]
+            v1 = v.reshape(n,1)
+            V1 = np.zeros((n, self.nVars))
+            V1 = np.hstack((v1, V1))
+            newV = np.vstack((V1, self.V))
+            S = ProbStar(newV, self.C, self.d, self.mu, self.Sig, self.pred_lb, self.pred_ub)
+            return S
+        else:
+            return self
 
     @staticmethod
     def rand(*args):

@@ -202,15 +202,16 @@ class Test(object):
         probstar_sig = [R1, R2, R3, R4]
         print('probstar_sig = {}'.format(probstar_sig))
 
-        res = F3.realization(probstar_sig)
-        print('res_length = {}'.format(len(res)))
-        print('res = {}'.format(res))
-        
+        cdnf = F3.realization2(probstar_sig)
+        cdnf.print()
 
-        SAT, SAT_MIN, SAT_EXACT = F3.evaluate(probstar_sig)
-        print('SAT = {}'.format(SAT))
-        print('SAT-MIN = {}'.format(SAT_MIN))
-        print('SAT-EXACT = {}'.format(SAT_EXACT))
+        comb_ids = (0, 3)
+        print('probability of cdnf({}) = {}'.format(comb_ids, cdnf.estimateProbability(comb_ids)))
+
+        #SAT, SAT_MIN, SAT_EXACT = F3.evaluate(probstar_sig)
+        #print('SAT = {}'.format(SAT))
+        #print('SAT-MIN = {}'.format(SAT_MIN))
+        #print('SAT-EXACT = {}'.format(SAT_EXACT))
         
         
     def test_DynamicFormula_evaluate(self):
@@ -233,18 +234,40 @@ class Test(object):
         X1 = X0.affineMap(A, b)
         X2 = X1.affineMap(A, b)
         X3 = X2.affineMap(A, b)
+        X4 = X3.affineMap(A, b)
+        X5 = X4.affineMap(A, b)
         
         # predicate: Eventually_[1,3] x >= 0.5
         P = AtomicPredicate(np.array([-1]), np.array([-0.5]))
+        
+
+        # predicates
+        # P1: x-0.5 >= 0
+        # P2: -x + 0.4 >= 0
+        # P3: -x + 0.8 >= 0
+
+        P1 = AtomicPredicate(np.array([-1.0]), np.array([-0.5]))
+        P2 = AtomicPredicate(np.array([1.]), np.array([0.4]))
+        P3 = AtomicPredicate(np.array([1.]), np.array([0.8]))
+
+        # temporal operators
+        AW13 = _ALWAYS_(1,3)
         EV13 = _EVENTUALLY_(1,3)
+        EV05 = _EVENTUALLY_(0,5)
+        AND = _AND_()
+        lb = _LeftBracket_()
+        rb = _RightBracket_()
 
         # formula
-        f = Formula([EV13, P])
-        f.print()
+        f1 = Formula([EV13, P1])
+        f2 = Formula([AW13, P1])
+        f3 = Formula([EV05, lb, P1, AND, EV13, lb, P3, rb, rb])
+        
+        #f1.print()
 
         # timed-abstract dynamic formula
-        F = f.getDynamicFormula()
-        F.print()
+        F1 = f1.getDynamicFormula()
+        F1.print()
 
         # reachable set
         #X0.__str__()
@@ -252,13 +275,13 @@ class Test(object):
         #X2.__str__()
         #X3.__str__()
         
-        probstar_sig = [X0, X1, X2, X3]
+        probstar_sig = [X0, X1, X2, X3, X4, X5]
 
-        res = F.realization(probstar_sig)
+        res = F1.realization(probstar_sig)
         print('res_length = {}'.format(len(res)))
         print('res = {}'.format(res))
 
-        SAT, SAT_MIN, SAT_EXACT = F.evaluate(probstar_sig)
+        SAT, SAT_MIN, SAT_EXACT = F1.evaluate(probstar_sig)
         print('SAT = {}'.format(SAT))
         print('SAT-MIN = {}'.format(SAT_MIN))
         print('SAT-EXACT = {}'.format(SAT_EXACT))

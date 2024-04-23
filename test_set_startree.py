@@ -5,6 +5,7 @@ Dung Tran, 9/14/2023
 """
 
 from StarV.set.startree import StarNode
+from treelib import Node, Tree
 
 class Test(object):
 
@@ -18,21 +19,27 @@ class Test(object):
         self.n_tests = self.n_tests + 1
 
         a = StarNode(1)
-        b = StarNode(2)
-        c = StarNode(3)
-        b.add_child(StarNode(4))
-        c.add_child(StarNode(5))
+        #b = StarNode(2)
+        #c = StarNode(3)
+        #b.add_child(StarNode(4))
+        #c.add_child(StarNode(5))
 
-        a.add_child(b)
-        a.add_child(c)
+        #a.add_child(b)
+        #a.add_child(c)
 
         print('a = {}'.format(a))
 
-        a_child = a.get_child(0)
-        print('a_child = {}'.format(a_child))
+        #a_child = a.get_child(0)
+        #print('a_child = {}'.format(a_child))
 
-        a_all_childs = a.get_childs()
-        print('a_all_childs = {}'.format(a_all_childs))
+        #a_all_childs = a.get_childs()
+        #print('a_all_childs = {}'.format(a_all_childs))
+
+        tree = Tree()
+        tree.create_node("X0", 0)
+        tree.create_node("X1", 1, parent=0)
+
+        tree.show()
 
         
     

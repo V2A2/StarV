@@ -173,9 +173,9 @@ class LODE(object):
 
     def toDLODE(self, dt, method='zoh', alpha=None):
 
-        sysd = cont2discrete(self.plant, dt, method, alpha)
+        sysd = cont2discrete((self.A, self.B, self.C, self.D), dt, method, alpha)
 
-        sys = DLODE(sysd.A, sysd.B, sysd.C, sysd.D, dt)
+        sys = DLODE(sysd[0], sysd[1], sysd[2], sysd[3], dt)
 
         return sys
         
