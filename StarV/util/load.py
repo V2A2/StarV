@@ -8,9 +8,87 @@ from StarV.layer.fullyConnectedLayer import fullyConnectedLayer
 from StarV.layer.ReLULayer import ReLULayer
 from StarV.net.network import NeuralNetwork
 from StarV.plant.lode import LODE
+from StarV.plant.dlode import DLODE
 import numpy as np
 import torch
 import math
+
+
+def load_ABES():
+
+    """
+    Load the advanced emergency braking system
+
+    ref paper: Tran et al., "Safety Verification for Learning-enabled 
+              Cyber-Physical Systems with Reinforcement Learning Control", EMSOFT 2019
+    """
+
+    cur_path = os.path.dirname(__file__)
+    controller_path = cur_path + '/data/nets/AEBS/controller.mat'
+    transform_path = cur_path + '/data/nets/AEBS/transform.mat'
+    controller_contents = loadmat(controller_path)
+    transform_contents = loadmat(transform_path)
+
+    control_W = controller_contents['W']
+    control_b = controller_contents['b']
+    transform_W = transform_contents['W']
+    transform_b = transform_contents['b']
+
+    control_layers = []
+    transform_layers = []
+
+    # controller
+    FC1 = fullyConnectedLayer(control_W[0, 0], control_b[0, 0])
+    FC2 = fullyConnectedLayer(control_W[0, 1], control_b[0, 1])
+    FC3 = fullyConnectedLayer(control_W[0, 2], control_b[0, 2])
+    RL1 = ReLULayer()
+    RL2 = ReLULayer()
+    CLayers = [FC1, RL1, FC2, RL2, FC3]
+    controller = NeuralNetwork(CLayers, net_type='controller')
+
+    # transformer
+    TFC1 = fullyConnectedLayer(transform_W[0, 0], transform_b[0, 0])
+    TFC2 = fullyConnectedLayer(transform_W[0, 1], transform_b[0, 1])
+    TFC3 = fullyConnectedLayer(transform_W[0, 2], transform_b[0, 2])
+    TRL1 = ReLULayer()
+    TRL2 = ReLULayer()
+
+    TLayers = [TFC1, TRL1, TFC2, TRL2, TFC3]
+    transformer = NeuralNetwork(TLayers, net_types='transformer')
+
+
+    # normalization
+    norm_mat = np.array([[1/250., 0., 0.], [0., 3.6/120., 0.], [0.,  0., 1/20.]])
+
+    # control signal scale
+    scale_mat = np.array([-15.0*120/3.6, 15.0*120/3.6])
+
+    # plant matrices
+
+    A = np.array([[1., -1/15., 0], [0., 1., 0.], [0., 0., 0.]])
+    B = np.array([[0.], [1.0/15], [1.]])
+    C = np.eye(3)
+    
+    plant = DLODE(A, B, C)
+
+    # initial conditions
+
+    lb1 = np.array([97., 25.2, 0.])
+    ub1 = np.array([97.5, 25.5, 0.])
+
+    lb2 = np.array([90., 27., 0.])
+    ub2 = np.array([90.5, 27.2, 0.])
+
+    lb3 = np.array([60., 30.2, 0.])
+    ub3 = np.array([60.5, 30.4, 0.])
+
+    lb4 = np.array([50., 32., 0.])
+    ub4 = np.array([50.5, 32.2, 0.])
+
+    
+
+
+    
 
 def load_2017_IEEE_TNNLS():
     """Load network from the IEEE TNNLS 2017 paper

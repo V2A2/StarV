@@ -207,8 +207,11 @@ class ProbStar(object):
             else:  # Need to introduce auxilary normal variables
                 # step 1: SVD decomposition
                 # [U, Q, L] = SVD(C), C = U*Q*L'
-                # decompose Q = [Q_(r x r); 0_(m-r x r)]
-                # U'*U = L'*L = I_r
+                # C = m x n -> U = m x m, Q = m x n (rectangular diagonal matrix), L = n x n
+                # decompose Q = [Q_(r x r) 0_(r x n - r); 0_(m-r x r); 0_(m-r x n-r)]
+                # decompose L' = [(r x r) (r x (n-r)); ((n-r) x r) (n-r x n-r)]
+                # U'*U = L'*L = I
+                # See paper Quantitative Verification for neural networks using Probstar, HSCC2023 Tran et al.
                 U, Q, L = np.linalg.svd(C)
                 Q1 = np.diag(Q)
                 r = Q1.shape[0]
