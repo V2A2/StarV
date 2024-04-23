@@ -10,6 +10,7 @@ from StarV.layer.ReLULayer import ReLULayer
 from StarV.set.probstar import ProbStar
 import copy
 import multiprocessing
+from StarV.util.print_util import print_util
 
 class NeuralNetwork(object):
     """Generic serial Neural Network class
@@ -118,8 +119,27 @@ def reachExactBFS(net, inputSet, lp_solver='gurobi', pool=None, show=True):
         if show:
             print('Computing layer {} reachable set...'.format(i))
         S = net.layers[i].reach(S, method='exact', lp_solver=lp_solver, pool=pool)
+        for j in range(0, len(S)):
+            print_util("h3")
+            print('Layer {} Reachable set #{}'.format(i, j))
+            S[j].__str__()
+            lb_e, ub_e = S[j].estimateRanges()
+            print('Estimated Range: ', lb_e, ub_e)
+            lb_lp, ub_lp = S[j].getRanges()
+            print('Exact Range: ', lb_lp, ub_lp)
+            print_util("h3")
         if show:
             print('Number of stars/probstars: {}'.format(len(S)))
+
+    for i in range(0, len(S)):
+        print_util("h3")
+        print('Final Reachable set #', i)
+        S[i].__str__()
+        lb_e, ub_e = S[i].estimateRanges()
+        print('Estimated Range: ', lb_e, ub_e)
+        lb_lp, ub_lp = S[i].getRanges()
+        print('Exact Range: ', lb_lp, ub_lp)
+        print_util("h3")
 
     return S
 

@@ -6,6 +6,7 @@ Dung Tran, 8/29/2022
 
 # !/usr/bin/python3
 from StarV.set.probstar import ProbStar
+from StarV.set.star import Star
 import numpy as np
 import copy
 import multiprocessing
@@ -55,11 +56,12 @@ class PosLin(object):
             raise Exception('error: \
             Invalid number of input arguments, should be 2 or 3')
 
-        if not isinstance(I, ProbStar):
+        if not isinstance(I, ProbStar) and not isinstance(I, Star):
             raise Exception('error: input is not a Star or ProbStar set, \
             type of input = {}'.format(type(I)))
 
         xmin, xmax = I.estimateRange(index)
+        # print("\n xmin ------------------------ \n", xmin)
         if xmin >= 0:
             S = []
             S.append(I)
@@ -68,6 +70,7 @@ class PosLin(object):
             S.append(I.resetRow(index))
         else:
             xmax = I.getMax(index, lp_solver)
+            # print("\n xmax ------------------------ \n", xmax)
             if xmax <= 0:
                 S = []
                 S.append(I.resetRow(index))
@@ -148,7 +151,7 @@ class PosLin(object):
             raise Exception('error: Invalid \
             number of input arguments, should be 1 or 2')
 
-        if not isinstance(In, ProbStar):
+        if not isinstance(In, ProbStar) and not isinstance(In, Star):
             raise Exception('error: input is not a Star or ProbStar, \
             type of input is {}'.format(type(In)))
 
@@ -183,6 +186,7 @@ class PosLin(object):
             pool = None
         elif len(args) == 2:
             [In, lp_solver] = args
+            pool = None
         elif len(args) == 3:
             [In, lp_solver, pool] = args
        
@@ -193,6 +197,7 @@ class PosLin(object):
         assert isinstance(In, list), 'error: inputsets should be in a list'
         S = []
         if pool is None:
+            # print("pool is none")
             for i in range(0, len(In)):
                 S.extend(PosLin.reachExactSingleInput(In[i], lp_solver))
         elif isinstance(pool, multiprocessing.pool.Pool):
