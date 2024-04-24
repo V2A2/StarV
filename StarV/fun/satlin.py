@@ -72,9 +72,9 @@ class SatLin(object):
             raise Exception('error: input is not a Star or ProbStar set, \
             type of input = {}'.format(type(I)))
 
-        xmin, xmax = I.estimateRange(index)
-        # xmin = I.getMin(index, lp_solver)
-        # xmax = I.getMax(index, lp_solver)
+        # xmin, xmax = I.estimateRange(index)
+        xmin = I.getMin(index, lp_solver)
+        xmax = I.getMax(index, lp_solver)
 
         # ------------- case 1) only single set -------------
         if xmin >= 0 and xmax <= 1:

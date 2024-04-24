@@ -6,6 +6,7 @@ import os
 from scipy.io import loadmat
 from StarV.layer.fullyConnectedLayer import fullyConnectedLayer
 from StarV.layer.ReLULayer import ReLULayer
+from StarV.layer.SatLinLayer import SatLinLayer
 from StarV.net.network import NeuralNetwork
 from StarV.nncs.nncs import NNCS
 from StarV.plant.lode import LODE, DLODE
@@ -506,7 +507,7 @@ def load_acc_model(netname='controller_5_20', plant='linear', spec_ids=None, ini
         return sys, phi_v, initSets[initSet_id], refInputs
 
 
-def load_AEBS():
+def load_AEBS_model():
     """load avanced emergency braking system
     
     This case study is from this paper: 
@@ -531,34 +532,36 @@ def load_AEBS():
     transform_W = transform_contents['W']
     transform_b = transform_contents['b']
 
+
     control_layers = []
     transform_layers = []
 
     # controller
-    FC1 = fullyConnectedLayer(control_W[0, 0], control_b[0, 0])
-    FC2 = fullyConnectedLayer(control_W[0, 1], control_b[0, 1])
-    FC3 = fullyConnectedLayer(control_W[0, 2], control_b[0, 2])
+    FC1 = fullyConnectedLayer(control_W[0, 0], control_b[0, 0].reshape(control_b[0, 0].shape[1], ))
+    FC2 = fullyConnectedLayer(control_W[0, 1], control_b[0, 1].reshape(control_b[0, 1].shape[1], ))
+    FC3 = fullyConnectedLayer(control_W[0, 2], control_b[0, 2].reshape(control_b[0, 2].shape[1], ))
     RL1 = ReLULayer()
     RL2 = ReLULayer()
-    CLayers = [FC1, RL1, FC2, RL2, FC3]
+    SL1 = SatLinLayer()
+    CLayers = [FC1, RL1, FC2, RL2, FC3, SL1]
     controller = NeuralNetwork(CLayers, net_type='controller')
 
     # transformer
-    TFC1 = fullyConnectedLayer(transform_W[0, 0], transform_b[0, 0])
-    TFC2 = fullyConnectedLayer(transform_W[0, 1], transform_b[0, 1])
-    TFC3 = fullyConnectedLayer(transform_W[0, 2], transform_b[0, 2])
+    TFC1 = fullyConnectedLayer(transform_W[0, 0], transform_b[0, 0].reshape(transform_b[0, 0].shape[1], ))
+    TFC2 = fullyConnectedLayer(transform_W[0, 1], transform_b[0, 1].reshape(transform_b[0, 1].shape[1], ))
+    TFC3 = fullyConnectedLayer(transform_W[0, 2], transform_b[0, 2].reshape(transform_b[0, 2].shape[1], ))
     TRL1 = ReLULayer()
     TRL2 = ReLULayer()
-
+    
     TLayers = [TFC1, TRL1, TFC2, TRL2, TFC3]
-    transformer = NeuralNetwork(TLayers, net_types='transformer')
+    transformer = NeuralNetwork(TLayers, net_type='transformer')
 
 
     # normalization
     norm_mat = np.array([[1/250., 0., 0.], [0., 3.6/120., 0.], [0.,  0., 1/20.]])
 
     # control signal scale
-    scale_mat = np.array([-15.0*120/3.6, 15.0*120/3.6])
+    scale_mat = np.array([[-15.0*120/3.6, 15.0*120/3.6]])
 
     # plant matrices
 
@@ -570,18 +573,28 @@ def load_AEBS():
 
     # initial conditions
 
-    lb1 = np.array([97., 25.2, 0.])
-    ub1 = np.array([97.5, 25.5, 0.])
+    d_lb = [97., 90., 60., 50.]
+    d_ub = [97.5, 90.5, 60.5, 50.5]
+    v_lb = [25.2, 27., 30.2, 32.]
+    v_ub = [25.5, 27.2, 30.4, 32.2]
+    
+    initSets = []
 
-    lb2 = np.array([90., 27., 0.])
-    ub2 = np.array([90.5, 27.2, 0.])
+    a = 2.5 # coefficience to adjust the distribution
+    
+    for i in range(0, len(d_lb)):
+        lb = np.array([d_lb[i], v_lb[i], 0.0])
+        ub = np.array([d_ub[i], v_ub[i], 0.0])
+        S = Star(lb, ub)
+        mu = 0.5*(S.pred_lb + S.pred_ub)
+        sig = (mu - S.pred_lb)/a
+        Sig = np.diag(np.square(sig))
+        I = ProbStar(S.V, S.C, S.d, mu, Sig, S.pred_lb, S.pred_ub)
+        initSets.append(I)
 
-    lb3 = np.array([60., 30.2, 0.])
-    ub3 = np.array([60.5, 30.4, 0.])
 
-    lb4 = np.array([50., 32., 0.])
-    ub4 = np.array([50.5, 32.2, 0.])
-
+    return controller, transformer, norm_mat, scale_mat, plant, initSets
+    
     
     
 

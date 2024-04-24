@@ -1,15 +1,16 @@
 """
-Verify ACC system
+Verify ACC and AEBS system
 Author: Anomynous
-Date: 11/19/2023
+Date: 4/19/2024
 """
 
 
 from StarV.verifier.verifier import quantiVerifyBFS
 from StarV.set.probstar import ProbStar
 import numpy as np
-from StarV.util.load import load_acc_model
+from StarV.util.load import load_acc_model, load_AEBS_model
 from StarV.util.plot import plot_probstar_reachset
+from StarV.net.network import reachExactBFS
 import time
 from StarV.util.plot import plot_probstar
 from matplotlib import pyplot as plt
@@ -19,10 +20,11 @@ from tabulate import tabulate
 from StarV.nncs.nncs import VerifyPRM_NNCS, verifyBFS_DLNNCS
 import os
 import copy
+import multiprocessing
 
 
 def generate_exact_reachset_figs():
-    'generate 4 pictures and save in DAC2024/pics/'
+    'generate 4 pictures and save in ATVA2024/pics/'
 
     net='controller_5_20'
     plant='linear'
@@ -468,13 +470,144 @@ def generate_VT_vs_nets():
        
     
     print('Done!')
+
+
+
+def generate_exact_reachset_figs_AEBS():
+
+    # load NNCS AEBS system
+    print('Loading the AEBS system...')
+    
+    controller, transformer, norm_mat, scale_mat, plant, initSets = load_AEBS_model()
+
+    # stepReach computation for AEBS
+
+    # step 0: initial state of plant
+    # step 1: normalizing state
+    # step 2: compute brake output of RL controller
+    # step 3: compose brake output and normalized speed
+    # step 4: compute transformer output
+    # step 5: get control output
+    # step 6: scale control output
+    # step 7: compute reachable set of the plannt with the new control input and initial state
+
+    # step 8: go back to step 1, .... (another stepReach)
+
+
+
+    X0 = initSets[0]    
+    T = 1
+    numCores = 1
+
+    if numCores > 1:
+        pool = multiprocessing.Pool(numCores)
+    else:
+        pool = None
+    
+    
+    X = multiStepsReach_AEBS(controller, transformer, norm_mat, scale_mat, plant, X0, T, pool)
+    print('X ={}'.format(X))
+    
+
+
+def multiStepsReach_AEBS(controller, transformer, norm_mat, scale_mat, plant, X0, T, pool):
+    'compute the reachable set of AEBS for multiple steps T'
+
+    if T < 1:
+        raise RuntimeError('Invalid number of steps')
+
+    X = []
+    X.append([X0])
+    for i in range(0, T):
+        if i==0:
+            X1 = stepReach_AEBS_multipleInitSets(controller, transformer, norm_mat, scale_mat, plant, X[0], pool)
+        else:
+            X1 = stepReach_AEBS_multipleInitSets(controller, transformer, norm_mat, scale_mat, plant, X[i-1], pool)
+        X.append(X1)
+
+    return X
+
+def stepReach_AEBS_multipleInitSets(controller, transformer, norm_mat, scale_mat, plant, X0, pool):
+    'step reach of AEBS with multiple initial sets'
+
+    n = len(X0)
+    X1 = []
+    for i in range(0, n):
+        X1i = stepReach_AEBS(controller, transformer, norm_mat, scale_mat, plant, X0[i], pool)
+        X1.append(X1i)
+
+    return X1
+
+
+def stepReach_AEBS(controller, transformer, norm_mat, scale_mat, plant, X0, pool):
+    'step reachability of AEBS system'
+    
+
+    # stepReach computation for AEBS
+
+    # step 0: initial state of plant
+    # step 1: normalizing state
+    # step 2: compute brake output of RL controller
+    # step 3: compose brake output and normalized speed
+    # step 4: compute transformer output
+    # step 5: get control output
+    # step 6: scale control output
+    # step 7: compute reachable set of the plannt with the new control input and initial state
+
+    # step 8: go back to step 1, .... (another stepReach)
+
+    norm_X = X0.affineMap(norm_mat)
+    print('Computing reachable set of RL controller ...\n')
+    brake = reachExactBFS(controller, [norm_X], pool=pool)
+    m = len(brake)
+
+    print('Geting exact input sets to transformer ...\n')
+    # get exact inputs to transformer
+    speed_brake = [] # exact inputs to transformer
+    for i in range(0, m):
+        V = np.vstack((norm_X.V[2, :], brake[i].V))
+        speed_brake_i = ProbStar(V, brake[i].C, brake[i].d, brake[i].mu, brake[i].Sig, brake[i].pred_lb, brake[i].pred_ub)
+        speed_brake.append(speed_brake_i)
+
+
+    print('Computing exact transformer output ... \n')
+    # get exact transformer output
+    tf_outs = []
+    for i in range(0, m):
+        tf_out = reachExactBFS(transformer, [speed_brake[i]], pool=pool)
+        tf_outs.extend(tf_out)
+
+    print('Getting control input set to the plant and scale it ...\n')
+    # get control input to the plant and scale it using scale matrix
+    n = len(tf_outs)
+    controls = []
+    for i in range(0, n):
+        V = np.vstack((norm_X.V[2, :], tf_outs[i].V))
+        control = ProbStar(V, tf_outs[i].C, tf_outs[i].d, tf_outs[i].mu, tf_outs[i].Sig, tf_outs[i].pred_lb, tf_outs[i].pred_ub)
+        #control.__str__()
+        control = control.affineMap(scale_mat)
+        controls.append(control)
+
+    print('Compute the next step reachable set for the plant ...\n')
+    # compute the next step reachable set for the plant
+    X1 = []
+    for i in range(0, n):
+        X1i = plant.stepReach(X0, controls[i], subSetPredicate=True)
+        X1.append(X1i)
+
+    return X1
     
 if __name__ == "__main__":
 
+    # verify ACC model
+    
     #generate_exact_reachset_figs()
     #generate_approx_reachset_figs()
     #generate_exact_Q2_verification_results()
-    generate_approx_Q2_verification_results()
+    #generate_approx_Q2_verification_results()
     #generate_numberReachSets_vs_pf()
     #generate_VT_vs_nets()
+
+    # verify AEBS model
+    generate_exact_reachset_figs_AEBS()
     
