@@ -1,0 +1,140 @@
+import numpy as np
+import multiprocessing
+from StarV.set.star import Star
+from StarV.layer.ReLULayer import ReLULayer
+
+
+class RNN(object):
+
+    def __init__(
+        self,
+        Whh: np.ndarray,
+        bh: np.ndarray,
+        Whx: np.ndarray,
+        Woh: np.ndarray,
+        bo: np.ndarray,
+    ) -> None:
+        """
+        Initialize the RNN object.
+
+        Args:
+            Whh: Weight matrix for hidden state to hidden state connections.
+            bh: Bias vector for hidden state.
+            Whx: Weight matrix for input to hidden state connections.
+            Woh: Weight matrix for hidden state to output connections.
+            bo: Bias vector for output.
+
+        Returns:
+            None
+        """
+
+        assert isinstance(Whh, np.ndarray), "Weight matrix should be a numpy array"
+        assert isinstance(bh, np.ndarray), "Bias vector should be a numpy array"
+        assert isinstance(Whx, np.ndarray), "Weight matrix should be a numpy array"
+        assert isinstance(Woh, np.ndarray), "Weight matrix should be a numpy array"
+        assert isinstance(bo, np.ndarray), "Bias vector should be a numpy array"
+
+        self.Whh = Whh
+        self.bh = bh
+        self.Whx = Whx
+        self.Woh = Woh
+        self.bo = bo
+
+    def evaluate(self, x: Star, step: int) -> list:
+        """
+        Evaluates the RNN model for a given input and number of steps.
+
+        Args:
+            x (Star): The input star.
+            step (int): The number of steps to evaluate.
+
+        Returns:
+            list: The list of outputs for each step.
+        """
+        if not isinstance(x, Star):
+            raise Exception(
+                "error: input is not a Star set, type of input = {}".format(type(x))
+            )
+        if not isinstance(step, int):
+            raise Exception(
+                "error: step is not an integer, type of step = {}".format(type(step))
+            )
+        output = []
+        for i in step:
+            """
+            h = Whh @ h + Whx @ x + bh
+            x = Woh @ h + bo
+            """
+            h = h.affineMap(self.Whh, self.bh) + x.affineMap(self.Whx)
+            o = h.affineMap(self.Woh, self.bo)
+            output.append(ReLULayer.evaluate(o))
+        return output
+
+    @staticmethod
+    def rand(in_dim: int, out_dim: int) -> "RNN":
+        """
+        Generate a random RNN model.
+
+        Args:
+            in_dim (int): The input dimension.
+            out_dim (int): The output dimension.
+
+        Returns:
+            RNN: The random RNN model.
+        """
+        Whh = np.random.rand(out_dim, out_dim)
+        bh = np.random.rand(out_dim)
+        Whx = np.random.rand(out_dim, in_dim)
+        Woh = np.random.rand(out_dim, out_dim)
+        bo = np.random.rand(out_dim)
+        return RNN(Whh, bh, Whx, Woh, bo)
+
+    def exactReach(self, input_set: list, lp_solver="gurobi") -> list:
+        """
+        Reachability analysis of RNN model using exact method
+
+        Args:
+            input_set (list): The list of input sets.
+            lp_solver (str): The linear programming solver to use.
+
+        Returns:
+            list: The list of reachable set.
+        """
+        hidden_set = []
+        output_set = []
+        hidden_set_input = []
+        hidden_set_output = []
+        for i in range(len(input_set)):
+
+            if i == 0:
+                h = input_set[i].affineMap(self.Whh, self.bh)
+                h = ReLULayer.reach([h], method="exact", lp_solver=lp_solver)
+                hidden_set_input.extend(h)
+
+            else:
+                hidden_set_output = []
+                m = len(hidden_set_input)
+                for j in range(m):
+
+                    hj_affn = hidden_set_input[j].affineMap(self.Whh, self.bh)
+
+                    xi_affn = input_set[i].affineMap(self.Whx)
+
+                    hj_affn = hj_affn.minKowskiSum(xi_affn)
+
+                    hj_reach = ReLULayer.reach(
+                        [hj_affn], method="exact", lp_solver=lp_solver
+                    )
+                    hidden_set_output.extend(hj_reach)
+
+                hidden_set_input = hidden_set_output
+        print()
+        return output_set
+
+    def reach(
+        self, inputSet: list, method="exact", lp_solver="gurobi", pool=None, RF=0.0
+    ) -> list:
+        pass
+
+    def reachRelax(self, inputSet: list, RF: float) -> list:
+        pass
