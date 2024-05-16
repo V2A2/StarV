@@ -56,6 +56,18 @@ class NeuralNetwork(object):
         for i in range(0, self.n_layers):
             print('Layer {}: {}'.format(i, type(self.layers[i])))
 
+    def evaluate(self, input_vec):
+        'evaluate a network on a specific input vector'
+
+        assert isinstance(input_vec, np.ndarray), 'error: input vector is not a numpy array'
+        assert len(input_vec.shape) == 1, 'error: input vector should be a 1-d numpy array'
+
+        y = input_vec
+        for i in range(0, self.n_layers):
+            y = self.layers[i].evaluate(y)
+
+        return y
+
 def rand_ffnn(arch, actvs):
     """randomly generate feedforward neural network
     Args:

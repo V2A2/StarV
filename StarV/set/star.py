@@ -102,23 +102,22 @@ class Star(object):
             
             self.dim = lb.shape[0]
             nVars = int(sum(ub[i] > lb[i] for i in range(0, self.dim)))
-            V = np.zeros((self.dim, nVars+1))
-            pred_lb = np.zeros(nVars,)
-            pred_ub = np.zeros(nVars,)
-            j = 0
-            for i in range(0, self.dim):
-                if ub[i] > lb[i]:
-                    pred_lb[j] = lb[i]
-                    pred_ub[j] = ub[i]
-                    V[i, j+1] = 1.
-                    j = j + 1
-            
+
+            center = 0.5*(lb + ub)
+            center = center.reshape(self.dim, 1)
+            vec = 0.5*(ub-lb)
+            gens = np.diag(vec)
+            gens = gens[:,~np.all(gens == 0, axis=0)]
+
+            V = np.hstack((center, gens))
             self.V = V
             self.C = np.array([])
             self.d = np.array([])
-            self.pred_lb = pred_lb
-            self.pred_ub = pred_ub
-            self.nVars = nVars        
+            self.pred_lb = -np.ones(nVars,)
+            self.pred_ub = np.ones(nVars,)
+            self.nVars = nVars
+            
+            
             
         elif len(args) == 0:  # create an empty ProStar
             self.dim = 0

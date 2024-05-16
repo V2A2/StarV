@@ -56,6 +56,8 @@ class SatLin(object):
             @S: star output set
 
         Author: Yuntao Li, Date: 1/18/2024
+
+        Author: Dung Tran, update 4/20/2024, fix some small errors
         """
 
         len_args = len(args)
@@ -93,8 +95,9 @@ class SatLin(object):
 
             # 0 <= x <= 1
             S1.addConstraint(-C, d) # x >= 0 -> -x <= 0
-            S1.addConstraint(C, d) # x <= 1
-
+            #S1.addConstraint(C, d) # x <= 1
+            S1.addConstraint(C, d1) # x1 <= 1, Tran Fixed this
+            
             S2.addConstraint(-C, -d1) # x >= 1 -> -x <= -1
             S2.resetRowWithUpdatedCenter(index, 1.0)
 
