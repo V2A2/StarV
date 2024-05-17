@@ -1,3 +1,8 @@
+"""
+RNN layer class
+Bryan Duong, 5/14/2024
+"""
+
 import numpy as np
 import multiprocessing
 from StarV.set.star import Star
@@ -102,33 +107,31 @@ class RNN(object):
         """
         hidden_set = []
         output_set = []
-        hidden_set_input = []
-        hidden_set_output = []
-        for i in range(len(input_set)):
 
+        for i, input in enumerate(input_set):
             if i == 0:
-                h = input_set[i].affineMap(self.Whh, self.bh)
-                h = ReLULayer.reach([h], method="exact", lp_solver=lp_solver)
-                hidden_set_input.extend(h)
-
+                hidden = input.affineMap(self.Whx, self.bh)
+                hidden_set_current = ReLULayer.reach(
+                    [hidden], method="exact", lp_solver=lp_solver
+                )
             else:
-                hidden_set_output = []
-                m = len(hidden_set_input)
-                for j in range(m):
-
-                    hj_affn = hidden_set_input[j].affineMap(self.Whh, self.bh)
-
-                    xi_affn = input_set[i].affineMap(self.Whx)
-
-                    hj_affn = hj_affn.minKowskiSum(xi_affn)
-
+                hidden_set_current = []
+                for hidden_input in hidden_set_previous:
+                    hj_affn = hidden_input.affineMap(self.Whh)
+                    xi_affn = input.affineMap(self.Whx, self.bh)
+                    hj_xi = hj_affn.minKowskiSum(xi_affn)
                     hj_reach = ReLULayer.reach(
-                        [hj_affn], method="exact", lp_solver=lp_solver
+                        [hj_xi], method="exact", lp_solver=lp_solver
                     )
-                    hidden_set_output.extend(hj_reach)
+                    hidden_set_current.extend(hj_reach)
 
-                hidden_set_input = hidden_set_output
-        print()
+            hidden_set.extend(hidden_set_current)
+            hidden_set_previous = hidden_set_current
+
+        for hidden in hidden_set:
+            o = hidden.affineMap(self.Woh, self.bo)
+            output_set.append(ReLULayer.reach([o], method="exact", lp_solver=lp_solver))
+
         return output_set
 
     def reach(

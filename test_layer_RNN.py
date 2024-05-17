@@ -1,3 +1,10 @@
+"""
+Test of RNN layer
+Bryan Duong, 5/14/2024
+"""
+
+import h5py
+import scipy.io
 import numpy as np
 from StarV.layer.RNN import RNN
 from StarV.set.star import Star
@@ -61,7 +68,51 @@ class Test(object):
             self.n_fails = self.n_fails + 1
         else:
             print("Test Successfull!")
-        # net.exactReach(input_set=In, lp_solver="gurobi")
+
+    def load_matlab_data(self):
+        """
+        Load the weights and input set from matlab
+        """
+        # Load the weights from matlab
+        path_fc = "matlab/HSCC2023/small_RNN/dense.mat"
+        with h5py.File(path_fc, "r") as fc:
+            Woh = fc["W"][:]
+            bo = fc["b"][:]
+
+        path_rnn = "matlab/HSCC2023/small_RNN/simple_rnn.mat"
+        with h5py.File(path_rnn, "r") as rnn:
+            Whh = rnn["recurrent_kernel"][:]
+            bh = rnn["bias"][:]
+            Whx = rnn["kernel"][:]
+
+        # Load the input set from matlab
+        path_input = "matlab/HSCC2023/small_RNN/points.mat"
+        input_data = scipy.io.loadmat(path_input)
+        In = input_data["pickle_data"]
+        eps = 0.01
+        In = [Star(x - eps, x + eps) for x in In]
+
+        return Whh, bh.flatten(), Whx.T, Woh.T, bo.flatten(), In
+
+    def compare_reach(self):
+        """
+        Test the exactReach method by comparing with matlab results
+        """
+
+        self.n_tests = self.n_tests + 1
+        print("Test RNN exactReach method by comparing with matlab results")
+
+        Whh, bh, Whx, Woh, bo, In = self.load_matlab_data()
+
+        net = RNN(Whh, bh, Whx, Woh, bo)
+
+        reach_set = net.exactReach(In[:10])
+
+        for m, step in enumerate(reach_set):
+            for n, set in enumerate(step):
+                lb, ub = set.getRanges()
+                print("reach_set[{},{}]\n".format(m, n))
+                print("lb = {}\n ub = {}\n".format(lb, ub))
 
 
 if __name__ == "__main__":
@@ -73,4 +124,4 @@ if __name__ == "__main__":
     print("Number of fails: ", t.n_fails)
 
 # t = Test()
-# t.test_reach()
+# t.compare_reach()
