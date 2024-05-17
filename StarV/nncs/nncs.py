@@ -290,20 +290,20 @@ def verifyBFS_DLNNCS(ncs, verifyPRM):
     pI = reachPRM.initSet.estimateProbability()
 
     i = 0
-    for Rk in RX:
+
+    n = len(RX)
+    for k in range(0, n):
+        Rk = RX[k]
         Cek = []
         Cok = []
         pk = 0.0
         Qlk = 0
-        i = i + 1
-        j = 0
-        for S in Rk:
-            j = j + 1
-            Z1 = copy.deepcopy(S)
-            #Z1.addMultipleConstraints(verifyPRM.unsafeSpec[0], verifyPRM.unsafeSpec[1])
+        p_ign_k = p_ignored[k]
+
+        for i in range(0, len(Rk)):
+            Z1 = copy.deepcopy(Rk[i])
             Z1.addMultipleConstraintsWithoutUpdateBounds(verifyPRM.unsafeSpec[0], verifyPRM.unsafeSpec[1])
-            Ceki = ProbStar(verifyPRM.initSet.V, Z1.C, Z1.d, Z1.mu, Z1.Sig, Z1.pred_lb, Z1.pred_ub)
-            
+            Ceki = ProbStar(verifyPRM.initSet.V, Z1.C, Z1.d, Z1.mu, Z1.Sig, Z1.pred_lb, Z1.pred_ub)          
             if not Ceki.isEmptySet():
                 Qlk = 1
                 Cek.append(Ceki)
@@ -315,10 +315,10 @@ def verifyBFS_DLNNCS(ncs, verifyPRM):
         CeOut.append(Cok)
         Ql.append(Qlk)
         Qt.append(pk)
-        Qt_lb.append(max(0.0, pk-p_ignored))
-        Qt_ub.append(min(pk+p_ignored,1.0))
-        Qt_min.append(max(0.0, pk-p_ignored))
-        Qt_max.append(min(pk + p_ignored + 1 - pI, 1.0))
+        Qt_lb.append(max(0.0, pk - p_ign_k))
+        Qt_ub.append(min(pk + p_ign_k,1.0))
+        Qt_min.append(max(0.0, pk - p_ign_k))
+        Qt_max.append(min(pk + p_ign_k + 1 - pI, 1.0))
 
 
     res = VerifyRes_NNCS()
@@ -349,27 +349,28 @@ def reachBFS_DLNNCS(ncs, reachPRM):
     else:
         pool = None
 
-    p_ignored = 0.0   # total probability of ignored input subsets
-
     if reachPRM.show:
         print('\nReachability analysis of discrete linear NNCS for {} steps...'.format(reachPRM.numSteps))
                 
     RX = []   # state reachable set RX = [RX1, ..., RYN], RXi = [RXi1, RXi2, ...RXiM]
 
     RX.append([reachPRM.initSet])
+    p_ignored = [0.]
     for i in range(0, reachPRM.numSteps+1):
         if reachPRM.show:
             print('\nReachability analysis at step {}...'.format(i))
 
         X0 = RX[i]
         RXi = []
+        p_ign_i = p_ignored[i]
         for j in range(0, len(X0)):            
             RXij, pij = stepReach_DLNNCS(ncs.controller, ncs.plant, X0[j], reachPRM.refInputs, \
                                          reachPRM.filterProb, reachPRM.numCores, lp_solver='gurobi')
             RXi.extend(RXij)
-            p_ignored = p_ignored + pij
+            p_ign_i = p_ign_i + pij
 
         RX.append(RXi)
+        p_ignored.append(p_ign_i)
 
     return RX, p_ignored
 
@@ -391,15 +392,19 @@ def stepReach_DLNNCS(net, plant, X0, refInputs, filterProb, numCores=1, lp_solve
     Y0 = X0.affineMap(plant.C)
     fb_I = Y0.concatenate_with_vector(refInputs)
     p_ig = 0.0
-    if filterProb == 0:
-        RU = reachExactBFS(net, [fb_I], lp_solver, pool=pool, show=False)
-    else:
-        RU, pi = reachApproxBFS(net, [fb_I], filterProb, lp_solver, pool=pool, show=False)
-        p_ig = p_ig + pi
+
+    RU = reachExactBFS(net, [fb_I], lp_solver, pool=pool, show=False)
     for U in RU:
         RX1, _ = plant.stepReach(X0=X0, U=U, subSetPredicate=True)
-        RX.append(RX1)
-        
+        if filterProb == 0:
+            RX.append(RX1)
+        else:
+            
+            pi = RX1.estimateProbability()
+            if pi > filterProb:
+                RX.append(RX1)
+            else:
+                p_ig = p_ig + pi     
 
     return RX, p_ig
 

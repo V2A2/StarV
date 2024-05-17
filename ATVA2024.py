@@ -25,14 +25,14 @@ from matplotlib.patches import Rectangle
 
 
 
-def generate_exact_reachset_figs():
+def generate_exact_reachset_figs_N5x20():
     'generate 4 pictures and save in NEURIPS2024/pics/'
 
     net='controller_5_20'
     plant='linear'
     initSet_id=5
     pf=0.0
-    numSteps=10
+    numSteps=30
     numCores=4
 
     # load NNCS ACC system
@@ -86,25 +86,25 @@ def generate_exact_reachset_figs():
         os.makedirs(path)
 
     print('Plot reachable set...')
-    plot_probstar_reachset(RX, dir_mat=dir_mat1, dir_vec=dir_vec1, show_prob=True, \
+    plot_probstar_reachset(RX, dir_mat=dir_mat1, dir_vec=dir_vec1, show_prob=False, \
                            label=('$v_{ego}$','$d_r - d_{safe}$'), show=False)
     plt.savefig(path+"/dr_dsafe_vs_vego.png", bbox_inches='tight')  # save figure
     plt.show()
 
-    plot_probstar_reachset(RX, dir_mat=dir_mat2, dir_vec=dir_vec2, show_prob=True, \
+    plot_probstar_reachset(RX, dir_mat=dir_mat2, dir_vec=dir_vec2, show_prob=False, \
                            label=('$d_{r}$','$d_{safe}$'), show=False)
     plt.savefig(path+"/dr_vs_dsafe.png", bbox_inches='tight')  # save figure
     plt.show()
     
 
     print('Plot counter output set...')
-    plot_probstar_reachset(CO, dir_mat=dir_mat1, dir_vec=dir_vec1, show_prob=True, \
+    plot_probstar_reachset(CO, dir_mat=dir_mat1, dir_vec=dir_vec1, show_prob=False, \
                            label=('$v_{ego}$','$d_r - d_{safe}$'), show=False)
     plt.savefig(path+"/counterOutputSet.png", bbox_inches='tight')  # save figure
     plt.show()
 
     print('Plot counter init set ...')
-    plot_probstar_reachset(CE, dir_mat=dir_mat3, dir_vec=dir_vec3, show_prob=True, \
+    plot_probstar_reachset(CE, dir_mat=dir_mat3, dir_vec=dir_vec3, show_prob=False, \
                            label=('$v_{lead}[0]$','$v_{ego}[0]$'), show=False)
     plt.savefig(path+"/counterInitSet.png", bbox_inches='tight')  # save figure
     plt.show()
@@ -372,6 +372,14 @@ def generate_exact_Q2_verification_results_Net_5x20():
     res = verifyBFS_DLNNCS(ncs, verifyPRM)
     Ql = res.Ql
     Qt = res.Qt
+    Qt_lb = res.Qt_lb
+    Qt_ub = res.Qt_ub
+    p_ignored = res.p_ignored
+
+    #print('Qt = {}'.format(Qt))
+    #print('p_ignored = {}'.format(p_ignored))
+    #print('Qt_lb = {}'.format(Qt_lb))
+    #print('Qt_ub = {}'.format(Qt_ub))
 
     t = range(0, 1, numSteps)
     
@@ -520,6 +528,12 @@ def generate_approx_Q2_verification_results_Net_5x20():
     Qt = res.Qt
     Qt_lb = res.Qt_lb
     Qt_ub = res.Qt_ub
+    p_ignored = res.p_ignored
+    
+    #print('Qt = {}'.format(Qt))
+    #print('Qt_lb = {}'.format(Qt_lb))
+    #print('Qt_ub = {}'.format(Qt_ub))
+    #print('p_ignored = {}'.format(p_ignored))
 
     
     t = range(0, 1, numSteps)
@@ -644,7 +658,7 @@ def verify_AEBS():
 
     T = 50
     numCores = 4
-    pf = 0.0
+    pf = [0.0, 0.001, 0.002, 0.005]
 
     if numCores > 1:
         pool = multiprocessing.Pool(numCores)
@@ -652,72 +666,49 @@ def verify_AEBS():
         pool = None
 
 
-    # 0.5 <= d_k <= 2.5 and v_k >= 0.1
+    # 0.5 <= d_k <= 2.5 and v_k >= 0.2
     unsafe_mat = np.array([[1., 0., 0.], [-1., 0., 0], [0., -1., 0.]])
-    unsafe_vec = np.array([2.5, -0.5, -0.1])
+    unsafe_vec = np.array([2.5, -0.5, -0.2])
 
+    n = len(initSets)
+    m = len(pf)
+    VT = np.zeros(n, m)
+    Qt_min = np.zeros(n, m)
+    Qt_max = np.zeros(n, m)
+    N_rs = np.zeros(n, m)
+    Qt_lb = np.zeros(n, m)
+    Qt_ub = np.zeros(n, m)
 
-    
+    for i in range(0, n):
+        for j in range(0, m):
+            
+            X, p_ignored = multiStepsReach_AEBS(controller, transformer, norm_mat, scale_mat, plant, X0[i], T, pf[j], pool)
+            N_rs[i,j] = len(X[len(X)-1])
+            
+            for k in range(0, T):
+                Xk = X[k]
+                P = []
+                prob = []
+                if pool is None:
+                    for S1 in Xk:
+                        P1, prob1 = checkSafetyProbStar(unsafe_mat, unsafe_vec, S1)
+                        if isinstance(P1, ProbStar):
+                            P.append(P1)
+                            prob.append(prob1)
 
-    
+                else:
+                    S1 = pool.map(checkSafetyProbStar, zip([unsafe_mat]*len(I), [unsafe_vec]*len(I), I))
+                    pool.close()
+                    for S2 in S1:
+                        if isinstance(S2[0], ProbStar):
+                            P.append(S2[0])
+                            prob.append(S2[1])
+
+                            
+                        
+            
+
 def generate_exact_reachset_figs_AEBS():
-
-    # load NNCS AEBS system
-    print('Loading the AEBS system...')
-    
-    controller, transformer, norm_mat, scale_mat, plant, initSets = load_AEBS_model()
-
-    # stepReach computation for AEBS
-
-    # step 0: initial state of plant
-    # step 1: normalizing state
-    # step 2: compute brake output of RL controller
-    # step 3: compose brake output and normalized speed
-    # step 4: compute transformer output
-    # step 5: get control output
-    # step 6: scale control output
-    # step 7: compute reachable set of the plannt with the new control input and initial state
-
-    # step 8: go back to step 1, .... (another stepReach)
-
-
-
-    X0 = initSets
-    T = 50
-    numCores = 4
-    pf = 0.0
-
-    if numCores > 1:
-        pool = multiprocessing.Pool(numCores)
-    else:
-        pool = None
-    
-
-
-
-    for i in range(0, len(X0)):
-        
-        X = multiStepsReach_AEBS(controller, transformer, norm_mat, scale_mat, plant, X0[i], T, pf, pool)
-
-        # plot reachable set  (d) vs. (v_ego)
-        dir_mat1 = np.array([[1., 0., 0.],
-                            [0., 1., 0]])
-        dir_vec1 = np.array([0., 0.])
-
-
-
-        path = "artifacts/NEURIPS2024_Algebra/AEBS/pics"
-        if not os.path.exists(path):
-            os.makedirs(path)
-
-        print('Plot reachable set...')
-        plot_probstar_reachset(X, dir_mat=dir_mat1, dir_vec=dir_vec1, show_prob=False, \
-                               label=('$d$','$v_{ego}$'), show=False)
-        plt.savefig(path+"/d_vs_vego_init_{}.png".format(i), bbox_inches='tight')  # save figure
-        #plt.show()
-
-
-def generate_exact_reachset_figs_AEBS_2():
 
     # load NNCS AEBS system
     print('Loading the AEBS system...')
@@ -758,7 +749,7 @@ def generate_exact_reachset_figs_AEBS_2():
 
     for i in range(0, len(X0)):
         
-        X = multiStepsReach_AEBS(controller, transformer, norm_mat, scale_mat, plant, X0[i], T, pf, pool)
+        X, _ = multiStepsReach_AEBS(controller, transformer, norm_mat, scale_mat, plant, X0[i], T, pf, pool)
 
         # plot reachable set  (d) vs. (v_ego)
         dir_mat1 = np.array([[1., 0., 0.],
@@ -792,27 +783,34 @@ def multiStepsReach_AEBS(controller, transformer, norm_mat, scale_mat, plant, X0
 
     X = []
     X.append([X0])
+    p_ignored = 0
     for i in range(1, T+1):
-        X1 = stepReach_AEBS_multipleInitSets(controller, transformer, norm_mat, scale_mat, plant, X[i-1], pf, pool)            
+        X1, p_ig1 = stepReach_AEBS_multipleInitSets(controller, transformer, norm_mat, scale_mat, plant, X[i-1], pf, pool)         
         X.append(X1)
+        p_igored = p_ignored + p_ig1
 
-    return X
+    return X. p_ignored
 
 def stepReach_AEBS_multipleInitSets(controller, transformer, norm_mat, scale_mat, plant, X0, pf, pool):
     'step reach of AEBS with multiple initial sets'
 
     n = len(X0)
     X1 = []
+    p_ignored = 0
     for i in range(0, n):
         if pf == 0:
             X1i = stepReach_AEBS(controller, transformer, norm_mat, scale_mat, plant, X0[i], pool)
             X1.extend(X1i)
         else:
+            pX = X0[i].estimateProbability()
             if X0[i].estimateProbability() > pf:
                 X1i = stepReach_AEBS(controller, transformer, norm_mat, scale_mat, plant, X0[i], pool)
-                X1.extend(X1i) 
+                X1.extend(X1i)
 
-    return X1
+            else:
+                p_ignored = p_ignored + pX
+
+    return X1, p_ignored
 
 
 def stepReach_AEBS(controller, transformer, norm_mat, scale_mat, plant, X0, pool):
@@ -880,15 +878,14 @@ if __name__ == "__main__":
 
     # verify ACC model
     
-    #generate_exact_reachset_figs()
+    #generate_exact_reachset_figs_N5x20()
     #generate_exact_reachset_figs_N3x20()
-    #generate_exact_Q2_verification_results()
     #generate_exact_Q2_verification_results_Net_3x20()
     #generate_exact_Q2_verification_results_Net_5x20()
     #generate_approx_Q2_verification_results_Net_3x20()
     #generate_approx_Q2_verification_results_Net_5x20()
-    #generate_VT_vs_nets()
+    generate_VT_vs_nets()
 
     # verify AEBS model
-    generate_exact_reachset_figs_AEBS_2()
+    #generate_exact_reachset_figs_AEBS()
     
