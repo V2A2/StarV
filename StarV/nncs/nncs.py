@@ -204,8 +204,17 @@ class NNCS(object):
             pass
         else:
             raise RuntimeError('Unknown display option')
-                         
 
+class AEBS_NNCS(object):
+
+    # a special nncs with two neural networks inside
+
+    def __init__(self, controller, transformer, norm_mat, scale_mat, plant):
+        self.controller = controller
+        self.transformer = transformer
+        self.norm_mat = norm_mat
+        self.scale_mat = scale_mat
+        self.plant = plant
 
 def verify_DLNNCS_MonteCarlo(ncs, verifyPRM, N_samples):
     'Use MonteCarlo sampling method for verification'
@@ -261,7 +270,6 @@ def stepSim_DLNNCS(ncs, state_vec, ref_input_vec):
 def verifyBFS_DLNNCS(ncs, verifyPRM):
     'Q^2 verification of DLNNCS'
 
-    assert isinstance(ncs, NNCS), 'error: first input should be an NNCS object'
     assert isinstance(verifyPRM, VerifyPRM_NNCS), 'error: second input should be a VerifyPRM_NNCS object'
 
     reachPRM = ReachPRM_NNCS()
@@ -275,16 +283,20 @@ def verifyBFS_DLNNCS(ncs, verifyPRM):
     
    
     # perform reachability analysis to compute the reachable sets
-    RX, p_ignored = reachBFS_DLNNCS(ncs, reachPRM)
+
+    if isinstance(ncs, NNCS):  
+        RX, p_ignored = reachBFS_DLNNCS(ncs, reachPRM)  # this is a traditional neural network control system
+    elif isinstance(ncs, AEBS_NNCS):
+        RX, p_ignored = reachBFS_AEBS(ncs, reachPRM)    # this is AEBS NNCS
+    else:
+        raise RuntimeError('Unknown system')
         
     # check the intersection of the reachable sets with unsafe region
     CeIn = []  # counterexample input set
     CeOut = [] # counterexample state set
     Ql = []  # qualitative results 0->UNSAT, 1->SAT, 2->Unknown
     Qt = []  # quantitative results, i.e., probability of violation (or SAT)
-    Qt_lb = [] # lower bound of probability of violation, if pf > 0 is used
     Qt_ub = [] # upper bound of probability of violation, if pf > 0 is used
-    Qt_min = [] # lower bound of probability of violation for unbounded input set (handling the tail)
     Qt_max = [] # maximum lower bound of probability of violation for unbounded input set (handling the tail)
 
     pI = reachPRM.initSet.estimateProbability()
@@ -315,9 +327,7 @@ def verifyBFS_DLNNCS(ncs, verifyPRM):
         CeOut.append(Cok)
         Ql.append(Qlk)
         Qt.append(pk)
-        Qt_lb.append(max(0.0, pk - p_ign_k))
         Qt_ub.append(min(pk + p_ign_k,1.0))
-        Qt_min.append(max(0.0, pk - p_ign_k))
         Qt_max.append(min(pk + p_ign_k + 1 - pI, 1.0))
 
 
@@ -327,9 +337,7 @@ def verifyBFS_DLNNCS(ncs, verifyPRM):
     res.CeOut = CeOut
     res.Ql = Ql
     res.Qt = Qt
-    res.Qt_lb = Qt_lb
     res.Qt_ub = Qt_ub
-    res.Qt_min = Qt_min
     res.Qt_max = Qt_max
     res.p_ignored = p_ignored
 
@@ -407,6 +415,121 @@ def stepReach_DLNNCS(net, plant, X0, refInputs, filterProb, numCores=1, lp_solve
                 p_ig = p_ig + pi     
 
     return RX, p_ig
+
+
+def reachBFS_AEBS(AEBS, reachPRM):
+    'compute the reachable set of AEBS for multiple steps T'
+
+    controller = AEBS.controller
+    transformer = AEBS.transformer
+    norm_mat = AEBS.norm_mat
+    scale_mat = AEBS.scale_mat
+    plant = AEBS.plant
+    
+    X0 = copy.deepcopy(reachPRM.initSet)
+    T = reachPRM.numSteps
+    pf = reachPRM.filterProb
+    if reachPRM.numCores > 1:
+        pool = multiprocessing.Pool(reachPRM.numCores)
+    else:
+        pool = None
+    
+    if T < 1:
+        raise RuntimeError('Invalid number of steps')
+
+    X = []
+    X.append([X0])
+    p_ignored = [0.]
+    for i in range(0, T+1):
+        X1, p_ig1 = stepReach_AEBS_multipleInitSets(controller, transformer, norm_mat, scale_mat, plant, X[i], pf, pool)         
+        X.append(X1)
+        p_ign1 = p_ig1 + p_ignored[i]
+        p_ignored.append(p_ign1)
+
+    return X, p_ignored
+
+def stepReach_AEBS_multipleInitSets(controller, transformer, norm_mat, scale_mat, plant, X0, pf, pool):
+    'step reach of AEBS with multiple initial sets'
+
+    n = len(X0)
+    X1 = []
+    p_ignored = 0
+    for i in range(0, n):
+        if pf == 0:
+            X1i = stepReach_AEBS(controller, transformer, norm_mat, scale_mat, plant, X0[i], pool)
+            X1.extend(X1i)
+        else:
+            pX = X0[i].estimateProbability()
+            if X0[i].estimateProbability() > pf:
+                X1i = stepReach_AEBS(controller, transformer, norm_mat, scale_mat, plant, X0[i], pool)
+                X1.extend(X1i)
+
+            else:
+                p_ignored = p_ignored + pX
+
+    return X1, p_ignored
+
+
+def stepReach_AEBS(controller, transformer, norm_mat, scale_mat, plant, X0, pool):
+    'step reachability of AEBS system'
+    
+
+    # stepReach computation for AEBS
+
+    # step 0: initial state of plant
+    # step 1: normalizing state
+    # step 2: compute brake output of RL controller
+    # step 3: compose brake output and normalized speed
+    # step 4: compute transformer output
+    # step 5: get control output
+    # step 6: scale control output
+    # step 7: compute reachable set of the plannt with the new control input and initial state
+
+    # step 8: go back to step 1, .... (another stepReach)
+
+    # step 1: normalizing state
+    norm_X = X0.affineMap(norm_mat)
+    
+    print('Computing reachable set of RL controller ...\n')
+
+    # step 2: compute brake output of the RL controller
+    brake = reachExactBFS(controller, [norm_X], pool=pool)
+    
+    m = len(brake)
+
+    print('Geting exact input sets to transformer ...\n')
+    # step 3: compose brake output and normalized speed to get exact inputs to transformer
+    speed_brake = [] # exact inputs to transformer
+    for i in range(0, m):
+        V = np.vstack((norm_X.V[1, :], brake[i].V))
+        speed_brake_i = ProbStar(V, brake[i].C, brake[i].d, brake[i].mu, brake[i].Sig, brake[i].pred_lb, brake[i].pred_ub)
+        speed_brake.append(speed_brake_i)
+
+
+    print('Computing exact transformer output ... \n')
+    # step 4: get exact transformer output
+    tf_outs = []
+    for i in range(0, m):
+        tf_out = reachExactBFS(transformer, [speed_brake[i]], pool=pool)
+        tf_outs.extend(tf_out)
+
+    print('Getting control input set to the plant and scale it ...\n')
+    # step 5: get control input to the plant and scale it using scale matrix
+    n = len(tf_outs)
+    controls = []
+    for i in range(0, n):
+        V = np.vstack((norm_X.V[1, :], tf_outs[i].V))
+        control = ProbStar(V, tf_outs[i].C, tf_outs[i].d, tf_outs[i].mu, tf_outs[i].Sig, tf_outs[i].pred_lb, tf_outs[i].pred_ub)
+        controls.append(control.affineMap(scale_mat)) # scale the control inputs
+
+    print('Compute the next step reachable set for the plant ...\n')
+    # compute the next step reachable set for the plant
+    X1 = []
+    for i in range(0, n):
+        X1i, _ = plant.stepReach(X0, controls[i], subSetPredicate=True)
+        X1.append(X1i)
+
+    return X1
 
 def reachDFS_DLNNCS(net, plant, reachPRM):
     'Depth First Search Reachability Analysis for Discrete Linear NNCS'
