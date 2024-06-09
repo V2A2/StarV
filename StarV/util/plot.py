@@ -39,22 +39,58 @@ def getVertices(I):
 
     return verts
 
+def get_bounding_box(A, b):
+    'get bounding box of a H-polytope Ax <= b'
 
-def plot_2D_Star(I, show=True):
+    assert isinstance(A, np.ndarray), 'error: A should be a 2d array'
+    assert isinstance(b, np.ndarray), 'error: b should be a 1d array'
+    assert A.shape[0] == b.shape[0], 'error: inconsistency between unsafe_mat and unsafe_vec'
+
+    n = A.shape[1]
+    lb = np.zeros(n)
+    ub = np.zeros(n)
+    for i in range(0, n):
+        c = np.zeros(n)
+        c[i] = 1.0
+        min_sol = pypoman.lp.solve_lp(c, A, b)
+        lb[i] = min_sol[i]
+        max_sol = pypoman.lp.solve_lp(-c, A, b)
+        ub[i] = max_sol[i]
+        
+    return lb, ub
+        
+def plot_2D_UnsafeSpec(unsafe_mat, unsafe_vec, show=True, color='r'):
+    'plot unsafe spec'
+
+    assert isinstance(unsafe_mat, np.ndarray), 'error: unsafe_mat should be a 2d array'
+    assert isinstance(unsafe_vec, np.ndarray), 'error: unsafe_vec should be a 1d array'
+    assert unsafe_mat.shape[1] == 2, 'error: unsafe_mat should have 2 row'
+    assert unsafe_mat.shape[0] == unsafe_vec.shape[0], 'error: inconsistency between unsafe_mat and unsafe_vec'
+
+    try:
+        verts = pypoman.duality.compute_polytope_vertices(unsafe_mat, unsafe_vec)
+        pypoman.plot_polygon(verts,color=color)
+    except Exception:
+        warnings.warn(message='Potential floating-point error or unbounded unsafe spec')
+    if show:
+        plt.show()
+    
+
+def plot_2D_Star(I, show=True, color='g'):
 
     if I.dim != 2:
         raise Exception('Input set is not 2D star')
 
     verts = getVertices(I)
     try:
-        pypoman.plot_polygon(verts)
+        pypoman.plot_polygon(verts,color=color)
     except Exception:
         warnings.warn(message='Potential floating-point error')
     if show:
         plt.show()
     
 
-def plot_probstar(I, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True):
+def plot_probstar(I, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g'):
     """Plot a star set in a specific direction
        y = dir_mat*x + dir_vec, x in I
     """
@@ -65,7 +101,7 @@ def plot_probstar(I, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$',
         if I1.dim > 2:
             raise Exception('error: only 2D plot is supported')
         prob = I1.estimateProbability()
-        plot_2D_Star(I1, show=False)
+        plot_2D_Star(I1, show=False, color=color)
         l, u = I1.getRanges()
         if show_prob:
             ax = plt.gca()
@@ -124,7 +160,7 @@ def plot_probstar(I, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$',
         plt.show()
 
 
-def plot_probstar_signals(traces, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True):
+def plot_probstar_signals(traces, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g'):
     """
     plot multiple probstar traces: traces = [T1, T2, T3, ..., Tn], Ti = k-steps trace [R1, R2, ..., Rk]
 
@@ -150,7 +186,7 @@ def plot_probstar_signals(traces, dir_mat=None, dir_vec=None, show_prob=True, la
                 
                 raise Exception('error: only 2D plot is supported')
             prob = I.estimateProbability()
-            plot_2D_Star(I, show=False)
+            plot_2D_Star(I, show=False, color=color)
             l, u = I.getRanges()
             cpx.append(0.5*(l[0] + u[0]))
             cpy.append(0.5*(l[1] + u[1]))
@@ -183,7 +219,7 @@ def plot_probstar_signals(traces, dir_mat=None, dir_vec=None, show_prob=True, la
    
 
 
-def plot_probstar_signal(trace,  dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True):
+def plot_probstar_signal(trace,  dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g'):
     """
     plot a single probstar trace T = [R1, R2, ..., Rk]
 
@@ -205,7 +241,7 @@ def plot_probstar_signal(trace,  dir_mat=None, dir_vec=None, show_prob=True, lab
         if I.dim > 2:
             raise Exception('error: only 2D plot is supported')
         prob = I.estimateProbability()
-        plot_2D_Star(I, show=False)
+        plot_2D_Star(I, show=False, color=color)
         l, u = I.getRanges()
         cpx.append(0.5*(l[0] + u[0]))
         cpy.append(0.5*(l[1] + u[1]))
@@ -235,7 +271,7 @@ def plot_probstar_signal(trace,  dir_mat=None, dir_vec=None, show_prob=True, lab
     if show:
         plt.show()
 
-def plot_SAT_trace(sat_trace, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True):
+def plot_SAT_trace(sat_trace, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g'):
     'plot a sat trace'
 
     assert isinstance(sat_trace, list), 'error: sat_trace should be a list of two items, a probstar_trace and a SAT_CDNF'
@@ -245,9 +281,9 @@ def plot_SAT_trace(sat_trace, dir_mat=None, dir_vec=None, show_prob=True, label=
     traces = SAT_CDNF.toProbStarSignals(trace)
     print('traces = {}'.format(traces))
 
-    plot_probstar_signals(traces, dir_mat, dir_vec, show_prob, label, show)
+    plot_probstar_signals(traces, dir_mat, dir_vec, show_prob, label, show, color)
 
-def plot_probstar_reachset(rs, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True):
+def plot_probstar_reachset(rs, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g'):
     """
     plot reachable set rs = [R1, R2, ...,Rk], R1 = [R11, R12, ...]
     
@@ -267,7 +303,7 @@ def plot_probstar_reachset(rs, dir_mat=None, dir_vec=None, show_prob=True, label
             if I.dim > 2:
                 raise Exception('error: only 2D plot is supported')
             prob = I.estimateProbability()
-            plot_2D_Star(I, show=False)
+            plot_2D_Star(I, show=False, color=color)
             l, u = I.getRanges()
             if i==0 and j==0:
                 L = l
@@ -292,7 +328,61 @@ def plot_probstar_reachset(rs, dir_mat=None, dir_vec=None, show_prob=True, label
     if show:
         plt.show()
 
-def plot_star(I, dir_mat=None, dir_vec=None, label=('$y_1$', '$y_2$'), show=True):
+
+def plot_probstar_reachset_with_unsafeSpec(rs, unsafe_mat, unsafe_vec, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g'):
+
+    """
+    plot reachable set rs = [R1, R2, ...,Rk], R1 = [R11, R12, ...] and Unsafe region U
+    
+    *** NOTE *** Used this plot for reahable set generated by reachBFS algorithm
+    """
+    assert isinstance(rs, list), 'error: reachable set should be a list'
+    n = len(rs)
+    L = []
+    U = []
+    for i in range(0, n):
+        rsi = rs[i]
+        m = len(rsi)
+        for j in range(0, m):
+            rsij = rsi[j]
+            I = rsij.affineMap(dir_mat, dir_vec)         
+            if I.dim > 2:
+                raise Exception('error: only 2D plot is supported')
+            prob = I.estimateProbability()
+            plot_2D_Star(I, show=False, color=color)
+            l, u = I.getRanges()
+            if i==0 and j==0:
+                L = l
+                U = u
+            else:
+                L = np.vstack((L, l))
+                U = np.vstack([U, u])
+            if show_prob:
+                ax = plt.gca()
+                ax.text(0.5*(l[0] + u[0]), 0.5*(l[1] + u[1]), str(prob))
+
+    plot_2D_UnsafeSpec(unsafe_mat, unsafe_vec, show=False, color='r')
+    lb, ub = get_bounding_box(unsafe_mat, unsafe_vec)
+    L = np.vstack((L, lb))
+    U = np.vstack((L, ub))
+    Lm = L.min(axis=0)
+    Um = U.max(axis=0)
+    ax = plt.gca()
+    ax.set_xlim(Lm[0], Um[0])
+    ax.set_ylim(Lm[1], Um[1])
+
+    plt.xlabel(label[0], fontsize=13)
+    plt.ylabel(label[1], fontsize=13)
+    plt.xticks(fontsize=13)
+    plt.yticks(fontsize=13)
+    if show:
+        plt.show()
+
+       
+    
+
+
+def plot_star(I, dir_mat=None, dir_vec=None, label=('$y_1$', '$y_2$'), show=True, color='g'):
     """Plot a star set in a specific direction
        y = dir_mat*x + dir_vec, x in I
     """
@@ -301,7 +391,7 @@ def plot_star(I, dir_mat=None, dir_vec=None, label=('$y_1$', '$y_2$'), show=True
         I1 = I.affineMap(dir_mat, dir_vec)
         if I1.dim > 2:
             raise Exception('error: only 2D plot is supported')
-        plot_2D_Star(I, show=False)
+        plot_2D_Star(I, show=False, color=color)
         l, u = I1.getRanges()
         
     elif isinstance(I, list):

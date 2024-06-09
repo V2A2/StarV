@@ -59,7 +59,19 @@ class Test(object):
         print('RU = {}'.format(sys.RU))
         
 
+    def test_stepSim_DLNNCS(self):
+        'test step simulation of discrete linear NNCS'
+
+        self.n_tests = self.n_tests + 1
+
+        controller = rand_ffnn([1, 2, 1], ['relu', 'relu'])    # network controller
+        plant = DLODE.rand(2,1,1)                              # plant dynamics
+        sys = NNCS(controller, plant, type='DLNNCS')           # NNCS object
+        sys.info()
+        X0 = ProbStar.rand(2,2,np.array([-1.0, -1.0]), np.array([1., 1.]))  # initial set
+
         
+   
 
 if __name__ == "__main__":
     test = Test()

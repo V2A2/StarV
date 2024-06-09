@@ -37,6 +37,25 @@ class Test(object):
         else:
             print('Test Successfull!')
 
+    def test_evaluate(self):
+
+        self.n_tests = self.n_tests + 1
+        arch = [2, 3, 3, 2]
+        actvs = ['relu', 'relu', 'relu']
+        print('Test rand_ffnn method ...')
+        input_vec = np.random.rand(2,)
+        net1 = rand_ffnn(arch, actvs)
+        y = net1.evaluate(input_vec)
+        try:
+            net1 = rand_ffnn(arch, actvs)
+            net1.info()
+            y = net1.evaluate(input_vec)
+        except Exception:
+            print('Test Fail!')
+            self.n_fails = self.n_fails + 1
+        else:
+            print('Test Successfull!')
+
     def test_reachExactBFS(self):
 
         self.n_tests = self.n_tests + 2
@@ -154,6 +173,7 @@ if __name__ == "__main__":
     ================================\
     ===============================\n')
     test_net.test_rand_ffnn()
+    test_net.test_evaluate()
     test_net.test_reachExactBFS()
     test_net.test_reachApproxBFS()
     print('\n========================\
