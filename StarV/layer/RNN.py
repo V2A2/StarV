@@ -135,9 +135,28 @@ class RNN(object):
         return output_set
 
     def reach(
-        self, inputSet: list, method="exact", lp_solver="gurobi", pool=None, RF=0.0
+        self, input_set: list, method="exact", lp_solver="gurobi", pool=None, RF=0.0
     ) -> list:
-        pass
+        """
+        Reachability analysis of RNN
 
-    def reachRelax(self, inputSet: list, RF: float) -> list:
+        Args:
+            input_set (list): The list of input sets.
+            method (str): The reachability analysis method to use. Default is "exact".
+            lp_solver (str): The linear programming solver to use. Default is "gurobi".
+            pool (multiprocessing.Pool): The multiprocessing pool to use. Default is None.
+            RF (float): The relaxation factor. Default is 0.0.
+
+        Returns:
+            list: The list of reachable sets.
+        """
+        if method == "exact":
+            output_set = self.exactReach(input_set, lp_solver)
+        elif method == "relax":
+            output_set = self.reachRelax(input_set, lp_solver, RF)
+        else:
+            raise ValueError("Invalid reachability analysis method: {}".format(method))
+        return output_set
+
+    def reachRelax(self, input_set: list, lp_solver="gurobi", RF=0.2) -> list:
         pass

@@ -73,17 +73,32 @@ class Test(object):
         """
         Load the weights and input set from matlab
         """
-        # Load the weights from matlab
-        path_fc = "matlab/HSCC2023/small_RNN/dense.mat"
-        with h5py.File(path_fc, "r") as fc:
-            Woh = fc["W"][:]
-            bo = fc["b"][:]
 
-        path_rnn = "matlab/HSCC2023/small_RNN/simple_rnn.mat"
-        with h5py.File(path_rnn, "r") as rnn:
-            Whh = rnn["recurrent_kernel"][:]
-            bh = rnn["bias"][:]
-            Whx = rnn["kernel"][:]
+        # path_outputSet = "matlab/HSCC2023/small_RNN/outputSet.mat"
+        # path_lb = "matlab/HSCC2023/small_RNN/lb.mat"
+        # path_ub = "matlab/HSCC2023/small_RNN/ub.mat"
+
+        # outputSet = scipy.io.loadmat(path_outputSet)["outputSet"]
+        # lb = scipy.io.loadmat(path_lb)["lb"]
+
+        # Load the weights from matlab
+        path_fc = "matlab/HSCC2023/small_RNN/dense_D.mat"
+        Woh = scipy.io.loadmat(path_fc)["W"]
+        bo = scipy.io.loadmat(path_fc)["b"]
+
+        # with h5py.File(path_fc, "r") as fc:
+        #     Woh = fc["W"][:]
+        #     bo = fc["b"][:]
+
+        path_rnn = "matlab/HSCC2023/small_RNN/simple_rnn_D.mat"
+        Whh = scipy.io.loadmat(path_rnn)["recurrent_kernel"]
+        bh = scipy.io.loadmat(path_rnn)["bias"]
+        Whx = scipy.io.loadmat(path_rnn)["kernel"]
+
+        # with h5py.File(path_rnn, "r") as rnn:
+        #     Whh = rnn["recurrent_kernel"][:]
+        #     bh = rnn["bias"][:]
+        #     Whx = rnn["kernel"][:]
 
         # Load the input set from matlab
         path_input = "matlab/HSCC2023/small_RNN/points.mat"
@@ -92,7 +107,13 @@ class Test(object):
         eps = 0.01
         In = [Star(x - eps, x + eps) for x in In]
 
-        return Whh, bh.flatten(), Whx.T, Woh.T, bo.flatten(), In
+        path_input1 = "matlab/HSCC2023/small_RNN/inputSet1.mat"
+        input_data1 = scipy.io.loadmat(path_input1)
+        I1 = input_data1["pickle_data"]
+
+        In = [I1]
+
+        return Whh, bh.flatten(), Whx, Woh, bo.flatten(), In
 
     def compare_reach(self):
         """
@@ -111,17 +132,17 @@ class Test(object):
         for m, step in enumerate(reach_set):
             for n, set in enumerate(step):
                 lb, ub = set.getRanges()
-                print("reach_set[{},{}]\n".format(m, n))
+                print("reach_set[{},{}]\n".format(m + 1, n + 1))
                 print("lb = {}\n ub = {}\n".format(lb, ub))
 
 
-if __name__ == "__main__":
-    t = Test()
-    t.test_constructor()
-    t.test_rand()
-    t.test_reach()
-    print("Number of tests: ", t.n_tests)
-    print("Number of fails: ", t.n_fails)
+# if __name__ == "__main__":
+#     t = Test()
+#     t.test_constructor()
+#     t.test_rand()
+#     t.test_reach()
+#     print("Number of tests: ", t.n_tests)
+#     print("Number of fails: ", t.n_fails)
 
-# t = Test()
-# t.compare_reach()
+t = Test()
+t.compare_reach()
