@@ -107,11 +107,11 @@ class Test(object):
         eps = 0.01
         In = [Star(x - eps, x + eps) for x in In]
 
-        path_input1 = "matlab/HSCC2023/small_RNN/inputSet1.mat"
-        input_data1 = scipy.io.loadmat(path_input1)
-        I1 = input_data1["pickle_data"]
+        # path_input1 = "matlab/HSCC2023/small_RNN/inputSet1.mat"
+        # input_data1 = scipy.io.loadmat(path_input1)
+        # I1 = input_data1["pickle_data"]
 
-        In = [I1]
+        # In = [I1]
 
         return Whh, bh.flatten(), Whx, Woh, bo.flatten(), In
 
@@ -127,11 +127,11 @@ class Test(object):
 
         net = RNN(Whh, bh, Whx, Woh, bo)
 
-        reach_set = net.exactReach(In[:10])
+        reach_set = net.exactReach(In[:10], "glpk")
 
         for m, step in enumerate(reach_set):
             for n, set in enumerate(step):
-                lb, ub = set.getRanges()
+                lb, ub = set.getRanges("glpk")
                 print("reach_set[{},{}]\n".format(m + 1, n + 1))
                 print("lb = {}\n ub = {}\n".format(lb, ub))
 
