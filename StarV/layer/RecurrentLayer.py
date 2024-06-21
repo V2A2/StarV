@@ -1,5 +1,5 @@
 """
-RNN layer class
+RecurrentLayer layer class
 Bryan Duong, 5/14/2024
 """
 
@@ -9,7 +9,7 @@ from StarV.set.star import Star
 from StarV.layer.ReLULayer import ReLULayer
 
 
-class RNN(object):
+class RecurrentLayer(object):
 
     def __init__(
         self,
@@ -20,7 +20,7 @@ class RNN(object):
         bo: np.ndarray,
     ) -> None:
         """
-        Initialize the RNN object.
+        Initialize the RecurrentLayer object.
 
         Args:
             Whh: Weight matrix for hidden state to hidden state connections.
@@ -47,7 +47,7 @@ class RNN(object):
 
     def evaluate(self, x: Star, step: int) -> list:
         """
-        Evaluates the RNN model for a given input and number of steps.
+        Evaluates the RecurrentLayer model for a given input and number of steps.
 
         Args:
             x (Star): The input star.
@@ -76,27 +76,27 @@ class RNN(object):
         return output
 
     @staticmethod
-    def rand(in_dim: int, out_dim: int) -> "RNN":
+    def rand(in_dim: int, out_dim: int) -> "RecurrentLayer":
         """
-        Generate a random RNN model.
+        Generate a random RecurrentLayer model.
 
         Args:
             in_dim (int): The input dimension.
             out_dim (int): The output dimension.
 
         Returns:
-            RNN: The random RNN model.
+            RecurrentLayer: The random RecurrentLayer model.
         """
         Whh = np.random.rand(out_dim, out_dim)
         bh = np.random.rand(out_dim)
         Whx = np.random.rand(out_dim, in_dim)
         Woh = np.random.rand(out_dim, out_dim)
         bo = np.random.rand(out_dim)
-        return RNN(Whh, bh, Whx, Woh, bo)
+        return RecurrentLayer(Whh, bh, Whx, Woh, bo)
 
     def exactReach(self, input_set: list, lp_solver="gurobi") -> list:
         """
-        Reachability analysis of RNN model using exact method
+        Reachability analysis of RecurrentLayer model using exact method
 
         Args:
             input_set (list): The list of input sets.
@@ -125,12 +125,16 @@ class RNN(object):
                     )
                     hidden_set_current.extend(hj_reach)
 
-            hidden_set.extend(hidden_set_current)
+            hidden_set.append(hidden_set_current)
             hidden_set_previous = hidden_set_current
 
-        for hidden in hidden_set:
-            o = hidden.affineMap(self.Woh, self.bo)
-            output_set.append(ReLULayer.reach([o], method="exact", lp_solver=lp_solver))
+        output_set = [[] for _ in range(len(hidden_set))]
+        for i, layer in enumerate(hidden_set):
+            for hidden in layer:
+                o = hidden.affineMap(self.Woh, self.bo)
+                output_set[i].extend(
+                    ReLULayer.reach([o], method="exact", lp_solver=lp_solver)
+                )
 
         return output_set
 
@@ -138,7 +142,7 @@ class RNN(object):
         self, input_set: list, method="exact", lp_solver="gurobi", pool=None, RF=0.0
     ) -> list:
         """
-        Reachability analysis of RNN
+        Reachability analysis of RecurrentLayer
 
         Args:
             input_set (list): The list of input sets.
