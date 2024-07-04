@@ -327,7 +327,7 @@ class ProbStar(object):
 
                 min_ = gp.Model()
                 min_.Params.LogToConsole = 0
-                min_.Params.OptimalityTol = 1e-9
+                min_.Params.OptimalityTol = 1e-6
                 if self.pred_lb.size and self.pred_ub.size:
                     x = min_.addMVar(shape=self.nVars,
                                      lb=self.pred_lb, ub=self.pred_ub)
@@ -435,7 +435,7 @@ class ProbStar(object):
 
                 max_ = gp.Model()
                 max_.Params.LogToConsole = 0
-                max_.Params.OptimalityTol = 1e-9
+                max_.Params.OptimalityTol = 1e-6
                 if self.pred_lb.size and self.pred_ub.size:
                     x = max_.addMVar(shape=self.nVars,
                                      lb=self.pred_lb, ub=self.pred_ub)
