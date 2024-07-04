@@ -1,6 +1,6 @@
 """
 Test of RecurrentLayer layer
-Bryan Duong, 6/20/2024
+Bryan Duong, 6/27/2024
 
 """
 
@@ -9,6 +9,7 @@ import scipy.io
 import numpy as np
 from StarV.layer.RecurrentLayer import RecurrentLayer
 from StarV.set.star import Star
+from StarV.set.probstar import ProbStar
 import multiprocessing
 
 
@@ -56,9 +57,14 @@ class Test(object):
         self.n_tests = self.n_tests + 1
         print("Test RecurrentLayer exactReach method")
 
-        I1 = Star.rand(2)
-        I2 = Star.rand(2)
-        I3 = Star.rand(2)
+        # I1 = Star.rand(2)
+        # I2 = Star.rand(2)
+        # I3 = Star.rand(2)
+        # In = [I1, I2, I3]
+
+        I1 = ProbStar.rand(2)
+        I2 = ProbStar.rand(2)
+        I3 = ProbStar.rand(2)
         In = [I1, I2, I3]
 
         net = RecurrentLayer.rand(2, 2)
@@ -92,6 +98,8 @@ class Test(object):
         eps = 0.01
         Sn = [Star(x - eps, x + eps) for x in In]
         In = [Sn[0] for _ in range(3)]
+
+        # NOTE: [minKowsi function] constrainst and basic matrix consistency
         for I in In:
             I.C = np.zeros((1, I.V.shape[1] - 1))
             I.d = np.zeros((1,))

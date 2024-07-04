@@ -1,12 +1,16 @@
 """
 RecurrentLayer layer class
-Bryan Duong, 5/14/2024
+Bryan Duong, 6/27/2024
 """
 
 import numpy as np
 import multiprocessing
 from StarV.set.star import Star
 from StarV.layer.ReLULayer import ReLULayer
+from StarV.layer.LeakyReLULayer import LeakyReLULayer
+from StarV.layer.SatLinLayer import SatLinLayer
+from StarV.layer.SatLinsLayer import SatLinsLayer
+from StarV.layer.fullyConnectedLayer import fullyConnectedLayer
 
 
 class RecurrentLayer(object):
@@ -94,7 +98,7 @@ class RecurrentLayer(object):
         bo = np.random.rand(out_dim)
         return RecurrentLayer(Whh, bh, Whx, Woh, bo)
 
-    def exactReach(self, input_set: list, lp_solver="gurobi") -> list:
+    def exactReach(self, input_set: list, func="ReLU", lp_solver="gurobi") -> list:
         """
         Reachability analysis of RecurrentLayer model using exact method
 
@@ -120,9 +124,28 @@ class RecurrentLayer(object):
                     hj_affn = hidden_input.affineMap(self.Whh)
                     xi_affn = input.affineMap(self.Whx, self.bh)
                     hj_xi = hj_affn.minKowskiSum(xi_affn)
-                    hj_reach = ReLULayer.reach(
-                        [hj_xi], method="exact", lp_solver=lp_solver
-                    )
+
+                    if func == "ReLU":
+                        hj_reach = ReLULayer.reach(
+                            [hj_xi], method="exact", lp_solver=lp_solver
+                        )
+                    elif func == "LeakyReLU":
+                        hj_reach = LeakyReLULayer.reach(
+                            [hj_xi], method="exact", lp_solver=lp_solver
+                        )
+                    elif func == "SatLin":
+                        hj_reach = SatLinLayer.reach(
+                            [hj_xi], method="exact", lp_solver=lp_solver
+                        )
+                    elif func == "Satlins":
+                        hj_reach = SatLinsLayer.reach(
+                            [hj_xi], method="exact", lp_solver=lp_solver
+                        )
+                    elif func == "fullyConnected":
+                        hj_reach = fullyConnectedLayer.reach(
+                            [hj_xi], method="exact", lp_solver=lp_solver
+                        )
+
                     hidden_set_current.extend(hj_reach)
 
             hidden_set.append(hidden_set_current)
@@ -139,7 +162,13 @@ class RecurrentLayer(object):
         return output_set
 
     def reach(
-        self, input_set: list, method="exact", lp_solver="gurobi", pool=None, RF=0.0
+        self,
+        input_set: list,
+        method="exact",
+        func="ReLU",
+        lp_solver="gurobi",
+        pool=None,
+        RF=0.0,
     ) -> list:
         """
         Reachability analysis of RecurrentLayer
@@ -155,9 +184,9 @@ class RecurrentLayer(object):
             list: The list of reachable sets.
         """
         if method == "exact":
-            output_set = self.exactReach(input_set, lp_solver)
+            output_set = self.exactReach(input_set, func, lp_solver)
         elif method == "relax":
-            output_set = self.reachRelax(input_set, lp_solver, RF)
+            output_set = self.reachRelax(input_set, func, lp_solver, RF)
         else:
             raise ValueError("Invalid reachability analysis method: {}".format(method))
         return output_set
