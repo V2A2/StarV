@@ -423,7 +423,9 @@ def stepReach_DLNNCS(ncs, Xi, reachPRM):
     refInputs = reachPRM.refInputs
     filterProb = reachPRM.filterProb
     numCores = reachPRM.numCores
-    lp_solver = reachPRM.lp_solver
+    lp_solver = reachPRM.lpSolver
+    net = ncs.controller
+    plant = ncs.plant
 
     # Xi: set of state of the plant at step i
     # Yi: feedback to the network controller at step i
@@ -1067,7 +1069,7 @@ def verify_temporal_specs_DLNNCS_for_full_analysis(ncs, verifyPRM):
     # get traces using DFS algorithm
     print('Get ProbStar traces using DFS-reachability algorithm...')
     start = time.time()
-    traces, p_ig0 = reachDFS_DLNNCS(ncs.controller, ncs.plant, reachPRM)
+    traces, p_ig0 = reachDFS_DLNNCS(ncs, reachPRM)
     end = time.time()
     reachTime = end-start  # reachability time in seconds
     print('Total ProbStar traces: {}'.format(len(traces)))
