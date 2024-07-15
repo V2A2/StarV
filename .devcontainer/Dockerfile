@@ -50,7 +50,7 @@ RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then \
 
 # After the file renaming, a clean image is build
 # FROM python:3.10-slim-bullseye AS packageoptimizer
-FROM python:3.11
+FROM python:3.10
 
 # Add the license key
 # Visit https://license.gurobi.com/manager/doc/overview for more information.
@@ -65,9 +65,8 @@ ENV PATH "$PATH:$GUROBI_HOME/bin"
 ENV LD_LIBRARY_PATH $GUROBI_HOME/lib 
 
 # COPY ../requirements.txt /tmp/
-COPY ../requirements .
 
-RUN python3 -m pip install --no-cache-dir -r ./requirements.txt
+RUN python3 -m pip install --no-cache-dir -r /tmp/requirements.txt
     # && rm /tmp/requirements.txt
 
 WORKDIR /work
