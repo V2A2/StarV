@@ -9,10 +9,13 @@
 # docker rum --rm -v ".:/work" -it starv bash
 
 
+
+
+# FROM python:3.11
+FROM ubuntu:20.04 as buildoptimizer
 ARG GRB_VERSION=11.0.2
 ARG GRB_SHORT_VERSION=11.0
-
-FROM python:3.11
+ARG TARGETPLATFORM
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -28,18 +31,26 @@ RUN apt-get update \
         unzip \
         nano \
         tmux \
+        ca-certificates \
         wget \
-	ca-certificates \
     && update-ca-certificates
 
-RUN wget -v https://packages.gurobi.com/${GRB_SHORT_VERSION}/gurobi${GRB_VERSION}_linux64.tar.gz
+WORKDIR /opt
 
-RUN tar -xvf gurobi${GRB_VERSION}_linux64.tar.gz  \
-    && rm -f gurobi${GRB_VERSION}_linux64.tar.gz \
+RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then \
+        export GRB_PLATFORM="armlinux64"; \
+    else \
+        export GRB_PLATFORM="linux64"; \
+    fi \
+    && wget -v https://packages.gurobi.com/${GRB_SHORT_VERSION}/gurobi${GRB_VERSION}_$GRB_PLATFORM.tar.gz \
+    && tar -xvf gurobi${GRB_VERSION}_$GRB_PLATFORM.tar.gz  \
+    && rm *.tar.gz \
     && mv -f gurobi* gurobi \
-    && rm -rf gurobi/linux64/docs \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    && mv -f gurobi/$GRB_PLATFORM*  gurobi/linux
+
+# After the file renaming, a clean image is build
+# FROM python:3.10-slim-bullseye AS packageoptimizer
+FROM python:3.11
 
 # Add the license key
 # Visit https://license.gurobi.com/manager/doc/overview for more information.
