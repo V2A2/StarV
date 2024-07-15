@@ -1,1 +1,1 @@
-docker build . -t starv -f .devcontainer/Dockerfile
+docker build . -t starv -f .devcontainer/Dockerfile --no-cache
