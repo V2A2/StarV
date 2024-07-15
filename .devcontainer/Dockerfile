@@ -65,7 +65,7 @@ RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then \
 
 # After the file renaming, a clean image is build
 # FROM python:3.10-slim-bullseye AS packageoptimizer
-FROM python:3.11
+FROM python:3.10
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
