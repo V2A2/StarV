@@ -66,7 +66,7 @@ ENV LD_LIBRARY_PATH $GUROBI_HOME/lib
 
 COPY ../requirements.txt /tmp/
 
-RUN pip install --no-cache-dir -r /tmp/requirements.txt && \
+RUN python3 -m pip install --no-cache-dir -r /tmp/requirements.txt && \
     rm /tmp/requirements.txt
 
 WORKDIR /work
