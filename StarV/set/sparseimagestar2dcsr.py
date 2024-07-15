@@ -662,7 +662,7 @@ class SparseImageStar2DCSR(object):
             if (f == 0).all():
                 return center
         else:
-            f = self.V.getrow(index)
+            f = self.V[[index]]
             center = self.c[index]
 
             if f.nnz == 0:
@@ -776,7 +776,7 @@ class SparseImageStar2DCSR(object):
             if (f == 0).all():
                 return center
         else:
-            f = self.V.getrow(index)
+            f = self.V[[index]]
             center = self.c[index]
 
             if f.nnz == 0:
