@@ -9,25 +9,45 @@
 # docker rum --rm -v ".:/work" -it starv bash
 
 
-FROM gurobi/python:3.11
+ARG GRB_VERSION=11.0.2
+ARG GRB_SHORT_VERSION=11.0
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    build-essential \
-    libgmp-dev \
-    libglpk-dev \
-    gcc \
-    g++ \
-    cmake \
-    curl \
-    vim \
-    git \
-    unzip \
-    nano \
-    tmux \
-    wget && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+FROM python:3.11
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        libgmp-dev \
+        libglpk-dev \
+        gcc \
+        g++ \
+        cmake \
+        curl \
+        vim \
+        git \
+        unzip \
+        nano \
+        tmux \
+        wget \
+    && wget -v https://packages.gurobi.com/${GRB_SHORT_VERSION}/gurobi${GRB_VERSION}_linux64.tar.gz \
+    && tar -xvf gurobi${GRB_VERSION}_linux64.tar.gz  \
+    && rm -f gurobi${GRB_VERSION}_linux64.tar.gz \
+    && mv -f gurobi* gurobi \
+    && rm -rf gurobi/linux64/docs \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+    # Add the license key
+    # Visit https://license.gurobi.com/manager/doc/overview for more information.
+    # You will need to provide your own.
+    # by passing it in during runtime: -v gurobi.lic:/opt/gurobi/gurobi.lic
+    COPY gurobi.lic /opt/gurobi/gurobi.lic
+
+    # now install the R package
+
+    ENV GUROBI_HOME /opt/gurobi/linux64
+    ENV PATH "$PATH:$GUROBI_HOME/bin"
+    ENV LD_LIBRARY_PATH $GUROBI_HOME/lib 
 
 COPY ../requirements.txt /tmp/
 
