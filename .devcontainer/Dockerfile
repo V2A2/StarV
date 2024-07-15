@@ -20,8 +20,6 @@ ARG TARGETPLATFORM
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
-        python3-dev \
-        python3-pip \
         libgmp-dev \
         libglpk-dev \
         libgmp3-dev \
@@ -61,8 +59,6 @@ FROM python:3.10
 # by passing it in during runtime: -v gurobi.lic:/opt/gurobi/gurobi.lic
 COPY gurobi.lic /opt/gurobi/gurobi.lic
 
-# now install the R package
-
 ENV GUROBI_HOME /opt/gurobi/linux64
 ENV PATH "$PATH:$GUROBI_HOME/bin"
 ENV LD_LIBRARY_PATH $GUROBI_HOME/lib 
@@ -70,7 +66,7 @@ ENV LD_LIBRARY_PATH $GUROBI_HOME/lib
 COPY ../requirements.txt /tmp/
 
 RUN python3 -m pip install --no-cache-dir -r /tmp/requirements.txt
-    # && rm /tmp/requirements.txt
+    && rm /tmp/requirements.txt
 
 WORKDIR /work
 #COPY . /work
