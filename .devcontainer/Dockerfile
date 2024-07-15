@@ -35,7 +35,7 @@ RUN apt-get update \
         nano \
         tmux \
         ca-certificates \
-        wget
+        wget \
     && update-ca-certificates
 
 WORKDIR /opt
