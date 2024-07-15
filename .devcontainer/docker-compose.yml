@@ -10,3 +10,8 @@ services:
       - ../../StarV:/home/StarV
     stdin_open: true
     tty: true
+    
+  gurobi:
+    image: starv_dev_sc
+    volumes:
+      - ./gurobi.lic:/opt/gurobi/gurobi.lic:ro  
