@@ -28,7 +28,9 @@ RUN apt-get update \
         unzip \
         nano \
         tmux \
-        wget
+        wget \
+	ca-certificates \
+    && update-ca-certificates \
 	
 RUN wget -v https://packages.gurobi.com/${GRB_SHORT_VERSION}/gurobi${GRB_VERSION}_linux64.tar.gz
 
