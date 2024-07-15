@@ -9,8 +9,7 @@ numpy
 scipy
 ipyparallel
 torchvision
-plotly==5.14.1 
-#pandas
-#more-itertools
+plotly==5.14.1
+onnx
 onnx2pytorch
 onnxruntime
