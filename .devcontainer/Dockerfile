@@ -36,8 +36,6 @@
 # WORKDIR /work
 
 
-
-# FROM python:3.11
 FROM ubuntu:20.04 as buildoptimizer
 ARG GRB_VERSION=11.0.2
 ARG GRB_SHORT_VERSION=11.0
@@ -65,7 +63,7 @@ RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then \
 
 # After the file renaming, a clean image is build
 # FROM python:3.10-slim-bullseye AS packageoptimizer
-FROM python:3.10
+FROM python:3.11
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
