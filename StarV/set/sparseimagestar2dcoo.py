@@ -794,7 +794,7 @@ class SparseImageStar2DCOO(object):
 
             min_ = gp.Model()
             min_.Params.LogToConsole = 0
-            min_.Params.OptimalityTol = 1e-9
+            min_.Params.OptimalityTol = 1e-6 #1e-9
             if self.pred_lb.size and self.pred_ub.size:
                 x = min_.addMVar(shape=self.num_pred, lb=self.pred_lb, ub=self.pred_ub)
             else:
@@ -908,10 +908,9 @@ class SparseImageStar2DCOO(object):
 
             max_ = gp.Model()
             max_.Params.LogToConsole = 0
-            max_.Params.OptimalityTol = 1e-9
+            max_.Params.OptimalityTol = 1e-6 #1e-9
             if self.pred_lb.size and self.pred_ub.size:
-                x = max_.addMVar(shape=self.num_pred,
-                                    lb=self.pred_lb, ub=self.pred_ub)
+                x = max_.addMVar(shape=self.num_pred, lb=self.pred_lb, ub=self.pred_ub)
             else:
                 x = max_.addMVar(shape=self.num_pred)
             max_.setObjective(f @ x, GRB.MAXIMIZE)
