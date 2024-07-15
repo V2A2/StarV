@@ -64,7 +64,7 @@ ENV GUROBI_HOME /opt/gurobi/linux64
 ENV PATH "$PATH:$GUROBI_HOME/bin"
 ENV LD_LIBRARY_PATH $GUROBI_HOME/lib 
 
-# COPY ../requirements.txt /tmp/
+COPY ../requirements.txt /tmp/
 
 RUN python3 -m pip install --no-cache-dir -r /tmp/requirements.txt
     # && rm /tmp/requirements.txt
