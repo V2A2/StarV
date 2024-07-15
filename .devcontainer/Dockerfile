@@ -28,7 +28,8 @@ RUN apt-get update \
         unzip \
         nano \
         tmux \
-        wget \
+        wget
+	
 RUN wget -v https://packages.gurobi.com/${GRB_SHORT_VERSION}/gurobi${GRB_VERSION}_linux64.tar.gz \
     && tar -xvf gurobi${GRB_VERSION}_linux64.tar.gz  \
     && rm -f gurobi${GRB_VERSION}_linux64.tar.gz \
