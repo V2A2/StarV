@@ -3,7 +3,7 @@ Main Verifier Class
 Dung Tran, 9/10/2022
 """
 
-from StarV.net.network import NeuralNetwork
+from StarV.net.network import NeuralNetwork, reachExactBFS
 from StarV.set.probstar import ProbStar
 from StarV.spec.dProbStarTL import Formula
 from StarV.plant.dlode import DLODE
@@ -12,7 +12,7 @@ import copy
 import multiprocessing
 import numpy as np
 import polytope as pc
-import time
+from StarV.util.print_util import print_util
 
 class Verifier(object):
     """
@@ -43,21 +43,6 @@ class Verifier(object):
         assert isinstance(net, NeuralNetwork), 'error: input is not a NeuralNetwork object'
         pass
 
-def reachExactBFS(net, inputSet, lp_solver='gurobi', pool=None, show=True):
-    """Compute Reachable Set layer-by-layer"""
-
-    assert isinstance(net, NeuralNetwork), 'error: first input should be a NeuralNetwork object'
-    assert isinstance(inputSet, list), 'error: second input should be a list of Star/ProbStar set'
-
-    S = copy.deepcopy(inputSet)
-    for i in range(0, net.n_layers):
-        if show:
-            print('Computing layer {} reachable set...'.format(i))
-        S = net.layers[i].reach(S, method='exact', lp_solver=lp_solver, pool=pool)
-        if show:
-            print('Number of stars/probstars: {}'.format(len(S)))
-
-    return S
 
 def checkSafetyStar(unsafe_mat, unsafe_vec, S):
     """Intersect with unsafe region, can work in parallel"""
@@ -88,6 +73,7 @@ def checkSafetyStar(unsafe_mat, unsafe_vec, S):
     if P.isEmptySet():
         P = []
     return P
+
 
 def checkSafetyProbStar(*args):
     """Intersect with unsafe region, can work in parallel"""
@@ -130,6 +116,7 @@ def checkSafetyProbStar(*args):
         
     return P, prob
 
+
 def filterProbStar(*args):
     """Filtering out some probstars"""
 
@@ -141,6 +128,9 @@ def filterProbStar(*args):
     S = args1[1]
     assert isinstance(S, ProbStar), 'error: input is not a probstar'
     prob = S.estimateProbability()
+    # print_util('h4')
+    # print("prob = ", prob)
+    # print_util('h4')
     if prob >= p_filter:
         P = S
         p_ignored = 0.0
@@ -176,6 +166,7 @@ def quantiVerifyExactBFS(net, inputSet, unsafe_mat, unsafe_vec, lp_solver='gurob
                 prob.append(S2[1])
           
     return S, P, sum(prob)
+
 
 def quantiVerifyBFS(net, inputSet, unsafe_mat, unsafe_vec,  p_filter=0.0, lp_solver='gurobi', numCores=1, show=True):
     """ Overapproximate quantitative verification of ReLU network"""
@@ -248,7 +239,7 @@ def quantiVerifyBFS(net, inputSet, unsafe_mat, unsafe_vec,  p_filter=0.0, lp_sol
                 for S2 in S1:
                     if isinstance(S2[0], ProbStar):
                         P.append(S2[0])
-                        prob.append(S2[1])        
+                        prob.append(S2[1])
 
             p_v_lb = sum(prob)
             p_v_ub = p_v_lb + p_ignored
@@ -288,6 +279,7 @@ def evaluate(*args):
 
     return y
 
+
 def checkSafetyPoints(*args):
     'check safety for a single point'
 
@@ -310,6 +302,7 @@ def checkSafetyPoints(*args):
             nSAT = nSAT + 1
             
     return nSAT, n 
+
 
 def quantiVerifyMC(net, inputSet, unsafe_mat, unsafe_vec, numSamples=100000, nTimes=10, numCores=1):
     'quantitative verification using traditional Monte Carlo sampling-based method'

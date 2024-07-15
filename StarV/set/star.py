@@ -17,6 +17,7 @@ import polytope as pc
 
 import copy
 
+
 class Star(object):
     """
         Star Class for reachability
@@ -34,7 +35,7 @@ class Star(object):
         ==========================================================================
     """
 
-    def __init__(self, *args):
+    def __init__(self, *args, copy_=True):
         """
            Key Attributes:
            V = []; % basis matrix
@@ -46,7 +47,11 @@ class Star(object):
            pred_ub = []; % upper bound of predicate variables
         """
         if len(args) == 5:
-            [V, C, d, pred_lb, pred_ub] = copy.deepcopy(args)
+            if copy_ is True:
+                [V, C, d, pred_lb, pred_ub] = copy.deepcopy(args)
+            else:
+                [V, C, d, pred_lb, pred_ub] = args
+
             assert isinstance(V, np.ndarray), 'error: \
             basis matrix should be a 2D numpy array'
             assert isinstance(pred_lb, np.ndarray), 'error: \
@@ -83,7 +88,10 @@ class Star(object):
             self.pred_ub = pred_ub
 
         elif len(args) == 2:  # the most common use
-            [lb, ub] = copy.deepcopy(args)
+            if copy_ is True:
+                [lb, ub] = copy.deepcopy(args)
+            else:
+                [lb, ub] = args
 
             assert isinstance(lb, np.ndarray), 'error: \
             lower bound vector should be a 1D numpy array'
@@ -101,23 +109,38 @@ class Star(object):
             
             self.dim = lb.shape[0]
             nVars = int(sum(ub[i] > lb[i] for i in range(0, self.dim)))
-            V = np.zeros((self.dim, nVars+1))
-            pred_lb = np.zeros(nVars,)
-            pred_ub = np.zeros(nVars,)
-            j = 0
-            for i in range(0, self.dim):
-                if ub[i] > lb[i]:
-                    pred_lb[j] = lb[i]
-                    pred_ub[j] = ub[i]
-                    V[i, j+1] = 1.
-                    j = j + 1
-            
+
+            center = 0.5*(lb + ub)
+            center = center.reshape(self.dim, 1)
+            vec = 0.5*(ub-lb)
+            gens = np.diag(vec)
+            gens = gens[:,~np.all(gens == 0, axis=0)]
+
+            V = np.hstack((center, gens))
             self.V = V
             self.C = np.array([])
             self.d = np.array([])
-            self.pred_lb = pred_lb
-            self.pred_ub = pred_ub
-            self.nVars = nVars        
+            self.pred_lb = -np.ones(nVars,)
+            self.pred_ub = np.ones(nVars,)
+            self.nVars = nVars
+			
+            # V = np.zeros((self.dim, nVars+1))
+            # pred_lb = np.zeros(nVars,)
+            # pred_ub = np.zeros(nVars,)
+            # j = 0
+            # for i in range(0, self.dim):
+            #     if ub[i] > lb[i]:
+            #         pred_lb[j] = lb[i]
+            #         pred_ub[j] = ub[i]
+            #         V[i, j+1] = 1.
+            #         j = j + 1
+            
+            # self.V = V
+            # self.C = np.array([])
+            # self.d = np.array([])
+            # self.pred_lb = pred_lb
+            # self.pred_ub = pred_ub
+            # self.nVars = nVars        
             
         elif len(args) == 0:  # create an empty ProStar
             self.dim = 0
@@ -479,7 +502,7 @@ class Star(object):
 
         if A is None and b is None:
             new_set = copy.deepcopy(self)
-            
+
         if A is None and b is not None:
             V = copy.deepcopy(self.V)
             V[:, 0] = V[:, 0] + b
@@ -764,7 +787,7 @@ class Star(object):
 
         new_d = np.hstack((self.d, d1))
         new_C = np.vstack((self.C, C1))
-        S = Star(self.V, new_C, new_d, self.pred_lb, self.pred_ub)
+        S = Star(self.V, new_C, new_d, self.pred_lb, self.pred_ub, copy_=False)
         
         if S.isEmptySet():
             return False
@@ -803,3 +826,36 @@ class Star(object):
         ub = np.random.rand(dim,)
         
         return Star(lb, ub)
+
+
+    def toPolytope(self):
+        """
+            Converts to Polytope
+            Yuntao Li, 2/4/2024
+        """
+        if self.pred_lb.size and self.pred_ub.size:
+            I = np.eye(self.dim)
+            C1 = np.vstack([I, -I])
+            d1 = np.hstack([self.pred_ub, -self.pred_lb])
+
+            if len(self.C) == 0:
+                C = C1
+            else:
+                C = np.vstack([self.C, C1])
+
+            if len(self.d) == 0:
+                d = d1
+            else:
+                d = np.hstack([self.d, d1])
+        else:
+            C = self.C
+            d = self.d
+
+        c = self.V[:, 0]
+        V = self.V[:, 1:]
+
+        X, residuals, rank, s = np.linalg.lstsq(V.T, C.T, rcond=None)
+        new_C = X.T
+
+        new_d = d + np.dot(new_C, c)
+        return pc.Polytope(new_C, new_d)

@@ -19,38 +19,73 @@ class FullyConnectedLayer(object):
             @rand: random generate a FullyConnectedLayer
     """
 
-    def __init__(self, layer):
+    def __init__(self, layer, dtype='float64'):
 
         if isinstance(layer, list):
             W, b = layer
 
         elif isinstance(layer, torch.nn.Linear):
-            W = layer.weight.detach().numpy()
-            b = layer.bias.detach().numpy()
+            W = layer.weight.data.numpy()
+            b = layer.bias.data.numpy()
 
         else:
             raise Exception('error: unsupported neural network module')
 
-        assert isinstance(W, np.ndarray) and len(W.shape) == 2, 'error: weight matrix should be a 2D numpy array'
-        assert isinstance(b, np.ndarray) and len(b.shape) == 1, 'error: bias vector should be a 1D numpy array'
+        assert isinstance(W, np.ndarray) or W is None, 'error: weight matrix should be a numpy array'
+        assert isinstance(b, np.ndarray) or b is None, 'error: bias vector should be a numpy array'
+
+        if dtype == 'float32' or dtype == np.float32:
+            self.torch_dtype = torch.float32
+        else:
+            self.numpy_dtype = np.float64
         
-        assert W.shape[0] == b.shape[0], 'error: inconsistent dimension between weight matrix and bias vector'
-        self.W = W
-        self.b = b
-        self.in_dim = W.shape[1]
-        self.out_dim = W.shape[0]
+        if W is not None and b is not None:
+            assert W.shape[0] == b.shape[0], 'error: inconsistent dimension between weight matrix and bias vector'
+        
+        if W is None:
+            self.W = W
+        else:
+            self.W = W.astype(dtype)
+        if b is None:
+            self.b = b
+        else:
+            self.b = b.astype(dtype)
+        
+        if W is not None:
+            self.in_dim = W.shape[1]
+            self.out_dim = W.shape[0]
+        else:
+            self.in_dim = b.shape[0]
+            self.out_dim = b.shape[0]
 
     def evaluate(self, x):
         """evaluation on an input vector/array x"""
 
         assert isinstance(x, np.ndarray), 'error: input vector should be a numpy array'
-        assert x.shape[0] == self.in_dim, 'error: inconsistent dimension between the weight matrix and input vector'
+        assert x.shape[0] == self.in_dim or self.in_dim == 1, 'error: inconsistent dimension between the weight matrix and input vector'
         
-        len_ = len(x.shape)
-        if len_ == 1:
-            return np.matmul(self.W, x) + self.b
-        else:
-            return np.matmul(self.W, x) + self.b[:, np.newaxis]
+        W = self.W
+        b = self.b
+
+        if W is not None and b is not None: 
+            if x.ndim == 1:
+                return np.matmul(W, x) + b
+            else:
+                return np.matmul(W, x) + b[:, np.newaxis]
+        
+        elif W is not None:
+            return np.matmul(W, x)
+
+        elif b is not None:
+
+            if x.ndim > 1:
+                return x + np.expand_dims(b, axis=tuple(np.arange(x.ndim-b.ndim)+b.ndim))
+            
+            return x + b
+        
+            
+        return x
+        
 
     @staticmethod
     def rand(in_dim, out_dim):

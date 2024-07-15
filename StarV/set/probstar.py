@@ -2,6 +2,8 @@
 Probabilistics Star Class
 Dung Tran, 8/10/2022
 
+Update: 8/13/2023
+
 """
 
 # !/usr/bin/python3
@@ -144,6 +146,38 @@ class ProbStar(object):
             self.pred_lb = pred_lb
             self.pred_ub = pred_ub
 
+
+        elif len(args) == 2:  # the most common use
+            [lb, ub] = copy.deepcopy(args)
+
+            assert len(lb.shape) == 1, 'error: \
+            lower bound vector should be a 1D numpy array'
+            assert len(lb.shape) == 1, 'error: \
+            upper bound vector should be a 1D numpy array'
+            assert lb.shape[0] == ub.shape[0], 'error: \
+            inconsistency between predicate lower bound and upper bound'
+            
+            dim = lb.shape[0]
+            gtr = ub > lb
+            nv = gtr.sum()
+            V = np.zeros([dim, nv+1])
+            V[:, 0] = 0.5 * (lb + ub)
+            j = 1
+            for i in range(nv):
+                if gtr[i]:
+                    V[i, j] = 0.5 * (ub[i] - lb[i])
+                    j += 1
+            
+            self.dim = dim
+            self.nVars = dim
+            self.mu = np.zeros(dim)
+            self.Sig = np.eye(dim) * 0.125
+            self.V = V
+            self.C = np.array([])
+            self.d = np.array([])
+            self.pred_lb = -np.ones(dim)
+            self.pred_ub = np.ones(dim)
+
         elif len(args) == 0:  # create an empty ProStar
             self.dim = 0
             self.nVars = 0
@@ -209,7 +243,9 @@ class ProbStar(object):
                 # U'*U = L'*L = I_r
                 U, Q, L = np.linalg.svd(C)
                 Q1 = np.diag(Q)
-                Q1 = np.matmul(Q1, L)
+                r = Q1.shape[0]
+                L1 = L[0:r, :]
+                Q1 = np.matmul(Q1, L1)
 
                 # linear transformation a_r' = Q1*a_r of original normal variables
                 mu1 = np.matmul(Q1, self.mu)
@@ -246,6 +282,25 @@ class ProbStar(object):
             dmin = P1.b
 
         return Cmin, dmin
+
+    def minimizeConstraints(self):
+
+        if len(self.C) == 0:
+            return self
+        else:
+            C1 = np.vstack((np.eye(self.nVars), -np.eye(self.nVars)))
+            d1 = np.concatenate([self.pred_ub, -self.pred_lb])
+            C = np.vstack((self.C, C1))
+            d = np.concatenate([self.d, d1])       
+            P = pc.Polytope(C, d)
+            P1 = pc.reduce(P)
+            Cmin = P1.A
+            dmin = P1.b
+            self.C = Cmin
+            self.d = dmin
+
+            return self
+        
             
       
     def estimateRange(self, index):
@@ -304,7 +359,7 @@ class ProbStar(object):
 
                 min_ = gp.Model()
                 min_.Params.LogToConsole = 0
-                min_.Params.OptimalityTol = 1e-9
+                min_.Params.OptimalityTol = 1e-6
                 if self.pred_lb.size and self.pred_ub.size:
                     x = min_.addMVar(shape=self.nVars,
                                      lb=self.pred_lb, ub=self.pred_ub)
@@ -412,7 +467,7 @@ class ProbStar(object):
 
                 max_ = gp.Model()
                 max_.Params.LogToConsole = 0
-                max_.Params.OptimalityTol = 1e-9
+                max_.Params.OptimalityTol = 1e-6
                 if self.pred_lb.size and self.pred_ub.size:
                     x = max_.addMVar(shape=self.nVars,
                                      lb=self.pred_lb, ub=self.pred_ub)
@@ -689,6 +744,31 @@ class ProbStar(object):
 
         return self
 
+    def addConstraintWithoutUpdateBounds(self, C, d):
+
+        """ Add a single constraint to a ProbStar, self & Cx <= d"""
+        
+        assert isinstance(C, np.ndarray) and len(C.shape) == 1, 'error: \
+        constraint matrix should be 1D numpy array'
+        assert isinstance(d, np.ndarray) and len(d.shape) == 1, 'error: \
+        constraint vector should be a 1D numpy array'
+        assert C.shape[0] == self.dim, 'error: \
+        inconsistency between the constraint matrix and the probstar dimension'
+
+        v = np.matmul(C, self.V)
+        newC = v[1:self.nVars+1]
+        newd = d - v[0]
+
+        if len(self.C) != 0:
+            self.C = np.vstack((newC, self.C))
+            self.d = np.concatenate([newd, self.d])
+            
+        else:
+            self.C = newC.reshape(1, self.nVars)
+            self.d = newd
+
+        return self
+
     def addMultipleConstraints(self, C, d):
         """ Add multiple constraint to a ProbStar, self & Cx <= d"""
 
@@ -696,14 +776,26 @@ class ProbStar(object):
         assert isinstance(d, np.ndarray), 'error: constraint vector should be a numpy array'
         assert C.shape[0] == d.shape[0], 'error: inconsistency between \
         constraint matrix and constraint vector'
-        print(len(d.shape))
         assert len(d.shape) == 1, 'error: constraint vector should be a 1D numpy array'
         
-        if C.shape[0] == 1:
-            self.addConstraint(C, d)
-        else:
-            for i in range(0, C.shape[0]):
-                self.addConstraint(C[i, :], np.array([d[i]]))
+     
+        for i in range(0, C.shape[0]):
+            self.addConstraint(C[i, :], np.array([d[i]]))
+
+        return self
+
+    def addMultipleConstraintsWithoutUpdateBounds(self, C, d):
+        """ Add multiple constraint to a ProbStar, self & Cx <= d"""
+
+        assert isinstance(C, np.ndarray), 'error: constraint matrix should be a numpy array'
+        assert isinstance(d, np.ndarray), 'error: constraint vector should be a numpy array'
+        assert C.shape[0] == d.shape[0], 'error: inconsistency between \
+        constraint matrix and constraint vector'
+        assert len(d.shape) == 1, 'error: constraint vector should be a 1D numpy array'
+
+
+        for i in range(0, C.shape[0]):
+            self.addConstraintWithoutUpdateBounds(C[i, :], np.array([d[i]]))
 
         return self
 
@@ -720,9 +812,63 @@ class ProbStar(object):
 
         return S
 
+    def resetRowWithFactor(self, index, factor):
+        """Reset a row with index and factor
+        Author: Yuntao, Date: 1/30/2024
+        """
+
+        if index < 0 or index > self.dim - 1:
+            raise Exception('error: invalid index, \
+            should be between {} and {}'.format(0, self.dim - 1))
+        V = self.V
+        V[index, :] *= factor
+        S = ProbStar(V, self.C, self.d, self.mu, self.Sig,
+                     self.pred_lb, self.pred_ub)
+
+        return S
+    
+    def resetRowWithUpdatedCenter(self, index, new_c):
+        """Reset a row with index, and with new center
+        Author: Yuntao, Date: 1/30/2024
+        """
+
+        if index < 0 or index > self.dim - 1:
+            raise Exception('error: invalid index, \
+            should be between {} and {}'.format(0, self.dim - 1))
+        V = self.V
+        V[index, :] = 0.0
+        V[index, 0] = new_c
+        S = ProbStar(V, self.C, self.d, self.mu, self.Sig,
+                     self.pred_lb, self.pred_ub)
+
+        return S
+
+
+    def concatenate_with_vector(self, v=[]):
+        """
+           concatenate a probstar with a vector
+           Dung Tran: 11/19/2023
+        """
+
+        if len(v) != 0:
+            assert isinstance(v, np.ndarray), 'error: input should be a 1-d array'
+            assert len(v.shape) == 1, 'error: input should be a 1-d array'
+
+            n = v.shape[0]
+            v1 = v.reshape(n,1)
+            V1 = np.zeros((n, self.nVars))
+            V1 = np.hstack((v1, V1))
+            newV = np.vstack((V1, self.V))
+            S = ProbStar(newV, self.C, self.d, self.mu, self.Sig, self.pred_lb, self.pred_ub)
+            return S
+        else:
+            return self
+
     @staticmethod
     def rand(*args):
         """ Randomly generate a ProbStar """
+
+        # Update: 8/13/2023 by Dung Tran
 
         if len(args) == 1:
             dim = args[0]
@@ -731,13 +877,25 @@ class ProbStar(object):
             dim = args[0]
             nVars = args[1]
 
+        elif len(args) == 4:
+            dim = args[0]
+            nVars = args[1]
+            pred_lb = args[2]
+            pred_ub = args[3]
+
+            assert isinstance(pred_lb, np.ndarray), 'predicate_lb should be a 1-d numpy array'
+            assert isinstance(pred_ub, np.ndarray), 'predicate_ub should be a 1-d numpy array'
+
+            assert pred_lb.shape[0] == pred_ub.shape[0], 'inconsistency between predicate_lb and predicate_ub'
+            assert pred_lb.shape[0] == nVars, 'inconsistency between the length of predicate_lb and number of predicate variables'
         else:
             raise RuntimeError('invalid number of arguments, should be 1 or 2')
             
         V = np.random.rand(dim, nVars + 1)
-        mu = np.random.rand(nVars,)
-        pred_lb = -np.random.rand(nVars,)
-        pred_ub = np.random.rand(nVars,)
+        if len(args) != 4:    
+            pred_lb = -np.random.rand(nVars,)
+            pred_ub = np.random.rand(nVars,)
+            
         mu = 0.5*(pred_lb + pred_ub)
         a = 3.0
         sig = (mu - pred_lb)/a
@@ -764,3 +922,245 @@ class ProbStar(object):
         samples = np.unique(samples, axis=1)
 
         return samples
+    
+        
+    def inv_affineMap(self, A=None, b=None):
+        """Affine mapping of a probstar: S = (A^-1)*self - (A^-1)*b"""
+        
+        if A is not None:
+            assert isinstance(A, np.ndarray), 'error: mapping matrix should be an 2D numpy array'
+            assert np.linalg.det(A) != 0, 'error: inverse affine mapping cannot be achieved due to det(A) == 0'
+            A_inv = np.linalg.inv(A)
+        else:
+            A_inv = A
+
+        if b is not None:
+            assert isinstance(b, np.ndarray), 'error: offset vector should be an 1D numpy array'
+            b = -np.matmul(A_inv, b)
+
+        return self.affineMap(A_inv, b)
+    
+    def intersectProbStar_estimate(self, P):
+
+        assert isinstance(P, ProbStar), 'error: input P is not ProbStar'
+        assert self.dim == P.dim, 'error: dimension mismatch between two ProbStars'
+
+        P1 = P.inv_affineMap(self.V[:, 1:], self.V[:, 0])
+        p1_lb, p1_ub = P1.estimateRanges()
+
+        plb = np.maximum(self.pred_lb, p1_lb)
+        pub = np.minimum(self.pred_ub, p1_ub)
+
+        return ProbStar(self.V, self.C, self.d, self.mu, self.Sig, plb, pub)
+    
+    def intersectProbStar(self, P, lp_solver='gurobi'):
+
+        assert isinstance(P, ProbStar), 'error: input P is not ProbStar'
+        assert self.dim == P.dim, 'error: dimension mismatch between two ProbStars'
+
+        P1 = P.inv_affineMap(self.V[:, 1:], self.V[:, 0])
+
+        if lp_solver == 'estimate':
+            p_lb, p_ub = P1.estimateRanges()
+        else:
+            p_lb, p_ub = P1.getRanges(lp_solver=lp_solver)
+
+        plb = np.maximum(self.pred_lb, p_lb)
+        pub = np.minimum(self.pred_ub, p_ub)
+
+        T = ProbStar(self.V, self.C, self.d, self.mu, self.Sig, plb, pub)
+        return T.intersectHalfSpace_withProbStar(P)
+    
+    
+    # intersection with a half space: H(x) := Hx <= g
+    def intersectHalfSpace(self, H, g):
+        # @H: HalfSpace matrix
+        # @g: HalfSpace vector
+        # return a new star set with more constraints
+
+        assert isinstance(H, np.ndarray) and H.ndim == 2, 'error: halfspace constraints matrix is not a 2D numpy ndarray'
+        assert isinstance(g, np.ndarray) and g.ndim == 1, 'error: halfspace constraints vector is not a 1D numpy ndarray'
+        assert H.shape[0] == g.shape[0], 'inconsistent dimension between halfspace constraints matrix and halfspace vector'
+        assert H.shape[1] == self.dim, 'inconsistent dimension between halfspace and probstar set'
+
+        C1 = np.matmul(H, self.V[:, 1:])
+        d1 = g - np.matmul(H, self.V[:, 0])
+
+        if len(self.d) > 0 and len(d1) > 0:
+            new_C = np.vstack([self.C, C1])
+            new_d = np.hstack([self.d, d1])
+        elif len(self.d) > 0:
+            new_C = self.C
+            new_d = self.d
+        elif len(d1) > 0:
+            new_C = C1
+            new_d = d1
+        else:
+            new_C = []
+            new_d = []
+
+        return ProbStar(self.V, new_C, new_d, self.mu, self.Sig, self.pred_lb, self.pred_ub)
+    
+    def intersectHalfSpace_withProbStar(self, P, lp_solver='gurobi'):
+        assert isinstance(P, ProbStar), 'error: input P is not ProbStar'
+        assert self.dim == P.dim, 'error: dimension mismatch between  two probabilities'
+        if lp_solver == 'estimate':
+            lb, ub = P.estimateRanges()
+        else:
+            lb, ub = P.getRanges()
+        
+        H = np.vstack([np.eye(P.dim), -np.eye(P.dim)])
+        g = np.hstack([ub, -lb])
+        C1 = np.matmul(H, self.V[:, 1:])
+        d1 = g - np.matmul(H, self.V[:, 0])
+
+        if len(self.d) > 0 and len(d1) > 0:
+            new_C = np.vstack([self.C, C1])
+            new_d = np.hstack([self.d, d1])
+        elif len(self.d) > 0:
+            new_C = self.C
+            new_d = self.d
+        elif len(d1) > 0:
+            new_C = C1
+            new_d = d1
+        else:
+            new_C = []
+            new_d = []
+
+        return ProbStar(self.V, new_C, new_d, self.mu, self.Sig, self.pred_lb, self.pred_ub)
+    
+
+    
+
+
+        
+        
+    
+    # def intersectProbStar(self, P):
+        
+    #     assert isinstance(P, ProbStar), 'error: input P is not ProbStar'
+
+    #     if len(self.d) > 0 and len(P.d) > 0:
+    #         new_C = block_diag(self.C, P.C)
+    #         new_d = np.hstack([self.d, P.d])
+    #     elif len(self.d) > 0:
+    #         new_C = self.C
+    #     elif len(P.d) > 0:
+    #         new_C = P.C
+    #     else:
+    #         new_C = []
+    #         new_d = []
+
+    #     c1 = self.V[:, 0]
+    #     c2 = P.V[:, 0]
+    #     V1 = self.V[:, 1:]
+    #     V2 = self.V[:, 1:]
+
+    #     # c3 = (c2-c1)[:, None]
+    #     # V3 = np.hstack([-V1, V2])
+    #     # new_V = np.hstack([c3, V3])
+    #     new_V = np.hstack([c1[:, None], V1, np.zeros(V2.shape)])
+
+    #     C1 = np.hstack([-V1, V2])
+    #     d1 = c2 - c1
+    #     if len(new_d) > 0 :
+    #         new_C = block_diag(new_C, C1)
+    #         new_d = np.hstack(new_d, d1)
+    #     else:
+    #         new_C = C1
+    #         new_d = d1
+        
+    #     new_pred_lb = np.hstack([self.pred_lb, P.pred_lb])
+    #     new_pred_ub = np.hstack([self.pred_ub, P.pred_ub])
+
+    #     new_Sig = block_diag(self.Sig, P.Sig)
+    #     new_mu = np.hstack([self.mu, P.mu])
+
+    #     return ProbStar(new_V, new_C, new_d, new_mu, new_Sig, new_pred_lb, new_pred_ub)
+
+
+    def collisionProbability_withHalfSpace(self, H, g):
+        S = self.intersectHalfSpace(H, g)
+        return S.estimateProbability()
+    
+    def collisionProbability_withProbStarOutterBox(self, P, lp_solver='gurobi'):
+        assert isinstance(P, ProbStar), 'error: input P is not ProbStar'
+        assert self.dim == P.dim, 'error: dimension mismatch between  two probabilities'
+        if lp_solver == 'estimate':
+            lb, ub = P.estimateRanges()
+        else:
+            lb, ub = P.getRanges()
+        
+        H = np.vstack([np.eye(P.dim), -np.eye(P.dim)])
+        g = np.hstack([ub, -lb])
+        return self.collisionProbability_withHalfSpace(H, g)
+                    
+    def collisionProbability_withProbStar_estimate(self, P):
+        S = self.intersectProbStar_estimate(P)
+        return S.estimateProbability()
+    
+    # def collisionProbability_withProbStar2(self, P):
+    #     assert isinstance(P, ProbStar), 'error: input P is not ProbStar'
+
+    #     if len(self.d) > 0 and len(P.d) > 0:
+    #         new_C = block_diag(self.C, P.C)
+    #         new_d = np.hstack([self.d, P.d])
+    #     elif len(self.d) > 0:
+    #         new_C = self.C
+    #     elif len(P.d) > 0:
+    #         new_C = P.C
+    #     else:
+    #         new_C = []
+    #         new_d = []
+
+    #     c1 = self.V[:, 0]
+    #     V1 = self.V[:, 1:]
+    #     c2 = P.V[:, 0]
+    #     V2 = P.V[:, 1:]
+
+
+    #     C1 = np.hstack([-V1, V2])
+    #     d1 = c2 - c1
+    #     if len(new_d) > 0 :
+    #         new_C = block_diag(new_C, C1)
+    #         new_d = np.hstack(new_d, d1)
+    #     else:
+    #         new_C = C1
+    #         new_d = d1
+
+    #     # V1Max = np.maximum(V1, 0.0)
+    #     # V1Min = np.minimum(V1, 0.0)
+    #     # p_lb1 = c1 + np.matmul(V1Max, self.pred_ub) + \
+    #     #     np.matmul(V1Min, self.pred_lb)
+    #     # p_ub1 = c1 + np.matmul(V1Min, self.pred_lb) + \
+    #     #     np.matmul(V1Max, self.pred_ub)
+        
+    #     # V2Max = np.maximum(V2, 0.0)
+    #     # V2Min = np.minimum(V2, 0.0)
+    #     # p_lb2 = c2 + np.matmul(V2Max, P.pred_ub) + \
+    #     #     np.matmul(V1Min, P.pred_lb)
+    #     # p_ub2 = c2 + np.matmul(V2Min, P.pred_lb) + \
+    #     #     np.matmul(V1Max, P.pred_ub)
+
+    #     p_lb1, p_ub1 = self.estimateRanges()
+    #     p_lb2, p_ub2 = P.estimateRanges()
+        
+    #     # new_pred_lb = np.min([p_lb1, p_lb2], axis=0)
+    #     # new_pred_ub = np.min([p_ub1, p_ub2], axis=0)
+    #     # new_pred_lb = np.hstack([p_lb1, p_lb2])
+    #     # new_pred_ub = np.hstack([p_ub1, p_ub2])
+    #     new_pred_lb = np.hstack([self.pred_lb, P.pred_lb])
+    #     new_pred_ub = np.hstack([self.pred_ub, P.pred_ub])
+
+    #     new_Sig = block_diag(self.Sig, P.Sig)
+    #     new_mu = np.hstack([self.mu, P.mu])
+
+    #     # new_V = np.zeros([V1.shape[0], V1.shape[1]+V1.shape[1]+1])
+    #     new_V = np.hstack([self.V, np.zeros(V2.shape)])
+
+    #     T = ProbStar(new_V, new_C, new_d, new_mu, new_Sig, new_pred_lb, new_pred_ub)
+    #     return T, T.estimateProbability()
+
+
+    
+    

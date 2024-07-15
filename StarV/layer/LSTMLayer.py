@@ -25,40 +25,56 @@ class LSTMLayer(object):
         Date: 06/12/2023
     """
 
-    def __init__(self, layer, output_mode='many', module='default', lp_solver='gurobi', pool=None, RF=0.0, DR=0):
+    def __init__(self, layer, output_mode='many', module='default', lp_solver='gurobi', pool=None, RF=0.0, DR=0, dtype='float64'):
     
         if module == 'default':
             '''
-                layer = [W, R, w, r], where
-                W = [Wi, Wf, Wg, Wo], a list of input weight matrices
-                R = [Ri, Rf, Rg, Ro], a list of reccurent weight matrices
-                w = [wi, wf, wg, wo], a list of input bias vectors
-                r = [ri, rf, rg, ro], a list of recurrent bias vectors
-
-                Wi = [W_ii[0], ... , W_ii[l]]
-                ...
-                Wo = [W_io[0], ... , W_io[l]]
-
-                wi = [w_ii[0], ... , w_ii[l]]
-                ...
-                wo = [w_io[0], ... , w_io[l]]
-
-                similiar logic applies to reccurent side
+                layer = [L_0, L_1, ..., L_n], where
+                L_0 = [W, R, b].
+                
+                W is weight matrices for input, output, forget, and cell gates; i_t, f_t, o_t, g_t
+                R is recurrent weight matrices for input, output, forget, and cell gates; i_t, f_t, o_t, g_t
+                b is bias vectors of both input and reccurent
             '''
             assert isinstance(layer, list), 'error: provided layer is not a list'
 
-            W, R, w, r = layer
-            
-            # input weight matrix
-            self.Wi, self.Wf, self.Wg, self.Wo = W
-            # recurrent weight matrix
-            self.Ri, self.Rf, self.Rg, self.Ro = R
-            # input bias vector
-            self.wi, self.wf, self.wg, self.wo = w
-            # recurrent bias vector
-            self.ri, self.rf, self.rg, self.ro = r
+            num_layers = len(layer)
 
-            self.out_dim, self.in_dim = self.Wi[0].shape
+            # input weight matrix
+            self.Wi, self.Wo, self.Wf, self.Wg = [], [], [], []
+            # recurrent weight matrix
+            self.Ri, self.Ro, self.Rf, self.Rg = [], [], [], []
+            # input bias vector
+            self.wi, self.wo, self.wf, self.wg = [], [], [], []
+            # recurrent bias vector
+            self.ri, self.ro, self.rf, self.rg = [], [], [], []
+            
+            for i in range(num_layers):
+                W, R, b = layer[i]
+                Wi, Wo, Wf, Wg = np.split(W, 4, axis=0)
+                self.Wi.append(Wi)
+                self.Wo.append(Wo)
+                self.Wf.append(Wf)
+                self.Wg.append(Wg)
+                
+                Ri, Ro, Rf, Rg = np.split(R, 4, axis=0)
+                self.Ri.append(Ri)
+                self.Ro.append(Ro)
+                self.Rf.append(Rf)
+                self.Rg.append(Rg)
+
+                wi, wo, wf, wg, ri, ro, rf, rg = np.split(b, 8)
+                self.wi.append(wi)
+                self.wo.append(wo)
+                self.wf.append(wf)
+                self.wg.append(wg)
+                self.ri.append(ri)
+                self.ro.append(ro)
+                self.rf.append(rf)
+                self.rg.append(rg)
+
+            self.in_dim = self.Wi[0].shape[1]
+            self.out_dim = self.Wi[num_layers-1].shape[0]
             self.num_layers = len(self.Wi)
             self.bias = True
             self.batch_first = True
@@ -77,28 +93,28 @@ class LSTMLayer(object):
 
             for ln in range(layer.num_layers):
                 Wi, Wf, Wg, Wo = torch.split(getattr(layer, f"weight_ih_l{ln}"), layer.hidden_size, 0)
-                self.Wi.append(Wi.detach().numpy())
-                self.Wf.append(Wf.detach().numpy())
-                self.Wg.append(Wg.detach().numpy())
-                self.Wo.append(Wo.detach().numpy())
+                self.Wi.append(Wi.detach().numpy().astype(dtype))
+                self.Wf.append(Wf.detach().numpy().astype(dtype))
+                self.Wg.append(Wg.detach().numpy().astype(dtype))
+                self.Wo.append(Wo.detach().numpy().astype(dtype))
 
                 Ri, Rf, Rg, Ro = torch.split(getattr(layer, f"weight_hh_l{ln}"), layer.hidden_size, 0)
-                self.Ri.append(Ri.detach().numpy())
-                self.Rf.append(Rf.detach().numpy())
-                self.Rg.append(Rg.detach().numpy())
-                self.Ro.append(Ro.detach().numpy())
+                self.Ri.append(Ri.detach().numpy().astype(dtype))
+                self.Rf.append(Rf.detach().numpy().astype(dtype))
+                self.Rg.append(Rg.detach().numpy().astype(dtype))
+                self.Ro.append(Ro.detach().numpy().astype(dtype))
 
                 wi, wf, wg, wo = torch.split(getattr(layer, f"bias_ih_l{ln}"), layer.hidden_size, 0)
-                self.wi.append(wi.detach().numpy())
-                self.wf.append(wf.detach().numpy())
-                self.wg.append(wg.detach().numpy())
-                self.wo.append(wo.detach().numpy())
+                self.wi.append(wi.detach().numpy().astype(dtype))
+                self.wf.append(wf.detach().numpy().astype(dtype))
+                self.wg.append(wg.detach().numpy().astype(dtype))
+                self.wo.append(wo.detach().numpy().astype(dtype))
 
                 ri, rf, rg, ro = torch.split(getattr(layer, f"bias_hh_l{ln}"), layer.hidden_size, 0)
-                self.ri.append(ri.detach().numpy())
-                self.rf.append(rf.detach().numpy())
-                self.rg.append(rg.detach().numpy())
-                self.ro.append(ro.detach().numpy())
+                self.ri.append(ri.detach().numpy().astype(dtype))
+                self.rf.append(rf.detach().numpy().astype(dtype))
+                self.rg.append(rg.detach().numpy().astype(dtype))
+                self.ro.append(ro.detach().numpy().astype(dtype))
             
             self.in_dim = layer.input_size
             self.out_dim = layer.hidden_size
@@ -301,7 +317,7 @@ class LSTMLayer(object):
         return h
 
 
-    def reachApprox(self, I, H0=None, C0=None, lp_solver=None, pool=None, RF=None, DR=None, show=False):
+    def reachApprox_identity(self, I, H0=None, C0=None, lp_solver=None, pool=None, RF=None, DR=None, show=False):
         """
             @output_mode: -one: returns the single output reachable set of the last layer
                          -many: returns many output reachable sets of the last layer
@@ -731,7 +747,7 @@ class LSTMLayer(object):
     #     else:
     #         raise Exception('error: unsupported network module')
 
-    def reachApprox4(self, I, H0=None, C0=None, lp_solver=None, pool=None, RF=None, DR=None, show=False):
+    def reachApprox(self, I, H0=None, C0=None, lp_solver=None, pool=None, RF=None, DR=None, show=False):
         """
             @output_mode: -one: returns the single output reachable set of the last layer
                          -many: returns many output reachable sets of the last layer
@@ -842,14 +858,11 @@ class LSTMLayer(object):
                     if H0 is None or C0 is None:
                         Ct = LogsigXTansig.reach(X=WI[t], H=WG[t], lp_solver=lp_solver, pool=pool, RF=RF, DR=DR)
                         if outMode and l == num_layers-1: # one output mode
-                            print('one mode')
                             T = LogsigXTansig.reach(X=WO[t], H=Ct, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR)
                             Ht = [copy.deepcopy(T)]
                         else: # many output mode
-                            print('many mode')
                             T = LogsigXTansig.reach(X=WO[t], H=Ct, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR)
                             Ht.append(copy.deepcopy(T))
-                        print('length of Ht: ', len(Ht))
 
                     else:
                         Ht_1 = H0
@@ -929,16 +942,11 @@ class LSTMLayer(object):
                     Ct = FCt.minKowskiSum(IGt)
 
                     if outMode and l == num_layers-1: # one output mode
-                        print('one mode')
                         T = LogsigXTansig.reach(X=WRo, H=Ct, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR)
                         Ht = [copy.deepcopy(T)]
                     else: # many output mode
-                        print('many mode')
                         T = LogsigXTansig.reach(X=WRo, H=Ct, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR)
                         Ht.append(copy.deepcopy(T))
-
-                    print('length of Ht: ', len(Ht))
-
         return Ht
     
 
@@ -958,7 +966,7 @@ class LSTMLayer(object):
         if method == 'exact':
             raise Exception('error: exact method for GRU layer is not supported')
         elif method == 'approx':
-            return self.reachApprox(In, H0=H0, C0=C0, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
+            return self.reachApprox_identity(In, H0=H0, C0=C0, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
         raise Exception('error: unknown reachability method')
     
 
@@ -978,7 +986,7 @@ class LSTMLayer(object):
         if method == 'exact':
             raise Exception('error: exact method for GRU layer is not supported')
         elif method == 'approx':
-            return self.reachApprox4(In, H0=H0, C0=C0, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
+            return self.reachApprox(In, H0=H0, C0=C0, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
         raise Exception('error: unknown reachability method')
 
 
@@ -1043,3 +1051,4 @@ class LSTMLayer(object):
         w = [wi, wf, wg, wo]
         r = [ri, rf, rg, ro]
         return LSTMLayer([W, R, w, r], module='default')
+    

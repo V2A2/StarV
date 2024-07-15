@@ -6,7 +6,9 @@ Date: 9/11/2022
 
 import numpy as np
 from StarV.set.probstar import ProbStar
-from StarV.util.plot import probstar2polytope, plot_probstar
+from StarV.set.star import Star
+from StarV.util.plot import plot_probstar, plot_star, plot_2D_UnsafeSpec, get_bounding_box
+
 
 
 class Test(object):
@@ -66,6 +68,34 @@ class Test(object):
         else:
             print("Test Successfull!")
 
+    def test_plot_2D_UnsafeSpec(self):
+        
+         # 0.5 <= d_k <= 2.5 AND 0.2 <= v_k <= v_ub
+        unsafe_mat = np.array([[1.0, 0.0], [-1., 0.], [0., 1.], [0., -1.]])
+        unsafe_vec = np.array([2.5, -0.5, 90.5, -0.2])
+
+        try:
+            plot_2D_UnsafeSpec(unsafe_mat, unsafe_vec)
+        except Exception:
+            print('Test Fail!')
+            self.n_fails = self.n_fails + 1
+        else:
+            print("Test Successfull!")
+
+    def test_get_bounding_box(self):
+        
+         # 0.5 <= d_k <= 2.5 AND 0.2 <= v_k <= v_ub
+        unsafe_mat = np.array([[1.0, 0.0], [-1., 0.], [0., 1.], [0., -1.]])
+        unsafe_vec = np.array([2.5, -0.5, 90.5, -0.2])
+
+        try:
+            lb, ub = get_bounding_box(unsafe_mat, unsafe_vec)
+            print('lb = {}, ub = {}'.format(lb, ub))
+        except Exception:
+            print('Test Fail!')
+            self.n_fails = self.n_fails + 1
+        else:
+            print("Test Successfull!")
 
 
 if __name__ == "__main__":
@@ -75,8 +105,10 @@ if __name__ == "__main__":
     ================================\
     ================================\
     ===============================\n')
-    test_plot.test_probstar2polytope()
-    test_plot.test_plot_probstar()
+    # test_plot.test_probstar2polytope()
+    # test_plot.test_plot_probstar()
+    test_plot.test_plot_2D_UnsafeSpec()
+    #test_plot.test_get_bounding_box()
     
     print('\n========================\
     =================================\

@@ -547,17 +547,18 @@ class Test(object):
         op = _ALWAYS_(0,4)
         spec3 = Formula([op, P])
 
-        # spec4: always_[0, 2] (x[1]>=0.5 AND x[0] <= 0)
+        # spec4: always_[0, 4] (-x[0] + x[1] <= 0.0)
         A = np.array([0, -1.0])
         b = np.array([-0.5])
         P1 = AtomicPredicate(A, b)
 
-        A = np.array([-1.0, 0])
-        b = np.array([-8.0])
+        A = np.array([-1.0, -1.0])
+        b = np.array([0.0])
         P2 = AtomicPredicate(A,b)
 
         op1 = _AND_()
-        op = _ALWAYS_(0,2)
+
+        op = _ALWAYS_(2,4)
 
         spec4 = Formula([op, P2])
 
@@ -582,10 +583,10 @@ if __name__ == "__main__":
     ================================\
     ================================\
     ===============================\n')
-    # test_verifier.test_reachExactBFS()
+    test_verifier.test_reachExactBFS()
     # test_verifier.test_reach_2017_IEEE_TNNLS()
     # test_verifier.test_reach_ACASXU(x=3,y=7,spec_id=3)
-    # test_verifier.test_checkSafetyStar()
+    test_verifier.test_checkSafetyStar()
     # test_verifier.test_quantiverify_ACASXU(x=3,y=7,spec_id=3,numCores=8)
     # test_verifier.test_quantiverify_tiny_network(numCores=4)
 
@@ -612,7 +613,7 @@ if __name__ == "__main__":
 
     # test_verifier.test_quantiverify_RocketNet(numCores=8, net_ids=[0, 1], spec_ids=[1,2], p_filters=[0.0, 1e-8, 1e-5, 1e-3])
 
-    test_verifier.test_quantiverifyProbStarTL_harmonic_oscillator()
+    # test_verifier.test_quantiverifyProbStarTL_harmonic_oscillator()
     print('\n========================\
     =================================\
     =================================\

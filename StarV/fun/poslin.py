@@ -7,10 +7,18 @@ Dung Tran, 8/29/2022
 # !/usr/bin/python3
 from StarV.set.probstar import ProbStar
 from StarV.set.star import Star
+from StarV.set.imagestar import ImageStar
+from StarV.set.sparsestar import SparseStar
+from StarV.set.sparseimagestar import *
+from StarV.set.sparseimagestar2dcoo import SparseImageStar2DCOO
+from StarV.set.sparseimagestar2dcsr import SparseImageStar2DCSR
+
 import numpy as np
+import scipy.sparse as sp
 import copy
 import multiprocessing
 import ipyparallel
+
 
 class PosLin(object):
     """
@@ -198,6 +206,7 @@ class PosLin(object):
             pool = None
         elif len(args) == 2:
             [In, lp_solver] = args
+            pool = None
         elif len(args) == 3:
             [In, lp_solver, pool] = args
        
@@ -205,7 +214,7 @@ class PosLin(object):
             raise Exception('error: Invalid \
             number of input arguments, should be 1, 2 or 3')
 
-        assert isinstance(In, list), 'error: inputsets should be in a list'
+        assert isinstance(In, list), 'error: input sets should be in a list'
         S = []
         if pool is None:
             for i in range(0, len(In)):
@@ -235,8 +244,8 @@ class PosLin(object):
         #     if show:
         #         print('Applying full relaxation (RF = {})'.format(RF))
 
-        mapL = np.argwhere(u <= 0).flatten()
-        mapM = np.argwhere((l < 0) & (u > 0)).flatten()
+        mapL = np.argwhere(u <= 0).reshape(-1)
+        mapM = np.argwhere((l < 0) & (u > 0)).reshape(-1)
 
         n1 = round((1 - RF) * len(mapM)) #number of LP need to solve
         
@@ -258,7 +267,7 @@ class PosLin(object):
             print('Optimize upper bounds of {} neurons'.format(len(mapO)))
         xmax = I.getMaxs(map=mapO, lp_solver=lp_solver)
         
-        map_ = np.argwhere(xmax <= 0).flatten()
+        map_ = np.argwhere(xmax <= 0).reshape(-1)
         mapOL = mapO[map_]
 
         # case ub <= 0
@@ -266,7 +275,7 @@ class PosLin(object):
         In = I.resetRows(mapL) # reset to zero at the neuron having ub <= 0
         
         # case lb < 0 & ub > 0
-        map1_ = np.argwhere(xmax > 0).flatten()
+        map1_ = np.argwhere(xmax > 0).reshape(-1)
         map1 = mapO[map1_] # all indexes having ub > 0
 
         xmax1 = xmax[map1_] # upper bound of all neurons having ub > 0
@@ -275,7 +284,7 @@ class PosLin(object):
             print('Optimize lower bounds of {} neurons'.format(len(mapO)))
         xmin = I.getMins(map=map1, lp_solver=lp_solver)
 
-        map2_ = np.argwhere(xmin < 0).flatten()
+        map2_ = np.argwhere(xmin < 0).reshape(-1)
         map2 = map1[map2_]
                     
         lO = xmin[map2_]
@@ -289,26 +298,25 @@ class PosLin(object):
     # def estimate_approx(I, l, u, lp_solver='gurobi', show=False):
 
     def approx(I, l, u, lp_solver='gurobi', show=False):
-        
+
         if show:
             print('Internediate reachable set has {} neurons'.format(len(l)))
 
-        map1 = np.argwhere(u <= 0).flatten()
+        map1 = np.argwhere(u <= 0).reshape(-1)
         if show:
             print('Ranges of {} neurons with (ub <= 0) are found by estimation initially'.format(len(map1)))
 
-        map2 = np.argwhere((l < 0) & (u > 0)).flatten()
+        map2 = np.argwhere((l < 0) & (u > 0)).reshape(-1)
         if show:
             print('Ranges of {} neurons with (lb < 0) and (ub > 0) are found by LP solver'.format(len(map2)))
 
         xmax = I.getMaxs(map2, lp_solver)
-        map3 = np.argwhere(xmax <= 0).flatten()
+        map3 = np.argwhere(xmax <= 0).reshape(-1)
         # if show:
         #     print('Ranges of {} neurons with (ub <= 0) are found by LP solver'.format(len(map3)))
 
         map4 = map2[map3]
         map11 = np.concatenate([map1, map4])
-        print('map11: ', map11)
 
         In = I.resetRows(map11)
  
@@ -321,12 +329,12 @@ class PosLin(object):
         if show:
             print('Finding all neurons with (lb < 0) and (ub > 0)')
  
-        map5 = np.argwhere(xmax > 0).flatten()
+        map5 = np.argwhere(xmax > 0).reshape(-1)
         map6 = map2[map5] # all indexes having ub > 0
         xmax1 = xmax[map5] # upper bound of all neurons having ub > 0
 
         xmin = I.getMins(map6, lp_solver)
-        map7 = np.argwhere(xmin < 0).flatten()
+        map7 = np.argwhere(xmin < 0).reshape(-1)
         map8 = map6[map7]
 
         lb = xmin[map7]
@@ -340,29 +348,30 @@ class PosLin(object):
 
         N = I.dim
         m = len(map) # number of neurons invovled
+        dtype = I.V.dtype
 
-        V1 = copy.deepcopy(I.V)
+        V1 = I.V.copy()
         V1[map, :] = 0
-        V2 = np.zeros([N, m])
+        V2 = np.zeros([N, m], dtype=dtype)
         for i in range(m):
             V2[map[i], i] = 1
         new_V = np.hstack([V1, V2])
 
         n = I.nVars
         if len(I.C) == 0:
-            C0 = np.empty([0, n+m])
-            d0 = np.empty([0])
+            C0 = np.empty([0, n+m], dtype=dtype)
+            d0 = np.empty([0], dtype=dtype)
         else:
-            C0 = np.hstack([I.C, np.zeros([I.C.shape[0], m])])
-            d0 = copy.deepcopy(I.d)
+            C0 = np.hstack([I.C, np.zeros([I.C.shape[0], m], dtype=dtype)])
+            d0 = I.d
 
         # case 1: y[index] >= 0
-        C1 = np.hstack([np.zeros([m, n]), -np.identity(m)])
-        d1 = np.zeros(m)
+        C1 = np.hstack([np.zeros([m, n], dtype=dtype), -np.identity(m, dtype=dtype)])
+        d1 = np.zeros(m, dtype=dtype)
 
         # case 2: y[index] >= x[index]
         C2 = np.hstack([I.V[map, 1:n + 1], -V2[map, 0:m]])
-        d2 = copy.deepcopy(-I.V[map, 0])
+        d2 = -I.V[map, 0] 
 
         # case 3: y[index] <= (u / (u - l)) * (x - l)
         a = u / (u - l)
@@ -374,7 +383,7 @@ class PosLin(object):
         new_C = np.vstack([C0, C1, C2, C3])
         new_d = np.hstack([d0, d1, d2, d3])
 
-        new_pred_lb = np.hstack([I.pred_lb, np.zeros(m)])
+        new_pred_lb = np.hstack([I.pred_lb, np.zeros(m, dtype=dtype)])
         new_pred_ub = np.hstack([I.pred_ub, u])
         return Star(new_V, new_C, new_d, new_pred_lb, new_pred_ub)
 
@@ -382,11 +391,12 @@ class PosLin(object):
     def addConstraints_sparse(I, map, l, u):
         N = I.dim
         m = len(map) # number of neurons invovled
+        dtype = I.V.dtype
 
-        A1 = copy.deepcopy(I.A)
+        A1 = I.A.copy() #copy.deepcopy(I.A)
         A1[map, :] = 0
 
-        A2 = np.zeros([N, m])
+        A2 = np.zeros([N, m], dtype=dtype)
         for i in range(m):
             A2[map[i], i] = 1
 
@@ -396,34 +406,34 @@ class PosLin(object):
             A = np.hstack((A1, A2))
 
         n = I.nVars
-        Z = sp.csc_matrix((m, I.nZVars))
+        Z = sp.csc_array((m, I.nZVars))
 
-        C0 = sp.hstack((I.C, sp.csc_matrix((I.C.shape[0], m)))) 
+        C0 = sp.hstack((I.C, sp.csc_array((I.C.shape[0], m)))) 
         d0 = I.d
 
         # case 1: y[index] >= 0
-        # C1 = sp.hstack((Z, sp.csc_matrix((m, n)), -np.identity(m)))
-        C1 = sp.hstack((sp.csc_matrix((m, n+I.nZVars)), -np.identity(m)))
-        d1 = np.zeros(m)
+        # C1 = sp.hstack((Z, sp.csc_matrix((m, n)), -np.identity(m, dtype=dtype)))
+        C1 = sp.hstack((sp.csc_array((m, n+I.nZVars), dtype=dtype), -np.identity(m, dtype=dtype)))
+        d1 = np.zeros(m, dtype=dtype)
 
         # case 2: y[index] >= x[index]
         C2 = sp.hstack((Z, I.X(map), -A2[map, :]))
-        d2 = -I.c(map).flatten()
+        d2 = -I.c(map).reshape(-1)
 
         # case 3: y[index] <= (u / (u - l)) * (x - l)
         a = u / (u - l)
         b = a * l
 
         C3 = sp.hstack((Z, -a.reshape(-1, 1) * I.X(map), A2[map, :]))
-        d3 = a * I.c(map).flatten() - b
+        d3 = a * I.c(map).reshape(-1) - b
 
         new_A = A
         new_C = sp.vstack([C0, C1, C2, C3]).tocsc()
         new_d = np.hstack([d0, d1, d2, d3])
 
-        new_pred_lb = np.hstack([I.pred_lb, np.zeros(m)])
+        new_pred_lb = np.hstack([I.pred_lb, np.zeros(m, dtype=dtype)])
         new_pred_ub = np.hstack([I.pred_ub, u])
-        new_pred_depth = np.hstack((I.pred_depth+1, np.zeros(m)))
+        new_pred_depth = np.hstack((I.pred_depth+1, np.zeros(m, dtype=dtype)))
 
         return SparseStar(new_A, new_C, new_d, new_pred_lb, new_pred_ub, new_pred_depth)
     
@@ -433,12 +443,12 @@ class PosLin(object):
         N = I.num_pixel
         m = len(map)
         h, w, c, n = I.height, I.width, I.num_channel, I.num_pred
-        dtype = l.dtype
+        dtype = I.V.dtype
 
         h_map, w_map, c_map = I.V.index_to3D(map)
         
-        new_c = copy.deepcopy(I.c)
-        Ic = np.zeros(m)
+        new_c = I.c.copy() #copy.deepcopy(I.c)
+        Ic = np.zeros(m, dtype=dtype)
         for i in range(m):
             Ic[i] = I.c[h_map[i], w_map[i], c_map[i]]
             new_c[h_map[i], w_map[i], c_map[i]] = 0
@@ -466,7 +476,7 @@ class PosLin(object):
 
         # case 1: y[index] >= 0
         C1 = sp.hstack([sp.csr_matrix((m, n),dtype=dtype), -E])
-        d1 = np.zeros(m)
+        d1 = np.zeros(m, dtype=dtype)
 
         # case 2: y[index] >= x[index]
         C2 = sp.hstack([V1, -E])
@@ -490,7 +500,7 @@ class PosLin(object):
             new_C = sp.vstack([C1, C2, C3]).tocsr()
             new_d = np.hstack([d1, d2, d3])
 
-        new_pred_lb = np.hstack([I.pred_lb, np.zeros(m)])
+        new_pred_lb = np.hstack([I.pred_lb, np.zeros(m, dtype=dtype)])
         new_pred_ub = np.hstack([I.pred_ub, u])
 
         return SparseImageStar(new_c, new_V, new_C, new_d, new_pred_lb, new_pred_ub)
@@ -500,16 +510,17 @@ class PosLin(object):
         N = I.num_pixel
         m = len(map) 
         n = I.num_pred
+        dtype = I.V.dtype
         
-        Ic = I.c.flatten()
-        new_c = copy.deepcopy(Ic)
+        Ic = I.c.reshape(-1)
+        new_c = Ic.copy #copy.deepcopy(Ic)
         new_c[map] = 0
         new_c.reshape(I.height, I.weight, I.num_channel)
 
         VD = I.V.to_dense()
-        V1 = copy.deepcopy(VD).reshape(N, n)
+        V1 = Vd.reshape(N, n ).copy #copy.deepcopy(VD).reshape(N, n)
 
-        V2 = np.zeros([N, m])
+        V2 = np.zeros([N, m], dtype=dtype)
         for i in range(m):
             V2[map[i], i] = 1
         new_V = np.hstack([V1, V2])
@@ -518,12 +529,12 @@ class PosLin(object):
         d0 = I.d
 
         # case 1: y[index] >= 0
-        C1 = sp.hstack([sp.csc_matrix((m, n)), -np.identity(m)])
-        d1 = np.zeros(m)
+        C1 = sp.hstack([sp.csc_matrix((m, n)), -np.identity(m, dtype=dtype)])
+        d1 = np.zeros(m, dtype=dtype)
 
         # case 2: y[index] >= x[index]
         C2 = sp.hstack([VD[map, :], -V2[map, :]])
-        d2 = -Ic[map].flatten()
+        d2 = -Ic[map].reshape(-1)
 
         # case 3: y[index] <= (u / (u - l)) * (x - l)
         a = u / (u - l)
@@ -536,62 +547,275 @@ class PosLin(object):
         new_C = sp.vstack([C0, C1, C2, C3]).tocsc()
         new_d = np.hstack([d0, d1, d2, d3])
 
-        new_pred_lb = np.hstack([I.pred_lb, np.zeros(m)])
+        new_pred_lb = np.hstack([I.pred_lb, np.zeros(m, dtype=dtype)])
         new_pred_ub = np.hstack([I.pred_ub, u])
 
         return SparseImageStar(new_c, new_V, new_C, new_d, new_pred_lb, new_pred_ub)
     
-    def addConstraints_sparseimagestar2d(I, map, l, u):
+    def addConstraints_sparseimagestar2d_coo(I, map, l, u):
+        map = map.astype(np.int32)
 
         N = I.V.shape[0]
         m = len(map)
         n = I.num_pred
-        dtype = l.dtype
-        
-        Ic = I.c[map]
-        new_c = copy.deepcopy(I.c)
-        new_c[map] = 0
-        V1 = I.resetRows_V(map)
-        V2 = np.zeros([N, m])
-        for i in range(m):
-            V2[map[i], i] = 1
-        new_V = sp.hstack([V1, V2])
+        dtype = I.V.dtype
 
-        E = sp.eye(m, dtype=dtype)
-        V3 = I.getRows(map)
+        if isinstance(I.V, np.ndarray):
+            V1 = I.V.copy()
+            V1[map, :] = 0
+            V2 = np.zeros([N, m], dtype=dtype)
+            # V2[map, np.arange(m, dtype=np.int32)] = 1
+            for i in range(m):
+                V2[map[i], i] = 1
+            new_V = np.hstack([V1, V2])
 
-        # case 1: y[index] >= 0
-        C1 = sp.hstack([sp.csr_matrix((m, n),dtype=dtype), -E])
-        d1 = np.zeros(m)
+            # case 1: y[map] >= 0
+            # case 2: y[map] >= x[map]
+            # case 3: y[map] <= (u / (u - l)) * (x - l)
+            Ic = I.V[map, 0]
+            d1 = np.zeros(m, dtype=dtype)
+            d2 = -Ic
+            a = u / (u - l)
+            b = a * l
 
-        # case 2: y[index] >= x[index]
-        C2 = sp.hstack([V3, -E])
-        d2 = -Ic
+            V1 = I.V[map, 1:]
+            V3 = np.multiply(V1, -a[:, None])
+            d3 = a * Ic - b
 
-        # case 3: y[index] <= (u / (u - l)) * (x - l)
-        a = u / (u - l)
-        b = a * l
+            V1 = sp.coo_array(V1)
+            V3 = sp.coo_array(V3)
 
-        # C3 = sp.hstack([(-a[:, None] * V1), E])
-        C3 = sp.hstack([V3.multiply(-a[:, None]), E])
-        d3 = a * Ic - b
+            eye_data = np.ones(m, dtype=dtype)
+            eye_col = np.arange(m, dtype=np.int32) + n
+            eye_row = np.arange(m, dtype=np.int32)
 
-        if I.C.nnz > 0:
-            C0 = sp.hstack((I.C, sp.csr_matrix((I.C.shape[0], m)))) 
-            d0 = I.d
+            data = np.hstack([-eye_data, V1.data, -eye_data, V3.data, eye_data])
+            row = np.hstack([eye_row, V1.row + m, eye_row + m, V3.row + 2*m, eye_row + 2*m])
+            col = np.hstack([eye_col, V1.col, eye_col, V3.col, eye_col])
+            C = sp.csr_array((data, (row, col)), shape=(3*m, n+m), copy=False)
 
-            new_C = sp.vstack([C0, C1, C2, C3]).tocsr()
-            new_d = np.hstack([d0, d1, d2, d3])
+            if I.C.nnz > 0:
+                data = np.hstack([I.C.data, C.data])
+                indices = np.hstack([I.C.indices, C.indices])
+                indptr = np.hstack([I.C.indptr, C.indptr[1:]+I.C.nnz])
+                new_C = sp.csr_array((data, indices, indptr), shape=(I.C.shape[0]+C.shape[0], C.shape[1]), copy=False)
+                new_d = np.hstack([I.d, d1, d2, d3])
+            else:
+                new_C = C
+                new_d = np.hstack([d1, d2, d3])
+
+            new_pred_lb = np.hstack([I.pred_lb, np.zeros(m, dtype=dtype)])
+            new_pred_ub = np.hstack([I.pred_ub, u])
+            out_shape = copy.deepcopy(I.shape)
+
+            return SparseImageStar2DCOO(new_V, new_C, new_d, new_pred_lb, new_pred_ub, out_shape, copy_=False)
+
         else:
-            new_C = sp.vstack([C1, C2, C3]).tocsr()
-            new_d = np.hstack([d1, d2, d3])
+        
+            Ic = I.c[map]
+            new_c = I.c.copy() #copy.deepcopy(I.c)
+            new_c[map] = 0
+            V = I.resetRows_V(map)
 
-        new_pred_lb = np.hstack([I.pred_lb, np.zeros(m)])
-        new_pred_ub = np.hstack([I.pred_ub, u])
+            V.data = np.hstack([V.data, np.ones(m, dtype=dtype)])
+            V.row = np.hstack([V.row, map])
+            V.col = np.hstack([V.col, np.arange(m, dtype=np.int32)+V.shape[1]])
+            V._shape = (N, n+m)
+            new_V = V
 
-        return SparseImageStar2D(new_c, new_V, new_C, new_d, new_pred_lb, new_pred_ub, I.shape)
+            V1 = I.getRows(map)
+            eye_data = np.ones(m, dtype=dtype)
+            eye_col = np.arange(m, dtype=np.int32) + n
+            eye_row = np.arange(m, dtype=np.int32)
+
+            # case 1: y[map] >= 0
+            # case 2: y[map] >= x[map]
+            # case 3: y[map] <= (u / (u - l)) * (x - l)
+            d1 = np.zeros(m, dtype=dtype)
+            d2 = -Ic
+            a = u / (u - l)
+            b = a * l
+            V3 = V1.multiply(-a[:, None]).tocoo() # returns csr format
+            d3 = a * Ic - b
+
+            data = np.hstack([-eye_data, V1.data, -eye_data, V3.data, eye_data])
+            row = np.hstack([eye_row, V1.row + m, eye_row + m, V3.row + 2*m, eye_row + 2*m])
+            col = np.hstack([eye_col, V1.col, eye_col, V3.col, eye_col])
+            C = sp.csr_array((data, (row, col)), shape=(3*m, n+m), copy=False)
+
+            if I.C.nnz > 0:
+                data = np.hstack([I.C.data, C.data])
+                indices = np.hstack([I.C.indices, C.indices])
+                indptr = np.hstack([I.C.indptr, C.indptr[1:]+I.C.nnz])
+                new_C = sp.csr_array((data, indices, indptr), shape=(I.C.shape[0]+C.shape[0], C.shape[1]), copy=False)
+                new_d = np.hstack([I.d, d1, d2, d3])
+            else:
+                new_C = C
+                new_d = np.hstack([d1, d2, d3])
+
+            new_pred_lb = np.hstack([I.pred_lb, np.zeros(m, dtype=dtype)])
+            new_pred_ub = np.hstack([I.pred_ub, u])
+            out_shape = copy.deepcopy(I.shape)
+
+            return SparseImageStar2DCOO(new_c, new_V, new_C, new_d, new_pred_lb, new_pred_ub, out_shape, copy_=False)
+    
+    # def addConstraints_sparseimagestar2d_coo(I, map, l, u):
+
+    #     N = I.V.shape[0]
+    #     m = len(map)
+    #     n = I.num_pred
+    #     dtype = l.dtype
+        
+    #     Ic = I.c[map]
+    #     new_c = copy.deepcopy(I.c)
+    #     new_c[map] = 0
+    #     V1 = I.resetRows_V(map)
+    #     V2 = np.zeros([N, m])
+    #     for i in range(m):
+    #         V2[map[i], i] = 1
+    #     new_V = sp.hstack([V1, V2])
+
+    #     E = sp.eye(m, dtype=dtype)
+    #     V3 = I.getRows(map)
+
+    #     # case 1: y[index] >= 0
+    #     C1 = sp.hstack([sp.csr_matrix((m, n),dtype=dtype), -E])
+    #     d1 = np.zeros(m)
+
+    #     # case 2: y[index] >= x[index]
+    #     C2 = sp.hstack([V3, -E])
+    #     d2 = -Ic
+
+    #     # case 3: y[index] <= (u / (u - l)) * (x - l)
+    #     a = u / (u - l)
+    #     b = a * l
+
+    #     # C3 = sp.hstack([(-a[:, None] * V1), E])
+    #     C3 = sp.hstack([V3.multiply(-a[:, None]), E])
+    #     d3 = a * Ic - b
+
+    #     if I.C.nnz > 0:
+    #         C0 = sp.hstack((I.C, sp.csr_matrix((I.C.shape[0], m)))) 
+    #         d0 = I.d
+
+    #         new_C = sp.vstack([C0, C1, C2, C3]).tocsr()
+    #         new_d = np.hstack([d0, d1, d2, d3])
+    #     else:
+    #         new_C = sp.vstack([C1, C2, C3]).tocsr()
+    #         new_d = np.hstack([d1, d2, d3])
+
+    #     new_pred_lb = np.hstack([I.pred_lb, np.zeros(m)])
+    #     new_pred_ub = np.hstack([I.pred_ub, u])
+
+    #     return SparseImageStar2DCOO(new_c, new_V, new_C, new_d, new_pred_lb, new_pred_ub, I.shape)
     
 
+    def addConstraints_sparseimagestar2d_csr(I, map, l, u):
+        map = map.astype(np.int32)
+
+        N = I.V.shape[0]
+        m = len(map)
+        n = I.num_pred
+        dtype = I.V.dtype
+        
+        if isinstance(I.V, np.ndarray):
+            V1 = I.V.copy()
+            V1[map, :] = 0
+            V2 = np.zeros([N, m], dtype=dtype)
+            # V2[map, np.arange(m, dtype=np.int32)] = 1
+            for i in range(m):
+                V2[map[i], i] = 1
+            new_V = np.hstack([V1, V2])
+
+            # case 1: y[map] >= 0
+            # case 2: y[map] >= x[map]
+            # case 3: y[map] <= (u / (u - l)) * (x - l)
+            Ic = I.V[map, 0]
+            d1 = np.zeros(m, dtype=dtype)
+            d2 = -Ic
+            a = u / (u - l)
+            b = a * l
+
+            V1 = I.V[map, 1:]
+            V3 = np.multiply(V1, -a[:, None])
+            d3 = a * Ic - b
+
+            V1 = sp.coo_array(V1)
+            V3 = sp.coo_array(V3)
+
+            eye_data = np.ones(m, dtype=dtype)
+            eye_col = np.arange(m, dtype=np.int32) + n
+            eye_row = np.arange(m, dtype=np.int32)
+
+            data = np.hstack([-eye_data, V1.data, -eye_data, V3.data, eye_data])
+            row = np.hstack([eye_row, V1.row + m, eye_row + m, V3.row + 2*m, eye_row + 2*m])
+            col = np.hstack([eye_col, V1.col, eye_col, V3.col, eye_col])
+            C = sp.csr_array((data, (row, col)), shape=(3*m, n+m), copy=False)
+
+            if I.C.nnz > 0:
+                data = np.hstack([I.C.data, C.data])
+                indices = np.hstack([I.C.indices, C.indices])
+                indptr = np.hstack([I.C.indptr, C.indptr[1:]+I.C.nnz])
+                new_C = sp.csr_array((data, indices, indptr), shape=(I.C.shape[0]+C.shape[0], C.shape[1]), copy=False)
+                new_d = np.hstack([I.d, d1, d2, d3])
+            else:
+                new_C = C
+                new_d = np.hstack([d1, d2, d3])
+
+            new_pred_lb = np.hstack([I.pred_lb, np.zeros(m, dtype=dtype)])
+            new_pred_ub = np.hstack([I.pred_ub, u])
+            out_shape = copy.deepcopy(I.shape)
+
+            return SparseImageStar2DCSR(new_V, new_C, new_d, new_pred_lb, new_pred_ub, out_shape, copy_=False)
+        
+        else:
+            Ic = I.c[map]
+            new_c = I.c.copy() #copy.deepcopy(I.c)
+            new_c[map] = 0
+            V = I.resetRows_V(map).tocoo(copy=False)
+
+            V.data = np.hstack([V.data, np.ones(m, dtype=dtype)])
+            V.row = np.hstack([V.row, map])
+            V.col = np.hstack([V.col, np.arange(m, dtype=np.int32)+V.shape[1]])
+            V._shape = (N, n+m)
+            new_V = V.tocsr(copy=False)
+
+            V1 = I.V[map, :].tocoo()
+            eye_data = np.ones(m, dtype=dtype)
+            eye_col = np.arange(m, dtype=np.int32) + n
+            eye_row = np.arange(m, dtype=np.int32)
+
+            # case 1: y[map] >= 0
+            # case 2: y[map] >= x[map]
+            # case 3: y[map] <= (u / (u - l)) * (x - l)
+            d1 = np.zeros(m, dtype=dtype)
+            d2 = -Ic
+            a = u / (u - l)
+            b = a * l
+            V3 = I.V[map, :].multiply(-a[:, None]).tocoo()
+            d3 = a * Ic - b
+
+            data = np.hstack([-eye_data, V1.data, -eye_data, V3.data, eye_data])
+            row = np.hstack([eye_row, V1.row + m, eye_row + m, V3.row + 2*m, eye_row + 2*m])
+            col = np.hstack([eye_col, V1.col, eye_col, V3.col, eye_col])
+            C = sp.csr_array((data, (row, col)), shape=(3*m, n+m), copy=False)
+
+            if I.C.nnz > 0:
+                data = np.hstack([I.C.data, C.data])
+                indices = np.hstack([I.C.indices, C.indices])
+                indptr = np.hstack([I.C.indptr, C.indptr[1:]+I.C.nnz])
+                new_C = sp.csr_array((data, indices, indptr), shape=(I.C.shape[0]+C.shape[0], C.shape[1]), copy=False)
+                new_d = np.hstack([I.d, d1, d2, d3])
+            else:
+                new_C = C
+                new_d = np.hstack([d1, d2, d3])
+
+            new_pred_lb = np.hstack([I.pred_lb, np.zeros(m, dtype=dtype)])
+            new_pred_ub = np.hstack([I.pred_ub, u])
+            out_shape = copy.deepcopy(I.shape)
+
+            return SparseImageStar2DCSR(new_c, new_V, new_C, new_d, new_pred_lb, new_pred_ub, out_shape, copy_=False)
+    
     def stepReachApprox(In, lp_solver='gurobi', RF=0.0, DR=0, show=False):
         """
         Approx reachability using stepReach
@@ -610,7 +834,6 @@ class PosLin(object):
 
         if show:
             print('Applying approximate reachability on \'poslin\' or \'relu\' activation function')
-
 
         l, u = I.estimateRanges()
 
@@ -642,11 +865,15 @@ class PosLin(object):
 
         if isinstance(I, Star):
             return PosLin.addConstraints(I=I, map=map, l=l, u=u)
+
         
         elif isinstance(I, ImageStar):
-            S = I.toStar()
+            S = I.toStar(copy_=False)
             S = PosLin.addConstraints(I=S, map=map, l=l, u=u)
-            new_V = S.V.reshape(I.height, I.width, I.num_channel, S.nVars + 1)
+            if I.V.ndim == 4:
+                new_V = S.V.reshape(I.height, I.width, I.num_channel, S.nVars + 1)
+            else:
+                new_V = S.V
             return ImageStar(new_V, S.C, S.d, S.pred_lb, S.pred_ub)
 
         elif isinstance(I, SparseStar):
@@ -661,8 +888,11 @@ class PosLin(object):
         elif isinstance(I, SparseImageStar):
             return PosLin.addConstraints_sparseimagestar(I=I, map=map, l=l, u=u)
         
-        elif isinstance(I, SparseImageStar2D):
-            return PosLin.addConstraints_sparseimagestar2d(I=I, map=map, l=l, u=u)
+        elif isinstance(I, SparseImageStar2DCOO):
+            return PosLin.addConstraints_sparseimagestar2d_coo(I=I, map=map, l=l, u=u)
+        
+        elif isinstance(I, SparseImageStar2DCSR):
+            return PosLin.addConstraints_sparseimagestar2d_csr(I=I, map=map, l=l, u=u)
         
         else:
             raise Exception(
@@ -682,15 +912,14 @@ class PosLin(object):
 
         Author: Sung Woo Choi, Date: 09/12/2023
         """
+        assert isinstance(In, Star) or isinstance(In, ImageStar) or \
+            isinstance(In, SparseStar) or isinstance(In, SparseImageStar) or \
+            isinstance(In, SparseImageStar2DCOO) or isinstance(In, SparseImageStar2DCSR), \
+            f"error: approximate reachaiblity of \'relu\' or \'poslin\' supports Star, ImageStar, SparseStar, SparseImageStar but received In={type(In)}"
 
-        if isinstance(In, Star) or isinstance(In, ImageStar) or isinstance(In, SparseStar) or isinstance(In, SparseImageStar) or isinstance(In, SparseImageStar2D):
-            return PosLin.stepReachApprox(In=In, lp_solver=lp_solver, RF=RF, DR=0, show=show)
-        
-        else:
-            raise Exception(
-                'error: approximate reachaiblity of \'relu\' or \'poslin\' supports Star, ImageStar, SparseStar, SparseImageStar')
-        
+        return PosLin.stepReachApprox(In=In, lp_solver=lp_solver, RF=RF, DR=0, show=show)
 
+                
     @staticmethod
     def stepReachStarApprox(In, index, lp_solver='gurobi', show=False):
 
@@ -717,7 +946,7 @@ class PosLin(object):
         else:
             u = In.getMax(index=index, lp_solver=lp_solver)
             if u <= 0:
-                V = copy.deepcopy(In.V)
+                V = In.V.copy() #copy.deepcopy(In.V)
                 V[index, :] = 0
                 return Star(V, In.C, In.d, In.pred_lb, In.pred_ub)
             
@@ -726,9 +955,10 @@ class PosLin(object):
                     print('Add a new predicate variables at index = {}'.format(index))
 
                 n = In.nVars + 1
+                dtype = In.V.dtype
 
                 # y[index] >= 0
-                C1 = np.zeros([1, n])
+                C1 = np.zeros([1, n], dtype=dtype)
                 C1[0, n-1] = -1
                 d1 = 0
 
@@ -741,17 +971,17 @@ class PosLin(object):
                 C3 = np.column_stack([a*In.V[index, 1:n], 1])
                 d3 = a*(l - In.V[index, 0])
 
-                if len(In.C) == 0: # for Star set as initial C and d might be []
-                    C0 = np.empty([0, n])
-                    d0 = np.empty([0])
+                if len(In.d) == 0: # for Star set as initial C and d might be []
+                    C0 = np.empty([0, n], dtype=dtype)
+                    d0 = np.empty([0], dtype=dtype)
                 else:
                     m = In.C.shape[0]
-                    C0 = np.column_stack([In.C, np.zeros([m, 1])])
+                    C0 = np.column_stack([In.C, np.zeros([m, 1], dtype=dtype)])
                     d0 = In.d
 
                 C = np.vstack([C0, C1, C2, C3])
                 d = np.hstack([d0, d1, d2, d3])
-                V = np.hstack([In.V, np.zeros([In.dim, 1])])
+                V = np.hstack([In.V, np.zeros([In.dim, 1], dtype=dtype)])
                 V[index, :] = 0
                 V[index, n] = 1
                 pred_lb = np.hstack([In.pred_lb, 0])
@@ -778,7 +1008,7 @@ class PosLin(object):
         l, u = In.estimateRanges()
 
         map = np.argwhere(u <= 0)
-        V = copy.deepcopy(In.V)
+        V = In.V.copy() #copy.deepcopy(In.V)
         V[map, :] = 0
         I = Star(V, In.C, In.d, In.pred_lb, In.pred_ub)
 

@@ -277,7 +277,7 @@ class LogSig(object):
         for i in range(iter):
             yi = 0.5*( 1 + np.sqrt(1 - 4*(  (LogSig.f(xi) - LogSig.f(l)) / (xi - l)  )  )  )
             xi = -np.log( 1 / yi - 1 )
-        return xib 
+        return xi 
     
     @staticmethod
     def optimal_iter_approx_lower(l, u, iter=5):
@@ -337,6 +337,7 @@ class LogSig(object):
         Du = np.diag(au)
         Dl = np.diag(al)
         return Dl, Du, gl, gu
+    
 
     def reachApprox_sparse(I, delta=0.98, opt=True, lp_solver='gurobi', RF=0.0, DR=0, show=False):
         
@@ -363,7 +364,7 @@ class LogSig(object):
 
         map1 = np.where(l == u)[0]
         if len(map1):
-            new_A[map1, 0] = yl[map1]
+            new_A[map1, 0] = yl[map1].reshape(-1)
             new_A[map1, 1:m+1] = 0
 
         nv = I.nVars + m
@@ -403,7 +404,7 @@ class LogSig(object):
             d14 = dyo*(I.c(map_) - xo) + LogSig.f(xo)
 
             C1 = sp.vstack((C11, C12, C13, C14)).tocsc()
-            d1 = np.vstack((d11, d12, d13, d14)).flatten()
+            d1 = np.vstack((d11, d12, d13, d14)).reshape(-1)
         else:
             C1 = sp.csc_matrix((0, nv))
             d1 = np.empty((0))
@@ -443,7 +444,7 @@ class LogSig(object):
             d24 = -dyo*(I.c(map_) - xo) - LogSig.f(xo)
 
             C2 = sp.vstack((C21, C22, C23, C24)).tocsc()
-            d2 = np.vstack((d21, d22, d23, d24)).flatten()
+            d2 = np.vstack((d21, d22, d23, d24)).reshape(-1)
         else:
             C2 = sp.csc_matrix((0, nv))
             d2 = np.empty((0))
@@ -483,7 +484,7 @@ class LogSig(object):
                 d34 = dxou*(I.c(map1) - xou) + LogSig.f(xou)
 
                 C3 = sp.vstack((C31, C32, C33, C34)).tocsc()
-                d3 = np.vstack((d31, d32, d33, d34)).flatten()
+                d3 = np.vstack((d31, d32, d33, d34)).reshape(-1)
 
             else:
                 gux = (yu_ - dmin * u_ - 0.5) / (0.25 - dmin)
@@ -502,6 +503,9 @@ class LogSig(object):
                 C34 = sp.hstack((Z, -mu*I.X(map1), A0[map1, :]))
                 d34 = mu*(I.c(map1) - l_) + yl_
 
+                C3 = sp.vstack((C31, C32, C33, C34)).tocsc()
+                d3 = np.vstack((d31, d32, d33, d34)).reshape(-1)
+
         else:
             C3 = sp.csc_matrix((0, nv))
             d3 = np.empty((0))
@@ -517,9 +521,9 @@ class LogSig(object):
         new_C = sp.vstack((C0, C1, C2, C3))
         new_d = np.hstack((d0, d1, d2, d3))
 
-        new_pred_lb = np.hstack((I.pred_lb, yl[map0].flatten()))
-        new_pred_ub = np.hstack((I.pred_ub, yu[map0].flatten()))
-        new_pred_depth = np.hstack((I.pred_depth+1, np.zeros(m)))
+        new_pred_lb = np.hstack((I.pred_lb, yl[map0].reshape(-1)))
+        new_pred_ub = np.hstack((I.pred_ub, yu[map0].reshape(-1)))
+        new_pred_depth = np.hstack((I.pred_depth + 1, np.zeros(m)))
         
         S = SparseStar(new_A, new_C, new_d, new_pred_lb, new_pred_ub, new_pred_depth)
         if DR > 0:
@@ -537,3 +541,164 @@ class LogSig(object):
             raise Exception('error: under development')
         else:
             raise Exception('error: unknown input set')
+
+
+    # used for GRU and LSTM ( logsigXtansig, (1-logsig)Xtansig, losigXidentity )
+    def getConstraints(c, X, A0, l, u, nZVars,opt=False):
+    
+        N = l.shape[0]
+        
+        yl = LogSig.f(l)
+        yu = LogSig.f(u)
+        dyl  = LogSig.df(l)
+        dyu =  LogSig.df(u)
+        
+        ## l != u
+        map0 = np.where(l != u)[0]
+
+        nv = X.shape[1] + A0.shape[1]
+        
+        ## l > 0 & l != u
+        map1 = np.where(l[map0] >= 0)[0]
+        if len(map1):
+            map_ = map0[map1]
+            l_ = l[map_]
+            u_ = u[map_]
+            yl_ = yl[map_]
+            yu_ = yu[map_]
+            dyl_ = dyl[map_]
+            dyu_ = dyu[map_]
+
+            Z = sp.csc_matrix((len(map_), nZVars))
+
+            # constraint 1: y <= y'(l) * (x - l) + y(l)
+            C11 = sp.hstack((Z, -dyl_*X[map_, :], A0[map_, :]))
+            d11 = dyl_*(c[map_] - l_) + yl_
+
+            # constraint 2: y <= y'(u) * (x - u) + y(u) 
+            C12 = sp.hstack((Z, -dyu_*X[map_, :], A0[map_, :]))
+            d12 = dyu_*(c[map_] - u_) + yu_
+
+            # constraint 3: y >= (y(u) - y(l)) * (x - l) / (u - l) + y(l);
+            g = (yu_ - yl_) / (u_ - l_)
+            C13 = sp.hstack((Z, g*X[map_, :], -A0[map_, :]))
+            d13 = -g*(c[map_] - l_) - yl_
+
+            # xo = (u*u - l*l) / (2*(u-l))
+            # constraint 4: y <= y'(xo)*(x - xo) + y(xo)
+            xo = 0.5*(u_ + l_)
+            # xo = (u_*u_ - l_*l_) / (2*(u_ - l_))
+            dyo = LogSig.df(xo)
+            C14 = sp.hstack((Z, -dyo*X[map_, :], A0[map_, :]))
+            d14 = dyo*(c[map_] - xo) + LogSig.f(xo)
+
+            C1 = sp.vstack((C11, C12, C13, C14)).tocsc()
+            d1 = np.vstack((d11, d12, d13, d14)).reshape(-1)
+        else:
+            C1 = sp.csc_matrix((0, nv))
+            d1 = np.empty((0))
+
+        ## u <= 0 & l != u
+        map1 = np.where(u[map0] <= 0)[0]
+        if len(map1):
+            map_ = map0[map1]
+            l_ = l[map_]
+            u_ = u[map_]
+            yl_ = yl[map_]
+            yu_ = yu[map_]
+            dyl_ = dyl[map_]
+            dyu_ = dyu[map_]
+
+            Z = sp.csc_matrix((len(map_), nZVars))
+
+            # constraint 1: y >= y'(l) * (x - l) + y(l)
+            C21 = sp.hstack((Z, dyl_*X[map_, :], -A0[map_, :]))
+            d21 = -dyl_*(c[map_] - l_) - yl_
+
+            # constraint 2: y >= y'(u) * (x - u) + y(u)
+            C22 = sp.hstack((Z, dyu_*X[map_, :], -A0[map_, :]))
+            d22 = -dyu_*(c[map_] - u_) - yu_
+
+            # constraint 3: y <= (y(u) - y(l)) * (x -l) / (u - l) + y(l);
+            g = (yu_ - yl_) / (u_ - l_)
+            C23 = sp.hstack((Z, -g*X[map_, :], A0[map_, :]))
+            d23 = g*(c[map_] - l_) + yl_
+
+            # xo = (u*u - l*l) / (2*(u-l))
+            # constraint 4: y >= y'(xo)*(x - xo) + y(xo) 
+            # xo = (u_*u_ - l_*l_) / (2*(u_ - l_))
+            xo = 0.5*(u_ + l_)
+            dyo = LogSig.df(xo)
+            C24 = sp.hstack((Z, dyo*X[map_, :], -A0[map_, :]))
+            d24 = -dyo*(c[map_] - xo) - LogSig.f(xo)
+
+            C2 = sp.vstack((C21, C22, C23, C24)).tocsc()
+            d2 = np.vstack((d21, d22, d23, d24)).reshape(-1)
+        else:
+            C2 = sp.csc_matrix((0, nv))
+            d2 = np.empty((0))
+
+        map1 = np.where((l < 0) & (u > 0))[0]
+        if len(map1):
+            l_ = l[map1]
+            u_ = u[map1]
+            yl_ = yl[map1]
+            yu_ = yu[map1]
+            dyl_ = dyl[map1]
+            dyu_ = dyu[map1]
+
+            dmin = np.minimum(dyl_, dyu_)
+            Z = sp.csc_matrix((len(map1), nZVars))
+
+            # constraint 1: y >= min(y'(l), y'(u)) * (x - l) + y(l)
+            C31 = sp.hstack((Z, dmin*X[map1, :], -A0[map1, :]))
+            d31 = -dmin*(c[map1] - l_) - yl_
+
+            # constraint 2: y <= min(y'(l), y'(u)) * (x - u) + y(u) 
+            C32 = sp.hstack((Z, -dmin*X[map1, :], A0[map1, :]))
+            d32 = dmin*(c[map1] - u_) + yu_
+
+            if opt == True:
+                xou = LogSig.optimal_iter_approx_upper(l_, u_)
+                xol = LogSig.optimal_iter_approx_lower(l_, u_)
+                dxou = LogSig.df(xou)
+                dxol = LogSig.df(xol)
+
+                # constraint 3: y[index] >= y'(xol)*(x - xol) + y(xol)
+                C33 = sp.hstack((Z, dxol*X[map1, :], -A0[map1, :]))
+                d33 = -dxol*(c[map1] - xol) - LogSig.f(xol)
+
+                # constraint 4: y[index] <= y'(xou)*(x - xou) + y(xou)
+                C34 = sp.hstack((Z, -dxou*X[map1, :], A0[map1, :]))
+                d34 = dxou*(c[map1] - xou) + LogSig.f(xou)
+
+                C3 = sp.vstack((C31, C32, C33, C34)).tocsc()
+                d3 = np.vstack((d31, d32, d33, d34)).reshape(-1)
+
+            else:
+                gux = (yu_ - dmin * u_ - 0.5) / (0.25 - dmin)
+                guy = 0.25 * gux + 0.5 
+                glx = (yl_ - dmin * l_ - 0.5) / (0.25 - dmin)
+                gly = 0.25 * glx + 0.5
+
+                mu = (yl_ - guy) / (l_ - gux)
+                ml = (yu_ - gly) / (u_ - glx)
+
+                # constraint 3: y[index] >= m_l * (x[index] - u) + y_u
+                C33 = sp.hstack((Z, ml*X[map1, :], -A0[map1, :]))
+                d33 = -ml*(c[map1] - u_) - yu_
+
+                # constraint 4: y[index] <= m_u * (x[index] - l) + y_l
+                C34 = sp.hstack((Z, -mu*X[map1, :], A0[map1, :]))
+                d34 = mu*(c[map1] - l_) + yl_
+
+                C3 = sp.vstack((C31, C32, C33, C34)).tocsc()
+                d3 = np.vstack((d31, d32, d33, d34)).reshape(-1)
+
+        else:
+            C3 = sp.csc_matrix((0, nv))
+            d3 = np.empty((0))
+
+        new_C = sp.vstack((C1, C2, C3))
+        new_d = np.hstack((d1, d2, d3))
+        return new_C, new_d, yl[map0], yu[map0]

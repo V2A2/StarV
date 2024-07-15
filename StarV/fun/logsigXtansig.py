@@ -378,57 +378,120 @@ class LogsigXTansig(object):
         zmin = pzs[z_min, z_]
 
         return Ux, Uy, Ub, Lx, Ly, Lb, zmax, zmin
+    
 
-    def multiStepLogsigXTansig_sparse(I, X, H, DR=0, RF=0.0, lp_solver='gurobi', pool=None):
+    def multiStep_sparse(X, H, DR=0, RF=0.0, lp_solver='gurobi', pool=None):
 
-        assert isinstance(I, SparseStar) and isinstance(X, SparseStar) and isinstance(H, SparseStar), 'error: \
+        assert isinstance(X, SparseStar) and isinstance(H, SparseStar), 'error: \
         both input sets should be SparseStar sets'
+        
+        assert X.dim == H.dim, 'error: dimension of two input sets should be equivalent'
+        N = X.dim
 
-        N = I.dim
+        nVars = X.nVars + H.nVars
+        nZVars = X.nZVars + H.nZVars     
 
         xl, xu = X.getRanges(lp_solver=lp_solver, RF=RF)
         hl, hu = H.getRanges(lp_solver=lp_solver, RF=RF)
-        xl = xl.reshape(N, 1)
-        xu = xu.reshape(N, 1)
-        hl = hl.reshape(N, 1)
-        hu = hu.reshape(N, 1)
 
-        ## l != u
         map0 = np.where((xl != xu) & (hl != hu))[0]
-        m = len(map0)
-        A0 = np.zeros((N, m))
-        for i in range(m):
-            A0[map0[i], i] = 1
-        new_A = np.hstack((np.zeros((N, 1)), A0))
-
-        map1 = np.where((xl == xu) & (hl == hu))[0]
-        if len(map1):
-            zl = LogsigXTansig.f(xl[map1], hl[map1])
-            new_A[map1, 0] = zl
-            new_A[map1, 1:m+1] = 0
-
-        map1 = np.where((xl == xu) & (hl != hu))[0]
-        if len(map1):
-            new_A[map1, 0] = xl[map1] * H.c(map1)
-            new_A[map1, 1:m+1] = xl[map1] * I.X(map1)
-
-        map1 = np.where((xl != xu) & (hl == hu))[0]
-        if len(map1):
-            new_A[map1, 0] = hl[map1] * X.c(map1)
-            new_A[map1, 1:m+1] = hl[map1] * I.X(map1)
-
-        nv = I.nVars + m
-        if len(map0):
-            Z = sp.csc_matrix((len(map0), I.nZVars))
-
-            # Ux, Uh, Ub = np.zeros((m, 1)), np.zeros((m, 1)), np.zeros((m, 1))
-            # Lx, Lh, Lb = np.zeros((m, 1)), np.zeros((m, 1)), np.zeros((m, 1))
-            # Zl, Zu = np.zeros((m, 1)), np.zeros((m, 1))
-
-            Ux, Uh, Ub, Lx, Lh, Lb, Zu, Zl = [np.zeros((m, 1)) for _ in range(8)]
+        m0 = len(map0)
+        
+        zmin0 = np.empty([0])
+        zmax0 = np.empty([0])
+        
+        if m0 == N:
+            A0 = np.eye(N)
+            A1 = np.hstack([np.zeros([N, 1]), A0])        
+            m = N
+            nv = nVars + m
             
-            for i in range(m):
-                Ux[i], Uh[i], Ub[i], Lx[i], Lh[i], Lb[i], Zu[i], Zl[i] = LogsigXTansig.getConstraints(xl[map0[i]].item(), xu[map0[i]].item(), hl[map0[i]].item(), hu[map0[i]].item())
+        else:               
+
+            map1 = np.where((xl == xu) & (hl == hu))[0]
+            m1 = len(map1)
+            if m1 == N:
+                if len(H.d):
+                    new_A = LogsigXTansig.f(xl, hl)[:, None] #LogsigXTansig.f(xl, hl)[:, None] * H.A
+                    return SparseStar(new_A, H.C, H.d, H.pred_lb, H.pred_ub, H.pred_depth)
+                else:
+                    new_A = LogsigXTansig.f(xl, hl)[:, None] #LogsigXTansig.f(xl, hl)[:, None] * X.A
+                    return SparseStar(new_A, X.C, X.d, X.pred_lb, X.pred_ub, X.pred_depth)
+                    
+            map2 = np.where((xl == xu) & (hl != hu))[0]
+            m2 = len(map2)
+            if m2 == N:
+                TH = TanSig.reach(H, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR)
+                new_A = LogSig.f(xl)[:, None] * TH.A
+                return SparseStar(new_A, TH.C, TH.d, TH.pred_lb, TH.pred_ub, TH.pred_depth)
+
+            map3 = np.where((xl != xu) & (hl == hu))[0]
+            m3 = len(map3)
+            if m3 == N:
+                #sigmoid(X) * tanh(H)
+                SX = LogSig.reach(X, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR)
+                new_A = TanSig.f(hl)[:, None] * SX.A
+                return SparseStar(new_A, SX.C, SX.d, SX.pred_lb, SX.pred_ub, SX.pred_depth)
+            
+                
+            map4 = np.concatenate([map0, map2, map3])
+            m = len(map4)
+            nv = nVars + m
+            
+            A1 = np.zeros((N, 1))
+            if m:
+                A0 = np.zeros((N, m))
+                for i in range(m):
+                    A0[map4[i], i] = 1
+                A1 = np.hstack((A1, A0))
+                
+            if m1:
+                A1[map1, 0] = LogsigXTansig.f(xl[map1], hl[map1])[:, None]
+            
+            if m2:
+                X02 = np.hstack([np.zeros([m2, X.nVars]), H.X(map2)])
+                C02, d02, yl02, yu02 = TanSig.getConstraints(H.c(map2), X02, A1[map2, 1:], hl[map2], hu[map2], nZVars)
+                A1[map2, :] *= LogSig.f(xl[map2])[:, None]
+                zmin0 = np.hstack([zmin0, yl02.reshape(-1)])
+                zmax0 = np.hstack([zmax0, yu02.reshape(-1)])
+            else:
+                C02 = sp.csc_matrix((0, nv))
+                d02 = np.empty((0))
+                            
+            if m3:
+                #should it be np.zeros([m3, H.nIVars])
+                X03 = np.hstack([X.X(map3), np.zeros([m3, H.nVars])])
+                C03, d03, yl03, yu03 = LogSig.getConstraints(X.c(map3), X03, A1[map3, 1:], xl[map3], xu[map3], nZVars)
+                A1[map3, :] *= TanSig.f(hl[map3])[:, None]
+                zmin0 = np.hstack([zmin0, yl03.reshape(-1)])
+                zmax0 = np.hstack([zmax0, yu03.reshape(-1)])
+            else:
+                C03 = sp.csc_matrix((0, nv))
+                d03 = np.empty((0))
+        
+        XC1 = X.C[:, 0:X.nZVars]
+        XC2 = X.C[:, X.nZVars:X.nVars]
+
+        HC1 = H.C[:, 0:H.nZVars]
+        HC2 = H.C[:, H.nZVars:H.nVars]
+
+        C1_ = sp.block_diag((XC1, HC1)).tocsc()
+        C2_ = sp.block_diag((XC2, HC2)).tocsc()
+        
+        C0 = sp.hstack([C1_, C2_, sp.csc_matrix((C2_.shape[0], m))]).tocsc()
+        d0 = np.concatenate((X.d, H.d))
+
+        if m0 != N:
+            C0 = sp.vstack([C0, C02, C03]).tocsc()
+            d0 = np.concatenate((d0, d02, d03))
+
+        if m0:
+            Z = sp.csc_matrix((m0, nZVars))
+
+            Ux, Uh, Ub, Lx, Lh, Lb, zmax, zmin = [np.zeros((m0, 1)) for _ in range(8)]
+            
+            for i in range(m0):
+                Ux[i], Uh[i], Ub[i], Lx[i], Lh[i], Lb[i], zmax[i], zmin[i] = LogsigXTansig.getConstraints(xl[map0[i]].item(), xu[map0[i]].item(), hl[map0[i]].item(), hu[map0[i]].item())
 
             C11 = sp.hstack((Z, -Lx*X.X(map0), -Lh*H.X(map0), -A0[map0]))
             d11 = Lx*X.c(map0) + Lh*H.c(map0) - Lb
@@ -437,32 +500,118 @@ class LogsigXTansig(object):
             d12 = -(Ux*X.c(map0) + Uh*H.c(map0)) + Ub
 
             C1 = sp.vstack((C11, C12)).tocsc()
-            d1 = np.vstack((d11, d12)).flatten()
+            d1 = np.vstack((d11, d12)).reshape(-1)
         else:
             C1 = sp.csc_matrix((0, nv))
             d1 = np.empty((0))
-            Zl = np.empty((0))
-            Zu = np.empty((0))
-        
-        n = I.C.shape[0]
-        if len(I.d):
-            C0 = sp.hstack((I.C, sp.csc_matrix((n, m)))) 
-            d0 = I.d
-        else:
-            C0 = sp.csc_matrix((0, I.nVars+m))
-            d0 = np.empty((0))
-            
+            zmin = np.empty((0))
+            zmax = np.empty((0))
+
+        new_A = A1
         new_C = sp.vstack((C0, C1))
         new_d = np.hstack((d0, d1))
 
-        new_pred_lb = np.hstack((I.pred_lb, Zl.flatten()))
-        new_pred_ub = np.hstack((I.pred_ub, Zu.flatten()))
-        new_pred_depth = np.hstack((I.pred_depth+1, np.zeros(m)))
+
+        new_pred_lb =    np.hstack((X.pred_lb[0:X.nZVars],          H.pred_lb[0:H.nZVars],
+                                    X.pred_lb[X.nZVars:X.nVars],    H.pred_lb[H.nZVars:H.nVars]))
+        new_pred_ub =    np.hstack((X.pred_ub[0:X.nZVars],          H.pred_ub[0:H.nZVars],
+                                    X.pred_ub[X.nZVars:X.nVars],    H.pred_ub[H.nZVars:H.nVars]))
+        new_pred_depth = np.hstack((X.pred_depth[0:X.nZVars],       H.pred_depth[0:H.nZVars],
+                                    X.pred_depth[X.nZVars:X.nVars], H.pred_depth[H.nZVars:H.nVars]))
         
+        new_pred_lb = np.hstack([new_pred_lb, zmin.reshape(-1), zmin0])
+        new_pred_ub = np.hstack([new_pred_ub, zmax.reshape(-1), zmax0])
+        new_pred_depth = np.hstack([new_pred_depth, np.zeros(m)])
+
         S = SparseStar(new_A, new_C, new_d, new_pred_lb, new_pred_ub, new_pred_depth)
         if DR > 0:
             S = S.depthReduction(DR)
         return S
+
+    # def multiStepLogsigXTansig_sparse(I, X, H, lp_solver='gurobi', DR=0, RF=0.0):
+
+    #     assert isinstance(I, SparseStar) and isinstance(X, SparseStar) and isinstance(H, SparseStar), 'error: \
+    #     both input sets should be SparseStar sets'
+
+    #     N = I.dim
+
+    #     xl, xu = X.getRanges(lp_solver=lp_solver, RF=RF)
+    #     hl, hu = H.getRanges(lp_solver=lp_solver, RF=RF)
+    #     xl = xl.reshape(N, 1)
+    #     xu = xu.reshape(N, 1)
+    #     hl = hl.reshape(N, 1)
+    #     hu = hu.reshape(N, 1)
+
+    #     ## l != u
+    #     map0 = np.where((xl != xu) & (hl != hu))[0]
+    #     m = len(map0)
+    #     A0 = np.zeros((N, m))
+    #     for i in range(m):
+    #         A0[map0[i], i] = 1
+    #     new_A = np.hstack((np.zeros((N, 1)), A0))
+
+    #     map1 = np.where((xl == xu) & (hl == hu))[0]
+    #     if len(map1):
+    #         zl = LogsigXTansig.f(xl[map1], hl[map1]).reshape(-1)
+    #         new_A[map1, 0] = zl
+    #         new_A[map1, 1:m+1] = 0
+
+    #     map1 = np.where((xl == xu) & (hl != hu))[0]
+    #     if len(map1):
+    #         new_A[map1, 0] = xl[map1] * H.c(map1).reshape(-1)
+    #         new_A[map1, 1:m+1] = xl[map1] * I.X(map1)
+
+    #     map1 = np.where((xl != xu) & (hl == hu))[0]
+    #     if len(map1):
+    #         new_A[map1, 0] = hl[map1] * X.c(map1).reshape(-1)
+    #         new_A[map1, 1:m+1] = hl[map1] * I.X(map1)
+
+    #     nv = I.nVars + m
+    #     if len(map0):
+    #         Z = sp.csc_matrix((len(map0), I.nZVars))
+
+    #         # Ux, Uh, Ub = np.zeros((m, 1)), np.zeros((m, 1)), np.zeros((m, 1))
+    #         # Lx, Lh, Lb = np.zeros((m, 1)), np.zeros((m, 1)), np.zeros((m, 1))
+    #         # Zl, Zu = np.zeros((m, 1)), np.zeros((m, 1))
+
+    #         Ux, Uh, Ub, Lx, Lh, Lb, Zu, Zl = [np.zeros((m, 1)) for _ in range(8)]
+            
+    #         for i in range(m):
+    #             Ux[i], Uh[i], Ub[i], Lx[i], Lh[i], Lb[i], Zu[i], Zl[i] = LogsigXTansig.getConstraints(xl[map0[i]].item(), xu[map0[i]].item(), hl[map0[i]].item(), hu[map0[i]].item())
+
+    #         C11 = sp.hstack((Z, -Lx*X.X(map0), -Lh*H.X(map0), -A0[map0]))
+    #         d11 = Lx*X.c(map0) + Lh*H.c(map0) - Lb
+
+    #         C12 = sp.hstack((Z, Ux*X.X(map0), Uh*H.X(map0), A0[map0]))
+    #         d12 = -(Ux*X.c(map0) + Uh*H.c(map0)) + Ub
+
+    #         C1 = sp.vstack((C11, C12)).tocsc()
+    #         d1 = np.vstack((d11, d12)).reshape(-1)
+    #     else:
+    #         C1 = sp.csc_matrix((0, nv))
+    #         d1 = np.empty((0))
+    #         Zl = np.empty((0))
+    #         Zu = np.empty((0))
+        
+    #     n = I.C.shape[0]
+    #     if len(I.d):
+    #         C0 = sp.hstack((I.C, sp.csc_matrix((n, m)))) 
+    #         d0 = I.d
+    #     else:
+    #         C0 = sp.csc_matrix((0, I.nVars+m))
+    #         d0 = np.empty((0))
+            
+    #     new_C = sp.vstack((C0, C1))
+    #     new_d = np.hstack((d0, d1))
+
+    #     new_pred_lb = np.hstack((I.pred_lb, Zl.reshape(-1)))
+    #     new_pred_ub = np.hstack((I.pred_ub, Zu.reshape(-1)))
+    #     new_pred_depth = np.hstack((I.pred_depth+1, np.zeros(m)))
+        
+    #     S = SparseStar(new_A, new_C, new_d, new_pred_lb, new_pred_ub, new_pred_depth)
+    #     if DR > 0:
+    #         S = S.depthReduction(DR)
+    #     return S
     
     # def multiStepLogsigXTansig_sparse_prover(I, X, H, DR=0, RF=0.0, lp_solver='gurobi', pool=None):
 
@@ -552,7 +701,7 @@ class LogsigXTansig(object):
     #         d12 = -(Ux*X.c(map0) + Uh*H.c(map0)) + Ub
 
     #         C1 = sp.vstack((C11, C12)).tocsc()
-    #         d1 = np.vstack((d11, d12)).flatten()
+    #         d1 = np.vstack((d11, d12)).reshape(-1)
     #     else:
     #         C1 = sp.csc_matrix((0, nv))
     #         d1 = np.empty((0))
@@ -570,8 +719,8 @@ class LogsigXTansig(object):
     #     new_C = sp.vstack((C0, C1))
     #     new_d = np.hstack((d0, d1))
 
-    #     new_pred_lb = np.hstack((I.pred_lb, Zl.flatten()))
-    #     new_pred_ub = np.hstack((I.pred_ub, Zu.flatten()))
+    #     new_pred_lb = np.hstack((I.pred_lb, Zl.reshape(-1)))
+    #     new_pred_ub = np.hstack((I.pred_ub, Zu.reshape(-1)))
     #     new_pred_depth = np.hstack((I.pred_depth+1, np.zeros(m)))
         
     #     S = SparseStar(new_A, new_C, new_d, new_pred_lb, new_pred_ub, new_pred_depth)
@@ -824,16 +973,16 @@ class LogsigXTansig(object):
     #         d22 = -(Ux*X.c(map0) + Uh*H.c(map0)) + Ub
 
     #         C1 = sp.vstack((C11, C12, C13, C14)).tocsc()
-    #         d1 = np.vstack((d11, d12, d13, d14)).flatten()
+    #         d1 = np.vstack((d11, d12, d13, d14)).reshape(-1)
 
     #         # C1 = sp.vstack((C13, C14)).tocsc()
-    #         # d1 = np.vstack((d13, d14)).flatten()
+    #         # d1 = np.vstack((d13, d14)).reshape(-1)
 
     #         # C1 = sp.vstack((C13, C14, C15, C16, C17, C18, C19, C20, C21, C22)).tocsc()
-    #         # d1 = np.vstack((d13, d14, d15, d16, d17, d18, d19, d20, d21, d22)).flatten()
+    #         # d1 = np.vstack((d13, d14, d15, d16, d17, d18, d19, d20, d21, d22)).reshape(-1)
 
     #         # C1 = sp.vstack((C11, C12, C13, C14, C15, C16, C17, C18, C19, C20, C21, C22)).tocsc()
-    #         # d1 = np.vstack((d11, d12, d13, d14, d15, d16, d17, d18, d19, d20, d21, d22)).flatten()
+    #         # d1 = np.vstack((d11, d12, d13, d14, d15, d16, d17, d18, d19, d20, d21, d22)).reshape(-1)
 
     #     else:
     #         C1 = sp.csc_matrix((0, nv))
@@ -852,8 +1001,8 @@ class LogsigXTansig(object):
     #     new_C = sp.vstack((C0, C1))
     #     new_d = np.hstack((d0, d1))
 
-    #     new_pred_lb = np.hstack((I.pred_lb, Zl.flatten()))
-    #     new_pred_ub = np.hstack((I.pred_ub, Zu.flatten()))
+    #     new_pred_lb = np.hstack((I.pred_lb, Zl.reshape(-1)))
+    #     new_pred_ub = np.hstack((I.pred_ub, Zu.reshape(-1)))
     #     new_pred_depth = np.hstack((I.pred_depth+1, np.zeros(m)))
         
     #     S = SparseStar(new_A, new_C, new_d, new_pred_lb, new_pred_ub, new_pred_depth)
@@ -865,8 +1014,7 @@ class LogsigXTansig(object):
         assert isinstance(X, SparseStar) and isinstance(H, SparseStar), 'error: both or one of input sets are not SparseStar sets'
         assert X.dim == H.dim, 'error: dimension of input sets does not match'
 
-        S = X.minKowskiSum(H)
-        return LogsigXTansig.multiStepLogsigXTansig_sparse(S, X, H, lp_solver=lp_solver, RF=RF, DR=DR)
+        return LogsigXTansig.multiStep_sparse(X, H, lp_solver=lp_solver, RF=RF, DR=DR)
     
     # def reachApproxSparse_prover(X, H, lp_solver='prover', RF=0.0, DR=0):
     #     assert isinstance(X, SparseStar) and isinstance(H, SparseStar), 'error: both or one of input sets are not SparseStar sets'
@@ -891,7 +1039,8 @@ class LogsigXTansig(object):
             if lp_solver=='prover':
                 return LogsigXTansig.reachApproxSparse_prover(X, H, lp_solver, RF, DR)
             
-            return LogsigXTansig.reachApproxSparse(X, H, lp_solver, RF, DR)     
+            S = X.minKowskiSum(H)
+            return LogsigXTansig.reachApproxSparse(S, X, H, lp_solver, RF, DR)     
 
         elif isinstance(X, Star) and isinstance(H, Star):
             #return LogsigXTansig.reachApproxStar(X, H, depthReduct, relaxFactor, lp_solver)
@@ -904,10 +1053,79 @@ class LogsigXTansig(object):
     def reach(X, H, lp_solver='gurobi', pool=None, RF=0.0, DR=0):
         if isinstance(X, SparseStar) and isinstance(H, SparseStar):
 
-            return LogsigXTansig.reachApproxSparse4(X, H, lp_solver, RF, DR)
+            return LogsigXTansig.reachApproxSparse(X, H, lp_solver, RF, DR)
 
         elif isinstance(X, Star) and isinstance(H, Star):
             #return LogsigXTansig.reachApproxStar(X, H, depthReduct, relaxFactor, lp_solver)
             raise Exception('error: under development')
         else:
             raise Exception('error: both input sets (X, H) should be SparseStar or Star')
+        
+
+
+    # def reach_basic(X, H, lp_solver='gurobi', pool=None, RF=0.0, DR=0):
+    #     if isinstance(X, SparseStar) and isinstance(H, SparseStar):
+    #         assert X.dim == H.dim, 'error: dimension of two input sets should be equivalent'
+            
+    #         n = X.dim
+    #         xl, xu = X.getRanges(lp_solver=lp_solver, RF=RF)
+    #         hl, hu = H.getRanges(lp_solver=lp_solver, RF=RF)
+            
+    #         XX = H.c()*X.X()
+    #         XH = X.c()*H.X()
+
+    #         X = np.hstack((XX, XH))
+    #         c = X.c() * H.c()
+    #         new_A = np.hstack((c, X))
+
+    #         XC1 = X.C[:, 0:X.nZVars]
+    #         XC2 = X.C[:, X.nZVars:X.nVars]
+
+    #         HC1 = H.C[:, 0:H.nZVars]
+    #         HC2 = H.C[:, H.nZVars:H.nVars]
+
+    #         C1 = sp.block_diag((XC1, HC1))
+    #         C2 = sp.block_diag((XC2, HC2))
+
+    #         nVars = X.nVars + H.nVars
+    #         nZVars = X.nZVars + H.nZVars
+    #         new_C = sp.csc_matrix((0, nVars))
+    #         if C1.nnz > 0:
+    #             new_C = sp.vstack([new_C, C1]).tocsc()
+
+    #         if C2.nnz > 0:
+    #             new_C = sp.vstack([new_C, C2]).tocsc()
+
+    #         new_d = np.concatenate((X.d, H.d))
+
+    #         new_pred_lb =    np.hstack((X.pred_lb[0:X.nZVars],          H.pred_lb[0:H.nZVars],
+    #                                     X.pred_lb[X.nZVars:X.nVars],    H.pred_lb[H.nZVars:H.nVars]))
+    #         new_pred_ub =    np.hstack((X.pred_ub[0:X.nZVars],          H.pred_ub[0:H.nZVars],
+    #                                     X.pred_ub[X.nZVars:X.nVars],    H.pred_ub[H.nZVars:H.nVars]))
+    #         new_pred_depth = np.hstack((X.pred_depth[0:X.nZVars],       H.pred_depth[0:H.nZVars],
+    #                                     X.pred_depth[X.nZVars:X.nVars], H.pred_depth[H.nZVars:H.nVars]))
+        
+    #         R = SparseStar(new_A, new_C, new_d, new_pred_lb, new_pred_ub, new_pred_depth)
+    #         for i in range(n):
+    #             R = LogsigXTansig.stepLogsigXIdentity_sparse(R, i, xl[i], xu[i], hl[i], hu[i])
+
+    #         if DR > 0:
+    #             R = R.depthReduction(DR)
+    #         return R
+
+    #     else:
+    #         raise Exception('error: both input sets (X, H) should be SparseStar')
+
+    # def stepLogsigXTansig_sparse(I, i, xl, xu, hl, hu,):
+
+    #     if (xl == xu) and (hl == hu):
+    #         new_A = `     `
+    #         new_A = LogsigXTansig.f(xl, hl)
+        
+    #     if (xl == xu) and (hl != hu):
+
+    #     if (xl != xu) and (hl == hu):
+
+
+
+    #     pass

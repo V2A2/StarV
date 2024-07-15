@@ -13,6 +13,8 @@ from scipy.linalg import block_diag
 from StarV.fun.logsig import LogSig
 from StarV.fun.tansig import TanSig
 from StarV.fun.identityXidentity import IdentityXIdentity
+from StarV.fun.logsigXidentity import LogsigXIdentity
+from StarV.fun.omlogsigXtansig import OmLogsigXTansig
 from StarV.set.sparsestar import SparseStar
 from StarV.set.star import Star
 
@@ -23,41 +25,53 @@ class GRULayer(object):
         Date: 04/11/2023
     """
 
-    def __init__(self, layer, output_mode='many', module='default', lp_solver='gurobi', pool=None, RF=0.0, DR=0):
+    def __init__(self, layer, output_mode='many', module='default', lp_solver='gurobi', pool=None, RF=0.0, DR=0, dtype='float64'):
 
         if module == 'default':
             '''
-                layer = [W, R, w, r], where
-                W = [Wr, Wz, Wc], a list of input weight matrices
-                R = [Rr, Rz, Rc], a list of reccurent weight matrices
-                w = [wr, wz, wc], a list of input bias vectors
-                r = [rr, rz, rc], a list of recurrent bias vectors
-
-                Wr = [W_ir[0], ... , W_ir[l]]
-                ...
-                Wc = [W_ic[0], ... , W_ic[l]]
-
-                wr = [b_ir[0], ... , b_ir[l]]
-                ...
-                wc = [b_ic[0], ... , b_ic[l]]
+                layer = [L_0, L_1, ..., L_n], where
+                L_0 = [W, R, b].
                 
-                similiar logic applies to reccurent side
+                W is weight matrices for update, reset, and new gates; z_t, r_t, c_t                 
+                R is recurrent weight matrices for update, reset, and new gates; z_t, r_t, c_t 
+                b is bias vectors of both input and reccurent
             '''
             assert isinstance(layer, list), 'error: provided layer is not a list'
 
-            W, R, w, r = layer
+            num_layers = len(layer)
 
             # input weight matrix
-            self.Wr, self.Wz , self.Wc = W
-            # recurrent weight matrix
-            self.Rr, self.Rz, self.Rc = R
+            self.Wz, self.Wr, self.Wc = [], [], []
+            # reccurent weight matrix
+            self.Rz, self.Rr, self.Rc = [], [], []
             # input bias vector
-            self.wr, self.wz, self.wc = w
+            self.wz, self.wr, self.wc = [], [], []
             # recurrent bias vector
-            self.rr, self.rz, self.rc = r
+            self.rz, self.rr, self.rc = [], [], []
 
-            self.out_dim, self.in_dim = self.Wr[0].shape
-            self.num_layers = len(self.Wr)
+            for i in range(num_layers):
+                W, R, b = layer[i]
+                Wz, Wr, Wc = np.split(W, 3, axis=0)
+                self.Wz.append(Wz)
+                self.Wr.append(Wr)
+                self.Wc.append(Wc)
+
+                Rz, Rr, Rc = np.split(R, 3, axis=0)
+                self.Rz.append(Rz)
+                self.Rr.append(Rr)
+                self.Rc.append(Rc)
+
+                wz, wr, wc, rz, rr, rc = np.split(b, 6)
+                self.wz.append(wz)
+                self.wr.append(wr)
+                self.wc.append(wc)
+                self.rz.append(rz)
+                self.rr.append(rr)
+                self.rc.append(rc)
+
+            self.in_dim = self.Wz[0].shape[1]
+            self.out_dim = self.Wz[num_layers-1].shape[0]
+            self.num_layers = len(self.Wz)
             self.bias = True
             self.batch_first = True
 
@@ -75,24 +89,24 @@ class GRULayer(object):
 
             for ln in range(layer.num_layers):
                 Wr, Wz, Wc = torch.split(getattr(layer, f"weight_ih_l{ln}"), layer.hidden_size, 0)
-                self.Wr.append(Wr.detach().numpy())
-                self.Wz.append(Wz.detach().numpy())
-                self.Wc.append(Wc.detach().numpy())
+                self.Wr.append(Wr.detach().numpy().astype(dtype))
+                self.Wz.append(Wz.detach().numpy().astype(dtype))
+                self.Wc.append(Wc.detach().numpy().astype(dtype))
 
                 Rr, Rz, Rc = torch.split(getattr(layer, f"weight_hh_l{ln}"), layer.hidden_size, 0)
-                self.Rr.append(Rr.detach().numpy())
-                self.Rz.append(Rz.detach().numpy())
-                self.Rc.append(Rc.detach().numpy())
+                self.Rr.append(Rr.detach().numpy().astype(dtype))
+                self.Rz.append(Rz.detach().numpy().astype(dtype))
+                self.Rc.append(Rc.detach().numpy().astype(dtype))
 
                 wr, wz, wc = torch.split(getattr(layer, f"bias_ih_l{ln}"), layer.hidden_size, 0)
-                self.wr.append(wr.detach().numpy())
-                self.wz.append(wz.detach().numpy())
-                self.wc.append(wc.detach().numpy())
+                self.wr.append(wr.detach().numpy().astype(dtype))
+                self.wz.append(wz.detach().numpy().astype(dtype))
+                self.wc.append(wc.detach().numpy().astype(dtype))
 
                 rr, rz, rc = torch.split(getattr(layer, f"bias_hh_l{ln}"), layer.hidden_size, 0)
-                self.rr.append(rr.detach().numpy())
-                self.rz.append(rz.detach().numpy())
-                self.rc.append(rc.detach().numpy())
+                self.rr.append(rr.detach().numpy().astype(dtype))
+                self.rz.append(rz.detach().numpy().astype(dtype))
+                self.rc.append(rc.detach().numpy().astype(dtype))
 
             self.in_dim = layer.input_size
             self.out_dim = layer.hidden_size
@@ -271,7 +285,6 @@ class GRULayer(object):
 
         return h
 
-    
     def reachApprox(self, I, H0=None, lp_solver=None, pool=None, RF=None, DR=None, show=False):
         """
             @output_mode: -one: returns the single output reachable set of the last layer
@@ -355,8 +368,146 @@ class GRULayer(object):
                             = tansig(WC + Rtrc)
                             = tansig(T) = Ct
                         h[t] = (1 - z[t]) o c[t]
-                            => (1 - Zt) o Ct
-                            = InZt o Ct
+                            => InZt o Ct
+                    """
+
+                    if H0 is None:
+                        Rt = LogSig.reach(WR[t], lp_solver=lp_solver, pool=pool, RF=RF, DR=DR)
+                        Rtrc = Rt.affineMap(np.diag(rc[l]))
+                        Ic = WC[t].minKowskiSum(Rtrc)
+
+                        if outMode and l == num_layers-1: # one output mode
+                            H1 = [OmLogsigXTansig.reach(WZ[t], Ic, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR)]
+                        else: # many output mode
+                            H1.append(OmLogsigXTansig.reach(WZ[t], Ic, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR))
+
+                        continue
+
+                    else:
+                        Ht_1 = H0
+
+                else:
+                    if outMode and l == num_layers-1:
+                        Ht_1 = H1[0]
+                    else:
+                        Ht_1 = H1[t-1]
+
+                """
+                    z[t] = sigmoid(Wz * x[t] + wz + Rz * h[t-1] + rz)
+                        => sigmoid(WZ + RZ) = Zt
+                    r[t] = sigmoid(Wr * x[t] + wr + Rr * h[t-1] + rr)
+                        => sigmoid(WR + RR) = sigmoid(WRr) = Rt
+                    c[t] = tanh(Wc * x[t] + wc + r[t] o (Rc * h[t-1]  + rc))
+                        => tanh(WC + Rt o RC)
+                        = tanh(WC + IdentityXIdentity(Rt, RC))
+                        = tanh(WRc) = Ct1
+                    h[t] = z[t] o h[t-1] + (1 - z[t]) o c[t]
+                        => IdentityXIdentity(Zt, H[t-1]) + IdentityXIdentity(InZt, Ct)
+                        = ZtHt_1 + ZtCt
+                """
+                RZ = Ht_1.affineMap(Rz[l])
+                Iz = RZ.minKowskiSum(WZ[t])
+
+                RR = Ht_1.affineMap(Rr[l])
+                Ir = RR.minKowskiSum(WR[t])
+
+                RC = Ht_1.affineMap(Rc[l], rc[l])
+                IrRC = LogsigXIdentity.reach(Ir, RC, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR)
+                Ic = IrRC.minKowskiSum(WC[t])
+
+                IzHt_1 = LogsigXIdentity.reach(Iz, Ht_1, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR)
+                IzIc = OmLogsigXTansig.reach(Iz, Ic, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR)
+                if outMode and l == num_layers-1: # one output mode
+                    H1 = [IzHt_1.minKowskiSum(IzIc)]
+                else: # many output mode
+                    H1.append(IzHt_1.minKowskiSum(IzIc))
+        
+        return H1
+    
+    def reachApprox_identity(self, I, H0=None, lp_solver=None, pool=None, RF=None, DR=None, show=False):
+        """
+            @output_mode: -one: returns the single output reachable set of the last layer
+                         -many: returns many output reachable sets of the last layer
+
+            @H0: the initial hidden state for each sets in the input sequence.
+        
+            ## currently batch is not supported
+
+            z[t] = sigmoid(Wz @ x[t] + wz + Rz @ h[t-1] + rz)
+            r[t] = sigmoid(Wr * x[t] + wz + Rr * h[t-1] + rr)
+            c[t] = tanh(Wc * x[t] + wc + r[t] o (Rc * h[t-1]  + rc))
+            h[t] = z[t] o h[t-1] + (1 - z[t]) o c[t]
+        """
+        
+        assert isinstance(I, list), 'error: ' + \
+        'the input, I, should be a list of sparse star sets'
+
+        sequence = len(I)
+
+        Wz = self.Wz
+        Rz = self.Rz
+        wz = self.wz
+        rz = self.rz
+
+        Wr = self.Wr
+        Rr = self.Rr
+        wr = self.wr
+        rr = self.rr
+
+        Wc = self.Wc
+        Rc = self.Rc
+        wc = self.wc
+        rc = self.rc
+
+        if DR is None:
+            DR = self.DR
+        if RF is None:
+            RF = self.RF
+        if lp_solver is None:
+            lp_solver = self.lp_solver
+        if pool is None:
+            pool = self.pool
+
+        outMode = self.output_mode == 'one'
+        num_layers = self.num_layers
+
+        for l in range(num_layers):
+            if show:
+                    print('(GRU) layer: {}'.format(l))
+
+            WZ = []
+            WR = []
+            WC = []
+            if l == 0:
+                Xl = I
+            else:
+                Xl = H1
+
+            for i in range(sequence):       
+                if l == 0:
+                    assert isinstance(Xl[i], SparseStar) or isinstance(Xl[i], Star), 'error: ' + \
+                    'Star and SparseStar are only supported for GRULayer reachability'
+
+                WZ.append(Xl[i].affineMap(Wz[l], wz[l]+rz[l]))
+                WR.append(Xl[i].affineMap(Wr[l], wr[l]+rr[l]))
+                WC.append(Xl[i].affineMap(Wc[l], wc[l]))
+
+            H1 = []
+            for t in range(sequence):
+
+                if show:
+                    print('(GRU) t: {}'.format(t))
+                    
+                if t == 0:
+                    """
+                        z[t] = sigmoid(Wz * x[t] + wz + rz) => Zt
+                        r[t] = sigmoid(Wr * x[t] + wr + rr) => Rt
+                        c[t] = tanh(Wc * x[t] + wc + r[t] o rc)
+                            => tansig(WC + Rt o rc)
+                            = tansig(WC + Rtrc)
+                            = tansig(T) = Ct
+                        h[t] = (1 - z[t]) o c[t]
+                            => InZt o Ct
                     """
 
                     if H0 is None:
@@ -365,7 +516,6 @@ class GRULayer(object):
                         Rtrc = Rt.affineMap(np.diag(rc[l]))
                         T = WC[t].minKowskiSum(Rtrc)
                         Ct = TanSig.reach(T, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR)
-                        
                         InZt = Zt.affineMap(-np.eye(Zt.dim), np.ones(Zt.dim))
                         if outMode and l == num_layers-1: # one output mode
                             H1 = [IdentityXIdentity.reach(InZt, Ct, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR)]
@@ -393,8 +543,8 @@ class GRULayer(object):
                         = tanh(WC + IdentityXIdentity(Rt, RC))
                         = tanh(WRc) = Ct1
                     h[t] = z[t] o h[t-1] + (1 - z[t]) o c[t]
-                        => IdentityXIdentity(Zt, H[t-1]) + IdentityXIdentity(1-Zt, Ct)
-                        = ZtHt_1 + ZtCt = H1[t]
+                        => IdentityXIdentity(Zt, H[t-1]) + IdentityXIdentity(InZt, Ct)
+                        = ZtHt_1 + ZtCt
                 """
 
                 RZ = Ht_1.affineMap(Rz[l])
@@ -410,10 +560,9 @@ class GRULayer(object):
                 WRc = RtUC.minKowskiSum(WC[t])
                 Ct1 = TanSig.reach(WRc, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR)
                 
-                ZtHt_1 = IdentityXIdentity.reach(Zt, Ht_1, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR)
                 InZt = Zt.affineMap(-np.eye(Zt.dim), np.ones(Zt.dim))
+                ZtHt_1 = IdentityXIdentity.reach(Zt, Ht_1, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR)
                 ZtCt = IdentityXIdentity.reach(InZt, Ct1, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR)
-
                 if outMode and l == num_layers-1: # one output mode
                     H1 = [ZtHt_1.minKowskiSum(ZtCt)]
                 else: # many output mode
@@ -456,6 +605,25 @@ class GRULayer(object):
     #     else:
     #         raise Exception('error: unsupported network module')
 
+    def reach_identity(self, In, H0=None, method='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
+        """main reachability method
+            Args:
+                @In: an input set (Star, SparseStar, or Probstar)
+                @method: reachability method: 'approx' or 'exact'
+                @lp_solver: lp solver: 'gurobi' (default), 'glpk', or 'linprog'
+                @pool: parallel pool: None or multiprocessing.pool.Pool
+                @RF: relax-factor from 0 to 1 (0 by default)
+                @DR: depth reduction from 1 to k-Layers (0 by default)
+            
+            Return:
+                @R: a reachable set
+        """
+        if method == 'exact':
+            raise Exception('error: exact method for GRU layer is not supported')
+        elif method == 'approx':
+            return self.reachApprox_identity(I=In, H0=H0, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
+        raise Exception('error: unknown reachability method')
+    
 
     def reach(self, In, H0=None, method='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
         """main reachability method

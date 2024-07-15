@@ -10,6 +10,6 @@ scipy
 ipyparallel
 torchvision
 plotly==5.14.1 
-pandas
-more-itertools
+#pandas
+#more-itertools
 onnx2pytorch

@@ -57,10 +57,10 @@ class SparseStar(object):
             'error: basis matrix should be a 2D numpy array'
 
             if len(d) > 0:
-                assert isinstance(C, sp._csc.csc_matrix), \
-                'error: non-zero basis matrix should be a 2D scipy sparse csc matrix'
+                assert isinstance(C, sp.csc_matrix), \
+                'error: constraint matrix should be a 2D scipy sparse csc matrix'
                 assert isinstance(d, np.ndarray), \
-                'error: non-zero basis matrix should be a 1D numpy array'
+                'error: constraint vector should be a 1D numpy array'
                 assert len(C.shape) == 2, \
                 'error: constraint matrix should be a 2D numpy array'
                 assert len(d.shape) == 1, \
@@ -86,12 +86,19 @@ class SparseStar(object):
             self.pred_ub = pred_ub
             self.pred_depth = pred_depth
             self.dim = self.A.shape[0]
-            if len(d) > 0:
-                self.nVars = self.C.shape[1]
-                self.nZVars = self.C.shape[1] + 1 - self.A.shape[1]
-            else:
-                self.nVars = self.A.shape[1] - 1
-                self.nZVars = 0
+
+            self.nVars = self.C.shape[1] #number of predicate variables
+            self.nZVars = self.C.shape[1] + 1 - self.A.shape[1] # number of dependent predicate variables
+            self.nIVars = self.A.shape[1] - 1 #number of independent variables
+
+
+
+            # if len(d) > 0:
+            # self.nVars = self.C.shape[1]
+            # self.nZVars = self.C.shape[1] + 1 - self.A.shape[1]
+            # else:
+            #     self.nVars = self.A.shape[1] - 1
+            #     self.nZVars = 0
 
         # elif len_ == 2:
         #     [lb, ub] = copy.deepcopy(args)
@@ -153,21 +160,28 @@ class SparseStar(object):
                     'error: the upper bounds must not be less than the lower bounds for all dimensions')
 
             self.dim = lb.shape[0]
-            nv = int(sum(ub > lb))
+            # nv = int(sum(ub >= lb)) # if using predicate bounds
+            indx = np.argwhere(ub > lb).flatten()
+            nv = len(indx)
+            # nv = int(sum(ub > lb))
             self.A = np.zeros((self.dim, nv+1))
             j = 1
             for i in range(self.dim):
-                if ub[i] > lb[i]:
+                if ub[i] == lb[i]:
+                    self.A[i, 0] = lb[i]
+                # if ub[i] >= lb[i]:
+                else:
                     self.A[i, j] = 1
                     j += 1
-
-            self.C = sp.csc_matrix((0, self.dim))
+            
+            self.C = sp.csc_matrix((0, nv))
             self.d = np.empty([0])
-            self.pred_lb = lb
-            self.pred_ub = ub
-            self.pred_depth = np.zeros(self.dim)
-            self.nVars = self.dim
-            self.nZVars = self.dim + 1 - self.A.shape[1]
+            self.pred_lb = lb[indx] #lb
+            self.pred_ub = ub[indx] #ub
+            self.pred_depth = np.zeros(nv)
+            self.nVars = nv #self.dim
+            self.nZVars = nv + 1 - self.A.shape[1] #self.dim + 1 - self.A.shape[1]
+            self.nIVars = nv #self.dim
 
         elif len_ == 1:
             [P] = copy.deepcopy(args)
@@ -184,6 +198,7 @@ class SparseStar(object):
             self.dim = P.dim
             self.nVars = P.dim
             self.nZVars = 0
+            self.nIVars = P.dim
             self.pred_lb = np.empty([0])
             self.pred_ub = np.empty([0])
             self.pred_depth = np.zeros(self.dim)
@@ -199,6 +214,7 @@ class SparseStar(object):
             self.dim = 0
             self.nVars = 0
             self.nZVars = 0
+            self.nIVars = 0
 
         else:
             raise Exception(
@@ -218,6 +234,7 @@ class SparseStar(object):
         print('dim: {}'.format(self.dim))
         print('nVars: {}'.format(self.nVars))
         print('nZVars: {}'.format(self.nZVars))
+        print('nIVars: {}'.format(self.nIVars))
         return '\n'
 
     def __repr__(self):
@@ -231,6 +248,7 @@ class SparseStar(object):
         print('dim: {}'.format(self.dim))
         print('nVars: {}'.format(self.nVars))
         print('nZVars: {}'.format(self.nZVars))
+        print('nIVars: {}'.format(self.nIVars))
         return '\n'
     
     def __len__(self):
@@ -386,7 +404,7 @@ class SparseStar(object):
                     A = np.zeros((1, self.nVars))
                     b = np.zeros(1)
                 else:
-                    A = self.C
+                    A = self.C.toarray()
                     b = self.d
 
                 lb = self.pred_lb
@@ -493,7 +511,7 @@ class SparseStar(object):
                     A = np.zeros((1, self.nVars))
                     b = np.zeros(1)
                 else:
-                    A = self.C
+                    A = self.C.toarray()
                     b = self.d
 
                 lb = self.pred_lb
@@ -525,7 +543,7 @@ class SparseStar(object):
                     raise Exception('error: cannot find an optimal solution, \
                     lp.status = {}'.format(lp.status))
                 else:
-                    xmax = lp.obj.value + self.V[index, 0]
+                    xmax = lp.obj.value + self.c(index)
             else:
                 raise Exception('error: \
                 unknown lp solver, should be gurobi or linprog or glpk')
@@ -567,7 +585,7 @@ class SparseStar(object):
 
         mA = self.A.shape[1]
         n = self.nVars
-        p = n-mA+1
+        p = n - self.nIVars
 
         l = self.pred_lb[p:n]
         u = self.pred_ub[p:n]
@@ -737,7 +755,7 @@ class SparseStar(object):
             self.getMin(0, lp_solver)
         except Exception:
             res = True
-        return res
+        return res  
 
     def minKowskiSum(self, S):
         """Minkowski Sum of two sparse stars"""
@@ -762,16 +780,51 @@ class SparseStar(object):
             C = sp.hstack((C1, C2)).tocsc()
         else:
             C = C2.tocsc()
+        
         d = np.concatenate((self.d, S.d))
-
-        pred_lb = np.hstack((self.pred_lb[0:self.nZVars], S.pred_lb[0:S.nZVars],
-                            self.pred_lb[self.nZVars:self.nVars], S.pred_lb[S.nZVars:S.nVars]))
-        pred_ub = np.hstack((self.pred_ub[0:self.nZVars], S.pred_ub[0:S.nZVars],
-                            self.pred_ub[self.nZVars:self.nVars], S.pred_ub[S.nZVars:S.nVars]))
+        
+        pred_lb = np.hstack((self.pred_lb[0:self.nZVars],          S.pred_lb[0:S.nZVars],
+                             self.pred_lb[self.nZVars:self.nVars], S.pred_lb[S.nZVars:S.nVars]))
+        pred_ub = np.hstack((self.pred_ub[0:self.nZVars],          S.pred_ub[0:S.nZVars],
+                             self.pred_ub[self.nZVars:self.nVars], S.pred_ub[S.nZVars:S.nVars]))
         pred_depth = np.hstack((self.pred_depth[0:self.nZVars], S.pred_depth[0:S.nZVars],
                                 self.pred_depth[self.nZVars:self.nVars], S.pred_depth[S.nZVars:S.nVars]))
         
         return SparseStar(A, C, d, pred_lb, pred_ub, pred_depth)
+    
+    # def Product(self, S):
+    #     """Product of two sparse stars """
+
+    #     assert isinstance(S, SparseStar), 'error: input is not a SparseStar'
+    #     assert self.dim == S.dim, 'error: inconsistent dimension between the input and the self object'
+
+    #     X = np.hstack((self.X(), S.X()))
+    #     c = self.c() * S.c()
+    #     A = np.hstack((c, X))
+
+    #     OC1 = self.C[:, 0:self.nZVars]
+    #     OC2 = self.C[:, self.nZVars:self.nVars]
+
+    #     SC1 = S.C[:, 0:S.nZVars]
+    #     SC2 = S.C[:, S.nZVars:S.nVars]
+
+    #     C1 = sp.block_diag((OC1, SC1))
+    #     C2 = sp.block_diag((OC2, SC2))
+
+    #     if C1.nnz > 0:
+    #         C = sp.hstack((C1, C2)).tocsc()
+    #     else:
+    #         C = C2.tocsc()
+    #     d = np.concatenate((self.d, S.d))
+
+    #     pred_lb = np.hstack((self.pred_lb[0:self.nZVars], S.pred_lb[0:S.nZVars],
+    #                         self.pred_lb[self.nZVars:self.nVars], S.pred_lb[S.nZVars:S.nVars]))
+    #     pred_ub = np.hstack((self.pred_ub[0:self.nZVars], S.pred_ub[0:S.nZVars],
+    #                         self.pred_ub[self.nZVars:self.nVars], S.pred_ub[S.nZVars:S.nVars]))
+    #     pred_depth = np.hstack((self.pred_depth[0:self.nZVars], S.pred_depth[0:S.nZVars],
+    #                             self.pred_depth[self.nZVars:self.nVars], S.pred_depth[S.nZVars:S.nVars]))
+        
+    #     return SparseStar(A, C, d, pred_lb, pred_ub, pred_depth)
 
     def concatenate(self, S):
         """Concatenate two sparse star sets """
@@ -908,8 +961,6 @@ class SparseStar(object):
         C1 = self.X(p2_indx) - self.X(p1_indx)
         Z1 = sp.csc_matrix((1, self.nZVars))
         C1 = sp.hstack((Z1, C1))
-        # C1 = sp.hstack((Z1, C1[np.newaxis, :]))
-
 
         d = np.hstack((self.d, d1.flatten()))
         C = sp.vstack((self.C, C1)).tocsc()
@@ -922,7 +973,7 @@ class SparseStar(object):
         # return not S.isEmptySet()
 
     @staticmethod
-    def inf_attack(data, epsilon=0.01, data_type='default'):
+    def inf_attack(data, epsilon=0.01, data_type='default', dtype='float64'):
         """Generate a SparseStar set by infinity norm attack on input dataset"""
 
         assert isinstance(data, np.ndarray), \
@@ -933,11 +984,59 @@ class SparseStar(object):
         lb = data - epsilon
         ub = data + epsilon
 
+        data = data.astype(dtype)
+
         if data_type == 'image':
             lb[lb < 0] = 0
             ub[ub > 1] = 1
 
         return SparseStar(lb, ub)
+    
+    @staticmethod
+    def inf_attack_sequence(data, seq_index=0, percent=0.5, attack_type='SFSI', dtype='float64'):
+        """Generate a Sparse set by infinity norm attack on sequential input dataset"""
+        # data: input data ins shape of [input_size, sequence_size]
+        # seq_index: an index of sequence to attack in the input data
+        # percent: percentage to apply noise attack
+        # attack_type: type of noise attack: 'SFSI', 'SFAI', 'MFSI', 'MFAI'
+
+        lb = copy.deepcopy(data)
+        ub = copy.deepcopy(data)
+
+        if attack_type == 'SFSI':
+            mu = abs(np.mean(data[seq_index, :]))*percent
+            lb[seq_index, -1] -= mu
+            ub[seq_index, -1] += mu
+
+        elif attack_type == 'SFAI':
+            mu = abs(np.mean(data[seq_index, :]))*percent
+            lb[seq_index, :] -= mu
+            ub[seq_index, :] += mu
+
+        elif attack_type == 'MFSI':
+            mu = abs(np.mean(data, axis=1))*percent
+            lb[:, -1] -= mu
+            ub[:, -1] += mu
+
+        elif attack_type == 'MFAI':
+            mu = abs(np.mean(data, axis=1))[:, None]*percent
+            lb -= mu
+            ub += mu
+
+        #just for testing
+        elif attack_type == 'MFSF':
+            mu = abs(np.mean(data, axis=1))*percent
+            lb[:, 0] -= mu
+            ub[:, 0] += mu
+
+        else:
+            raise Exception('Unknown noise attack type for audio data input')
+
+        seq = lb.shape[1]
+        sets = []
+        for i in range(seq):
+            sets.append(SparseStar(lb[:, i], ub[:, i]))
+        return sets
 
     @staticmethod
     def rand(dim, N):

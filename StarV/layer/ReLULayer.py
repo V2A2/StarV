@@ -32,11 +32,11 @@ class ReLULayer(object):
 
         if method == 'exact':
             return PosLin.reachExactMultiInputs(In, lp_solver, pool)
-        # elif method == 'approx':
-        #     return PosLin.reachApproxSingleInput(In=In, lp_solver=lp_solver, RF=RF, DR=DR, show=show)
+        elif method == 'approx':
+            return PosLin.reachApproxSingleInput(In=In, lp_solver=lp_solver, RF=RF, DR=DR, show=show)
         elif method == 'relax':
-            raise Exception('error: under development')
-        elif method == 'approx': #'basic'
+            return PosLin.reachApproxSingleInput(In=In, lp_solver=lp_solver, RF=RF, DR=DR, show=show)
+        elif method == 'basic':
             return PosLin.reachApprox(In=In, lp_solver=lp_solver, show=show)
         else:
             raise Exception('error: unknown reachability method')

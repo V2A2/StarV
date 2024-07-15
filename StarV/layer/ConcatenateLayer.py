@@ -19,7 +19,7 @@ class ConcatenateLayer(object):
     
     @staticmethod
     def reach(in_sets, method=None, lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
-        """ main concatenate reachability method 
+        """ main concatenate layer method 
             Args:
                 @in_sets: a list of input sets (SparseStar)
 
@@ -31,5 +31,3 @@ class ConcatenateLayer(object):
         for i in range(1, len(in_sets)):
             S = S.concatenate(in_sets[i])
         return [S]
-
-

@@ -10,6 +10,9 @@ import numpy as np
 from StarV.net.network import NeuralNetwork
 from StarV.set.sparsestar import SparseStar
 from StarV.set.star import Star
+from StarV.set.imagestar import ImageStar
+from StarV.set.sparseimagestar2dcoo import SparseImageStar2DCOO
+from StarV.set.sparseimagestar2dcsr import SparseImageStar2DCSR
 
 class Certifier(object):
     """
@@ -31,16 +34,19 @@ def reachBFS(net, inputSet, reachMethod='approx', lp_solver='gurobi', pool=None,
 
     assert isinstance(net, NeuralNetwork), 'error: first input should be a NeuralNetwork object'
     assert isinstance(inputSet, list) or isinstance(inputSet, SparseStar) \
-        or isinstance(inputSet, Star), 'error: second input should be a list of Star/ProbStar/SparseStar sets or a single set'
+        or isinstance(inputSet, Star) or isinstance(inputSet, ImageStar) \
+        or  isinstance(inputSet, SparseImageStar2DCOO) or isinstance(inputSet, SparseImageStar2DCSR), \
+        'error: second input should be a list of Star/ImageStar/ProbStar/SparseStar/SparseImageStar2DCOO/SparseImageStar2DCSR sets or a single set'
 
     # reachSet = []
     reachTime = []
 
     # compute reachable set
-    In = copy.deepcopy(inputSet)
+    # In = copy.deepcopy(inputSet)
+    In = inputSet
     for i in range(net.n_layers):
         if show:
-            print('Computing layer {} reachable set...'.format(i))
+            print(f"\nComputing {net.layers[i].__class__.__name__} layer {i} reachable set...")
         
         start = time.time()
         In = net.layers[i].reach(In, method=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
@@ -51,6 +57,8 @@ def reachBFS(net, inputSet, reachMethod='approx', lp_solver='gurobi', pool=None,
 
         if show:
             print('Number of stars/sparsestars: {}'.format(len(In)))
+            if reachMethod == 'approx':
+                print(f"Number of predicate variables: {In.num_pred}")
 
     outputSet = In
     totalReachTime = sum(reachTime)
@@ -251,7 +259,7 @@ def certifyRobustness_sequence(net, inputs, epsilon=0.01, veriMethod='BFS', reac
 
     vt = time.time() - start       
 
-    return rb, vt 
+    return Y, rb, vt 
 
 
 
@@ -380,48 +388,72 @@ def certifyRobustness_sequence(net, inputs, epsilon=0.01, veriMethod='BFS', reac
 #     r = sum(cnt) / N
 #     return r, rb, ce, cands, vt
 
-def certifyRobustness(net, input, epsilon=0.01, veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, data_type='default', show=False):
-         
-    start = time.time()
+def certifyRobustness(net, inputs, labels=None, veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, return_output=False, show=False):
+
+    if not isinstance(inputs, list): 
+        RB, VT, Y = certifyRobustness_single_input(net, inputs, labels, veriMethod, reachMethod, lp_solver, pool, RF, DR, show)
+        return RB, VT, VT, Y
+
+    if labels is None:
+        labels = []
+        for input in inputs:
+            y = net.evaluate(input)
+            labels.append(y.argmax())
+
+    else:
+        assert isinstance(labels, list), \
+        f"labels should be a list containing arg_max(F(x))"
+
+    start = time.perf_counter()
+    N = len(inputs)
+    RB = np.zeros(N)
+    VT = np.zeros(N)
+    Y = []
+    for i, (input, label) in enumerate(zip(inputs, labels)):
+        RB[i], VT[i], O = certifyRobustness_single_input(net, input, label, veriMethod, reachMethod, lp_solver, pool, RF, DR, show)
+        if return_output:
+            Y.append(O)
     
-    X = [Star.inf_attack(data=input, epsilon=epsilon, data_type=data_type)]
+    vt_total = time.perf_counter() - start 
+
+    return RB, VT, vt_total, Y
+
+
+def certifyRobustness_single_input(net, input, label=None, veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
+
+    if label is None:
+        y = net.evaluate(input)
+        max_id = np.array([y.argmax()])
+    else:
+        max_id = np.array([label]).reshape(-1)
+
+    start = time.perf_counter()
 
     # Compute output reachable sets
     if veriMethod == 'BFS':
-        Y, _ = reachBFS(net=net, inputSet=X, reachMethod=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
+        Y, _ = reachBFS(net=net, inputSet=input, reachMethod=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
     else:
         raise Exception('other verification methods is not yet implemented, i.e. DFS')
-
-    # Certify whether the neural network is robust 
-    y = net.evaluate(input)
-    max_id = np.argmax(y[np.newaxis], axis=1) # find the classified output
-
-    len_ = len(Y)
-    rb = np.zeros(len_)
-    vt = np.zeros(len_)
-    st = time.time()
-    for i in range(len_):
-        max_cands = Y[i].get_max_point_cadidates()
-        if len(max_cands) == 1:
-            if max_cands == max_id:
-                rb[i] = 1
-                
+    
+    rb = 0
+    max_cands = Y.get_max_point_cadidates()
+    if len(max_cands) == 1:
+        if max_cands == max_id:
+            rb = 1
+    else:
+        a = [max_cands == max_id][0]
+        if sum(a) == 0:
+            rb = 0
         else:
-            a = [max_cands == max_id][0]
-            if sum(a) == 0:
-                rb = 0
-            
-            else:
-                max_cands = np.delete(max_cands, max_cands == max_id)
-                m = len(max_cands)
+            max_cands = np.delete(max_cands, max_cands == max_id)
+            m = len(max_cands)
 
-                for j in range(m):
-                    if Y.is_p1_larger_than_p2(max_cands[j], max_id):
-                        rb[i] = 2
-                        break
-                    
-                    else:
-                        rb[i] = 1
-        vt[i] = time.time() - st 
-    vt_total = time.time() - start  
-    return rb, vt, vt_total, Y
+            for j in range(m):
+                if Y.is_p1_larger_than_p2(max_cands[j], max_id[0]):
+                    rb = 2
+                    break
+                else:
+                    rb = 1
+
+    vt = time.perf_counter() - start  
+    return rb, vt, Y

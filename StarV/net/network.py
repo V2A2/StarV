@@ -7,14 +7,18 @@
 import copy
 import torch
 import numpy as np
-from StarV.layer.fullyConnectedLayer import fullyConnectedLayer
-from StarV.layer.ReLULayer import ReLULayer
 
+from StarV.layer.ReLULayer import ReLULayer
+from StarV.layer.FlattenLayer import FlattenLayer
+from StarV.layer.fullyConnectedLayer import fullyConnectedLayer
 from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
+from StarV.layer.Conv2DLayer import Conv2DLayer
+from StarV.layer.AvgPool2DLayer import AvgPool2DLayer
+from StarV.layer.MaxPool2DLayer import MaxPool2DLayer
+from StarV.layer.BatchNorm2DLayer import BatchNorm2DLayer
 from StarV.layer.LogSigLayer import LogSigLayer
 from StarV.layer.TanSigLayer import TanSigLayer
-from StarV.layer.LSTMLayer import LSTMLayer
-from StarV.layer.GRULayer import GRULayer
+
 
 class NeuralNetwork(object):
     """Generic serial Neural Network class
@@ -52,7 +56,7 @@ class NeuralNetwork(object):
     def info(self):
         """print information of the network"""
 
-        print('Network Information:')
+        print('\n=============NETWORK===============')
         print('Network type: {}'.format(self.type))
         print('Input Dimension: {}'.format(self.in_dim))
         print('Output Dimension: {}'.format(self.out_dim))
@@ -60,11 +64,30 @@ class NeuralNetwork(object):
         print('Layer types:')
         for i in range(0, self.n_layers):
             str_ = 'Layer {}: {}'.format(i, type(self.layers[i]))
-            if isinstance(self.layers[i], FullyConnectedLayer):
-                str_ += ' ({}, {})'.format(self.layers[i].out_dim, self.layers[i].in_dim)
-            elif isinstance(self.layers[i], LogSigLayer) or isinstance(self.layers[i], TanSigLayer):
-                str_ += ' (opt = {}, delta = {})'.format(self.layers[i].opt, self.layers[i].delta)
+            layer_ = self.layers[i]
+            if isinstance(layer_, FullyConnectedLayer):
+                if layer_.W is not None:
+                    str_ += ' ({}, {}, dtype={})'.format(layer_.out_dim, layer_.in_dim, layer_.W.dtype)
+                else:
+                    str_ += ' ({}, {}, dtype={})'.format(layer_.out_dim, layer_.in_dim, layer_.b.dtype)
+
+            elif isinstance(layer_, LogSigLayer) or isinstance(layer_, TanSigLayer):
+                str_ += ' (opt = {}, delta = {})'.format(layer_.opt, layer_.delta)
+            elif isinstance(layer_, Conv2DLayer):
+                if layer_.sparse:
+                    str_ += ' ({}, {}, kernel_size = {}, stride = {}, padding = {}, dtype={})'.format(layer_.in_shape[2], layer_.out_shape[2], layer_.kernel_size, layer_.stride, layer_.padding, layer_.weight.dtype)
+                else:
+                    str_ += ' ({}, {}, kernel_size = {}, stride = {}, padding = {}, dtype={})'.format(layer_.weight.shape[2], layer_.weight.shape[3], layer_.weight.shape[:2], layer_.stride, layer_.padding, layer_.weight.dtype)
+            elif isinstance(layer_, AvgPool2DLayer):
+                str_ += ' (kernel_size = {}, stride = {}, padding = {})'.format(layer_.kernel_size, layer_.stride, layer_.padding)
+            elif isinstance(layer_, MaxPool2DLayer):
+                str_ += ' (kernel_size = {}, stride = {}, padding = {})'.format(layer_.kernel_size, layer_.stride, layer_.padding)
+            elif isinstance(layer_, BatchNorm2DLayer):
+                str_ += ' ({}, eps={}, dtype={})'.format(layer_.num_features, layer_.eps, layer_.gamma.dtype)
+            elif isinstance(layer_, FlattenLayer):
+                str_ += ' (channel_last={})'.format(layer_.channel_last)
             print(str_)
+        return ''
 
     def evaluate(self, x):
         """evaluate network; forward propagation
@@ -112,14 +135,80 @@ def rand_ffnn(arch, actvs):
 
     return NeuralNetwork(layers, 'ffnn')
 
+def filterProbStar(*args):
+    """Filtering out some probstars"""
 
-def rand_grunn(gru_arch, fffnn_arch, actvs):
-    """randomly generate gated recurrent unit neural network
-    Args:
-        @gru_arch: GRU network architecture list of layer's neuron ex. [2 3 2]
-        @fffnn_arch: feedforward neural network architecture list of layer's neuron ex. [2 3 2]
-    """
+    if isinstance(args[0], tuple):
+        args1 = args[0]
+    else:
+        args1 = args
+    p_filter = args1[0]
+    S = args1[1]
+    assert isinstance(S, ProbStar), 'error: input is not a probstar'
+    prob = S.estimateProbability()
+    if prob >= p_filter:
+        P = S
+        p_ignored = 0.0
+    else:
+        P = []
+        p_ignored = prob
 
-    return None
-
+    return P, p_ignored
     
+
+def reachExactBFS(net, inputSet, lp_solver='gurobi', pool=None, show=True):
+    """Compute Reachable Set layer-by-layer"""
+
+    assert isinstance(net, NeuralNetwork), 'error: first input should be a NeuralNetwork object'
+    assert isinstance(inputSet, list), 'error: second input should be a list of Star/ProbStar set'
+
+    S = copy.deepcopy(inputSet)
+    for i in range(0, net.n_layers):
+        if show:
+            print('Computing layer {} reachable set...'.format(i))
+        S = net.layers[i].reach(S, method='exact', lp_solver=lp_solver, pool=pool)
+        if show:
+            print('Number of stars/probstars: {}'.format(len(S)))
+
+    return S
+
+def reachApproxBFS(net, inputSet, p_filter, lp_solver='gurobi', pool=None, show=True):
+    """Compute Approximate Reachable Set layer-by-layer"""
+
+    assert isinstance(net, NeuralNetwork), 'error: first input should be a NeuralNetwork object'
+    assert isinstance(inputSet, list), 'error: second input should be a list of Star/ProbStar set'
+
+    # compute and filter reachable sets
+    I = copy.deepcopy(inputSet)
+    p_ignored = 0.0
+    for i in range(0, net.n_layers):
+        if show:
+            print('================ Layer {} ================='.format(i))
+            print('Computing layer {} reachable set...'.format(i))
+        S = net.layers[i].reach(I, method='exact', lp_solver=lp_solver, pool=pool)
+        if show:
+            print('Number of probstars: {}'.format(len(S)))
+            print('Filtering probstars whose probabilities < {}...'.format(p_filter))
+        P = []
+        if pool is None:
+            for S1 in S:
+                P1, prob1 = filterProbStar(p_filter, S1)
+                if isinstance(P1, ProbStar):
+                    P.append(P1)
+                p_ignored = p_ignored + prob1  # update the total probability of ignored sets
+        else:
+            S1 = pool.map(filterProbStar, zip([p_filter]*len(S), S))
+            for S2 in S1:
+                if isinstance(S2[0], ProbStar):
+                    P.append(S2[0])
+                p_ignored = p_ignored + S2[1]
+        I = P            
+        if show:
+            print('Number of ignored probstars: {}'.format(len(S) - len(I)))
+            print('Number of remaining probstars: {}'.format(len(I)))
+
+        if len(I) == 0:
+            break
+
+
+    return I, p_ignored
