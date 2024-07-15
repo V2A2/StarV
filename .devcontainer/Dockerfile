@@ -9,7 +9,7 @@
 # docker rum --rm -v ".:/work" -it starv bash
 
 
-FROM python:3.11
+FROM gurobi/python:3.11
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
