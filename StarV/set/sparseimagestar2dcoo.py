@@ -517,7 +517,7 @@ class SparseImageStar2DCOO(object):
     def getRows(self, map):
         rows = sp.coo_array((0, 0))
         for i in range(len(map)):
-            rows += self.V.getrow(i)
+            rows += self.V._getrow(i)
         return rows
 
     # def getRow(self, index):
@@ -579,7 +579,7 @@ class SparseImageStar2DCOO(object):
     #     n = len(map)
     #     rows = sp.coo_array((n, self.V.shape[1]))
     #     for i in range(n):
-    #         mat = self.V.getrow(i)
+    #         mat = self.V._getrow(i)
     #         mat.row += i
     #         rows += mat
     #     return rows
@@ -782,7 +782,7 @@ class SparseImageStar2DCOO(object):
             if (f == 0).all():
                 return center
         else:
-            f = self.V.getrow(index)
+            f = self.V._getrow(index)
             center = self.c[index]
 
             if f.nnz == 0:
@@ -896,7 +896,7 @@ class SparseImageStar2DCOO(object):
             if (f == 0).all():
                 return center
         else:
-            f = self.V.getrow(index)
+            f = self.V._getrow(index)
             center = self.c[index]
 
             if f.nnz == 0:
@@ -1109,7 +1109,7 @@ class SparseImageStar2DCOO(object):
 
         else:
             d1 = self.c[p1_indx] - self.c[p2_indx]
-            C1 = self.V.getrow(p2_indx) - self.V.getrow(p1_indx)
+            C1 = self.V._getrow(p2_indx) - self.V._getrow(p1_indx)
 
             if self.C.nnz > 0:
                 C1 = sp.csr_array(C1)
