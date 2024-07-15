@@ -29,7 +29,7 @@ RUN apt-get update \
         nano \
         tmux \
         wget \
-    && wget -v https://packages.gurobi.com/${GRB_SHORT_VERSION}/gurobi${GRB_VERSION}_linux64.tar.gz \
+RUN wget -v https://packages.gurobi.com/${GRB_SHORT_VERSION}/gurobi${GRB_VERSION}_linux64.tar.gz \
     && tar -xvf gurobi${GRB_VERSION}_linux64.tar.gz  \
     && rm -f gurobi${GRB_VERSION}_linux64.tar.gz \
     && mv -f gurobi* gurobi \
@@ -37,17 +37,17 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-    # Add the license key
-    # Visit https://license.gurobi.com/manager/doc/overview for more information.
-    # You will need to provide your own.
-    # by passing it in during runtime: -v gurobi.lic:/opt/gurobi/gurobi.lic
-    COPY gurobi.lic /opt/gurobi/gurobi.lic
+# Add the license key
+# Visit https://license.gurobi.com/manager/doc/overview for more information.
+# You will need to provide your own.
+# by passing it in during runtime: -v gurobi.lic:/opt/gurobi/gurobi.lic
+COPY gurobi.lic /opt/gurobi/gurobi.lic
 
-    # now install the R package
+# now install the R package
 
-    ENV GUROBI_HOME /opt/gurobi/linux64
-    ENV PATH "$PATH:$GUROBI_HOME/bin"
-    ENV LD_LIBRARY_PATH $GUROBI_HOME/lib 
+ENV GUROBI_HOME /opt/gurobi/linux64
+ENV PATH "$PATH:$GUROBI_HOME/bin"
+ENV LD_LIBRARY_PATH $GUROBI_HOME/lib 
 
 COPY ../requirements.txt /tmp/
 
