@@ -609,12 +609,12 @@ class SparseImageStar2DCOO(object):
                 Wr = W.reshape(-1)
                 if np.prod(W.shape) == 1:
                     c = self.c * Wr
-                    V = self.V * Wr
+                    V = (self.V * Wr).tocoo() # returns csr format
                 else:
                     c = self.c.reshape(self.shape) * W
                     c = c.reshape(-1)
 
-                    # self.V (csr) * W
+                    # self.V (coo) * W
                     V = copy.deepcopy(self.V)
                     row_ch = V.row % self.shape[2]
                     V.data = Wr[row_ch] * V.data
@@ -631,7 +631,7 @@ class SparseImageStar2DCOO(object):
                         c += np.expand_dims(b, axis=tuple(np.arange(c.ndim - b.ndim)+b.ndim)).reshape(-1)
                     else:
                         c += b
-                    V = self.V * Wr
+                    V = (self.V * Wr).tocoo() # returns csr format
                 else:
                     c = self.c.reshape(self.shape) * W + b
                     c = c.reshape(-1)
@@ -641,10 +641,10 @@ class SparseImageStar2DCOO(object):
                     else:
                         c += b
 
-                    # self.V (csr) * W
+                    # self.V (coo) * W
                     V = copy.deepcopy(self.V)
                     row_ch = V.row % self.shape[2]
-                    V.data = Wr[row_ch] * V.dat
+                    V.data = Wr[row_ch] * V.data
                 
                 return SparseImageStar2DCOO(c, V, self.C, self.d, self.pred_lb, self.pred_ub, self.shape)
         
