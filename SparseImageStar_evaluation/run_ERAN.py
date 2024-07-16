@@ -54,7 +54,7 @@ def normalize(image, data_type):
         img /= std
     return img
 
-def verify_eran_network(net_type='Small', data_type='MNIST', trained_type='DiffAI', dtype='float64'):
+def verify_eran_network(net_type='Small', data_type='MNIST', trained_type='DiffAI', dtype='float64', show=False):
 
     print('==================================================================================================')
     print(f"Verification of ERAN DEEPPOLY_{data_type} conv{net_type}ReLU Network against Infinity Norm Attack")
@@ -105,6 +105,7 @@ def verify_eran_network(net_type='Small', data_type='MNIST', trained_type='DiffA
     for i, eps_ in enumerate(epsilon):
         print(f"Verifying netowrk with epsilon = {eps_}")
         for j, data in enumerate(dataset):
+            if show: print(f"Working on image {j}")
             img = data[1:].reshape(shape) / 255
             label = int(data[0]) 
             # infinity norm attack
@@ -123,6 +124,7 @@ def verify_eran_network(net_type='Small', data_type='MNIST', trained_type='DiffA
     for i, eps_ in enumerate(epsilon):
         print(f"Verifying netowrk with epsilon = {eps_}")
         for j, data in enumerate(dataset):
+            if show: print(f"Working on image {j}")
             img = data[1:].reshape(shape) / 255
             label = int(data[0]) 
             # infinity norm attack
@@ -141,6 +143,7 @@ def verify_eran_network(net_type='Small', data_type='MNIST', trained_type='DiffA
     for i, eps_ in enumerate(epsilon):
         print(f"Verifying netowrk with epsilon = {eps_}")
         for j, data in enumerate(dataset):
+            if show: print(f"Working on image {j}")
             img = data[1:].reshape(shape) / 255
             label = int(data[0]) 
             # infinity norm attack
@@ -195,14 +198,14 @@ def verify_eran_network(net_type='Small', data_type='MNIST', trained_type='DiffA
     print('=====================================================')
 
 if __name__ == "__main__":
-    verify_eran_network(net_type='Small', data_type='MNIST', trained_type='DiffAI', dtype='float64')
-    verify_eran_network(net_type='Small', data_type='MNIST', trained_type='PGDK', dtype='float64') #optimization error at eps=0.002 convSmallRELU__PGDK MNIST
-    verify_eran_network(net_type='Small', data_type='MNIST', trained_type='Point', dtype='float64')
+    verify_eran_network(net_type='Small', data_type='MNIST', trained_type='DiffAI', dtype='float64', show=True)
+    verify_eran_network(net_type='Small', data_type='MNIST', trained_type='PGDK', dtype='float64', show=True) #optimization error at eps=0.002 convSmallRELU__PGDK MNIST
+    verify_eran_network(net_type='Small', data_type='MNIST', trained_type='Point', dtype='float64', show=True)
 
-    verify_eran_network(net_type='Big', data_type='MNIST', trained_type='DiffAI', dtype='float64')
+    verify_eran_network(net_type='Big', data_type='MNIST', trained_type='DiffAI', dtype='float64', show=True)
 
-    verify_eran_network(net_type='Small', data_type='CIFAR10', trained_type='DiffAI', dtype='float64')
-    verify_eran_network(net_type='Small', data_type='CIFAR10', trained_type='PGDK', dtype='float64')
-    verify_eran_network(net_type='Small', data_type='CIFAR10', trained_type='Point', dtype='float64')
+    verify_eran_network(net_type='Small', data_type='CIFAR10', trained_type='DiffAI', dtype='float64', show=True)
+    verify_eran_network(net_type='Small', data_type='CIFAR10', trained_type='PGDK', dtype='float64', show=True)
+    verify_eran_network(net_type='Small', data_type='CIFAR10', trained_type='Point', dtype='float64', show=True)
 
-    verify_eran_network(net_type='Big', data_type='CIFAR10', trained_type='DiffAI', dtype='float64')
+    verify_eran_network(net_type='Big', data_type='CIFAR10', trained_type='DiffAI', dtype='float64', show=True)
