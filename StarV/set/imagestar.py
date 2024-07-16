@@ -433,20 +433,24 @@ class ImageStar(object):
             V = self.V.copy()
 
             if b.ndim > 1:
-                V += np.expand_dims(b, axis=tuple(np.arange(V.ndim - b.ndim)+b.ndim))
+                V[:, :, :, 0] += np.expand_dims(b, axis=tuple(np.arange(V.ndim - b.ndim)+b.ndim))
                 return ImageStar(V, self.C, self.d, self.pred_lb, self.pred_ub)
         
             V[:, :, :, 0] += b
             return ImageStar(V, self.C, self.d, self.pred_lb, self.pred_ub)
 
         elif b is None:
-            V = self.V * W
+            assert W.ndim == self.V.ndim-1, f"inconsistent number of array dimensions between W and shape of ImageStar; len(shape)={self.V.ndim-1}, W.ndim={W.ndim}"
+
+            V = self.V * W[:, :, :, None]
             return ImageStar(V, self.C, self.d, self.pred_lb, self.pred_ub)
 
-        V = self.V * W
-        V[:, :, :, 0] += b
+        V = self.V * W[:, :, :, None]
+        if b.ndim > 1:
+            V[:, :, :, 0] += np.expand_dims(b, axis=tuple(np.arange(V.ndim - b.ndim)+b.ndim))
+        else:
+            V[:, :, :, 0] += b
         return ImageStar(V, self.C, self.d, self.pred_lb, self.pred_ub)
-
             
     
     def flatten_affineMap(self, W=None, b=None):

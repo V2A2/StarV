@@ -461,7 +461,7 @@ class SparseImageStar2DCSR(object):
         
         # elif isinstance(self.V, sp.csr_array) or isinstance(self.V, sp.csr_matrix):
         elif len(self.shape) > 1:
-
+    
             if W is None:
                 c = self.c.copy()
 
@@ -473,23 +473,41 @@ class SparseImageStar2DCSR(object):
                 return SparseImageStar2DCSR(c, self.V, self.C, self.d, self.pred_lb, self.pred_ub, self.shape)
             
             elif b is None:
-                c = self.c * W
+                assert W.ndim == len(self.shape), f"inconsistent number of array dimensions between W and shape of SparseImageStar; len(shape)={len(self.shape)}, W.ndim={W.ndim}"
 
-                # self.V (csr) * W
-                T = self.V.tocoo(copy=False)
-                row_ch = T.row % self.shape[2]
-                V = copy.deepcopy(self.V)
-                V.data = W[row_ch] * V.data
+                Wr = W.reshape(-1)
+                if np.prod(W.shape) == 1:
+                    c = self.c * Wr
+                    V = self.V * Wr
+                else:
+                    c = self.c.reshape(self.shape) * W
+                    c = c.reshape(-1)
+
+                    # self.V (csr) * W
+                    T = self.V.tocoo(copy=False)
+                    row_ch = T.row % self.shape[2]
+                    V = copy.deepcopy(self.V)
+                    V.data = Wr[row_ch] * V.data
+
                 return SparseImageStar2DCSR(c, V, self.C, self.d, self.pred_lb, self.pred_ub, self.shape)
 
             else:
-                c = self.c * W + b
+                assert W.ndim == len(self.shape), f"inconsistent number of array dimensions between W and shape of SparseImageStar; len(shape)={len(self.shape)}, W.ndim={W.ndim}"
 
-                # self.V (csr) * W
-                T = self.V.tocoo(copy=False)
-                row_ch = T.row % self.shape[2]
-                V = copy.deepcopy(self.V)
-                V.data = W[row_ch] * V.data
+                Wr = W.reshape(-1)
+                if np.prod(W.shape) == 1:
+                    c = self.c * Wr + b
+                    V = self.V * Wr
+                else:
+                    c = self.c.reshape(self.shape) * W + b
+                    c = c.reshape(-1)
+
+                    # self.V (csr) * W
+                    T = self.V.tocoo(copy=False)
+                    row_ch = T.row % self.shape[2]
+                    V = copy.deepcopy(self.V)
+                    V.data = Wr[row_ch] * V.data
+
                 return SparseImageStar2DCSR(c, V, self.C, self.d, self.pred_lb, self.pred_ub, self.shape)
         
         else:
