@@ -106,7 +106,7 @@ def verify_convnet_network(net_type='Small', dtype='float32'):
     for i in range(E):
         IMs = IML[i]
         IDs = labelL[i]
-        print(f"Verifying netowrk with epsilon = {epsilon[j]}")
+        print(f"Verifying netowrk with epsilon = {epsilon[i]}")
 
         rbIM[i, :], vtIM[i, :], _, _ = certifyRobustness(net=starvNet, inputs=IMs, labels=IDs,
             veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
@@ -120,7 +120,7 @@ def verify_convnet_network(net_type='Small', dtype='float32'):
     for i in range(E):
         CSRs = CSRL[i]
         IDs = labelL[i]
-        print(f"Verifying netowrk with epsilon = {epsilon[j]}")
+        print(f"Verifying netowrk with epsilon = {epsilon[i]}")
 
         rbCSR[i, :], vtCSR[i, :], _, _ = certifyRobustness(net=starvNet, inputs=CSRs, labels=IDs,
             veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
@@ -134,7 +134,7 @@ def verify_convnet_network(net_type='Small', dtype='float32'):
     for i in range(E):
         COOs = COOL[i]
         IDs = labelL[i]
-        print(f"Verifying netowrk with epsilon = {epsilon[j]}")
+        print(f"Verifying netowrk with epsilon = {epsilon[i]}")
 
         rbCOO[i, :], vtCOO[i, :], _, _ = certifyRobustness(net=starvNet, inputs=COOs, labels=IDs,
             veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
