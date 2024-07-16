@@ -21,6 +21,11 @@ from StarV.verifier.certifier import certifyRobustness
 from StarV.util.load import *
 from StarV.util.vnnlib import *
 
+def atoi(text):
+    return int(text) if text.isdigit() else text
+
+def natural_keys(text):
+    return [ atoi(c) for c in re.split(r'(\d+)', text)]
 
 def verify_vgg16_network(dtype='float64'):
 
@@ -43,6 +48,7 @@ def verify_vgg16_network(dtype='float64'):
     # VNNLIB_FILE = 'vnncomp2023_benchmarks/benchmarks/vggnet16/vnnlib/spec0_pretzel.vnnlib'
     vnnlib_dir = f"{folder_dir}/vnnlib"
     vnnlib_files = [f for f in os.listdir(vnnlib_dir) if f.endswith('.vnnlib')]
+    vnnlib_files.sort(key = natural_keys)
 
     N = len(vnnlib_files)
     rbIM = np.zeros(N)
@@ -63,7 +69,6 @@ def verify_vgg16_network(dtype='float64'):
             first_line = f.readline().strip('\n')
         label = int(re.findall(r'\b\d+\b', first_line)[0])
 
-
         vnnlib_rv = read_vnnlib_simple(vnnlib_file_dir, num_inputs, num_outputs)
 
         box, spec_list = vnnlib_rv[0]
@@ -73,6 +78,8 @@ def verify_vgg16_network(dtype='float64'):
         ub = bounds[:, 1].reshape(shape).transpose([1, 2, 0])
 
         num_attack_pixel = (lb != ub).sum()
+        print(f"Verifying vnnlib_files with {num_attack_pixel} attacked pixels")
+
         if num_attack_pixel > 100:
             rbIM[i] = np.nan
             vtIM[i] = np.nan
@@ -102,6 +109,9 @@ def verify_vgg16_network(dtype='float64'):
         lb = bounds[:, 0].reshape(shape).transpose([1, 2, 0]).astype(dtype)
         ub = bounds[:, 1].reshape(shape).transpose([1, 2, 0]).astype(dtype)
 
+        num_attack_pixel = (lb != ub).sum()
+        print(f"Verifying vnnlib_files with {num_attack_pixel} attacked pixels")
+
         CSR = SparseImageStar2DCSR(lb, ub)
         rbCSR[i], vtCSR[i], _, _ = certifyRobustness(net=starvNet, inputs=CSR, labels=label,
             veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
@@ -126,6 +136,9 @@ def verify_vgg16_network(dtype='float64'):
         # transpose from [C, H, W] to [H, W, C]
         lb = bounds[:, 0].reshape(shape).transpose([1, 2, 0]).astype(dtype)
         ub = bounds[:, 1].reshape(shape).transpose([1, 2, 0]).astype(dtype)
+
+        num_attack_pixel = (lb != ub).sum()
+        print(f"Verifying vnnlib_files with {num_attack_pixel} attacked pixels")
     
         COO = SparseImageStar2DCOO(lb, ub)
         rbCOO[i], vtCOO[i], _, _ = certifyRobustness(net=starvNet, inputs=COO, labels=label,
