@@ -196,7 +196,7 @@ def verify_eran_network(net_type='Small', data_type='MNIST', trained_type='DiffA
 
 if __name__ == "__main__":
     verify_eran_network(net_type='Small', data_type='MNIST', trained_type='DiffAI', dtype='float64')
-    verify_eran_network(net_type='Small', data_type='MNIST', trained_type='PGDK', dtype='float64') optimization error at eps=0.002 convSmallRELU__PGDK MNIST
+    verify_eran_network(net_type='Small', data_type='MNIST', trained_type='PGDK', dtype='float64') #optimization error at eps=0.002 convSmallRELU__PGDK MNIST
     verify_eran_network(net_type='Small', data_type='MNIST', trained_type='Point', dtype='float64')
 
     verify_eran_network(net_type='Big', data_type='MNIST', trained_type='DiffAI', dtype='float64')
