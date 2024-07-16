@@ -75,23 +75,6 @@ def verify_oval21_network(net_type='base', dtype='float32'):
     rbCOO_table = ['SIM_COO']
     vtCOO_table = ['SIM_COO']
 
-    print(f"\nVerifying {net_type} oval21 with SparseImageStar in CSR format")
-    for i, eps_ in enumerate(epsilon):
-        print(f"Verifying netowrk with epsilon = {eps_}")
-        for j in range(N):
-            img, label = cifar_test[rand_ind[i]]
-            # infinity norm attack and convert image to channel last (i.e. [H, W, C])
-            lb = normalizer((img - eps_).clamp(0, 1)).permute(1, 2, 0).numpy().copy()
-            ub = normalizer((img + eps_).clamp(0, 1)).permute(1, 2, 0).numpy().copy()
-
-            CSR = SparseImageStar2DCSR(lb, ub)
-            rbCSR[i, j], vtCSR[i, j], _, _ = certifyRobustness(net=starvNet, inputs=CSR, labels=label,
-                veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
-                RF=0.0, DR=0, return_output=False, show=False)
-        rbCSR_table.append((rbCSR[i, :]==1).sum())
-        vtCSR_table.append((vtCSR[i, :].sum() / N))
-    del CSR
-    
     print(f"Verifying {net_type} oval21 with ImageStar")
     for i, eps_ in enumerate(epsilon):
         print(f"Verifying netowrk with epsilon = {eps_}")
@@ -109,7 +92,23 @@ def verify_oval21_network(net_type='base', dtype='float32'):
         vtIM_table.append((vtIM[i, :].sum() / N))
     del IM
 
+    print(f"\nVerifying {net_type} oval21 with SparseImageStar in CSR format")
+    for i, eps_ in enumerate(epsilon):
+        print(f"Verifying netowrk with epsilon = {eps_}")
+        for j in range(N):
+            img, label = cifar_test[rand_ind[i]]
+            # infinity norm attack and convert image to channel last (i.e. [H, W, C])
+            lb = normalizer((img - eps_).clamp(0, 1)).permute(1, 2, 0).numpy().copy()
+            ub = normalizer((img + eps_).clamp(0, 1)).permute(1, 2, 0).numpy().copy()
 
+            CSR = SparseImageStar2DCSR(lb, ub)
+            rbCSR[i, j], vtCSR[i, j], _, _ = certifyRobustness(net=starvNet, inputs=CSR, labels=label,
+                veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
+                RF=0.0, DR=0, return_output=False, show=False)
+        rbCSR_table.append((rbCSR[i, :]==1).sum())
+        vtCSR_table.append((vtCSR[i, :].sum() / N))
+    del CSR
+    
     print(f"\nVerifying {net_type} oval21 with SparseImageStar in COO format")
     for i, eps_ in enumerate(epsilon):
         print(f"Verifying netowrk with epsilon = {eps_}")
@@ -124,7 +123,7 @@ def verify_oval21_network(net_type='base', dtype='float32'):
                 RF=0.0, DR=0, return_output=False, show=False)
         rbCOO_table.append((rbCOO[i, :]==1).sum())
         vtCOO_table.append((vtCOO[i, :].sum() / N))
-    del COO
+    del COO    
 
     # save verification results
     path = f"./SparseImageStar_evaluation/results"
@@ -185,7 +184,7 @@ def verify_oval21_network_for_saving(net_type='base', dtype='float32'):
     rand_ind = np.random.RandomState(1000).randint(1, len(cifar_test), size=N)
     
     if net_type == 'base':
-        epsilon = (np.arange(E)+1)*1/255
+        epsilon = (np.arange(E)+1)*0.5/255
     # elif net_type == 'deep':
     #     epsilon = (np.arange(E)+1)*0.75/255
     else:

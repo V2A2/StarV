@@ -67,15 +67,20 @@ def verify_vgg16_network(dtype='float64'):
         vnnlib_rv = read_vnnlib_simple(vnnlib_file_dir, num_inputs, num_outputs)
 
         box, spec_list = vnnlib_rv[0]
-        bounds = np.array(box, dtype=inp_dtype)
+        bounds = np.array(box, dtype=dtype)
         # transpose from [C, H, W] to [H, W, C]
-        lb = bounds[:, 0].reshape(shape).transpose([1, 2, 0]).astype(dtype)
-        ub = bounds[:, 1].reshape(shape).transpose([1, 2, 0]).astype(dtype)
+        lb = bounds[:, 0].reshape(shape).transpose([1, 2, 0])
+        ub = bounds[:, 1].reshape(shape).transpose([1, 2, 0])
 
-        IM = ImageStar(lb, ub)
-        rbIM[i], vtIM[i], _, _ = certifyRobustness(net=starvNet, inputs=IM, labels=label,
-            veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
-            RF=0.0, DR=0, return_output=False, show=False)
+        num_attack_pixel = (lb != ub).sum()
+        if num_attack_pixel > 100:
+            rbIM[i] = np.nan
+            vtIM[i] = np.nan
+        else:
+            IM = ImageStar(lb, ub)
+            rbIM[i], vtIM[i], _, _ = certifyRobustness(net=starvNet, inputs=IM, labels=label,
+                veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
+                RF=0.0, DR=0, return_output=False, show=False)
     rb_table.append((rbIM == 1).sum())
     vt_table.append((vtIM.sum() / N))
     del IM
