@@ -78,9 +78,9 @@ def verify_vgg16_network(dtype='float64'):
         ub = bounds[:, 1].reshape(shape).transpose([1, 2, 0])
 
         num_attack_pixel = (lb != ub).sum()
-        print(f"Verifying vnnlib_files with {num_attack_pixel} attacked pixels")
+        print(f"Verifying {vnnlib_file} with {num_attack_pixel} attacked pixels")
 
-        if num_attack_pixel > 100:
+        if num_attack_pixel > 50:
             rbIM[i] = np.nan
             vtIM[i] = np.nan
         else:
@@ -110,7 +110,7 @@ def verify_vgg16_network(dtype='float64'):
         ub = bounds[:, 1].reshape(shape).transpose([1, 2, 0]).astype(dtype)
 
         num_attack_pixel = (lb != ub).sum()
-        print(f"Verifying vnnlib_files with {num_attack_pixel} attacked pixels")
+        print(f"Verifying {vnnlib_file} with {num_attack_pixel} attacked pixels")
 
         CSR = SparseImageStar2DCSR(lb, ub)
         rbCSR[i], vtCSR[i], _, _ = certifyRobustness(net=starvNet, inputs=CSR, labels=label,
@@ -138,7 +138,7 @@ def verify_vgg16_network(dtype='float64'):
         ub = bounds[:, 1].reshape(shape).transpose([1, 2, 0]).astype(dtype)
 
         num_attack_pixel = (lb != ub).sum()
-        print(f"Verifying vnnlib_files with {num_attack_pixel} attacked pixels")
+        print(f"Verifying {vnnlib_file} with {num_attack_pixel} attacked pixels")
     
         COO = SparseImageStar2DCOO(lb, ub)
         rbCOO[i], vtCOO[i], _, _ = certifyRobustness(net=starvNet, inputs=COO, labels=label,
