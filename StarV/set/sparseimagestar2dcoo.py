@@ -615,12 +615,10 @@ class SparseImageStar2DCOO(object):
                     c = c.reshape(-1)
 
                     # self.V (csr) * W
-                    T = self.V.tocoo(copy=False)
-                    row_ch = T.row % self.shape[2]
                     V = copy.deepcopy(self.V)
+                    row_ch = V.row % self.shape[2]
                     V.data = Wr[row_ch] * V.data
                     
-
                 return SparseImageStar2DCOO(c, V, self.C, self.d, self.pred_lb, self.pred_ub, self.shape)
 
             else:
@@ -644,9 +642,8 @@ class SparseImageStar2DCOO(object):
                         c += b
 
                     # self.V (csr) * W
-                    T = self.V.tocoo(copy=False)
-                    row_ch = T.row % self.shape[2]
                     V = copy.deepcopy(self.V)
+                    row_ch = V.row % self.shape[2]
                     V.data = Wr[row_ch] * V.dat
                 
                 return SparseImageStar2DCOO(c, V, self.C, self.d, self.pred_lb, self.pred_ub, self.shape)
