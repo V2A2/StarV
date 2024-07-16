@@ -474,12 +474,12 @@ class SparseImageStar2DCSR(object):
             
             elif b is None:
                 c = self.c * W
-                V = self.V * W
+                V = (self.V * W).tocsr(copy=False) #returns coo format; need to convert to csr format
                 return SparseImageStar2DCSR(c, V, self.C, self.d, self.pred_lb, self.pred_ub, self.shape)
 
             else:
                 c = self.c * W + b
-                V = self.V * W
+                V = (self.V * W).tocsr(copy=False) #returns coo format; need to convert to csr format
                 return SparseImageStar2DCSR(c, V, self.C, self.d, self.pred_lb, self.pred_ub, self.shape)
         
         else:
