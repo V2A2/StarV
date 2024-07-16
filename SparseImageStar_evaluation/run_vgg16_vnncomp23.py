@@ -64,7 +64,7 @@ def verify_vgg16_network(dtype='float64'):
         label = int(re.findall(r'\b\d+\b', first_line)[0])
 
 
-        vnnlib_rv = read_vnnlib_simple(vnnlib_file, num_inputs, num_outputs)
+        vnnlib_rv = read_vnnlib_simple(vnnlib_file_dir, num_inputs, num_outputs)
 
         box, spec_list = vnnlib_rv[0]
         bounds = np.array(box, dtype=inp_dtype)
@@ -89,7 +89,7 @@ def verify_vgg16_network(dtype='float64'):
         label = int(re.findall(r'\b\d+\b', first_line)[0])
 
 
-        vnnlib_rv = read_vnnlib_simple(vnnlib_file, num_inputs, num_outputs)
+        vnnlib_rv = read_vnnlib_simple(vnnlib_file_dir, num_inputs, num_outputs)
 
         box, spec_list = vnnlib_rv[0]
         bounds = np.array(box, dtype=inp_dtype)
@@ -114,7 +114,7 @@ def verify_vgg16_network(dtype='float64'):
         label = int(re.findall(r'\b\d+\b', first_line)[0])
 
 
-        vnnlib_rv = read_vnnlib_simple(vnnlib_file, num_inputs, num_outputs)
+        vnnlib_rv = read_vnnlib_simple(vnnlib_file_dir, num_inputs, num_outputs)
 
         box, spec_list = vnnlib_rv[0]
         bounds = np.array(box, dtype=inp_dtype)
