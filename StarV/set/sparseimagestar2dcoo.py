@@ -605,12 +605,20 @@ class SparseImageStar2DCOO(object):
             
             elif b is None:
                 c = self.c * W
-                V = self.V * W
+
+                # self.V (coo) * W
+                V = copy.deepcopy(self.V)
+                row_ch = V.row % self.shape[2]
+                V.data = W[row_ch] * V.data
                 return SparseImageStar2DCOO(c, V, self.C, self.d, self.pred_lb, self.pred_ub, self.shape)
 
             else:
                 c = self.c * W + b
-                V = self.V * W
+
+                # self.V (coo) * W
+                V = copy.deepcopy(self.V)
+                row_ch = V.row % self.shape[2]
+                V.data = W[row_ch] * V.data
                 return SparseImageStar2DCOO(c, V, self.C, self.d, self.pred_lb, self.pred_ub, self.shape)
         
         else:

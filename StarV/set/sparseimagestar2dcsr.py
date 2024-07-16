@@ -474,12 +474,22 @@ class SparseImageStar2DCSR(object):
             
             elif b is None:
                 c = self.c * W
-                V = (self.V * W).tocsr(copy=False) #returns coo format; need to convert to csr format
+
+                # self.V (csr) * W
+                T = self.V.tocoo(copy=False)
+                row_ch = T.row % self.shape[2]
+                V = copy.deepcopy(self.V)
+                V.data = W[row_ch] * V.data
                 return SparseImageStar2DCSR(c, V, self.C, self.d, self.pred_lb, self.pred_ub, self.shape)
 
             else:
                 c = self.c * W + b
-                V = (self.V * W).tocsr(copy=False) #returns coo format; need to convert to csr format
+
+                # self.V (csr) * W
+                T = self.V.tocoo(copy=False)
+                row_ch = T.row % self.shape[2]
+                V = copy.deepcopy(self.V)
+                V.data = W[row_ch] * V.data
                 return SparseImageStar2DCSR(c, V, self.C, self.d, self.pred_lb, self.pred_ub, self.shape)
         
         else:
