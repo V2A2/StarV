@@ -17,6 +17,8 @@ from scipy.linalg import block_diag
 import glpk
 import polytope as pc
 
+GUROBI_OPT_TOL = 1e-6
+
 class SparseImageStar2DCOO(object):
     """
         Sparse Image Star for reachability
@@ -794,7 +796,7 @@ class SparseImageStar2DCOO(object):
 
             min_ = gp.Model()
             min_.Params.LogToConsole = 0
-            min_.Params.OptimalityTol = 1e-6 #1e-9
+            min_.Params.OptimalityTol = GUROBI_OPT_TOL
             if self.pred_lb.size and self.pred_ub.size:
                 x = min_.addMVar(shape=self.num_pred, lb=self.pred_lb, ub=self.pred_ub)
             else:
@@ -908,7 +910,7 @@ class SparseImageStar2DCOO(object):
 
             max_ = gp.Model()
             max_.Params.LogToConsole = 0
-            max_.Params.OptimalityTol = 1e-6 #1e-9
+            max_.Params.OptimalityTol = GUROBI_OPT_TOL
             if self.pred_lb.size and self.pred_ub.size:
                 x = max_.addMVar(shape=self.num_pred, lb=self.pred_lb, ub=self.pred_ub)
             else:

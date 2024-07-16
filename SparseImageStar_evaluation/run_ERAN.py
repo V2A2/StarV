@@ -39,16 +39,6 @@ def load_eran_network(net_dir, net_type, data_type, trained_type, dtype='float64
     network = load_neural_network_file(net_dir, dtype=dtype, channel_last=False, in_shape=None, sparse=False, show=False)
     return network
 
-# def load_eran_dataset(data_type, folder_dir):
-#     data_dir = f"{folder_dir}/{data_type.lower()}_test.csv" 
-#     csvfile = open(data_dir, 'r')
-#     N = len(csvfile.readlines())
-#     csvfile = open(data_dir, 'r')
-#     tests = csv.reader(csvfile, delimiter=',')
-#     tests = list(tests)
-    
-#     return tests, N
-
 def load_eran_dataset(data_type, folder_dir, dtype='float64'):
     data_dir = f"{folder_dir}/{data_type.lower()}_test.csv" 
     tests = np.genfromtxt(data_dir, delimiter=',', dtype=dtype)
@@ -91,7 +81,7 @@ def verify_eran_network(net_type='Small', data_type='MNIST', trained_type='DiffA
         if net_type == 'Small':
             epsilon = [0.002, 0.004, 0.006, 0.008, 0.01, 0.012]
         else:
-            epsilon = [0.006, 0.008]
+            epsilon = [0.1, 0.2, 0.3]
 
         shape = (28, 28)
 

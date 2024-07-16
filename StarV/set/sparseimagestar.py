@@ -16,6 +16,8 @@ from scipy.linalg import block_diag
 import glpk
 import polytope as pc
 
+GUROBI_OPT_TOL = 1e-6
+
 # import numba_scipy
 # from numba import jit, njit
 
@@ -1258,7 +1260,7 @@ class SparseImageStar(object):
 
                 min_ = gp.Model()
                 min_.Params.LogToConsole = 0
-                min_.Params.OptimalityTol = 1e-9
+                min_.Params.OptimalityTol = GUROBI_OPT_TOL
                 if self.pred_lb.size and self.pred_ub.size:
                     x = min_.addMVar(shape=self.num_pred, lb=self.pred_lb, ub=self.pred_ub)
                 else:
@@ -1376,10 +1378,9 @@ class SparseImageStar(object):
 
                 max_ = gp.Model()
                 max_.Params.LogToConsole = 0
-                max_.Params.OptimalityTol = 1e-9
+                max_.Params.OptimalityTol = GUROBI_OPT_TOL
                 if self.pred_lb.size and self.pred_ub.size:
-                    x = max_.addMVar(shape=self.num_pred,
-                                     lb=self.pred_lb, ub=self.pred_ub)
+                    x = max_.addMVar(shape=self.num_pred,lb=self.pred_lb, ub=self.pred_ub)
                 else:
                     x = max_.addMVar(shape=self.num_pred)
                 max_.setObjective(f @ x, GRB.MAXIMIZE)

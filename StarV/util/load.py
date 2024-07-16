@@ -780,13 +780,44 @@ def load_neural_network(model, layer=None, net_type=None, dtype='float64', chann
                 for i, layer in layers:
                     print(f"Pre-given layer {i}: {layer}")
 
+        var = None
         for idx, layer in enumerate(model.modules(), cnt):
             if not isinstance(layer, model.__class__):
                 DONE = True
                 if show:
                     print(f"Parsing layer {idx}: {layer}")
 
-                if isinstance(layer, torch.nn.Linear):
+                if type(layer).__name__ == 'Constant':
+                    # remove batch by squeeze
+                    var = layer.constant.numpy().squeeze(0).astype(dtype)
+                    if var.ndim == 3 and not channel_last:
+                        var = var.transpose([1, 2, 0])
+
+                elif type(layer).__name__ in ['sub', 'Sub']:
+                    if var is None:
+                        print(f"{layer} layer is neglected in the analysis because 'Constant' variable is not previously provided")
+                        DONE = False
+                    else:
+                        layers.append(FullyConnectedLayer(layer=[None, -var], dtype=dtype))
+                        var = None
+
+                elif type(layer).__name__ in ['add', 'Add']:
+                    if var is None:
+                        print(f"{layer} layer is neglected in the analysis because 'Constant' variable is not previously provided")
+                        DONE = False
+                    else:
+                        layers.append(FullyConnectedLayer(layer=[None, var], dtype=dtype))
+                        var = None
+
+                elif type(layer).__name__ in ['div', 'Div']:
+                    if var is None:
+                        print(f"{layer} layer is neglected in the analysis because 'Constant' variable is not previously provided")
+                        DONE = False
+                    else:
+                        layers.append(FullyConnectedLayer(layer=[1/var, None], dtype=dtype))
+                        var = None
+
+                elif isinstance(layer, torch.nn.Linear):
                     layers.append(FullyConnectedLayer(layer=layer, dtype=dtype))
 
                 elif isinstance(layer, torch.nn.LSTM):
@@ -858,6 +889,8 @@ def load_neural_network(model, layer=None, net_type=None, dtype='float64', chann
                 
                 if show and DONE:
                     print(f"Parsing layer {idx}: {layer} is done successfully")
+                
+                prev_layer = layer
 
         return NeuralNetwork(layers, net_type=net_type)
     

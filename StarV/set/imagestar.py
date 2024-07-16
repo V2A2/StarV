@@ -15,7 +15,7 @@ import gurobipy as gp
 from gurobipy import GRB
 from StarV.set.star import Star
 
-# np.set_default_dtype(np.float64)
+GUROBI_OPT_TOL = 1e-6
 
 class ImageStar(object):
     """
@@ -578,7 +578,7 @@ class ImageStar(object):
 
                 min_ = gp.Model()
                 min_.Params.LogToConsole = 0
-                min_.Params.OptimalityTol = 1e-6 #1e-9
+                min_.Params.OptimalityTol = GUROBI_OPT_TOL
                 if self.pred_lb.size and self.pred_ub.size:
                     x = min_.addMVar(shape=self.num_pred,
                                      lb=self.pred_lb, ub=self.pred_ub)
@@ -688,7 +688,7 @@ class ImageStar(object):
 
                 max_ = gp.Model()
                 max_.Params.LogToConsole = 0
-                max_.Params.OptimalityTol = 1e-6 #1e-9
+                max_.Params.OptimalityTol = GUROBI_OPT_TOL
                 if self.pred_lb.size and self.pred_ub.size:
                     x = max_.addMVar(shape=self.num_pred,
                                      lb=self.pred_lb, ub=self.pred_ub)
@@ -802,7 +802,7 @@ class ImageStar(object):
 
                 min_ = gp.Model()
                 min_.Params.LogToConsole = 0
-                min_.Params.OptimalityTol = 1e-6 #1e-9
+                min_.Params.OptimalityTol = GUROBI_OPT_TOL
                 if self.pred_lb.size and self.pred_ub.size:
                     x = min_.addMVar(shape=self.num_pred,
                                      lb=self.pred_lb, ub=self.pred_ub)
@@ -919,7 +919,7 @@ class ImageStar(object):
 
                 max_ = gp.Model()
                 max_.Params.LogToConsole = 0
-                max_.Params.OptimalityTol = 1e-6 #1e-9
+                max_.Params.OptimalityTol = GUROBI_OPT_TOL
                 if self.pred_lb.size and self.pred_ub.size:
                     x = max_.addMVar(shape=self.num_pred,
                                      lb=self.pred_lb, ub=self.pred_ub)
