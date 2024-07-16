@@ -101,25 +101,6 @@ def verify_eran_network(net_type='Small', data_type='MNIST', trained_type='DiffA
     rbCOO_table = ['SIM_COO']
     vtCOO_table = ['SIM_COO']
 
-    print(f"Verifying conv{net_type}RELU__{trained_type} {data_type} with ImageStar")
-    for i, eps_ in enumerate(epsilon):
-        print(f"Verifying netowrk with epsilon = {eps_}")
-        for j, data in enumerate(dataset):
-            if show: print(f"Working on image {j}")
-            img = data[1:].reshape(shape) / 255
-            label = int(data[0]) 
-            # infinity norm attack
-            lb = normalize((img - eps_).clip(0, 1), data_type)
-            ub = normalize((img + eps_).clip(0, 1), data_type)
-            
-            IM = ImageStar(lb, ub)
-            rbIM[i, j], vtIM[i, j], _, _ = certifyRobustness(net=starvNet, inputs=IM, labels=label,
-                veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None,
-                RF=0.0, DR=0, return_output=False, show=False)
-        rbIM_table.append((rbIM[i, :]==1).sum())
-        vtIM_table.append((vtIM[i, :].sum() / N))
-    del IM
-
     print(f"\nVerifying {net_type} conv{net_type}RELU__{trained_type} {data_type} with SparseImageStar in CSR format")
     for i, eps_ in enumerate(epsilon):
         print(f"Verifying netowrk with epsilon = {eps_}")
@@ -157,6 +138,25 @@ def verify_eran_network(net_type='Small', data_type='MNIST', trained_type='DiffA
         rbCOO_table.append((rbCOO[i, :]==1).sum())
         vtCOO_table.append((vtCOO[i, :].sum() / N))
     del COO
+
+    print(f"Verifying conv{net_type}RELU__{trained_type} {data_type} with ImageStar")
+    for i, eps_ in enumerate(epsilon):
+        print(f"Verifying netowrk with epsilon = {eps_}")
+        for j, data in enumerate(dataset):
+            if show: print(f"Working on image {j}")
+            img = data[1:].reshape(shape) / 255
+            label = int(data[0]) 
+            # infinity norm attack
+            lb = normalize((img - eps_).clip(0, 1), data_type)
+            ub = normalize((img + eps_).clip(0, 1), data_type)
+            
+            IM = ImageStar(lb, ub)
+            rbIM[i, j], vtIM[i, j], _, _ = certifyRobustness(net=starvNet, inputs=IM, labels=label,
+                veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None,
+                RF=0.0, DR=0, return_output=False, show=False)
+        rbIM_table.append((rbIM[i, :]==1).sum())
+        vtIM_table.append((vtIM[i, :].sum() / N))
+    del IM
 
     # save verification results
     path = f"./SparseImageStar_evaluation/results"
