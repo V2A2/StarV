@@ -593,19 +593,9 @@ class SparseImageStar2DCOO(object):
         # elif isinstance(self.V, sp.coo_array) or isinstance(self.V, sp.coo_matrix):
         elif len(self.shape) > 1:
 
-            if W is None:
-                c = self.c.copy()
-
-                if b.ndim > 1:
-                    c += np.expand_dims(b, axis=tuple(np.arange(c.ndim - b.ndim)+b.ndim)).reshape(-1)
-                    return SparseImageStar2DCOO(c, self.V, self.C, self.d, self.pred_lb, self.pred_ub, self.shape)
-            
-                c += b
-                return SparseImageStar2DCOO(c, self.V, self.C, self.d, self.pred_lb, self.pred_ub, self.shape)
-            
-            elif b is None:
+            if W is not None:
                 assert W.ndim == len(self.shape), f"inconsistent number of array dimensions between W and shape of SparseImageStar; len(shape)={len(self.shape)}, W.ndim={W.ndim}"
-
+                
                 Wr = W.reshape(-1)
                 if np.prod(W.shape) == 1:
                     c = self.c * Wr
@@ -614,39 +604,81 @@ class SparseImageStar2DCOO(object):
                     c = self.c.reshape(self.shape) * W
                     c = c.reshape(-1)
 
-                    # self.V (coo) * W
+                    # self.V (csr) * W
+                    T = self.V.tocoo(copy=False)
+                    row_ch = T.row % self.shape[2]
                     V = copy.deepcopy(self.V)
-                    row_ch = V.row % self.shape[2]
                     V.data = Wr[row_ch] * V.data
-                    
-                return SparseImageStar2DCOO(c, V, self.C, self.d, self.pred_lb, self.pred_ub, self.shape)
-
             else:
-                assert W.ndim == len(self.shape), f"inconsistent number of array dimensions between W and shape of SparseImageStar; len(shape)={len(self.shape)}, W.ndim={W.ndim}"
-
-                Wr = W.reshape(-1)
-                if np.prod(W.shape) == 1:
-                    c = self.c * Wr
-                    if b.ndim > 1:
-                        c += np.expand_dims(b, axis=tuple(np.arange(c.ndim - b.ndim)+b.ndim)).reshape(-1)
-                    else:
-                        c += b
-                    V = (self.V * Wr).tocoo() # returns csr format
+                V = self.V
+            
+            if b is not None:
+                c = self.c.reshape(self.shape)
+                if b.ndim == len(self.shape):
+                    c += b
+                elif b.ndim > 1:
+                    c += np.expand_dims(b, axis=tuple(np.arange(c.ndim - b.ndim)+b.ndim))
                 else:
-                    c = self.c.reshape(self.shape) * W + b
-                    c = c.reshape(-1)
+                    c += b
+                c = c.reshape(-1)
+            else:
+                c = self.c
+            
+            return SparseImageStar2DCOO(c, V, self.C, self.d, self.pred_lb, self.pred_ub, self.shape)
 
-                    if b.ndim > 1:
-                        c += np.expand_dims(b, axis=tuple(np.arange(c.ndim - b.ndim)+b.ndim)).reshape(-1)
-                    else:
-                        c += b
+            # if W is None:
+            #     c = self.c.copy()
 
-                    # self.V (coo) * W
-                    V = copy.deepcopy(self.V)
-                    row_ch = V.row % self.shape[2]
-                    V.data = Wr[row_ch] * V.data
-                
-                return SparseImageStar2DCOO(c, V, self.C, self.d, self.pred_lb, self.pred_ub, self.shape)
+            #     if b.ndim == len(self.shape):
+            #         c += b
+            #     elif b.ndim > 1:
+            #         c += np.expand_dims(b, axis=tuple(np.arange(c.ndim - b.ndim)+b.ndim)).reshape(-1)
+            #         return SparseImageStar2DCOO(c, self.V, self.C, self.d, self.pred_lb, self.pred_ub, self.shape)
+            #     else:
+            #         c += b
+            #     return SparseImageStar2DCOO(c, self.V, self.C, self.d, self.pred_lb, self.pred_ub, self.shape)
+            
+            # elif b is None:
+            #     assert W.ndim == len(self.shape), f"inconsistent number of array dimensions between W and shape of SparseImageStar; len(shape)={len(self.shape)}, W.ndim={W.ndim}"
+
+            #     Wr = W.reshape(-1)
+            #     if np.prod(W.shape) == 1:
+            #         c = self.c * Wr
+            #         V = (self.V * Wr).tocoo() # returns csr format
+            #     else:
+            #         c = self.c.reshape(self.shape) * W
+            #         c = c.reshape(-1)
+
+            #         # self.V (coo) * W
+            #         V = copy.deepcopy(self.V)
+            #         row_ch = V.row % self.shape[2]
+            #         V.data = Wr[row_ch] * V.data
+                    
+            #     return SparseImageStar2DCOO(c, V, self.C, self.d, self.pred_lb, self.pred_ub, self.shape)
+
+            # else:
+            #     assert W.ndim == len(self.shape), f"inconsistent number of array dimensions between W and shape of SparseImageStar; len(shape)={len(self.shape)}, W.ndim={W.ndim}"
+
+            #     Wr = W.reshape(-1)
+            #     if np.prod(W.shape) == 1:
+            #         c = self.c * Wr
+            #         V = (self.V * Wr).tocoo() # returns csr format
+            #     else:
+            #         c = self.c.reshape(self.shape) * W 
+            #         c = c.reshape(-1)
+
+            #         # self.V (coo) * W
+            #         V = copy.deepcopy(self.V)
+            #         row_ch = V.row % self.shape[2]
+            #         V.data = Wr[row_ch] * V.data
+
+            #     if b.ndim == len(self.shape):
+            #         c += b
+            #     elif b.ndim > 1:
+            #         c += np.expand_dims(b, axis=tuple(np.arange(c.ndim - b.ndim)+b.ndim)).reshape(-1)
+            #     else:
+            #         c += b
+            #     return SparseImageStar2DCOO(c, V, self.C, self.d, self.pred_lb, self.pred_ub, self.shape)
         
         else:
             return self.flatten_affineMap(W, b)

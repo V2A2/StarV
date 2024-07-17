@@ -422,36 +422,29 @@ class ImageStar(object):
             new_V[h_map[i], w_map[i], c_map[i], :] = 0
         return ImageStar(new_V, self.C, self.d, self.pred_lb, self.pred_ub)
     
-    def affineMap(self, W=None, b=None):
+    def affineMap(self, W=None, b=None):            
+
         if W is None and b is None:
             return self
         
         elif self.V.shape[0] == 1 and self.V.shape[1] == 1:
             return self.flatten_affineMap(W, b)
         
-        elif W is None:
+        if W is not None:
+            assert W.ndim == self.V.ndim-1, f"inconsistent number of array dimensions between W and shape of Image; len(shape)={len(self.shape)}, W.ndim={W.ndim}
+            V = self.V * W[:, :, :, None]
+        else:
             V = self.V.copy()
 
-            if b.ndim > 1:
-                V[:, :, :, 0] += np.expand_dims(b, axis=tuple(np.arange(V.ndim - b.ndim)+b.ndim))
-                return ImageStar(V, self.C, self.d, self.pred_lb, self.pred_ub)
+        if b is not None:
+            if b.ndim == self.V.ndim-1:
+                V[:, :, :, 0] += b
+            elif b.ndim > 1:
+                V[:, :, :, 0] += np.expand_dims(b, axis=tuple(np.arange(V.ndim - 1 - b.ndim)+b.ndim))
+            else:
+                V[:, :, :, 0] += b
         
-            V[:, :, :, 0] += b
-            return ImageStar(V, self.C, self.d, self.pred_lb, self.pred_ub)
-
-        elif b is None:
-            assert W.ndim == self.V.ndim-1, f"inconsistent number of array dimensions between W and shape of ImageStar; len(shape)={self.V.ndim-1}, W.ndim={W.ndim}"
-
-            V = self.V * W[:, :, :, None]
-            return ImageStar(V, self.C, self.d, self.pred_lb, self.pred_ub)
-
-        V = self.V * W[:, :, :, None]
-        if b.ndim > 1:
-            V[:, :, :, 0] += np.expand_dims(b, axis=tuple(np.arange(V.ndim - b.ndim)+b.ndim))
-        else:
-            V[:, :, :, 0] += b
         return ImageStar(V, self.C, self.d, self.pred_lb, self.pred_ub)
-            
     
     def flatten_affineMap(self, W=None, b=None):
         if W is None and b is None:
