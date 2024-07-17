@@ -274,7 +274,7 @@ class SparseImageStar2DCOO(object):
         print('SparseImageStar2DCOO Set:')
         print('c: {}'.format(self.c))
         if self.c is None:
-            print('V: {}, {}'.format(self.V))
+            print('V: {}'.format(self.V))
         else:
             print('c: {}'.format(self.c))
             if toDense:
@@ -592,16 +592,16 @@ class SparseImageStar2DCOO(object):
         
         # elif isinstance(self.V, sp.coo_array) or isinstance(self.V, sp.coo_matrix):
         elif len(self.shape) > 1:
-
+            c = self.c.copy()
             if W is not None:
                 assert W.ndim == len(self.shape), f"inconsistent number of array dimensions between W and shape of SparseImageStar; len(shape)={len(self.shape)}, W.ndim={W.ndim}"
                 
                 Wr = W.reshape(-1)
                 if np.prod(W.shape) == 1:
-                    c = self.c * Wr
+                    c = c * Wr
                     V = (self.V * Wr).tocoo() # returns csr format
                 else:
-                    c = self.c.reshape(self.shape) * W
+                    c = c.reshape(self.shape) * W
                     c = c.reshape(-1)
 
                     # self.V (csr) * W
@@ -613,7 +613,7 @@ class SparseImageStar2DCOO(object):
                 V = self.V
             
             if b is not None:
-                c = self.c.reshape(self.shape)
+                c = c.reshape(self.shape)
                 if b.ndim == len(self.shape):
                     c += b
                 elif b.ndim > 1:
@@ -621,8 +621,6 @@ class SparseImageStar2DCOO(object):
                 else:
                     c += b
                 c = c.reshape(-1)
-            else:
-                c = self.c
             
             return SparseImageStar2DCOO(c, V, self.C, self.d, self.pred_lb, self.pred_ub, self.shape)
 
