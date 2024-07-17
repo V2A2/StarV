@@ -81,6 +81,7 @@ def verify_vgg16_network(dtype='float64'):
         print(f"Verifying {vnnlib_file} with {num_attack_pixel} attacked pixels")
 
         if num_attack_pixel > 50:
+            print(f"Skipping {vnnlib_file} to avoid RAM issue")
             rbIM[i] = np.nan
             vtIM[i] = np.nan
         else:
