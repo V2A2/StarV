@@ -61,7 +61,7 @@ def verify_vgg16_network(dtype='float64'):
     rb_table = []
     vt_table = []
  
-    print(f"Verifying vggnet16 with ImageStar")
+    print(f"\n\nVerifying vggnet16 with ImageStar")
     for i, vnnlib_file in enumerate(vnnlib_files):
         vnnlib_file_dir = f"{vnnlib_dir}/{vnnlib_file}"
 
@@ -78,9 +78,9 @@ def verify_vgg16_network(dtype='float64'):
         ub = bounds[:, 1].reshape(shape).transpose([1, 2, 0])
 
         num_attack_pixel = (lb != ub).sum()
-        print(f"Verifying {vnnlib_file} with {num_attack_pixel} attacked pixels")
+        print(f"\nVerifying {vnnlib_file} with {num_attack_pixel} attacked pixels")
 
-        if num_attack_pixel > 150:
+        if num_attack_pixel > 50:
             print(f"Skipping {vnnlib_file} to avoid RAM issue")
             rbIM[i] = np.nan
             vtIM[i] = np.nan
@@ -98,12 +98,12 @@ def verify_vgg16_network(dtype='float64'):
                 print(f"ROBUSTNESS RESULT: UNROBUST")
 
             print(f"VERIFICATION TIME: {vtIM[i]}")
-            
+
     rb_table.append((rbIM == 1).sum())
     vt_table.append((vtIM.sum() / N))
     del IM
 
-    print(f"\nVerifying vggnet16 with SparseImageStar in CSR format")
+    print(f"\n\nVerifying vggnet16 with SparseImageStar in CSR format")
     for i, vnnlib_file in enumerate(vnnlib_files):
         vnnlib_file_dir = f"{vnnlib_dir}/{vnnlib_file}"
 
@@ -121,7 +121,7 @@ def verify_vgg16_network(dtype='float64'):
         ub = bounds[:, 1].reshape(shape).transpose([1, 2, 0]).astype(dtype)
 
         num_attack_pixel = (lb != ub).sum()
-        print(f"Verifying {vnnlib_file} with {num_attack_pixel} attacked pixels")
+        print(f"\nVerifying {vnnlib_file} with {num_attack_pixel} attacked pixels")
 
         CSR = SparseImageStar2DCSR(lb, ub)
         rbCSR[i], vtCSR[i], _, _ = certifyRobustness(net=starvNet, inputs=CSR, labels=label,
@@ -141,7 +141,7 @@ def verify_vgg16_network(dtype='float64'):
     vt_table.append((vtCSR.sum() / N))
     del CSR
 
-    print(f"\nVerifying vggnet16 with SparseImageStar in COO format")
+    print(f"\n\nVerifying vggnet16 with SparseImageStar in COO format")
     for i, vnnlib_file in enumerate(vnnlib_files):
         vnnlib_file_dir = f"{vnnlib_dir}/{vnnlib_file}"
 
@@ -159,7 +159,7 @@ def verify_vgg16_network(dtype='float64'):
         ub = bounds[:, 1].reshape(shape).transpose([1, 2, 0]).astype(dtype)
 
         num_attack_pixel = (lb != ub).sum()
-        print(f"Verifying {vnnlib_file} with {num_attack_pixel} attacked pixels")
+        print(f"\nVerifying {vnnlib_file} with {num_attack_pixel} attacked pixels")
     
         COO = SparseImageStar2DCOO(lb, ub)
         rbCOO[i], vtCOO[i], _, _ = certifyRobustness(net=starvNet, inputs=COO, labels=label,
