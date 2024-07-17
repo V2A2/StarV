@@ -80,7 +80,7 @@ def verify_vgg16_network(dtype='float64'):
         num_attack_pixel = (lb != ub).sum()
         print(f"Verifying {vnnlib_file} with {num_attack_pixel} attacked pixels")
 
-        if num_attack_pixel > 50:
+        if num_attack_pixel > 150:
             print(f"Skipping {vnnlib_file} to avoid RAM issue")
             rbIM[i] = np.nan
             vtIM[i] = np.nan
@@ -89,6 +89,16 @@ def verify_vgg16_network(dtype='float64'):
             rbIM[i], vtIM[i], _, _ = certifyRobustness(net=starvNet, inputs=IM, labels=label,
                 veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
                 RF=0.0, DR=0, return_output=False, show=False)
+            
+            if rbIM[i] == 1:
+                print(f"ROBUSTNESS RESULT: ROBUST")
+            elif rbIM[1] == 2:
+                print(f"ROBUSTNESS RESULT: UNKNOWN")
+            elif rbIM[i] == 0:
+                print(f"ROBUSTNESS RESULT: UNROBUST")
+
+            print(f"VERIFICATION TIME: {vtIM[i]}")
+            
     rb_table.append((rbIM == 1).sum())
     vt_table.append((vtIM.sum() / N))
     del IM
@@ -117,6 +127,16 @@ def verify_vgg16_network(dtype='float64'):
         rbCSR[i], vtCSR[i], _, _ = certifyRobustness(net=starvNet, inputs=CSR, labels=label,
             veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
             RF=0.0, DR=0, return_output=False, show=False)
+        
+        if rbCSR[i] == 1:
+            print(f"ROBUSTNESS RESULT: ROBUST")
+        elif rbCSR[1] == 2:
+            print(f"ROBUSTNESS RESULT: UNKNOWN")
+        elif rbCSR[i] == 0:
+            print(f"ROBUSTNESS RESULT: UNROBUST")
+
+        print(f"VERIFICATION TIME: {vtCSR[i]}")
+
     rb_table.append((rbCSR == 1).sum())
     vt_table.append((vtCSR.sum() / N))
     del CSR
@@ -145,6 +165,16 @@ def verify_vgg16_network(dtype='float64'):
         rbCOO[i], vtCOO[i], _, _ = certifyRobustness(net=starvNet, inputs=COO, labels=label,
             veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
             RF=0.0, DR=0, return_output=False, show=False)
+        
+        if rbCOO[i] == 1:
+            print(f"ROBUSTNESS RESULT: ROBUST")
+        elif rbCOO[1] == 2:
+            print(f"ROBUSTNESS RESULT: UNKNOWN")
+        elif rbCOO[i] == 0:
+            print(f"ROBUSTNESS RESULT: UNROBUST")
+
+        print(f"VERIFICATION TIME: {vtCOO[i]}")
+
     rb_table.append((rbCOO ==1).sum())
     vt_table.append((vtCOO.sum() / N))
     del COO
