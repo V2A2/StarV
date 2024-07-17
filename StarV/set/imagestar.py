@@ -431,7 +431,7 @@ class ImageStar(object):
             return self.flatten_affineMap(W, b)
         
         if W is not None:
-            assert W.ndim == self.V.ndim-1, f"inconsistent number of array dimensions between W and shape of Image; len(shape)={len(self.shape)}, W.ndim={W.ndim}
+            assert W.ndim == self.V.ndim-1, f"inconsistent number of array dimensions between W and shape of Image; len(shape)={len(self.V.ndim-1)}, W.ndim={W.ndim}"
             V = self.V * W[:, :, :, None]
         else:
             V = self.V.copy()
