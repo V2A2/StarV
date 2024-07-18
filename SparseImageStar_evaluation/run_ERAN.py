@@ -70,7 +70,7 @@ def verify_eran_network(net_type='Small', data_type='MNIST', trained_type='DiffA
     
     if data_type == 'CIFAR10':
         if net_type == 'Small':
-            epsilon = [0.02, 0.04, 0.06, 0.08, 0.1, 0.12]
+            epsilon = [0.002, 0.004, 0.006, 0.008, 0.01, 0.012]
         else:
             epsilon = [0.006, 0.008]
 

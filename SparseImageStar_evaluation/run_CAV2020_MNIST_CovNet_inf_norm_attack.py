@@ -60,7 +60,8 @@ def verify_convnet_network(net_type='Small', dtype='float32'):
     labels = mat_file['IM_labels'] - 1
 
     # input is in [0, 255]
-    epsilon = np.array([1, 2, 5], dtype=dtype)
+    # epsilon = np.array([1, 2, 5], dtype=dtype)
+    epsilon = [0.002, 0.004, 0.006, 0.008, 0.01, 0.012]
     N = 100 # number of test images used for robustness verification
     E = len(epsilon)
 
