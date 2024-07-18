@@ -219,6 +219,6 @@ def verify_convnet_network(net_type='Small', dtype='float32'):
 
 
 if __name__ == "__main__":
-    verify_convnet_network(net_type='Small', dtype='float32')
-    verify_convnet_network(net_type='Medium', dtype='float32')
-    verify_convnet_network(net_type='Large', dtype='float32')
+    verify_convnet_network(net_type='Small', dtype='float64')
+    verify_convnet_network(net_type='Medium', dtype='float64')
+    verify_convnet_network(net_type='Large', dtype='float64')
