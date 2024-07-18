@@ -61,7 +61,7 @@ def verify_convnet_network(net_type='Small', dtype='float32'):
 
     # input is in [0, 255]
     # epsilon = np.array([1, 2, 5], dtype=dtype)
-    epsilon = [0.002, 0.004, 0.006, 0.008, 0.01, 0.012]
+    epsilon = [0.02, 0.04, 0.06, 0.08]
     N = 100 # number of test images used for robustness verification
     E = len(epsilon)
 
@@ -148,7 +148,9 @@ def verify_convnet_network(net_type='Small', dtype='float32'):
     if not os.path.exists(path):
         os.makedirs(path)
 
-    headers = [f"", f"eps={epsilon[0]}", f"eps={epsilon[1]}", f"eps={epsilon[2]}"]
+    headers = [""]
+    for eps_ in epsilon:
+        headers.append(f"eps={eps_}")
 
     # Robustness Resluts
     data = [rbIM_table, rbCSR_table, rbCOO_table]
