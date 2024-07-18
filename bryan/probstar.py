@@ -186,3 +186,23 @@ class ProbStar(object):
         P_reduced = pc.reduce(P)
 
         return P_reduced.A, P_reduced.b
+
+    def minimizeConstraints(self):
+        """Minimize constraints of a ProbStar object."""
+
+        if len(self.C) == 0:
+            return self
+
+        C_extra = np.vstack((np.eye(self.nVars), -np.eye(self.nVars)))
+        d_extra = np.concatenate([self.pred_ub, -self.pred_lb])
+
+        C_combined = np.vstack((self.C, C_extra))
+        d_combined = np.concatenate([self.d, d_extra])
+
+        P = pc.Polytope(C_combined, d_combined)
+
+        P_reduced = pc.reduce(P)
+        self.C = P_reduced.A
+        self.d = P_reduced.b
+
+        return self

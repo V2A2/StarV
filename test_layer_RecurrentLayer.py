@@ -62,10 +62,20 @@ class Test(object):
         # I3 = Star.rand(2)
         # In = [I1, I2, I3]
 
-        I1 = ProbStar.rand(2)
-        I2 = ProbStar.rand(2)
-        I3 = ProbStar.rand(2)
-        In = [I1, I2, I3]
+        # I1 = ProbStar.rand(2)
+        # I2 = ProbStar.rand(2)
+        # I3 = ProbStar.rand(2)
+        # In = [I1, I2, I3]
+
+        lb = np.array([-2, -1])
+        ub = np.array([2, 1])
+        mu = (lb + ub) / 2
+        sigma = (ub - mu) / 2.5
+        Sig = np.diag(sigma**2)
+        In = [ProbStar(mu, Sig, lb, ub) for _ in range(3)]
+        for I in In:
+            I.C = np.zeros((1, I.V.shape[1] - 1))
+            I.d = np.zeros((1,))
 
         net = RecurrentLayer.rand(2, 2)
         try:
