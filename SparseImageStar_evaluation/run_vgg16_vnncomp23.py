@@ -185,7 +185,7 @@ def verify_vgg16_network(dtype='float64'):
 
             print(f"VERIFICATION TIME: {vtCOO[i]}")
 
-    rb_table.append((rbCOO ==1).sum())
+    rb_table.append((rbCOO == 1).sum())
     vt_table.append((vtCOO.sum() / N))
     del COO
 
@@ -194,16 +194,19 @@ def verify_vgg16_network(dtype='float64'):
     if not os.path.exists(path):
         os.makedirs(path)
 
-    headers = [f"", f"ImageStar", f"SIM_CSR", f"SIM_COO"]
+    save_file = path + f"/vggnet16_vnncomp23_results.pkl"
+    pickle.dump([rbIM, vtIM, rbCSR, vtCSR, rbCOO, vtCOO, rb_table, vt_table], open(save_file, "wb"))
+
+    headers = [f"ImageStar", f"SIM_CSR", f"SIM_COO"]
 
     # Robustness Resluts
     print('-----------------------------------------------------')
     print('Robustness')
     print('-----------------------------------------------------')
-    print(tabulate(rb_table, headers=headers))
+    print(tabulate([rb_table], headers=headers))
     print()
 
-    Tlatex = tabulate(rb_table, headers=headers, tablefmt='latex')
+    Tlatex = tabulate([rb_table], headers=headers, tablefmt='latex')
     with open(path+f"vggnet16_vnncomp23_results_rb.tex", "w") as f:
         print(Tlatex, file=f)
 
@@ -211,15 +214,12 @@ def verify_vgg16_network(dtype='float64'):
     print('-----------------------------------------------------')
     print('Verification Time')
     print('-----------------------------------------------------')
-    print(tabulate(vt_table, headers=headers))
+    print(tabulate([vt_table], headers=headers))
     print()
 
-    Tlatex = tabulate(vt_table, headers=headers, tablefmt='latex')
+    Tlatex = tabulate([vt_table], headers=headers, tablefmt='latex')
     with open(path+f"vggnet16_vnncomp23_results_vt.tex", "w") as f:
         print(Tlatex, file=f)
-
-    save_file = path + f"/vggnet16_vnncomp23_results.pkl"
-    pickle.dump([rbIM, vtIM, rbCSR, vtCSR, rbCOO, vtCOO, rb_table, vt_table], open(save_file, "wb"))
 
     print('=====================================================')
     print('DONE!')
