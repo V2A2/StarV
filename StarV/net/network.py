@@ -19,6 +19,8 @@ from StarV.layer.BatchNorm2DLayer import BatchNorm2DLayer
 from StarV.layer.LogSigLayer import LogSigLayer
 from StarV.layer.TanSigLayer import TanSigLayer
 
+from StarV.set.probstar import ProbStar
+
 
 class NeuralNetwork(object):
     """Generic serial Neural Network class

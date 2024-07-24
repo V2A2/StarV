@@ -78,6 +78,10 @@ class Star(object):
             lower bound vector should be a 1D numpy array'
             assert len(pred_ub.shape) == 1, 'error: \
             upper bound vector should be a 1D numpy array'
+
+            if len(C) == 0:
+                C = np.empty([0, V.shape[1] - 1])
+                d = np.empty([0])
             
             self.V = V
             self.C = C
@@ -118,8 +122,8 @@ class Star(object):
 
             V = np.hstack((center, gens))
             self.V = V
-            self.C = np.array([])
-            self.d = np.array([])
+            self.C = np.empty([0, nVars])
+            self.d = np.empty([0])
             self.pred_lb = -np.ones(nVars,)
             self.pred_ub = np.ones(nVars,)
             self.nVars = nVars
@@ -145,11 +149,11 @@ class Star(object):
         elif len(args) == 0:  # create an empty ProStar
             self.dim = 0
             self.nVars = 0
-            self.V = np.array([])
-            self.C = np.array([])
-            self.d = np.array([])
-            self.pred_lb = np.array([])
-            self.pred_ub = np.array([])
+            self.V = np.empty([0, 0])
+            self.C = np.empty([0, 0])
+            self.d = np.empty([0])
+            self.pred_lb = np.empty([0])
+            self.pred_ub = np.empty([0])
         else:
             raise Exception('error: \
             Invalid number of input arguments (should be 2 or 5)')
@@ -518,6 +522,77 @@ class Star(object):
 
             new_set = Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
         return new_set
+    
+    # intersection with another Star set
+    def intersect(self, S):
+        """ Intersection of two star sets
+            x1 = c1 + V1 a1 in S1 (self) with P(a1) := C1 a1 <= d1
+            x2 = c2 + V2 a2 in S2 (S)    with P(a2) := C2 a2 <= d2
+
+            x = x1 \cap x2
+              = c1 + V1 a1 + 0 a2        with P'(a) = P'([a1, a2])
+              = c2 + V2 a2 + 0 a1        with P'(a) = P'([a1, a2]),
+            where
+            P'(a) = P1(a1) \wedge P2(a2) \wedge P_eq([a1, a2])
+            P_eq([a1, a2]) := c1 + V1 a1 = c2 + V2 a2
+                           := c1 - c2 + V1 a1 - V2 a2 = 0
+            C_eq = [V1 - V2]
+            d_eq = [c1 - c2]
+        """
+        assert self.dim == S.dim, \
+        f"error: inconsistent dimension between two Star sets; self.dim = {self.dim}, S.dim = {S.dim}"
+
+        dim = self.dim
+        # P_eq
+        d_eq = self.V[:, 0] - S.V[:, 0]
+        C_eq = np.hstack([self.V[:, 1:], -S.V[:, 1:]])
+        # c1 + V1 a1 + 0 a2
+        new_V = np.hstack([self.V, np.zeros([dim, dim])])
+        # P'(a)
+        C1 = block_diag(self.C, S.C)
+        C2 = np.vstack([C_eq, -C_eq])
+        d1 = np.hstack([self.d, S.d])
+        d2 = np.hstack([-d_eq, d_eq])
+        new_C = np.vstack([C1, C2])
+        new_d = np.hstack([d1, d2])
+
+        new_pred_lb = np.hstack([self.pred_lb, S.pred_lb])
+        new_pred_ub = np.hstack([self.pred_ub, S.pred_ub])
+        new_S = Star(new_V, new_C, new_d, new_pred_lb, new_pred_ub)
+        if new_S.isEmptySet():
+            return []
+        else:
+            return new_S
+        
+
+    # intersection with a half space: H(x) := Hx <= g
+    def intersectHalfSpace(self, H, g):
+        # @H: HalfSpace matrix
+        # @g: HalfSpace vector
+        # return a new star set with more constraints
+
+        assert isinstance(H, np.ndarray) and H.ndim == 2, 'error: halfspace constraints matrix is not a 2D numpy ndarray'
+        assert isinstance(g, np.ndarray) and g.ndim == 1, 'error: halfspace constraints vector is not a 1D numpy ndarray'
+        assert H.shape[0] == g.shape[0], 'inconsistent dimension between halfspace constraints matrix and halfspace vector'
+        assert H.shape[1] == self.dim, 'inconsistent dimension between halfspace and probstar set'
+
+        C1 = np.matmul(H, self.V[:, 1:])
+        d1 = g - np.matmul(H, self.V[:, 0])
+
+        if len(self.d) > 0 and len(d1) > 0:
+            new_C = np.vstack([self.C, C1])
+            new_d = np.hstack([self.d, d1])
+        elif len(self.d) > 0:
+            new_C = self.C
+            new_d = self.d
+        elif len(d1) > 0:
+            new_C = C1
+            new_d = d1
+        else:
+            new_C = []
+            new_d = []
+
+        return Star(self.V, new_C, new_d, self.pred_lb, self.pred_ub)
 
     def minKowskiSum(self, Y):
         """MinKowskiSum of two stars"""
@@ -826,7 +901,25 @@ class Star(object):
         ub = np.random.rand(dim,)
         
         return Star(lb, ub)
+    
+    @staticmethod
+    def rand_polytope(dim, N):
+        """ Generate a random Star with constraints"""
 
+        assert dim > 0, 'error: invalid dimension'
+        assert N > dim, 'error: number constraints should be greater than dimension'
+
+        A = np.random.rand(N, dim)
+
+        # compute the convex hull
+        P = pc.qhull(A)
+
+        c = np.zeros([P.dim, 1])
+        I = np.eye(P.dim)
+
+        V = np.hstack([c, I])
+        pred_lb, pred_ub = P.bounding_box
+        return Star(V, P.A, P.b, pred_lb.reshape(-1), pred_ub.reshape(-1))
 
     def toPolytope(self):
         """
