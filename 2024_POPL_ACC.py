@@ -8,16 +8,16 @@ Date: 05/2024
 from StarV.verifier.verifier import quantiVerifyBFS
 from StarV.set.probstar import ProbStar
 import numpy as np
-from StarV.util.load import load_acc_model
+from StarV.util.load import load_acc_model, load_AEBS_model, load_AEBS_temporal_specs
 from StarV.util.plot import plot_probstar_reachset, plot_probstar_signal, plot_probstar_signals, plot_SAT_trace
 import time
-from StarV.util.plot import plot_probstar
+from StarV.util.plot import plot_probstar, plot_probstar_reachset_with_unsafeSpec
 from matplotlib import pyplot as plt
 from matplotlib.pyplot import step, show
 from matplotlib.ticker import MaxNLocator
 from StarV.set.star import Star
 from tabulate import tabulate
-from StarV.nncs.nncs import VerifyPRM_NNCS, verifyBFS_DLNNCS, ReachPRM_NNCS, reachBFS_DLNNCS, reachDFS_DLNNCS, verify_temporal_specs_DLNNCS, verify_temporal_specs_DLNNCS_for_full_analysis
+from StarV.nncs.nncs import VerifyPRM_NNCS, verifyBFS_DLNNCS, ReachPRM_NNCS, reachBFS_DLNNCS, reachDFS_DLNNCS, verify_temporal_specs_DLNNCS, verify_temporal_specs_DLNNCS_for_full_analysis, reachBFS_AEBS, AEBS_NNCS
 from StarV.spec.dProbStarTL import _ALWAYS_, _EVENTUALLY_, AtomicPredicate, Formula, _LeftBracket_, _RightBracket_, _AND_
 from StarV.spec.dProbStarTL import DynamicFormula
 import os
@@ -197,7 +197,7 @@ def verify_temporal_specs_ACC():
     print('=======================VERIFICATION RESULTS WITHOUT FILTERING pf = 0 ==========================')
     print(tabulate(verification_data_pf_0_0, headers=["Spec.", "T", "p_max", "p_min", "reachTime", "checkTime", "verifyTime"]))   
     
-    path = "artifacts/2024POPL/table"
+    path = "artifacts/2024POPL/ACC/table"
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -208,7 +208,7 @@ def verify_temporal_specs_ACC():
     print('=======================VERIFICATION RESULTS WITH FILTERING pf = 0.1 ==========================')
     print(tabulate(verification_data_pf_0_1, headers=["Spec.", "T", "p_max", "p_min", "reachTime", "checkTime", "verifyTime"]))   
     
-    path = "artifacts/CAV2024/table"
+    path = "artifacts/2024POPL/ACC/table"
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -260,7 +260,7 @@ def analyze_timing_performance():
         checkingTime.append(checkingTime1)
         verifyTime.append(verifyTime1)
 
-    path = "artifacts/2024POPL/pics"
+    path = "artifacts/2024POPL/ACC/pics"
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -314,7 +314,7 @@ def analyze_timing_performance():
         checkingTime.append(checkingTime1)
         verifyTime.append(verifyTime1)
 
-    path = "artifacts/2024POPL/pics"
+    path = "artifacts/2024POPL/ACC/pics"
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -366,7 +366,7 @@ def analyze_timing_performance():
         checkingTime.append(checkingTime1)
         verifyTime.append(verifyTime1)
 
-    path = "artifacts/2024POPL/pics"
+    path = "artifacts/2024POPL/ACC/pics"
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -390,7 +390,7 @@ def analyze_conservativeness():
     
     net='controller_5_20'
     plant='linear'
-    spec_ids=[1]
+    spec_ids=[0]
     initSet_id=5  
     T = [10, 15, 20, 25, 30]
     #T = [6, 8]
@@ -430,7 +430,7 @@ def analyze_conservativeness():
             constit[i,j] = constit1[0]
 
     # figures: conservativeness and constitution (of phi1') vs. time steps      
-    path = "artifacts/2024POPL/pics"
+    path = "artifacts/2024POPL/ACC/pics"
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -447,7 +447,7 @@ def analyze_conservativeness():
     plt.legend(fontsize=13)
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     plt.savefig(path+"/conservertiveness_vs_numSteps.png", bbox_inches='tight')  # save figure
-    #plt.show()
+    plt.show()
 
     plt.figure()
     ax = plt.figure().gca()
@@ -461,8 +461,7 @@ def analyze_conservativeness():
     plt.legend(fontsize=13)
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     plt.savefig(path+"/constitution_vs_numSteps.png", bbox_inches='tight')  # save figure
-    #plt.show()c
-
+    plt.show()
 
 def analyze_verification_complexity():
     'analyze verification complexity, figures are generated and stored in artifacts/2024POPL/pics'
@@ -485,9 +484,6 @@ def analyze_verification_complexity():
     n = len(T)
 
     n_traces = np.zeros((m, n), dtype=int)
-    n_cdnfs = np.zeros((m, n), dtype=int)
-    n_ig_cdnfs = np.zeros((m,n), dtype=int)
-    n_sat_cdnfs = np.zeros((m,n), dtype=int)
 
     for i in range(0,m):
         net1 = net[i]
@@ -512,24 +508,9 @@ def analyze_verification_complexity():
 
             traces = res[0] # reachable set trace
             n_traces[i,j] = len(traces)
-            CDNF_SAT = res[8]
-            CDNF_SAT = CDNF_SAT[0]
-            CDNF_SAT_short = [ele for ele in CDNF_SAT if ele != []]
-            n_sat_cdnfs[i,j] = len(CDNF_SAT_short)
-            CDNF_IG = res[9]
-            CDNF_IG = CDNF_IG[0]
-            CDNF_IG_short = [ele for ele in CDNF_IG if ele !=[]]
-            n_ig_cdnfs[i,j] = len(CDNF_IG_short)
-            n_cdnfs[i,j] = n_sat_cdnfs[i,j] + n_ig_cdnfs[i,j]
-
-
-    print('n_traces = {}'.format(n_traces))
-    print('n_cdnfs = {}'.format(n_cdnfs))
-    print('n_sat_cdnfs = {}'.format(n_sat_cdnfs))
-    print('n_ig_cdnfs = {}'.format(n_ig_cdnfs))
-            
+    
     # figures: conservativeness and constitution (of phi1') vs. time steps      
-    path = "artifacts/2024POPL/pics"
+    path = "artifacts/2024POPL/ACC/pics"
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -605,7 +586,7 @@ def analyze_verification_complexity_2():
     print('n_ig_cdnfs = {}'.format(n_ig_cdnfs))
             
     # figures:     
-    path = "artifacts/2024POPL/pics"
+    path = "artifacts/2024POPL/ACC/pics"
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -634,7 +615,7 @@ def analyze_verification_complexity_3():
     plant='linear'
     spec_ids=[6]
     initSet_id=5  
-    T = 30
+    T = 20
     numCores=4
     pf = 0.0
     t=5
@@ -669,7 +650,7 @@ def analyze_verification_complexity_3():
     CDNFs = CDNF_SAT_short + CDNF_IG_short
     
     # figures: length of CDNFs      
-    path = "artifacts/CAV2024/pics"
+    path = "artifacts/2024POPL/ACC/pics"
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -690,17 +671,15 @@ def analyze_verification_complexity_3():
     plt.savefig(path+"/length_of_cdnf.png", bbox_inches='tight')  # save figure
     #plt.show()
 
-   
-
 def visualize_satisfied_traces():
-    'visualize satisfied traces in verification, pictures are generated and stored in artifacts/CAV2024/pics'
+    'visualize satisfied traces in verification, pictures are generated and stored in artifacts/2024POPL/pics'
 
     net='controller_5_20'
 
     plant='linear'
     spec_ids=[6]
     initSet_id=5  
-    T = 30
+    T = 20
     numCores=4
     pf = 0.0
     t=5
@@ -741,7 +720,7 @@ def visualize_satisfied_traces():
 
         probstar_sigs = sat_trace[1].toProbStarSignals(sat_trace[0])
 
-        path = "artifacts/2024POPL/pics"
+        path = "artifacts/2024POPL/ACC/pics"
         if not os.path.exists(path):
             os.makedirs(path)
 
@@ -749,7 +728,7 @@ def visualize_satisfied_traces():
             sig = probstar_sigs[i]
             plt.figure()
             print('Plot SAT trace ...')
-            plot_probstar_signal(sig[15:25], dir_mat=dir_mat1, dir_vec=dir_vec1, show_prob=True, \
+            plot_probstar_signal(sig, dir_mat=dir_mat1, dir_vec=dir_vec1, show_prob=True, \
                                    label=('$v_{ego}$','$D_r - D_{safe}$'), show=False)
             plt.savefig(path+"/sat_trace_{}.png".format(i), bbox_inches='tight')  # save figure
             plt.show()
@@ -757,7 +736,7 @@ def visualize_satisfied_traces():
         
     
 def verify_temporal_specs_ACC_full():
-    'verify temporal properties of Le-ACC for all 3  networks, table is generated and stored in CAV2024/data'
+    'verify temporal properties of Le-ACC for all 3  networks, table is generated and stored in 2024POPL/data'
 
     net=['controller_3_20', 'controller_5_20', 'controller_7_20']
     plant='linear'
@@ -804,7 +783,7 @@ def verify_temporal_specs_ACC_full():
     print('=======================FULL VERIFICATION RESULTS ==========================')
     print(tabulate(verification_data_full, headers=["Net.", "Spec.", "T", "pf" , "p_max", "p_min", "reachTime", "checkTime", "verifyTime"]))   
     
-    path = "artifacts/2024POPL/table"
+    path = "artifacts/2024POPL/ACC/table"
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -813,18 +792,129 @@ def verify_temporal_specs_ACC_full():
 
 
 
+def generate_exact_reachset_figs_AEBS():
+
+    # load initial conditions of NNCS AEBS system
+    print('Loading initial conditions of AEBS system...')
+    
+    controller, transformer, norm_mat, scale_mat, plant, initSets = load_AEBS_model()
+    AEBS = AEBS_NNCS(controller, transformer, norm_mat, scale_mat, plant)
+    
+    # initial bound on states
+    d_lb = [97., 90., 48., 5.0]
+    d_ub = [97.5, 90.5, 48.5, 5.2]
+    v_lb = [25.2, 27., 30.2, 1.0]
+    v_ub = [25.5, 27.2, 30.4, 1.2]
+
+   
+
+    reachPRM = ReachPRM_NNCS()
+    reachPRM.numSteps = 50
+    reachPRM.filterProb = 0.0
+    reachPRM.numCores = 4
+    
+
+    for i in range(0, len(initSets)):
+        reachPRM.initSet = initSets[i]     
+        X, _ = reachBFS_AEBS(AEBS, reachPRM)
+
+        # plot reachable set  (d) vs. (v_ego)
+        dir_mat1 = np.array([[1., 0., 0.],
+                            [0., 1., 0]])
+        dir_vec1 = np.array([0., 0.])
+
+
+
+        path = "artifacts/2024POPL/AEBS/pics"
+        if not os.path.exists(path):
+            os.makedirs(path)
+
+        # 0.5 <= d_k <= 2.5 AND 0.2 <= v_k <= v_ub
+        unsafe_mat = np.array([[1.0, 0.0], [-1., 0.], [0., 1.], [0., -1.]])
+        unsafe_vec = np.array([2.5, -0.5, v_ub[i], -0.2])
+        
+        print('Plot reachable set...')
+        plot_probstar_reachset_with_unsafeSpec(X, unsafe_mat, unsafe_vec, dir_mat=dir_mat1, dir_vec=dir_vec1, show_prob=False, \
+                               label=('$d$','$v_{ego}$'), show=False, color='g')
+        plt.savefig(path+"/d_vs_vego_init_{}.png".format(i), bbox_inches='tight')  # save figure
+        plt.show()
+
+
+def verify_AEBS():
+
+    # load initial conditions of NNCS AEBS system
+    print('Loading initial conditions of AEBS system...')
+    
+    controller, transformer, norm_mat, scale_mat, plant, initSets = load_AEBS_model()
+    AEBS = AEBS_NNCS(controller, transformer, norm_mat, scale_mat, plant)
+
+    print('Loading temporal specifications of AEBS system...')
+    specs = load_AEBS_temporal_specs()
+
+    print('specs = {}'.format(specs))
+
+
+    #initSet_ids = [0]   # for testing
+    initSet_ids=[0, 1, 2, 3]  
+    #T = [10]   # for testing
+    T = [10, 20, 40, 50] # numSteps
+    #pf = [0.0] # for testing
+    pf = [0.0, 0.01]
+    numCores=4
+    
+    verification_data_full = []
+   
+    for initSet_id in initSet_ids:
+        for T1 in T:
+            for pf1 in pf:
+            
+                # verify parameters
+                verifyPRM = VerifyPRM_NNCS()
+                verifyPRM.initSet = copy.deepcopy(initSets[initSet_id])
+                verifyPRM.numSteps = T1
+                verifyPRM.pf = pf1
+                verifyPRM.numCores = numCores
+                verifyPRM.temporalSpecs = copy.deepcopy(specs)
+
+                
+                traces, p_max, p_min, reachTime, checkingTime, verifyTime = verify_temporal_specs_DLNNCS(AEBS, verifyPRM)
+
+                for spec_id in range(0, len(specs)):
+                    
+                    verification_data_full.append(['X0_{}'.format(initSet_id), 'p_{}'.format(spec_id), T1 , pf1, \
+                                                   p_max[spec_id], p_min[spec_id], reachTime, checkingTime[spec_id], \
+                                                   verifyTime[spec_id], len(traces)])
+
+        
+    print('=======================FULL VERIFICATION RESULTS ==========================')
+    print(tabulate(verification_data_full, headers=["X0", "Spec.", "T", "pf" , "p_max", "p_min", "reachTime", "checkTime", "verifyTime", "N_traces"]))   
+    
+    path = "artifacts/2024POPL/AEBS/table"
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+    with open(path+"/AEBS_verification_tab_full.tex", "w") as f:
+         print(tabulate(verification_data_full, headers=["X0", "Spec.", "T", "pf", "p_max", "p_min", "reachTime", "checkTime", "verifyTime", "N_traces"], tablefmt='latex'), file=f)
+
+
+    
 
     
 if __name__ == "__main__":
 
+    # verify Le-ACC
     
     #verify_temporal_specs_ACC()
     #analyze_timing_performance()
     #analyze_conservativeness()
     #analyze_verification_complexity()
     #analyze_verification_complexity_2()
-    visualize_satisfied_traces()    
+    #analyze_verification_complexity_3()
+    #visualize_satisfied_traces()    
     #verify_temporal_specs_ACC_full()
     #test_verification_ACC()
     #test_verification_ACC_full_analysis()
 
+    # verify AEBS 
+    #generate_exact_reachset_figs_AEBS()
+    verify_AEBS()

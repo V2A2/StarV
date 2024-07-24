@@ -596,6 +596,40 @@ def load_AEBS_model():
     return controller, transformer, norm_mat, scale_mat, plant, initSets
     
     
+def load_AEBS_temporal_specs():
+    'temporal specification for AEBS model'
+
+    T = 50
+    #t = 10
+
+    A1 = np.array([1.0, 0., 0.])
+    b1 = np.array([2.5])
+    P1 = AtomicPredicate(A1, b1)
+    
+    A2 = np.array([0., -1., 0])
+    b2 = np.array([-0.2])
+    P2 = AtomicPredicate(A2, b2)
+
+    EV0T = _EVENTUALLY_(0,T)
+    #EV0t = _EVENTUALLY_(0,t)
+    AND = _AND_()
+    OR = _OR_()
+    lb = _LeftBracket_()
+    rb = _RightBracket_()
+    AW0T = _ALWAYS_(0,T)
+    #AW0t = _ALWAYS_(0,t)
+
+    # phi1 : eventually_[0,T](d <= 2.5 AND v_ego >= 0.2) : safety scenario
+
+    phi1 = Formula([EV0T, lb, P1, AND, P2, rb])
+
+    # phi2: always_[0. T](v_ego <= 0.2 -> d <= 2.5)      : prevent early stoping scenario
+
+    phi2 = Formula([AW0T, lb, P2, OR, P1, rb])
+
+    specs = [phi1]
+
+    return specs
     
 
 def load_building_model():

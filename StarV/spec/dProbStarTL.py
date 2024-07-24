@@ -5,6 +5,7 @@ Probabilistic Star Temporal Logic Specification Language in discrete-time domain
 
 Author: Dung Tran
 Date: 12/2/2022
+Update: 7/4/2024
 
 ==================================================================================
 DESCRIPTION:
@@ -313,6 +314,8 @@ class CDNF(object):
 
      Dung Tran: 1/24/2024
 
+     Update: 7/8/2024
+
     """
 
     def __init__(self, constraints, base_probstar):
@@ -341,6 +344,11 @@ class CDNF(object):
 
         print('\n***Shared base probstar:')
         self.base_probstar.__str__()
+
+    def getTraceProbability(self):
+        'get probability of a trace, it is the base probstar probability'
+
+        return self.base_probstar.estimateProbability()
 
     def estimateProbability(self, combination_ids):
         'estimate probability of a combination of constraints'
@@ -402,7 +410,107 @@ class CDNF(object):
 
         return probstar_signals
 
-    
+    def shorten(self, n):
+        'shorten CDNF to new CDNF with length n, i.e., n stars with highest probability'
+
+        # Dung Tran, 7/4/2024
+
+        if n >= self.length:
+            shorten_CDNF = self
+            remained_CDNF = []
+        else:
+            
+            prob = []
+            for i in range(0, self.length):
+                   prob.append(self.estimateProbability((i,)))
+            a_prob = np.array(prob)
+            max_ids = np.argsort(-a_prob)   # indexes of (decending) probability of probstars
+
+            compute_ids = max_ids[0:n]
+            remain_ids = max_ids[n:len(max_ids)]
+
+
+            new_constraints = []
+            remained_constraints = []
+
+            for i in range(0, len(compute_ids)):
+                new_constraints.append(self.constraints[compute_ids[i]])
+
+            for i in range(0, len(remain_ids)):
+                remained_constraints.append(self.constraints[remain_ids[i]])
+
+            shorten_CDNF = CDNF(new_constraints, self.base_probstar)
+            remained_CDNF = CDNF(remained_constraints, self.base_probstar)
+
+        return shorten_CDNF, remained_CDNF    
+
+            
+    def getSATProbabilityBounds(self):
+        'compute the upper/lower bounds probability of satisfaction'
+
+        # upper bound probability = sum of all probability of all probstars
+        # lower bound probability =
+
+        SAT = []
+        p_base_probstar = self.base_probstar.estimateProbability()
+        for i in range(0, self.length):
+            SAT.append(self.estimateProbability((i,)))
+        p_SAT_MIN = max(SAT)
+        p_SAT_MAX = min(sum(SAT), p_base_probstar)
+
+        return p_SAT_MAX, p_SAT_MIN
+
+    def getExactSATProbability(self):
+        'compute exact probability of an CDNF'
+
+        SAT_prob = 0
+        if self.length > 11:
+            raise RuntimeError('Cannot compute the exact probability of an CDNF with length > 11, please shorten the CDNF')
+        else:
+            N = range(0, self.length)
+            for i in range(0, self.length):
+                print('i = {}/{}'.format(i, self.length))
+                SAT1 = 0.0
+                # get combinations
+                comb = combinations(N, i+1)   # get all combinations
+                for j in list(comb):
+                    # compute probability of sub-combincation , i.e., Pj[1] AND Pj[2]
+                    prob = (-1)**i * self.estimateProbability(j)
+                    SAT1 = SAT1 + prob
+
+                SAT_prob = SAT_prob + SAT1
+
+        return SAT_prob
+
+
+    def getApproxSATProbability(self, n):
+        'compute approximate bound of probability of Satisfaction by split an CDNF into two CDNF of length n and CDNF.length - n'
+
+        p_SAT_MAX = 0
+        p_SAT_MIN = 0
+
+        if n < 1 or n > 11:
+            raise RuntimeError('Invalid number of probstars for splitting the CDNF, should be 1 <= n <= 11')
+
+        else:
+            if n >= self.length:
+                print('Compute exact probability of statisfaction...')
+                p_SAT_MIN = self.getExactSATProbability()
+                p_SAT_MAX = p_SAT_MIN
+            else:
+                print('Compute approximate probability of statisfaction...')
+                shorten_CDNF, remained_CDNF = self.shorten(n)
+                p_shorten = shorten_CDNF.getExactSATProbability()
+                p_remain_max, p_remain_min = remained_CDNF.getSATProbabilityBounds()
+
+                p_SAT_MIN = p_shorten + p_remain_min
+                p_SAT_MAX = p_shorten + p_remain_max
+
+        return p_SAT_MAX, p_SAT_MIN
+            
+
+            
+
 class Formula(object):
     """
       Specification is made by Predicate & OPERATORS & Brackets
@@ -1018,6 +1126,8 @@ class DynamicFormula(object):
     def evaluate(self, probstar_sig):
         'evaluate the satisfaction of the abtract-timed dyanmic formula on a probstar signal'
 
+        # last update: Dung Tran, 7/4/2024
+
         print('Realizing Abstract DNF specification on a ProbStar Signal...')
         cdnf = self.realization(probstar_sig)
         print('Length of Computable DNF = {}'.format(cdnf.length))
@@ -1030,11 +1140,10 @@ class DynamicFormula(object):
         if cdnf.length != 0:
             for i in range(0, cdnf.length):
                SAT.append(cdnf.estimateProbability((i,)))
-               p_SAT_MIN = max(SAT)
-
             if cdnf.length > 11:
                 print('*****WARNING*****: CDNF (len = {}) is too large for exact verification'.format(cdnf.length))
                 print('We ignore this CDNF, return the estimate probability uperbound')
+                p_SAT_MIN = max(SAT)
                 p_SAT_MAX = max(p_SAT_MIN, p_trace) # this eleminates the numerical issue in estimating probability
             else:
                 N = range(0, cdnf.length)
@@ -1049,14 +1158,65 @@ class DynamicFormula(object):
                         prob = (-1)**i * cdnf.estimateProbability(j)
                         SAT1 = SAT1 + prob
                     p_SAT_MAX = p_SAT_MAX + SAT1
-                p_SAT_MAX = max(p_SAT_MIN, p_SAT_MAX) # to eliminate numerical issues in estimating probability
+                p_SAT_MIN = p_SAT_MAX 
 
 
         return p_SAT_MAX, p_SAT_MIN
 
 
+    def evaluate2(self, probstar_sig, n_max):
+        'evaluate the satisfaction of the abtract-timed dyanmic formula on a probstar signal'
+
+        # last update: Dung Tran, 7/4/2024
+        # improve the way to estimate the satisfaction probability
+        # when cdnf.length > 11, we calculate the probability of satisfaction with n_max (< 11) largest probstars in cdnf
+        # we need to shorten the cdnf so that the cdnf.length --> cdnf.length = n_max
+        # UNDER TESTING
+
+        if n_max > 11:
+            raise RuntimeError('we can only handle CDNF with length of 11, please set 1<= n_max <= 11')
+
+        print('Realizing Abstract DNF specification on a ProbStar Signal...')
+        cdnf = self.realization(probstar_sig)
+        print('Length of Computable DNF = {}'.format(cdnf.length))
+        if cdnf.length > n_max:
+            print('CDNF is too large (> {} probstars), we need to shorten (split) \
+            it to estimate the probability of satisfaction...', n_max)
+        p_SAT_MAX, p_SAT_MIN = cdnf.getApproxSATProbability(n_max)
+        
+        return p_SAT_MAX, p_SAT_MIN
+
+    def evaluate_for_full_analysis2(self, probstar_sig, n_max):
+        'improved evaluation of the abstract-timed dynamic formula on a probstar signal'
+
+        # UNDER TESTING
+        print('Realizing Abstract DNF specification on a ProbStar Signal...')
+        cdnf = self.realization(probstar_sig)
+        print('Length of Computable DNF = {}'.format(cdnf.length))
+
+        p_trace = cdnf.getTraceProbability()  # probability of the probstar signal
+        SAT = []
+        p_SAT_MIN = 0.0
+        p_SAT_MAX = 0.0
+        p_approx = 0       # p_approx = 0 -> exact analysis, p_approx = 1 -> approximate analysis
+        cdnf_SAT = []
+        cdnf_IG = []
+        sat_trace = []
+        if cdnf.length != 0:
+
+            sat_trace = [probstar_sig, cdnf]
+            cdnf_SAT = cdnf
+            p_SAT_MAX, p_SAT_MIN = cdnf.getApproxSATProbability(n_max)
+            if p_SAT_MAX == p_SAT_MIN:
+                p_approx = 1
+
+        return p_SAT_MAX, p_SAT_MIN, p_approx, cdnf_SAT, sat_trace
+        
+        
+
     def evaluate_for_full_analysis(self, probstar_sig):
         'evaluate the satisfaction of the abtract-timed dyanmic formula on a probstar signal'
+        # last update: Dung Tran, 7/4/2024
 
         print('Realizing Abstract DNF specification on a ProbStar Signal...')
         cdnf = self.realization(probstar_sig)
@@ -1073,11 +1233,11 @@ class DynamicFormula(object):
         if cdnf.length != 0:
             for i in range(0, cdnf.length):
                SAT.append(cdnf.estimateProbability((i,)))
-               p_SAT_MIN = max(SAT)
-
+               
             if cdnf.length > 11:
                 print('*****WARNING*****: CDNF (len = {}) is too large for exact verification'.format(cdnf.length))
                 print('We ignore this CDNF, return the estimate probability uperbound')
+                p_SAT_MIN = max(SAT)
                 p_SAT_MAX = max(p_SAT_MIN, p_trace) # this eleminates the numerical issue in estimating probability
                 p_ig = p_trace
                 cdnf_IG = cdnf
@@ -1095,7 +1255,7 @@ class DynamicFormula(object):
                         prob = (-1)**i * cdnf.estimateProbability(j)
                         SAT1 = SAT1 + prob
                     p_SAT_MAX = p_SAT_MAX + SAT1
-                p_SAT_MAX = max(p_SAT_MIN, p_SAT_MAX) # to eliminate numerical issues in estimating probability
+                p_SAT_MIN = p_SAT_MAX 
                 sat_trace = [probstar_sig, cdnf]
 
 

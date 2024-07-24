@@ -46,7 +46,7 @@ class VerifyPRM_NNCS(object):
         #  self.computeProbMethod = 'exact' return exact probability of satisfaction of a CDNF
         #  self.computeProbMethod = 'approx' return the estimation of lower-bound of probability of satisfaction of a CDNF
         self.timeOut = np.Inf # timeout for verification process
-
+        self.MaxLengthCDNF = 11    # maximum allowable length for computing probability of satisfaction of a CDNF
 
 class VerifyRes_NNCS(object):
 
@@ -65,6 +65,7 @@ class VerifyRes_NNCS(object):
         self.Qt_min = None # minimum lower bound quantitative result (for unbounded input set)
         self.Qt_max = None # maximum upper bound quantitative result (for unbounded input set)
         self.p_ignored = None # total ignored probability
+        
 
 
 class NNCS(object):
@@ -382,39 +383,6 @@ def reachBFS_DLNNCS(ncs, reachPRM):
 
     return RX, p_ignored
 
-# def stepReach_DLNNCS(net, plant, X0, refInputs, filterProb, numCores=1, lp_solver='gurobi'):
-#     'one-step reachability analysis of Discrete linear NNCS'
-
-#     # X0: initial set of state of the plant
-#     # Y0: feedback to the network controller
-
-#     if filterProb < 0:
-#         raise RuntimeError('Invalid filtering probability')
-
-#     if numCores > 1:
-#         pool = multiprocessing.Pool(numCores)
-#     else:
-#         pool = None
-
-#     RX = []
-#     Y0 = X0.affineMap(plant.C)
-#     fb_I = Y0.concatenate_with_vector(refInputs)
-#     p_ig = 0.0
-
-#     RU = reachExactBFS(net, [fb_I], lp_solver, pool=pool, show=False)
-#     for U in RU:
-#         RX1, _ = plant.stepReach(X0=X0, U=U, subSetPredicate=True)
-#         if filterProb == 0:
-#             RX.append(RX1)
-#         else:
-            
-#             pi = RX1.estimateProbability()
-#             if pi > filterProb:
-#                 RX.append(RX1)
-#             else:
-#                 p_ig = p_ig + pi     
-
-#     return RX, p_ig
 
 def stepReach_DLNNCS(ncs, Xi, reachPRM):
     'one-step reachability analysis of Discrete linear NNCS, a normal NNCS with one controller and one plant'
@@ -473,7 +441,7 @@ def stepReach_DLNNCS_extended(ncs, Xi, reachPRM):
         else:
             pool = None       
 
-        Xi1 = stepReach_AEBS(AEBS, Xi, pool)    # this is AEBS NNCS
+        Xi1 = stepReach_AEBS(ncs, Xi, pool)    # this is AEBS NNCS
 
         if reachPRM.filterProb == 0:
             RX = Xi1
@@ -613,113 +581,6 @@ def stepReach_AEBS(AEBS, X0, pool):
 
     return X1
 
-# def reachDFS_DLNNCS(net, plant, reachPRM):
-#     'Depth First Search Reachability Analysis for Discrete Linear NNCS'
-
-#     assert isinstance(reachPRM, ReachPRM_NNCS), 'error: reachability parameter should be an ReachPRM_NNCS object'
-#     assert reachPRM.initSet is not None, 'error: there is no initial set for reachability'
-#     assert reachPRM.numSteps >= 1, 'error: number of time steps should be >= 1'
-
-#     k = reachPRM.numSteps  # number of reachability steps
-#     remains = [] # contains all remaining reachable set at all k steps, remains = [RM1, RM2, ..., RMk], RMi = [X1, X2, ..., Xm]
-
-#     # The algorithm works as follows:
-#     # step: t = 0, X0, U = 0
-#     # * strore X0 to a trace T <-X0
-#     # 
-#     # step:t = 1, X0, U = f(Y0) = f(CX0) = [U1, ..., Um] -> [X1, ....,Xm]
-#     #    * pop X0 from trace T: X0 <- T[0] = T[t-1]
-#     #    * get output feedback Y0 = CX0
-#     #    * compute control output U = F(Y0) = [U1, ..., Um]
-#     #    * get new state reachable set X1 = [X11, ..., X1m]
-#     #    * store the first X11 to trace T: T <- X11
-#     #    * store the remaining sets in a remain RM1 = [X12, ...., X1m]
-#     #    * store the remain RM1 to remains RMs: RMs <- RM1
-#     # step: t = 2:
-#     #    * pop the newest reach set in trace T, X11<- T[1] = T[t-1]
-#     #    * get output feedback Y1 = CX11
-#     #    * compute control output U = F(Y1) = [U1, ...., Un]
-#     #    * get new state reachable set X2 = [X21, X22, ..., X2n]
-#     #    * store the first X21 into trace T: T<-X21
-#     #    * store the remaining sets in a remain RM2 = [X22, ...., X2n]
-#     #    * store the remain RM2 to remain RMs:  RMs <- RM2 
-#     #    .
-#     #    .
-#     #    .
-#     # step: t = k:
-#     #    * pop the newest reach set in trace T, X[k-1,1] <- T[k-1]
-#     #    * (substep k1) get output feedback Y[k-1] = CX[k-1,1]
-#     #    * (substep k2) compute control output U = F(Y[k-1]) = [U1, ...., Up]
-#     #    * (substep k3) get new state reachable set Xk = [Xk1, Xk2, ..., Xkp]
-#     #    * (substep k4) get p copies of trace T: T1, T2, ... Tp
-#     #    * (substep k5) store Xki into trace Ti, Ti<-Xki  
-#     #    * (substep k6) store all traces into traces Ts: Ts <- [T1, T2, ..., Tp]
-#     #    * we finish construct a partial reachable set trace here, i.e., T1, T2, ..., Tp
-#     #    *** We can verify traces T1, ...., Tp and get one partial verification result here, and then ignore them
-#     #    *** LOOP here:
-#     #    *** get RM[k-1] from RMs, i.e., RM[k-1] <- RMs[k-2]
-#     #    *** if RM[k-1] is not empty,  
-#     #    *** (substep k9) pop the next newest reach set, e.g, X[k-1,2] <- RM[k-1]
-#     #    *** (substep k10) replace the newest reach set in trace T, X[k-1,1] by X[k-1,2]
-#     #    *** (substep k11) Recall substeps k1, k2, k3, k4, k5, k6
-#     #    *** repeat substeps k9, k10, k11 until RM[k-1] empty
-#     #    if length RM[k-1]== 0, i.e., RM[k-1] is empty,
-#     #    *** pop RM[k-2] <- RMs[k-3]
-#     #    *** delete the 2 newest reach set2 in trace T, i.e., X[k-1, 1], X[k-2,1]
-#     #    *** pop the next newest reach set X[k-2, 2]
-#     #    *** repeat ...
-    
-    
-#     X0 = copy.deepcopy(reachPRM.initSet)
-#     remains.append([X0])
-#     T = []
-#     p_ig = 0.0
-#     traces = []
-    
-#     while True:
-#         i = len(remains)  # equal to the current considering time step
-#         if i != 0:
-#             Ri = remains[i-1]
-#         else:
-#             break
-        
-#         if len(Ri) != 0:
-#             Xi = Ri.pop(0)
-#             T.append(Xi)
-#             Xi_plus_1, pig_i = stepReach_DLNNCS(net, plant, Xi, reachPRM.refInputs, reachPRM.filterProb,\
-#                                                 reachPRM.numCores, reachPRM.lpSolver)
-#             p_ig = p_ig + pig_i
-            
-#             if i == k:
-                
-#                 for Xj in Xi_plus_1:
-#                     Tj = copy.deepcopy(T)
-#                     Tj.append(Xj)
-#                     traces.append(Tj)
-#                 T.pop(len(T)-1)
-#             else:
-#                 remains.append(Xi_plus_1)
-                    
-#         else:
-            
-#             remains.pop(i-1)
-#             if len(T) != 0:
-#                 T.pop(len(T)-1)
-
-#     # a trace share the same predicate constraint P(alpha) with the final reach set in the trace
-#     # 
-
-#     traces1 = []
-#     for trace in traces:
-#         n = len(trace)
-#         trace1 = []
-#         for i in range(0, n):
-#             R = ProbStar(trace[i].V, trace[n-1].C, trace[n-1].d, trace[n-1].mu, \
-#                          trace[n-1].Sig, trace[n-1].pred_lb, trace[n-1].pred_ub)
-#             trace1.append(R)
-#         traces1.append(trace1)         
-    
-#     return traces1, p_ig
 
 
 def reachDFS_DLNNCS(ncs, reachPRM):
@@ -830,6 +691,28 @@ def reachDFS_DLNNCS(ncs, reachPRM):
     return traces1, p_ig
 
 
+
+def check_sat_on_trace2(*args):
+    'verify a temporal property on a single trace'
+    # Dung Tran: 1/14/2024
+    # under testing
+
+    
+    if isinstance(args[0], tuple):
+        args1 = args[0]
+    else:
+        args1 = args
+    spec = args1[0]      # user-define spec
+    trace = args1[1]     # ProbStar signal
+    n_max = args1[2]     # maximum length of CDNF used for approximating probability of satisfaction
+
+    assert isinstance(spec, Formula), 'error: spec is not a Formula object'
+    print('Transform spec to abstract dijunctive normal form (DNF)...')
+    DNF_spec = spec.getDynamicFormula()
+    print('Length of abstract DNF_spec = {}'.format(DNF_spec.length))
+    p_max, p_min = DNF_spec.evaluate2(trace, n_max)
+    
+    return p_max, p_min
 
 def check_sat_on_trace(*args):
     'verify a temporal property on a single trace'
@@ -978,7 +861,7 @@ def verify_temporal_specs_DLNNCS(ncs, verifyPRM):
     # Dung Tran: 1/14/2024, update 7/4/2024
 
 
-    assert isinstance(ncs, NNCS), 'error: ncs is not an NNCS object'
+    assert isinstance(ncs, NNCS) or isinstance(ncs, AEBS_NNCS), 'error: ncs is not an NNCS object'
     assert isinstance(verifyPRM, VerifyPRM_NNCS), 'error: verifyPRM is not a VerifyPRM_NNCS object'
 
     reachPRM = ReachPRM_NNCS()
@@ -989,11 +872,12 @@ def verify_temporal_specs_DLNNCS(ncs, verifyPRM):
     reachPRM.lpSolver = copy.deepcopy(verifyPRM.lpSolver)
     reachPRM.show = copy.deepcopy(verifyPRM.show)
     reachPRM.numCores = copy.deepcopy(verifyPRM.numCores)
+    
 
     # get traces using DFS algorithm
     print('Get ProbStar traces using DFS-reachability algorithm...')
     start = time.time()
-    traces, p_ig0 = reachDFS_DLNNCS(ncs.controller, ncs.plant, reachPRM)
+    traces, p_ig0 = reachDFS_DLNNCS(ncs, reachPRM)
     end = time.time()
     reachTime = end-start  # reachability time in seconds
     print('Total ProbStar traces: {}'.format(len(traces)))
@@ -1001,6 +885,7 @@ def verify_temporal_specs_DLNNCS(ncs, verifyPRM):
     DNF_transform_time = []  # get abstract DNF
     # get temporal specifications
     specs = verifyPRM.temporalSpecs
+    
 
     if verifyPRM.numCores > 1:
         pool = multiprocessing.Pool(verifyPRM.numCores)
@@ -1162,93 +1047,114 @@ def verify_temporal_specs_DLNNCS_for_full_analysis(ncs, verifyPRM):
     return traces, p_SAT_MAX, p_SAT_MIN, reachTime, checking_time, \
         verifyTime, p_IG, p_ig0, CDNF_SAT, CDNF_IG, conservativeness, constitution, SAT_traces
     
-# def verify_traces(traces, p_ig0, verifyPRM):
-#     'This function is used when reachable traces are available'
+def verify_temporal_specs_DLNNCS_for_full_analysis2(ncs, verifyPRM):
+    'verify temporal behaviors of DLNNCS'
+    # Dung Tran: 1/14/2024, newest updated, 7/8/2024
+    # more analysis can be done using this verification function
 
+    assert isinstance(ncs, NNCS), 'error: ncs is not an NNCS object'
+    assert isinstance(verifyPRM, VerifyPRM_NNCS), 'error: verifyPRM is not a VerifyPRM_NNCS object'
+
+    reachPRM = ReachPRM_NNCS()
+    reachPRM.initSet = copy.deepcopy(verifyPRM.initSet)
+    reachPRM.numSteps = copy.deepcopy(verifyPRM.numSteps)
+    reachPRM.refInputs = copy.deepcopy(verifyPRM.refInputs)
+    reachPRM.filterProb = copy.deepcopy(verifyPRM.pf)
+    reachPRM.lpSolver = copy.deepcopy(verifyPRM.lpSolver)
+    reachPRM.show = copy.deepcopy(verifyPRM.show)
+    reachPRM.numCores = copy.deepcopy(verifyPRM.numCores)
+
+    MaxLengthCDNF = verifyPRM.MaxLengthCDNF
     
-#     DNF_transform_time = []  # get abstract DNF
-#     # get temporal specifications
-#     specs = verifyPRM.temporalSpecs
+    # get traces using DFS algorithm
+    print('Get ProbStar traces using DFS-reachability algorithm...')
+    start = time.time()
+    traces, p_ig0 = reachDFS_DLNNCS(ncs, reachPRM)
+    end = time.time()
+    reachTime = end-start  # reachability time in seconds
+    print('Total ProbStar traces: {}'.format(len(traces)))
 
-#     if verifyPRM.numCores > 1:
-#         pool = multiprocessing.Pool(verifyPRM.numCores)
-#     else:
-#         pool = None
+    DNF_transform_time = []  # get abstract DNF
+    # get temporal specifications
+    specs = verifyPRM.temporalSpecs
+
+    if verifyPRM.numCores > 1:
+        pool = multiprocessing.Pool(verifyPRM.numCores)
+    else:
+        pool = None
 
 
-#     print('Verifying traces against temporal specification ...')
-#     # verify temporal specifications
-#     p_SAT = []
-#     checking_time = [] # get checking time
-#     verifyTime = []  # total verification time
-#     p_SAT_MIN = []
-#     p_SAT_MAX = []
-#     CDNF_SAT = []
-#     CDNF_IG = []
-#     p_IG = []
-#     SAT_traces = []
-#     conservativeness= [] # conservativeness of verification result in percentage (pmax - pmin)/pmax
-#     constitution = []    # the constitution of ignored trace in estimating the pmax
-#     # if constitution = 0 -> pmax is p_exact
-#     for k in range(0, len(specs)):
-#         spec = specs[k]
-#         start = time.time()
-#         p_sat_min = []
-#         p_sat_max = []
-#         p_ig = []
-#         cdnf_sat = []
-#         cdnf_ig = []
-#         conserv = []
-#         constit = []
-#         sat_trace = []
-#         if pool is None:
-#             for i in range(0, len(traces)):
-#                 print('Verifying trace {} against spec {}...'.format(i, k))
-#                 trace = traces[i]
-#                 p_max, p_min, p_ig1, cdnf_sat1, cdnf_ig1, sat_trace1 = check_sat_on_trace_for_full_analysis(spec, trace)
-#                 p_sat_max.append(p_max)
-#                 p_sat_min.append(p_min)
-#                 p_ig.append(p_ig1)
-#                 cdnf_sat.append(cdnf_sat1)
-#                 cdnf_ig.append(cdnf_ig1)
-#                 sat_trace.append(sat_trace1)
+    print('Verifying traces against temporal specification ...')
+    # verify temporal specifications
+    p_SAT = []
+    checking_time = [] # get checking time
+    verifyTime = []  # total verification time
+    p_SAT_MIN = []
+    p_SAT_MAX = []
+    CDNF_SAT = []
+    CDNF_approx = []   # number of traces whose satisfaction probability is approximated due to large CDNF
+    SAT_traces = []
+    conservativeness= [] # conservativeness of verification result in percentage (pmax - pmin)/pmax
+    constitution = []    # the constitution of ignored trace in estimating the pmax
+    p_input = verifyPRM.initSet.estimateProbability()
+    # if constitution = 0 -> pmax is p_exact
+    for k in range(0, len(specs)):
+        spec = specs[k]
+        start = time.time()
+        p_sat_min = []
+        p_sat_max = []
+        n_approx = []
+        cdnf_sat = []
+        conserv = []
+        constit = []
+        sat_trace = []
+        if pool is None:
+            for i in range(0, len(traces)):
+                print('Verifying trace {} against spec {}...'.format(i, k))
+                trace = traces[i]
+                p_max, p_min, p_appox, cdnf_sat1, sat_trace1 = check_sat_on_trace_for_full_analysis2(spec, trace)
+                p_sat_max.append(p_max)
+                p_sat_min.append(p_min)
+                n_approx.append(p_approx)
+                cdnf_sat.append(cdnf_sat1)
+                sat_trace.append(sat_trace1)
 
-#         else:
-#              RS = pool.map(check_sat_on_trace_for_full_analysis, zip([spec]*len(traces), traces))
-#              for S in RS:
-#                  p_sat_max.append(S[0])
-#                  p_sat_min.append(S[1])
-#                  p_ig.append(S[2])
-#                  cdnf_sat.append(S[3])
-#                  cdnf_ig.append(S[4])
-#                  sat_trace.append(S[5])
+        else:
+             RS = pool.map(check_sat_on_trace_for_full_analysis2, zip([spec]*len(traces), traces, [MaxLengthCDNF]*len(traces)))
+             for S in RS:
+                 p_sat_max.append(S[0])
+                 p_sat_min.append(S[1])
+                 p_approx.append(S[2])
+                 cdnf_sat.append(S[3])
+                 sat_trace.append(S[4])
         
-#         p_SAT_MAX.append(sum(p_sat_max) + p_ig0)   # give the upperbound of probability of satisfaction
-#         p_SAT_MIN.append(sum(p_sat_min)) # give the lower bound of probability of satisfaction
-#         p_IG.append(p_ig)
-#         CDNF_SAT.append(cdnf_sat)
-#         CDNF_IG.append(cdnf_ig)
-#         sat_trace_short = [ele for ele in sat_trace if ele != []]
-#         SAT_traces.append(sat_trace_short)
+        p_SAT_MAX.append(min(sum(p_sat_max) + p_ig0, p_input))   # give the upperbound of probability of satisfaction
+        p_SAT_MIN.append(min(sum(p_sat_min), p_input)) # give the lower bound of probability of satisfaction
+        CDNF_approx.append(n_approx)
+        CDNF_SAT.append(cdnf_sat)
+        
+        sat_trace_short = [ele for ele in sat_trace if ele != []]
+        SAT_traces.append(sat_trace_short)
 
 
-#         if sum(p_sat_max) != 0:
-#             conserv1 = 100*(sum(p_sat_max) + p_ig0 - sum(p_sat_min))/(sum(p_sat_max) + p_ig0)
-#             constit1 = 100*(sum(p_ig) + p_ig0)/(sum(p_sat_max) + p_ig0)
-#         else:
-#             conserv1 = 0.0
-#             constit1 = 0.0
+        if sum(p_sat_max) != 0:
+            conserv1 = 100*(min(sum(p_sat_max) + p_ig0, p_input) - min(sum(p_sat_min), p_input))/(min(sum(p_sat_max) + p_ig0, p_input))
+            constit1 = 100*p_ig0/(min(sum(p_sat_max) + p_ig0, p_input))
+        else:
+            conserv1 = 0.0
+            constit1 = 0.0
             
-#         conservativeness.append(conserv1)
-#         constitution.append(constit1)
+        conservativeness.append(conserv1)
+        constitution.append(constit1)
         
-#         end = time.time()
-#         ct = end-start
+        end = time.time()
+        ct = end-start
 
-#         checking_time.append(ct)
-#         verifyTime.append(ct + reachTime)
+        checking_time.append(ct)
+        verifyTime.append(ct + reachTime)
 
         
    
-#     return traces, p_SAT_MAX, p_SAT_MIN, reachTime, checking_time, \
-#         verifyTime, p_IG, p_ig0, CDNF_SAT, CDNF_IG, conservativeness, constitution, SAT_traces
+    return traces, p_SAT_MAX, p_SAT_MIN, reachTime, checking_time, \
+        verifyTime, p_ig0, CDNF_SAT, CDNF_approx, conservativeness, constitution, SAT_traces
+    
