@@ -414,7 +414,7 @@ def certifyRobustness_sequence(net, inputs, epsilon=0.01, veriMethod='BFS', reac
 #     r = sum(cnt) / N
 #     return r, rb, ce, cands, vt
 
-def certifyRobustness_pixel(net, in_sets, in_datas, veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, return_output=False, show=False):
+def certifyRobustness_pixel(net, in_sets, in_datas, num_classes, veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, return_output=False, show=False):
     assert isinstance(net.layers[-1], PixelClassificationLayer), f"The network's last layer should be PixelClassificationLayer, but network has {net.layers[-1]}"
     assert len(in_sets) == len(in_datas), f"Inconsistent number of elements in in_sets and in_datas"
     start = time.perf_counter()
@@ -428,22 +428,21 @@ def certifyRobustness_pixel(net, in_sets, in_datas, veriMethod='BFS', reachMetho
     num_misPix = np.zeros(N) # number of missclassified pixels
     num_attPix = np.zeros(N) # number of attacked pixels
     iou = np.zeros(N)
-
-    num_classes = in_datas[0].shape[2]
+	
     num_pixels = np.prod(in_datas[0].shape)
 
     UNK_PIX = num_classes
     MIS_PIX = num_classes + 1
     
     for i in range(N):
-        ver_image, veri_time[i], _, O = certifyPixelRobustness_single_input(net, in_sets[i], in_datas[i], veriMethod, reachMethod, lp_solver, pool, RF, DR, show)
-        veri_set.append(ver_image)
+        veri_image, veri_time[i], _, O = certifyPixelRobustness_single_input(net, in_sets[i], in_datas[i], veriMethod, reachMethod, lp_solver, pool, RF, DR, show)
+        veri_set.append(veri_image)
         
         num_attPix[i] = in_sets[i].geNumAttackedPixels()
-        num_misPix[i] = (ver_image == MIS_PIX).sum()
-        num_unkPix[i] = (ver_image == UNK_PIX).sum()
+        num_misPix[i] = (veri_image == MIS_PIX).sum()
+        num_unkPix[i] = (veri_image == UNK_PIX).sum()
         num_rbPix[i] = num_pixels - (num_misPix[i] + num_unkPix[i])
-        iou[i] = jaccard_score(ver_image.ravel(), in_datas[i].ravel())
+        iou[i] = jaccard_score(veri_image.ravel(), in_datas[i].ravel())
         
         if return_output:
             out_sets.append(O)
@@ -459,7 +458,7 @@ def certifyRobustness_pixel(net, in_sets, in_datas, veriMethod='BFS', reachMetho
     avg_data = [avg_numRb, avg_numUnk, avg_numMis, avg_numAtt, avg_riou, avg_rv, avg_rs, avg_vt]
 
     vt_total = time.perf_counter() - start 
-    return ver_image, veri_time, vt_total, out_sets, avg_data
+    return veri_image, veri_time, vt_total, out_sets, avg_data
 
 
 def certifyRobustness(net, inputs, labels=None, veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, return_output=False, show=False):

@@ -131,7 +131,7 @@ def verify_CAV2021_MNIST_SSNN(net_type, dtype='float64'):
     IM_sets = attack_multiple_images(images, 'IM', data_type, N_max, br, delta) #returns a list in shape len(N_max) x len(images)
     
     for i in range(M):
-        _, _, _, _, avg_data = certifyRobustness_pixel(net=starvNet, in_sets=IM_sets[i], in_datas=images,
+        _, _, _, _, avg_data = certifyRobustness_pixel(net=starvNet, in_sets=IM_sets[i], in_datas=images, num_classes=10,
             veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
             RF=0.0, DR=0, return_output=False, show=False)
         avg_numRbIM[i], avg_numUnkIM[i], avg_numMisIM[i], avg_numAttIM[i], avg_riouIM[i], avg_rvIM[i], avg_rsIM[i], avg_vtIM[i] = avg_data
@@ -150,7 +150,7 @@ def verify_CAV2021_MNIST_SSNN(net_type, dtype='float64'):
     CSR_sets = attack_multiple_images(images, 'SIM_csr', data_type, N_max, br, delta) #returns a list in shape len(N_max) x len(images)
     
     for i in range(M):
-        _, _, _, _, avg_data = certifyRobustness_pixel(net=starvNet, in_sets=CSR_sets[i], in_datas=images,
+        _, _, _, _, avg_data = certifyRobustness_pixel(net=starvNet, in_sets=CSR_sets[i], in_datas=images, num_classes=10,
             veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
             RF=0.0, DR=0, return_output=False, show=False)
         avg_numRbCSR[i], avg_numUnkCSR[i], avg_numMisCSR[i], avg_numAttCSR[i], avg_riouCSR[i], avg_rvCSR[i], avg_rsCSR[i], avg_vtCSR[i] = avg_data
@@ -169,7 +169,7 @@ def verify_CAV2021_MNIST_SSNN(net_type, dtype='float64'):
     COO_sets = attack_multiple_images(images, 'SIM_coo', data_type, N_max, br, delta) #returns a list in shape len(N_max) x len(images)
     
     for i in range(M):
-        _, _, _, _, avg_data = certifyRobustness_pixel(net=starvNet, in_sets=COO_sets[i], in_datas=images,
+        _, _, _, _, avg_data = certifyRobustness_pixel(net=starvNet, in_sets=COO_sets[i], in_datas=images, num_classes=10,
             veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
             RF=0.0, DR=0, return_output=False, show=False)
         avg_numRbCOO[i], avg_numUnkCOO[i], avg_numMisCOO[i], avg_numAttCOO[i], avg_riouCOO[i], avg_rvCOO[i], avg_rsCOO[i], avg_vtCOO[i] = avg_data
@@ -220,7 +220,7 @@ def verify_CAV2021_M2NIST_SSNN(net_type, dtype='float64'):
     IM_sets = attack_multiple_images(images, 'IM', data_type, N_max, br, delta) #returns a list in shape len(N_max) x len(images)
     
     for i in range(M):
-        _, _, _, _, avg_data = certifyRobustness_pixel(net=starvNet, in_sets=IM_sets[i], in_datas=images,
+        _, _, _, _, avg_data = certifyRobustness_pixel(net=starvNet, in_sets=IM_sets[i], in_datas=images, num_classes=10,
             veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
             RF=0.0, DR=0, return_output=False, show=False)
         avg_numRbIM[i], avg_numUnkIM[i], avg_numMisIM[i], avg_numAttIM[i], avg_riouIM[i], avg_rvIM[i], avg_rsIM[i], avg_vtIM[i] = avg_data
@@ -239,7 +239,7 @@ def verify_CAV2021_M2NIST_SSNN(net_type, dtype='float64'):
     CSR_sets = attack_multiple_images(images, 'SIM_csr', data_type, N_max, br, delta) #returns a list in shape len(N_max) x len(images)
     
     for i in range(M):
-        _, _, _, _, avg_data = certifyRobustness_pixel(net=starvNet, in_sets=CSR_sets[i], in_datas=images,
+        _, _, _, _, avg_data = certifyRobustness_pixel(net=starvNet, in_sets=CSR_sets[i], in_datas=images, num_classes=10,
             veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
             RF=0.0, DR=0, return_output=False, show=False)
         avg_numRbCSR[i], avg_numUnkCSR[i], avg_numMisCSR[i], avg_numAttCSR[i], avg_riouCSR[i], avg_rvCSR[i], avg_rsCSR[i], avg_vtCSR[i] = avg_data
@@ -258,7 +258,7 @@ def verify_CAV2021_M2NIST_SSNN(net_type, dtype='float64'):
     COO_sets = attack_multiple_images(images, 'SIM_coo', data_type, N_max, br, delta) #returns a list in shape len(N_max) x len(images)
     
     for i in range(M):
-        _, _, _, _, avg_data = certifyRobustness_pixel(net=starvNet, in_sets=COO_sets[i], in_datas=images,
+        _, _, _, _, avg_data = certifyRobustness_pixel(net=starvNet, in_sets=COO_sets[i], in_datas=images, num_classes=10,
             veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
             RF=0.0, DR=0, return_output=False, show=False)
         avg_numRbCOO[i], avg_numUnkCOO[i], avg_numMisCOO[i], avg_numAttCOO[i], avg_riouCOO[i], avg_rvCOO[i], avg_rsCOO[i], avg_vtCOO[i] = avg_data
