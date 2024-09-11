@@ -32,7 +32,7 @@ import math
 import copy
 import onnx
 import onnx2pytorch
-from onnx2torch import convert
+# from onnx2torch import convert
 import csv
 
 def load_2017_IEEE_TNNLS():
