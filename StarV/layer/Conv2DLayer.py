@@ -136,51 +136,56 @@ class Conv2DLayer(object):
             if self.module == 'default':
                 # check stride, padding, and dilation
 
-                assert isinstance(stride, tuple) or isinstance(stride, list) or isinstance(stride, int), \
-                'error: stride should be a tuple, list, or int'
-                assert isinstance(padding, tuple) or isinstance(padding, list) or isinstance(padding, int), \
-                'error: padding should be a tuple, list, or int'
-                assert isinstance(dilation, tuple) or isinstance(dilation, list) or isinstance(dilation, int), \
-                'error: dilation should be a tuple, list, or int'
-                
-                if isinstance(padding, tuple) or isinstance(padding, list):
-                    if len(padding) == 1:
-                        assert padding[0] >= 0, 'error: padding should non-negative integer'
-                        self.padding = np.ones(2, dtype=np.int16)*padding[0]
-                    elif len(padding) == 2:
-                        assert padding[0] >= 0 and padding[1] >= 0, 'error: padding should non-negative integers'              
-                        self.padding = np.array(padding)
-                    else:
-                        raise Exception('error: incorrect padding')
-                else:
-                    assert padding >= 0, 'error: padding should non-negative integer'
+                assert isinstance(stride, tuple) or isinstance(stride, list) or \
+                       isinstance(stride, int) or isinstance(stride, np.ndarray), \
+                f'error: stride should be a tuple, list, numpy ndarray, or int but received {type(stride)}'
+                assert isinstance(padding, tuple) or isinstance(padding, list) or \
+                       isinstance(padding, int) or isinstance(padding, np.ndarray), \
+                f'error: padding should be a tuple, list, numpy ndarray, or int but received {type(padding)}'
+                assert isinstance(dilation, tuple) or isinstance(dilation, list) or \
+                       isinstance(dilation, int) or isinstance(dilation, np.ndarray), \
+                f'error: dilation should be a tuple, list, numpy ndarray, or int but received {type(padding)}'
+            
+                if isinstance(padding, int):
+                    assert padding >= 0, 'error: padding should non-negative integers'
                     self.padding = np.ones(2, dtype=np.int16)*padding
-                    
-                if isinstance(stride, tuple) or isinstance(stride, list):
+                else:
+                    padding = np.array(padding)
+                    assert (padding >= 0).any(), 'error: padding should non-negative integers'
+
+                    if len(padding) == 1:
+                        self.padding = np.ones(2, dtype=np.int16)*padding[0]
+                    else:
+                        if len(padding) == 4:
+                            if padding[0] == padding[1] and padding[2] == padding[3]:
+                                padding = np.array([padding[0], padding[2]])
+                        self.padding = np.array(padding)
+                
+                if isinstance(stride, int):
+                    assert stride > 0, 'error: stride should positive integer'
+                    self.stride = np.ones(2, dtype=np.int16)*stride
+                else:
                     if len(stride) == 1:
                         assert stride[0] > 0, 'error: stride should positive integer'
                         self.stride = np.ones(2, dtype=np.int16)*stride[0]
                     elif len(stride) == 2:
-                        assert stride[0] > 0 and stride[1] > 0, 'error: stride should positive integers'
+                        assert stride[0] > 0 and stride[1] > 0, 'error: stride should positive integer'
                         self.stride = np.array(stride)
                     else:
-                        raise Exception('error: incorrect padding')
+                        raise Exception('error: incorrect stride')
+                
+                if isinstance(dilation, int):
+                    assert dilation > 0, 'error: dilation should positive integer'
+                    self.dilation = np.ones(2, dtype=np.int16)*dilation
                 else:
-                    assert stride > 0, 'error: stride should positive integer'
-                    self.stride = np.ones(2, dtype=np.int16)*stride
-                    
-                if isinstance(dilation, tuple) or isinstance(dilation, list):
                     if len(dilation) == 1:
                         assert dilation[0] > 0, 'error: dilation should positive integer'
                         self.dilation = np.ones(2, dtype=np.int16)*dilation[0]
                     elif len(dilation) == 2:
-                        assert dilation[0] > 0 and dilation[1] > 0, 'error: dilation should positive integers'
+                        assert dilation[0] > 0 and dilation[1], 'error: dilation should positive integer'
                         self.dilation = np.array(dilation)
                     else:
-                        raise Exception('error: incorrect padding')
-                else:
-                    assert dilation > 0, 'error: dilation should positive integer'
-                    self.dilation = np.ones(2, dtype=np.int16)*dilation
+                        raise Exception('error: incorrect dilation')
 
                 self.weight = kernel_weight.astype(self.numpy_dtype)            
                 if kernel_bias is not None:
@@ -261,7 +266,7 @@ class Conv2DLayer(object):
 
             p, q, ci, co = self.weight.shape
             
-            mo, no = Conv2DLayer.get_output_size_sparse(in_height=in_shape[0], in_width=in_shape[1], weight=self.weight, stride=self.stride, padding=self.padding)
+            mo, no = self.get_output_size_sparse(in_height=in_shape[0], in_width=in_shape[1])
             m += 2*self.padding[0]
             n += 2*self.padding[1]
             
@@ -276,19 +281,27 @@ class Conv2DLayer(object):
 
             Z = np.pad(self.weight, ((0, m-p), (0, n-q), (0, 0), (0,0)), mode='constant')
             
-            # CSR implmentation of kenerl weight
-            Z_ = sp.csr_array(Z.reshape(Z.shape[0]*Z.shape[1]*Z.shape[2], co).T, copy=False)
+            # CSR implmentation of kernel weight
+            Z_ = sp.csr_array(Z.reshape(np.prod(Z.shape[:3]), co).T, copy=False)
             nnz = Z_.indptr[1:] - Z_.indptr[:-1]
-        
-            new_data = np.repeat(Z_.data[None, :], ko, axis=0).reshape(-1)
+            Z_ind = Z_.indices.copy()
 
-            ind = np.arange(ko, dtype=np.int32)[:, np.newaxis]
-            ind = (ind//no)*i_shift + (ind%no)*j_shift
-            new_indices = ind + Z_.indices
+            if dilation[0] > 1:
+                q_ind = Z_.indices // c % p #col
+                Z_ind += q_ind*(dilation[0]-1)*c
+
+            if dilation[1] > 1:
+                p_ind = Z_.indices // (c*q) #row
+                Z_ind += p_ind*(dilation[1]-1)*c*q
         
-            new_indptr = np.hstack([Z_.indptr, ((np.arange((ko-1)*co, dtype=np.int32) + 1 + Z_.shape[0]).reshape(ko-1, co) * nnz).reshape(-1)] )
+            data = np.repeat(Z_.data[None, :], ko, axis=0).reshape(-1)
+
+            indices = np.arange(ko, dtype=np.int32)[:, np.newaxis]
+            indices = ((indices//no)*i_shift + (indices%no)*j_shift + Z_ind).reshape(-1)
+        
+            indptr = np.hstack([Z_.indptr, ((np.arange((ko-1)*co, dtype=np.int32) + 1 + Z_.shape[0]).reshape(ko-1, co) * nnz).reshape(-1)] )
             
-            self.weight = sp.csr_array((new_data, new_indices.reshape(-1), new_indptr), shape=(ko*co, Z_.shape[1]), copy=False)
+            self.weight = sp.csr_array((data, indices, indptr), shape=(ko*co, Z_.shape[1]), copy=False)
             
 
             """
@@ -315,7 +328,7 @@ class Conv2DLayer(object):
         self.in_dim = self.in_channel
         self.out_dim = self.out_channel
 
-    def info(self):
+    def __str__(self):
         print('Convolutional 2D Layer')
         print('module: {}'.format(self.module))
         print('in_channel: {}'.format(self.in_channel))
@@ -336,15 +349,24 @@ class Conv2DLayer(object):
         if self.bias is not None:
             print('bias: {}, {}'.format(self.bias.shape, self.bias.dtype))
         else:
-            print('bias: {}, {}'.format(self.bias))
+            print('bias: {}'.format(self.bias))
         return ''
 
     def pad_coo(input, shape, padding, tocsc=False):
-        row = input.row + (input.row // (shape[1]*shape[2])) * 2 * padding[1] * shape[2]
-        row += shape[2]*((shape[1]+2*padding[1])*padding[0]+padding[1])
+        if len(padding) == 4:
+            pad = np.array(padding)
+        elif len(padding) == 2:
+            pad = np.array([padding[0], padding[0], padding[1], padding[1]])
+        elif len(padding) == 1:
+            pad = np.ones(4)*padding[0]
 
-        mo = shape[0]+2*padding[0]
-        no = shape[1]+2*padding[1]
+        """Adding padding to coo"""
+        row = input.row + (input.row // (shape[1]*shape[2])) * (padding[2]+padding[3])* shape[2]
+        row += shape[2]*((shape[1]+padding[2]+padding[3])*padding[0]+padding[2])
+
+        mo = shape[0] + padding[0] + padding[1]
+        no = shape[1] + padding[2] + padding[3]
+        print('mo, no: ', mo, no)
         if tocsc is True:
             output = sp.csc_array((input.data, (row, input.col)), shape = (mo*no*shape[2], input.shape[1]))
         else:
@@ -356,6 +378,26 @@ class Conv2DLayer(object):
         return output.tocsr(False), mo, no
 
     def add_zero_padding(input, padding):
+
+        assert isinstance(input, np.ndarray), \
+        'error: input should be numpy ndarray'
+
+        if padding[0] == 0 and padding[1] == 0:
+            return input
+        
+        in_dim = input.ndim
+        if in_dim == 4:
+            return np.pad(input, ((padding[0], padding[0]), (padding[1], padding[1]), (0, 0), (0,0)), mode='constant')
+        elif in_dim == 3:
+            return np.pad(input, ((padding[0], padding[0]), (padding[1], padding[1]), (0, 0)), mode='constant')
+        elif in_dim == 2:
+            return np.pad(input, ((padding[0], padding[0]), (padding[1], padding[1])), mode='constant')
+        else:
+            raise Exception(
+                'Invalid number of input dimensions; it should be between 2D and 4D'
+            )
+    
+    def add_zero_padding_old(input, padding):
 
         assert isinstance(input, np.ndarray), \
         'error: input should be numpy ndarray'
@@ -392,26 +434,23 @@ class Conv2DLayer(object):
 
         return out
     
-    def get_output_size(input, weight_h, weight_w, stride, padding, dilation):
+    def get_output_size(self, input):
         h, w, c, n = input.shape
-        H, W = weight_h, weight_w
-        ho = np.floor(
-            ((h + 2*padding[0] - H - (H - 1) * (dilation[0] - 1)) // stride[0]) + 1
-        ).astype(int)
-        wo = np.floor(
-            ((w + 2*padding[1] - W - (W - 1) * (dilation[1] - 1)) // stride[1]) + 1
-        ).astype(int)
+        H, W = self.weight.shape[:2]
+
+        ho = ((h + 2*self.padding[0] - H - (H - 1) * (self.dilation[0] - 1)) // self.stride[0]) + 1
+        wo = ((h + 2*self.padding[1] - H - (H - 1) * (self.dilation[1] - 1)) // self.stride[1]) + 1
         
         assert ho > 0 and wo > 0, 'error: the shape of resulting output should be positive'
         return ho, wo
     
-    def get_output_size_sparse(in_height, in_width, weight, stride, padding):
+    def get_output_size_sparse(self, in_height, in_width):
         h, w = in_height, in_width
-        H, W = weight.shape[:2]
+        H, W = self.weight.shape[:2]
 
-        ho = (h + 2*padding[0] - H) // stride[0] + 1
-        wo = (w + 2*padding[1] - W) // stride[1] + 1
-        
+        ho = ((h + 2*self.padding[0] - H - (H - 1) * (self.dilation[0] - 1)) // self.stride[0]) + 1
+        wo = ((h + 2*self.padding[1] - H - (H - 1) * (self.dilation[1] - 1)) // self.stride[1]) + 1
+
         assert ho > 0 and wo > 0, 'error: the shape of resulting output should be positive'
         return ho, wo
     
@@ -428,7 +467,7 @@ class Conv2DLayer(object):
             return self.conv2d_pytorch(input, bias=True)
         
         else:
-            return self.conv2d_vec(input, bias=True)
+            return self.conv2d(input, bias=True)
         
     def conv2d_pytorch(self, input, bias=True):
         """
@@ -462,11 +501,9 @@ class Conv2DLayer(object):
             conv2d_layer.bias = None
 
         output = conv2d_layer(input).detach().numpy()
-        # change input shape to H, W, C, N
-        output.transpose([2, 3, 1, 0])
-        
-        if in_dim == 3:
-            output = output.reshape(H, W, C) 
+        # change input shape to H, W, C, Noutput += self.bias[None, None, :, None]
+        # if in_dim == 3:
+        #     output = output.reshape(H, W, C) 
 
         return output
 
@@ -502,8 +539,7 @@ class Conv2DLayer(object):
         h, w, c, n = input.shape
         H, W, C, F = self.weight.shape
   
-        ho, wo = Conv2DLayer.get_output_size(input=input, weight_h=H, weight_w=W, \
-                                                       stride=stride, padding=padding, dilation=dilation)
+        ho, wo = self.get_output_size(input)
         
         pad_input = Conv2DLayer.add_zero_padding(input, padding)
         pn, pm = pad_input.shape[:2]
@@ -521,7 +557,7 @@ class Conv2DLayer(object):
             working_input = pad_input[:, :, :, z]
             
             for k in range(F):
-                out_ch = np.zeros((ho, wo), dtype=dtype)
+                out_ch = output[:, :, k, z]
 
                 for i in range(ho):
                     center_h = center_h0 + stride[0] * i
@@ -533,17 +569,15 @@ class Conv2DLayer(object):
 
                         feature_map = working_input[indices_h, :, :][: , indices_w, :]
                         out_ch[i, j] = np.sum(feature_map * self.weight[:, :, :, k])
-
-                if bias is True:
-                    if isinstance(self.bias, np.ndarray):
-                        out_ch += self.bias[k]
-
-                output[:, :, k, z] = out_ch
         
-        if in_dim == 2:
-            output = output.reshape(ho, wo)
-        elif in_dim == 3:
-            output = output.reshape(ho, wo, F)
+        if bias is True:
+            if isinstance(self.bias, np.ndarray):
+                output += self.bias[None, None, :, None]
+        
+        # if in_dim == 2:
+        #     output = output.reshape(ho, wo)
+        # elif in_dim == 3:
+        #     output = output.reshape(ho, wo, F)
         return output
         
     
@@ -581,8 +615,7 @@ class Conv2DLayer(object):
         h, w, c, n = input.shape
         H, W, C, F  = self.weight.shape
 
-        ho, wo = Conv2DLayer.get_output_size(input=input, weight_h=H, weight_w=W, \
-                                                       stride=stride, padding=padding, dilation=dilation)
+        ho, wo = self.get_output_size(input)
         pad_input = Conv2DLayer.add_zero_padding(input, padding)        
         pn, pm = pad_input.shape[:2]
         assert pn >= H and pm >= W, 'error: kernel shape should not be bigger than that of input'
@@ -615,15 +648,15 @@ class Conv2DLayer(object):
             # weight = copy.deepcopy(self.weight)
             # col_weight = np.reshape(weight, (-1, F))
             col_weight = self.weight.reshape(-1, F)
-            out_n = np.matmul(row_feature_map, col_weight)
-            if bias is True:
-                if isinstance(self.bias, np.ndarray):
-                    out_n += self.bias[np.newaxis, :]
-            
+            out_n = np.matmul(row_feature_map, col_weight)            
             output[:, :, :, z] = out_n.reshape(ho, wo, F)
         
-        if in_dim == 3 or in_dim == 2:
-            output = output.reshape(ho, wo, F)
+        if bias is True:
+            if isinstance(self.bias, np.ndarray):
+                output += self.bias[None, None, :, None]
+        
+        # if in_dim == 3 or in_dim == 2:
+        #     output = output.reshape(ho, wo, F)
         return output
 
     def conv2d(self, input, bias=True):
@@ -650,8 +683,6 @@ class Conv2DLayer(object):
         'error: input should be numpy ndarray'
         assert in_dim >= 2 and in_dim <= 4, \
         'error: input should be 2D, 3D, or 4D numpy ndarray'
-
-        input = input.astype(dtype)
 
         if in_dim == 2:
             input = input[:, :, None, None]
@@ -681,11 +712,19 @@ class Conv2DLayer(object):
 
         else:
             p, q, ci, co  = weight.shape
-            mo, no = Conv2DLayer.get_output_size(input=input, weight_h=p, weight_w=q, \
-                                                        stride=stride, padding=padding, dilation=dilation)
+            mo, no = self.get_output_size(input)
         
             Z = np.pad(np.ones([p, q, c], dtype=bool), ((0, m-p), (0, n-q), (0, 0)), mode='constant').reshape(-1)
-            Z_indices = np.where(Z > 0)[0]
+            Z_ind = np.where(Z > 0)[0]
+            Z_indices = Z_ind.copy()
+
+            if dilation[0] > 1:
+                q_ind = Z_ind // c % p #col
+                Z_indices += q_ind*(dilation[0]-1)*c
+
+            if dilation[1] > 1:
+                p_ind = Z_ind // (c*q) #row
+                Z_indices += p_ind*(dilation[1]-1)*c*q
 
             i_shift = n*stride[0]*c
             j_shift = stride[1]*c
@@ -737,7 +776,7 @@ class Conv2DLayer(object):
     def conv2d_sparse(self, input, bias=True):
         
         """
-            Convolution 2D for sparse images
+            Convolution 2D for sparse images (Dilation is not supported)
 
             Args:
                 @input: dataset in numpy with shape of H, W, C, N, where H: height, W: width, C: input channel, N: number of batches
@@ -758,7 +797,7 @@ class Conv2DLayer(object):
         input = copy.deepcopy(input) #.astype(self.numpy_dtype)
         h, w, c, n = input.size()
         H, W, C, F = weight.shape
-        ho, wo = Conv2DLayer.get_output_size_sparse(h, w, weight, stride, padding)
+        ho, wo = self.get_output_size_sparse(h, w)
 
         h += 2*padding[0]
         w += 2*padding[1]
@@ -882,7 +921,7 @@ class Conv2DLayer(object):
     def conv2d_sparse2d_as4d(self, input, shape, bias=True):
         
         """
-            Convolution 2D for sparse 2D images 
+            Convolution 2D for sparse 2D images (Dilation is not supported)
 
             Args:
                 @input: dataset in numpy with shape of H*W*C, N, where H: height, W: width, C: input channel, N: number of batches
@@ -904,7 +943,7 @@ class Conv2DLayer(object):
         h, w, c = shape
         n = input.shape[1]
         H, W, Ci, Co = weight.shape
-        ho, wo = Conv2DLayer.get_output_size_sparse(h, w, weight, stride, padding)
+        ho, wo = self.get_output_size_sparse(h, w)
         out_shape = np.array([ho, wo, Co])
 
         indx, pred, data = input.row, input.col, input.data
@@ -1109,6 +1148,7 @@ class Conv2DLayer(object):
         
         stride = self.stride
         padding = self.padding
+        dilation = self.dilation
         weight = self.weight
         
         assert isinstance(input, sp.coo_array) or isinstance(input, sp.coo_matrix), \
@@ -1128,7 +1168,7 @@ class Conv2DLayer(object):
 
         else:
             p, q, ci, co = weight.shape
-            mo, no = Conv2DLayer.get_output_size_sparse(in_height=shape[0], in_width=shape[1], weight=weight, stride=stride, padding=padding)
+            mo, no = self.get_output_size_sparse(in_height=shape[0], in_width=shape[1])
 
             i_shift = n * stride[0] * c
             j_shift = stride[1] * c
@@ -1136,17 +1176,26 @@ class Conv2DLayer(object):
             ko = mo*no
 
             Z = np.pad(weight, ((0, m-p), (0, n-q), (0, 0), (0,0)), mode='constant')
-            Z_ = sp.csr_array(Z.reshape(Z.shape[0]*Z.shape[1]*Z.shape[2], co).T, copy=False)
+            Z_ = sp.csr_array(Z.reshape(np.prod(Z.shape[:3]), co).T, copy=False)
             nnz = Z_.indptr[1:] - Z_.indptr[:-1]
-        
-            new_data = np.repeat(Z_.data[None, :], ko, axis=0).reshape(-1)
+            Z_ind = Z_.indices.copy()
 
-            new_indices = np.arange(ko, dtype=np.int32)[:, np.newaxis]
-            new_indices = (new_indices//no)*i_shift + (new_indices%no)*j_shift + Z_.indices
-        
-            new_indptr = np.hstack([Z_.indptr, ((np.arange((ko-1)*co, dtype=np.int32) + 1 + Z_.shape[0]).reshape(ko-1, co) * nnz).reshape(-1)] )
+            if dilation[0] > 1:
+                q_ind = Z_.indices // c % p #col
+                Z_ind += q_ind*(dilation[0]-1)*c
 
-            TZ = sp.csr_array((new_data, new_indices.reshape(-1), new_indptr), shape=(ko*co, Z_.shape[1]), copy=False)
+            if dilation[1] > 1:
+                p_ind = Z_.indices // (c*q) #row
+                Z_ind += p_ind*(dilation[1]-1)*c*q
+        
+            data = np.repeat(Z_.data[None, :], ko, axis=0).reshape(-1)
+
+            indices = np.arange(ko, dtype=np.int32)[:, np.newaxis]
+            indices = ((indices//no)*i_shift + (indices%no)*j_shift + Z_ind).reshape(-1)
+        
+            indptr = np.hstack([Z_.indptr, ((np.arange((ko-1)*co, dtype=np.int32) + 1 + Z_.shape[0]).reshape(ko-1, co) * nnz).reshape(-1)] )
+
+            TZ = sp.csr_array((data, indices, indptr), shape=(ko*co, Z_.shape[1]), copy=False)
             O = (TZ @ XF).tocoo(copy=False)
 
             out_shape = (mo, no, co)
@@ -1167,6 +1216,7 @@ class Conv2DLayer(object):
         
         stride = self.stride
         padding = self.padding
+        dilation = self.dilation
         weight = self.weight
         
         assert isinstance(input, sp.coo_array) or isinstance(input, sp.coo_matrix), \
@@ -1185,15 +1235,11 @@ class Conv2DLayer(object):
             out_shape = self.out_shape
 
         else:
-
             b = input.shape[1]
             p, q, ci, co = weight.shape
-            mo, no = Conv2DLayer.get_output_size_sparse(in_height=shape[0], in_width=shape[1], weight=weight, stride=stride, padding=padding)
+            mo, no = self.get_output_size_sparse(in_height=shape[0], in_width=shape[1])
 
             K = np.pad(weight, ((0, 0), (0, n-q), (0, 0), (0,0)), mode='constant') 
-            
-            xd = XF.shape[0]
-            kd = np.prod(K.shape[:3])
 
             i_shift = n*stride[0]*c
             j_shift = stride[1]*c
@@ -1204,48 +1250,32 @@ class Conv2DLayer(object):
             row_list = []
             col_list = []
 
-            for o in range(co):
+            for o in range(co):                
                 K_ = sp.csr_array(K[:, :, :, o].reshape(1, -1), copy=False)
-                K_shape = np.array(K_.shape)
-                K_shape[1] += xd - kd
-                
+                K_ind = K_.indices.copy()
+
+                if dilation[0] > 1:
+                    q_ind = K_.indices // c % p #col
+                    K_ind += q_ind*(dilation[0]-1)*c
+
+                if dilation[1] > 1:
+                    p_ind = K_.indices // (c*q) #row
+                    K_ind += p_ind*(dilation[1]-1)*c*q                
+
                 data = np.repeat(K_.data[None, :], ko, axis=0).reshape(-1)
                 
-                ind = np.arange(ko, dtype=np.int32)[:, np.newaxis]
-                ind = (ind//no)*i_shift + (ind%no)*j_shift
-                new_indices = ind + K_.indices
+                indices = np.arange(ko, dtype=np.int32)[:, np.newaxis]
+                indices = ((indices//no)*i_shift + (indices%no)*j_shift + K_ind).reshape(-1)
 
-                new_indptr = np.hstack([K_.indptr, (np.arange(ko-1, dtype=np.int32)+2)*K_.nnz])        
+                indptr = np.hstack([K_.indptr, (np.arange(ko-1, dtype=np.int32)+2)*K_.nnz])        
 
-                TK = sp.csr_array((data, new_indices.reshape(-1), new_indptr), shape=(ko, K_shape[1]), copy=False)
+                TK = sp.csr_array((data, indices, indptr), shape=(ko, XF.shape[0]), copy=False)
 
                 P = (TK @ XF).tocoo(copy=False)
 
                 val_list.append(P.data)
                 row_list.append((P.row*co + o).astype(np.int32))
                 col_list.append(P.col.astype(np.int32))
-                
-            
-            # for o in range(co):
-            #     K_ = sp.csr_array(K[:, :, :, o].reshape(1, -1), copy=False)
-            #     K_shape = np.array(K_.shape)
-            #     K_shape[1] += xd - kd
-                
-            #     data = np.repeat(K_.data[None, :], ko, axis=0).reshape(-1)
-                
-            #     ind = np.arange(ko, dtype=np.int32)[:, np.newaxis]
-            #     ind = (ind//no)*i_shift + (ind%no)*j_shift
-            #     new_indices = ind + K_.indices
-
-            #     new_indptr = np.hstack([K_.indptr, (np.arange(ko-1, dtype=np.int32)+2)*K_.nnz])        
-
-            #     TK = sp.csr_array((data, new_indices.reshape(-1), new_indptr), shape=(ko, K_shape[1]), copy=False)
-    
-            #     P = (TK @ XF).tocoo(copy=False)
-                
-            #     val_list.append(P.data)
-            #     row_list.append(P.row*co + o)
-            #     col_list.append(P.col)
             
             O = sp.coo_array((np.hstack(val_list), (np.hstack(row_list), np.hstack(col_list))), shape=(ko*co, b), copy=False)
             out_shape = (mo, no, co)
@@ -1268,6 +1298,7 @@ class Conv2DLayer(object):
         
         stride = self.stride
         padding = self.padding
+        dilation = self.dilation
         weight = self.weight
         
         assert isinstance(input, sp.coo_array) or isinstance(input, sp.coo_matrix), \
@@ -1277,7 +1308,7 @@ class Conv2DLayer(object):
         b = input.shape[1]
         m, n, c = shape
         p, q, ci, co = weight.shape
-        mo, no = Conv2DLayer.get_output_size_sparse(in_height=shape[0], in_width=shape[1], weight=weight, stride=stride, padding=padding)
+        mo, no = self.get_output_size_sparse(in_height=shape[0], in_width=shape[1])
 
         if padding[0] > 0 or padding[1] > 0:
             XF, m, n = Conv2DLayer.pad_coo(input, shape, padding)
@@ -1286,9 +1317,6 @@ class Conv2DLayer(object):
             XF = input
             
         K = np.pad(weight, ((0, 0), (0, n-q), (0, 0), (0,0)), mode='constant') 
-        
-        xd = XF.shape[0]
-        kd = np.prod(K.shape[:3])
                 
         i_shift = n*stride[0]*c
         j_shift = stride[1]*c
@@ -1301,18 +1329,24 @@ class Conv2DLayer(object):
         nnz = np.zeros(to, dtype=np.int32)
         for o in range(co):
             K_ = sp.csr_array(K[:, :, :, o].reshape(1, -1), copy=False)
-            K_shape = np.array(K_.shape)
-            K_shape[1] += xd - kd
+            K_ind = K_.indices.copy()
+
+            if dilation[0] > 1:
+                q_ind = K_.indices // c % p #col
+                K_ind += q_ind*(dilation[0]-1)*c
+
+            if dilation[1] > 1:
+                p_ind = K_.indices // (c*q) #row
+                K_ind += p_ind*(dilation[1]-1)*c*q
             
             data = np.repeat(K_.data[None, :], ko, axis=0).reshape(-1)
             
-            ind = np.arange(ko, dtype=np.int32)[:, np.newaxis]
-            ind = (ind//no)*i_shift + (ind%no)*j_shift
-            new_indices = ind + K_.indices
+            indices = np.arange(ko, dtype=np.int32)[:, np.newaxis]
+            indices = ((indices//no)*i_shift + (indices%no)*j_shift + K_ind).reshape(-1)
 
-            new_indptr = np.hstack([K_.indptr, (np.arange(ko-1, dtype=np.int32)+2)*K_.nnz])        
+            indptr = np.hstack([K_.indptr, (np.arange(ko-1, dtype=np.int32)+2)*K_.nnz])        
 
-            TK = sp.csr_array((data, new_indices.reshape(-1), new_indptr), shape=(ko, K_shape[1]), copy=False)
+            TK = sp.csr_array((data, indices, indptr), shape=(ko, XF.shape[0]), copy=False)
 
             P = TK @ XF
  
@@ -1435,6 +1469,7 @@ class Conv2DLayer(object):
         
         stride = self.stride
         padding = self.padding
+        dilation = self.dilation
         weight = self.weight
         
         assert isinstance(input, sp.csr_array) or isinstance(input, sp.csr_matrix), \
@@ -1453,7 +1488,7 @@ class Conv2DLayer(object):
 
         else:
             p, q, ci, co = weight.shape
-            mo, no = Conv2DLayer.get_output_size_sparse(in_height=shape[0], in_width=shape[1], weight=weight, stride=stride, padding=padding)
+            mo, no = self.get_output_size_sparse(in_height=shape[0], in_width=shape[1])
 
             i_shift = n * stride[0] * c
             j_shift = stride[1] * c
@@ -1461,86 +1496,31 @@ class Conv2DLayer(object):
             ko = mo*no
 
             Z = np.pad(weight, ((0, m-p), (0, n-q), (0, 0), (0,0)), mode='constant')
-            Z_ = sp.csr_array(Z.reshape(Z.shape[0]*Z.shape[1]*Z.shape[2], co).T, copy=False)
+            Z_ = sp.csr_array(Z.reshape(np.prod(Z.shape[:3]), co).T, copy=False)
             nnz = Z_.indptr[1:] - Z_.indptr[:-1]
-        
-            new_data = np.repeat(Z_.data[None, :], ko, axis=0).reshape(-1)
+            Z_ind = Z_.indices.copy()
 
-            ind = np.arange(ko, dtype=np.int32)[:, np.newaxis]
-            ind = (ind//no)*i_shift + (ind%no)*j_shift
-            new_indices = ind + Z_.indices
-        
-            new_indptr = np.hstack([Z_.indptr, ((np.arange((ko-1)*co, dtype=np.int32) + 1 + Z_.shape[0]).reshape(ko-1, co) * nnz).reshape(-1)] )
+            if dilation[0] > 1:
+                q_ind = Z_.indices // c % p #col
+                Z_ind += q_ind*(dilation[0]-1)*c
 
-            TZ = sp.csr_array((new_data, new_indices.reshape(-1), new_indptr), shape=(ko*co, Z_.shape[1]), copy=False)
+            if dilation[1] > 1:
+                p_ind = Z_.indices // (c*q) #row
+                Z_ind += p_ind*(dilation[1]-1)*c*q
+        
+            data = np.repeat(Z_.data[None, :], ko, axis=0).reshape(-1)
+
+            indices = np.arange(ko, dtype=np.int32)[:, np.newaxis]
+            indices = ((indices//no)*i_shift + (indices%no)*j_shift + Z_ind).reshape(-1)
+        
+            indptr = np.hstack([Z_.indptr, ((np.arange((ko-1)*co, dtype=np.int32) + 1 + Z_.shape[0]).reshape(ko-1, co) * nnz).reshape(-1)])
+
+            TZ = sp.csr_array((data, indices, indptr), shape=(ko*co, Z_.shape[1]), copy=False)
 
             out_shape = (mo, no, co)
         
         O = TZ @ XF
         return O, out_shape
-    
-
-    # def fconv2d_csr2(self, input, shape):
-    #     """
-    #         Flattened Convolution 2D for sparse 2D images 
-    #         This method does not support bias vector
-
-    #         Args:
-    #             @input: scipy sparse csr matrix with shape of H*W*C, N, where H: height, W: width, C: input channel, N: number of batches
-    #         Return: 
-    #             @R: convolved dataset in csr matrix
-    #     """
-
-    #     assert self.module == 'default', 'error: conv2d_sparse() supports \'default\' module'
-        
-    #     stride = self.stride
-    #     padding = self.padding
-    #     weight = self.weight
-        
-    #     assert isinstance(input, sp.csr_array) or isinstance(input, sp.csr_matrix), \
-    #     'error: input should be a scipy sparse csr array or matrix'
-
-    #     m, n, c = shape
-
-    #     if padding[0] > 0 or padding[1] > 0:
-    #         XF, m, n = Conv2DLayer.pad_csr(input, shape, padding)
-    #     else:
-    #         XF = input
-        
-    #     if self.sparse:
-    #         TZ = self.weight
-    #         out_shape = self.out_shape
-
-    #     else:
-    #         p, q, ci, co = weight.shape
-    #         mo, no = Conv2DLayer.get_output_size_sparse(in_height=shape[0], in_width=shape[1], weight=weight, stride=stride, padding=padding)
-
-    #         i_shift = n * stride[0] * c
-    #         j_shift = stride[1] * c
-            
-    #         ko = mo*no
-
-    #         Z = np.pad(weight, ((0, m-p), (0, n-q), (0, 0), (0,0)), mode='constant')
-    #         Z_ = sp.csr_array(Z.reshape(Z.shape[0]*Z.shape[1]*Z.shape[2], co).T, copy=False)
-    #         nnz = Z_.indptr[1:] - Z_.indptr[:-1]
-        
-    #         new_data = np.repeat(Z_.data[None, :], ko, axis=0).reshape(-1)
-
-    #         ind = np.arange(ko, dtype=np.int32)[:, np.newaxis]
-    #         ind = (ind//no)*i_shift + (ind%no)*j_shift
-    #         new_indices = ind + Z_.indices
-        
-    #         new_indptr = np.hstack([Z_.indptr, ((np.arange((ko-1)*co, dtype=np.int32) + 1 + Z_.shape[0]).reshape(ko-1, co) * nnz).reshape(-1)] )
-
-    #         TZ = sp.csc_array((new_data, new_indices.reshape(-1), new_indptr), shape=(Z_.shape[1], ko*co), copy=False)
-
-    #         out_shape = (mo, no, co)
-        
-    #     print('XF: ', XF.shape)
-    #     print('TZ: ', TZ.shape)
-    #     # TZ @ XF = XF @ TZ^T in csr = XF @ TZ in csc
-    #     O = XF @ TZ
-    #     return O, out_shape
 
     def fconv2d_csr_co_loop(self, input, shape):
         """
@@ -1557,6 +1537,7 @@ class Conv2DLayer(object):
         
         stride = self.stride
         padding = self.padding
+        dilation = self.dilation
         weight = self.weight
         
         assert isinstance(input, sp.csr_array) or isinstance(input, sp.csr_matrix), \
@@ -1566,7 +1547,7 @@ class Conv2DLayer(object):
         b = input.shape[1]
         m, n, c = shape
         p, q, ci, co = weight.shape
-        mo, no = Conv2DLayer.get_output_size_sparse(in_height=shape[0], in_width=shape[1], weight=weight, stride=stride, padding=padding)
+        mo, no = self.get_output_size_sparse(in_height=shape[0], in_width=shape[1])
 
         if padding[0] > 0 or padding[1] > 0:
             XF, m, n = Conv2DLayer.pad_csr(input, shape, padding)
@@ -1575,9 +1556,6 @@ class Conv2DLayer(object):
             XF = input
             
         K = np.pad(weight, ((0, 0), (0, n-q), (0, 0), (0,0)), mode='constant') 
-        
-        xd = XF.shape[0]
-        kd = np.prod(K.shape[:3])
                 
         i_shift = n*stride[0]*c
         j_shift = stride[1]*c
@@ -1595,18 +1573,24 @@ class Conv2DLayer(object):
         # indptr = np.zeros(to + 1, dtype=np.int32)
         for o in range(co):
             K_ = sp.csr_array(K[:, :, :, o].reshape(1, -1), copy=False)
-            K_shape = np.array(K_.shape)
-            K_shape[1] += xd - kd
-            
+            K_ind = K_.indices.copy()
+
+            if dilation[0] > 1:
+                q_ind = K_.indices // c % p #col
+                K_ind += q_ind*(dilation[0]-1)*c
+
+            if dilation[1] > 1:
+                p_ind = K_.indices // (c*q) #row
+                K_ind += p_ind*(dilation[1]-1)*c*q
+
             data = np.repeat(K_.data[None, :], ko, axis=0).reshape(-1)
             
-            ind = np.arange(ko, dtype=np.int32)[:, np.newaxis]
-            ind = (ind//no)*i_shift + (ind%no)*j_shift
-            new_indices = ind + K_.indices
+            indices = np.arange(ko, dtype=np.int32)[:, np.newaxis]
+            indices = ((indices//no)*i_shift + (indices%no)*j_shift + K_ind).reshape(-1)
 
-            new_indptr = np.hstack([K_.indptr, (np.arange(ko-1, dtype=np.int32)+2)*K_.nnz])        
+            indptr = np.hstack([K_.indptr, (np.arange(ko-1, dtype=np.int32)+2)*K_.nnz])        
 
-            TK = sp.csr_array((data, new_indices.reshape(-1), new_indptr), shape=(ko, K_shape[1]), copy=False)
+            TK = sp.csr_array((data, indices, indptr), shape=(ko, XF.shape[0]), copy=False)
 
             P = (TK @ XF).tocoo(copy=False)
 
@@ -1639,6 +1623,7 @@ class Conv2DLayer(object):
         
         stride = self.stride
         padding = self.padding
+        dilation = self.dilation
         weight = self.weight
         
         assert isinstance(input, sp.csr_array) or isinstance(input, sp.csr_matrix), \
@@ -1648,7 +1633,7 @@ class Conv2DLayer(object):
         b = input.shape[1]
         m, n, c = shape
         p, q, ci, co = weight.shape
-        mo, no = Conv2DLayer.get_output_size_sparse(in_height=shape[0], in_width=shape[1], weight=weight, stride=stride, padding=padding)
+        mo, no = self.get_output_size_sparse(in_height=shape[0], in_width=shape[1])
 
         if padding[0] > 0 or padding[1] > 0:
             XF, m, n = Conv2DLayer.pad_csr(input, shape, padding)
@@ -1657,92 +1642,61 @@ class Conv2DLayer(object):
             XF = input
             
         K = np.pad(weight, ((0, 0), (0, n-q), (0, 0), (0,0)), mode='constant') 
-        
-        xd = XF.shape[0]
-        kd = np.prod(K.shape[:3])
                 
         i_shift = n*stride[0]*c
         j_shift = stride[1]*c
         
         ko = mo*no
         to = ko*co
-        
-        # val_list = []
-        # row_list = []
-        # col_list = []
 
-        data_list = np.array([None for _ in range(to)])
-        indices_list = np.array([None for _ in range(to)])
+        data = np.array([None for _ in range(to)])
+        indices = np.array([None for _ in range(to)])
         nnz = np.zeros(to, dtype=np.int32)
         for o in range(co):
             K_ = sp.csr_array(K[:, :, :, o].reshape(1, -1), copy=False)
-            K_shape = np.array(K_.shape)
-            K_shape[1] += xd - kd
+            K_ind = K_.indices.copy()
+
+            if dilation[0] > 1:
+                q_ind = K_.indices // c % p #col
+                K_ind += q_ind*(dilation[0]-1)*c
+
+            if dilation[1] > 1:
+                p_ind = K_.indices // (c*q) #row
+                K_ind += p_ind*(dilation[1]-1)*c*q
             
             data = np.repeat(K_.data[None, :], ko, axis=0).reshape(-1)
             
-            ind = np.arange(ko, dtype=np.int32)[:, np.newaxis]
-            ind = (ind//no)*i_shift + (ind%no)*j_shift
-            new_indices = ind + K_.indices
+            indices = np.arange(ko, dtype=np.int32)[:, np.newaxis]
+            indices = ((indices//no)*i_shift + (indices%no)*j_shift + K_ind).reshape(-1)
 
-            new_indptr = np.hstack([K_.indptr, (np.arange(ko-1, dtype=np.int32)+2)*K_.nnz])        
+            indptr = np.hstack([K_.indptr, (np.arange(ko-1, dtype=np.int32)+2)*K_.nnz])        
 
-            TK = sp.csr_array((data, new_indices.reshape(-1), new_indptr), shape=(ko, K_shape[1]), copy=False)
-            # TK.data = data
-            # TK.indices = new_indices.reshape(-1)
-            # TK.indptr = new_indptr
+            TK = sp.csr_array((data, indices, indptr), shape=(ko, XF.shape[0]), copy=False)
 
             P = TK @ XF
-            # print('o + np.arange(ko, dtype=np.int32)*co: ', o + np.arange(ko, dtype=np.int32)*co)
-            # n[o + np.arange(ko, dtype=np.int32)*co] = P.indptr[1:] - P.indptr[:-1]
 
-            # map = o + np.arange(ko, dtype=np.int32)*co
-            # data_list[map] = 
             for i in range(ko):
                 indx = o + i*co
                 i_ = P.indptr[i]
                 i_1 = P.indptr[i+1]
-                data_list[indx] = P.data[i_:i_1]
-                indices_list[indx] = P.indices[i_:i_1]
+                data[indx] = P.data[i_:i_1]
+                indices[indx] = P.indices[i_:i_1]
                 nnz[indx] = i_1 - i_
 
-            # print('P: ', P.shape)
-            # val_list[]
-            # val_list.append(P.data.astype(dtype))
-            # ind_list.append(P.indices.astype(np.int32))
-            # map = np.arange()
-            # nnz[o+i*co]
-            # for i in range(len(P.indptr)- 1):
-            #     indptr[o+i*co+1:] += P.indptr[i+1] - P.indptr[i]
-
-            # P = (TK @ XF).tocoo(copy=False)
-            # print('mo, no: ', mo, no)
-            # print('TK: ', TK.shape)
-            # print('XF: ', XF.shape)
-            # print('P: ', P.shape)
-            # val_list.append(P.data)
-            # row_list.append((P.row*co + o).astype(np.int32))
-            # col_list.append(P.col.astype(np.int32))
-
-        data_list = np.hstack(data_list)
-        indices_list = np.hstack(indices_list)
+        data = np.hstack(data)
+        indices = np.hstack(indices)
 
         sum = nnz.sum()
         if sum < pow(2, 31):
             indptr = np.zeros(to + 1, dtype=np.int32)
         else:
             indptr = np.zeros(to + 1, dtype=np.int64)
-            indices_list = indices_list.astype(np.int64)
+            indices = indices.astype(np.int64)
 
         for i in range(to):
             indptr[i+1] = indptr[i] + nnz[i]
 
-        O = sp.csr_array((data_list, indices_list, indptr), shape=(to, b))
-        # O = sp.csr_array((np.hstack(val_list), (np.hstack(row_list), np.hstack(col_list))), shape=(to, b), copy=False)
-        # O = sp.csr_array((to, b))
-        # O.data = np.hstack(val_list).astype(dtype)
-        # O.indices = np.hstack(ind_list).astype(np.int32)
-        # O.indptr = indptr.astype(np.int32)
+        O = sp.csr_array((data, indices, indptr), shape=(to, b), copy=False)
         out_shape = (mo, no, co)
         return O, out_shape
 

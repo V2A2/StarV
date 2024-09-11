@@ -14,6 +14,8 @@ import glpk
 import gurobipy as gp
 from gurobipy import GRB
 from StarV.set.star import Star
+from StarV.set.sparseimagestar2dcoo import SparseImageStar2DCOO
+from StarV.set.sparseimagestar2dcsr import SparseImageStar2DCSR
 
 GUROBI_OPT_TOL = 1e-6
 
@@ -1238,6 +1240,11 @@ class ImageStar(object):
             res = True
         return res
     
+    def geNumAttackedPixels(self):
+        """Esimate the number of attacked pixels"""
+        V = self.V[:, :, :, 1:] != 0
+        return np.max(V, axis=3).sum()
+    
     def get_max_point_cadidates(self):
         """ Quickly estimate max-point candidates """
 
@@ -1297,16 +1304,20 @@ class ImageStar(object):
     #     """Convert ImageStar class to SparseStar class"""
     #     pass
 
+    def to_SIM(self, format='csr'):
+        assert format in ['csr', 'coo'], f"format should be either 'csr' or 'coo', but received {format}"
+        shape = V.shape[:3]
+        num_pred = V.shape[3] - 1
+        c = self.V[:, :, :, 0].ravel()
+        if format == 'csr':
+            V = sp.csr_array(self.V[:, :, :, 1:].reshape(-1, num_pred))
+            return SparseImageStar2DCSR(c, V, self.C, self.d, self.pred_lb, self.pred_ub, shape)
+        else:
+            V = sp.coo_array(self.V[:, :, :, 1:].reshape(-1, num_pred))
+            return SparseImageStar2DCOO(c, V, self.C, self.d, self.pred_lb, self.pred_ub, shape)
+        
 
-    # def toSIM_coo(self):
-    #     c = self.V[:, :, :, 0].reshape(-1)
-    #     V = sp.coo_array(self.V[:, :, :, 1:])
-    #     return SparseImageStar2D(c, V, self.C, self.d, self.pred_lb, self.pred_ub)
-
-    # def toSIM_csr(self):
-    #     c = self.V[:, :, :, 0].reshape(-1)
-    #     V = sp.csr_array(self.V[:, :, :, 1:])
-    #     return SparseImageStar2DCSR(c, V, self.C, self.d, self.pred_lb, self.pred_ub)
+        [c, V, C, d, pred_lb, pred_ub, shape]
 
     @staticmethod
     def isMax(maxMap, ori_image, center, others, lp_solver='gurobi'):

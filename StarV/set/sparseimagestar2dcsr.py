@@ -949,6 +949,11 @@ class SparseImageStar2DCSR(object):
             res = True
         return res
     
+    def geNumAttackedPixels(self):
+        """Esimate the number of attacked pixels"""
+        V = self.V.toarray().reshape(self.shape + (self.num_pred, )) != 0
+        return np.max(V, axis=3).sum()
+    
     def get_max_point_cadidates(self):
         """ Quickly estimate max-point candidates """
 

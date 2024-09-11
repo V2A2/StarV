@@ -517,46 +517,6 @@ class SparseImageStar2DCOO(object):
         return self.V.multiply(a[:, None])
     
     def getRows(self, map):
-        rows = sp.coo_array((0, 0))
-        for i in range(len(map)):
-            rows += self.V._getrow(i)
-        return rows
-
-    # def getRow(self, index):
-
-    #     row = self.V.row
-    #     col = self.V.col
-    #     data = self.V.data
-
-    #     indx = np.argwhere(row == index).flatten()
-
-    #     row = row[indx]
-    #     col = col[indx]
-    #     data = data[indx]
-
-    #     return sp.coo_array(
-    #         (data, (row, col)), shape=(1, self.V.shape[1])
-    #     )
-    
-    # def getRows(self, map):
-
-    #     row = self.V.row
-    #     col = self.V.col
-    #     data = self.V.data
-
-    #     indx = np.argwhere(row[:, None] == map[None, :]).flatten()
-
-    #     row = row[indx]
-    #     col = col[indx]
-    #     data = data[indx]
-
-    #     row = row/row + 
-
-    #     return sp.coo_array(
-    #         (data, (row, col)), shape=(len(map), self.V.shape[1])
-    #     )
-
-    def getRows(self, map):
         n = len(map)
 
         row = self.V.row
@@ -1127,7 +1087,13 @@ class SparseImageStar2DCOO(object):
         except Exception:
             res = True
         return res
-    
+
+    def geNumAttackedPixels(self):
+        """Esimate the number of attacked pixels"""
+        V = self.V.toarray().reshape(self.shape + (self.num_pred, )) != 0
+        return np.max(V, axis=3).sum()
+
+
     def get_max_point_cadidates(self):
         """ Quickly estimate max-point candidates """
 

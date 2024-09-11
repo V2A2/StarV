@@ -13,11 +13,13 @@ from StarV.layer.FlattenLayer import FlattenLayer
 from StarV.layer.fullyConnectedLayer import fullyConnectedLayer
 from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
 from StarV.layer.Conv2DLayer import Conv2DLayer
+from StarV.layer.ConvTranspose2DLayer import ConvTranspose2DLayer
 from StarV.layer.AvgPool2DLayer import AvgPool2DLayer
 from StarV.layer.MaxPool2DLayer import MaxPool2DLayer
 from StarV.layer.BatchNorm2DLayer import BatchNorm2DLayer
 from StarV.layer.LogSigLayer import LogSigLayer
 from StarV.layer.TanSigLayer import TanSigLayer
+from StarV.layer.PixelClassificationLayer import PixelClassificationLayer
 
 from StarV.set.probstar import ProbStar
 
@@ -55,7 +57,7 @@ class NeuralNetwork(object):
                 self.out_dim = layers[i].out_dim
                 break
 
-    def info(self):
+    def __str__(self):
         """print information of the network"""
 
         print('\n=============NETWORK===============')
@@ -80,6 +82,9 @@ class NeuralNetwork(object):
                     str_ += ' ({}, {}, kernel_size = {}, stride = {}, padding = {}, dtype={})'.format(layer_.in_shape[2], layer_.out_shape[2], layer_.kernel_size, layer_.stride, layer_.padding, layer_.weight.dtype)
                 else:
                     str_ += ' ({}, {}, kernel_size = {}, stride = {}, padding = {}, dtype={})'.format(layer_.weight.shape[2], layer_.weight.shape[3], layer_.weight.shape[:2], layer_.stride, layer_.padding, layer_.weight.dtype)
+            elif isinstance(layer_, ConvTranspose2DLayer):
+                str_ += ' ({}, {}, kernel_size = {}, stride = {}, padding = {}, output_padding={}, dtype={})'.format(
+                    layer_.weight.shape[2], layer_.weight.shape[3], layer_.weight.shape[:2], layer_.stride, layer_.padding, layer_.output_padding,  layer_.weight.dtype)
             elif isinstance(layer_, AvgPool2DLayer):
                 str_ += ' (kernel_size = {}, stride = {}, padding = {})'.format(layer_.kernel_size, layer_.stride, layer_.padding)
             elif isinstance(layer_, MaxPool2DLayer):
@@ -91,7 +96,10 @@ class NeuralNetwork(object):
             print(str_)
         return ''
 
-    def evaluate(self, x):
+    def info(self):
+        print(self)
+
+    def evaluate(self, x, show=False):
         """evaluate network; forward propagation
         
         Args:
@@ -103,7 +111,9 @@ class NeuralNetwork(object):
 
         y = copy.deepcopy(x)
         for i in range(self.n_layers):
+            if show: print(f"evaluating {i} layer: {self.layers[i].__class__.__name__}"); print(f"input shape: {y.shape}")
             y = self.layers[i].evaluate(y)
+            if show: print(f"output shape: {y.shape}")
         return y
 
 

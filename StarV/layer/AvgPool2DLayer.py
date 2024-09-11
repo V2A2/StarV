@@ -5,7 +5,6 @@ Sung Woo Choi, 11/16/2023
 
 import time
 import copy
-import copy
 import torch
 import numpy as np
 import scipy.sparse as sp
@@ -49,14 +48,20 @@ class AvgPool2DLayer(object):
         if self.module == 'default':
             # check stride, padding, and dilation
 
-            assert isinstance(kernel_size, tuple) or isinstance(kernel_size, list) or isinstance(kernel_size, int), \
-            'error: kernel_size should be a tuple, list, or int'
-            assert isinstance(stride, tuple) or isinstance(stride, list) or isinstance(stride, int), \
-            'error: stride should be a tuple, list, or int'
-            assert isinstance(padding, tuple) or isinstance(padding, list) or isinstance(padding, int), \
-            'error: padding should be a tuple, list, or int'
+            assert isinstance(kernel_size, tuple) or isinstance(kernel_size, list) or \
+                   isinstance(kernel_size, int) or isinstance(stride, np.ndarray), \
+            f'error: kernel_size should be a tuple, list, numpy ndarray, or int but received {type(kernel_size)}'
+            assert isinstance(stride, tuple) or isinstance(stride, list) or \
+                   isinstance(stride, int) or isinstance(stride, np.ndarray), \
+            f'error: stride should be a tuple, list, numpy ndarray, or int but received {type(stride)}'
+            assert isinstance(padding, tuple) or isinstance(padding, list) or \
+                   isinstance(padding, int) or isinstance(stride, np.ndarray), \
+            f'error: padding should be a tuple, list, numpy ndarray, or in tbut received {type(padding)}'
 
-            if isinstance(kernel_size, tuple) or isinstance(kernel_size, list):
+            if isinstance(kernel_size, int):
+                assert kernel_size >= 0, 'error: kernel size should non-negative integer'
+                self.kernel_size = np.ones(2, dtype=np.uint16)*kernel_size[0]
+            else:
                 if len(kernel_size) == 1:
                     assert kernel_size[0] >= 0, 'error: kernel size should non-negative integer'
                     self.kernel_size = np.ones(2, dtype=np.uint16)*kernel_size[0]
@@ -65,25 +70,27 @@ class AvgPool2DLayer(object):
                     self.kernel_size = np.array(kernel_size).astype(np.uint16)
                 else:
                     raise Exception('error: incorrect kernel size')
-            else:
-                assert kernel_size >= 0, 'error: kernel_size should non-negative integer'
-                self.kernel_size = np.ones(2, dtype=np.uint16)*kernel_size
  
-            if isinstance(padding, tuple) or isinstance(padding, list):
-                if len(padding) == 1:
-                    assert padding[0] >= 0, 'error: padding should non-negative integer'
-                    self.padding = np.ones(2, dtype=np.uint16)*padding[0]
-                elif len(padding) == 2:
-                    assert padding[0] >= 0 and padding[1] >= 0, 'error: padding should non-negative integers'              
-                    self.padding = np.array(padding).astype(np.uint16)
-                else:
-                    raise Exception('error: incorrect padding')
+            if isinstance(padding, int):
+                assert padding >= 0, 'error: padding should non-negative integers'
+                self.padding = np.ones(2, dtype=np.int16)*padding
             else:
-                assert padding >= 0, 'error: padding should non-negative integer'
-                self.padding = np.ones(2, dtype=np.uint16)*padding
+                padding = np.array(padding)
+                assert (padding >= 0).any(), 'error: padding should non-negative integers'
+
+                if len(padding) == 1:
+                    self.padding = np.ones(2, dtype=np.int16)*padding[0]
+                else:
+                    if len(padding) == 4:
+                        if padding[0] == padding[1] and padding[2] == padding[3]:
+                            padding = np.array([padding[0], padding[2]])
+                    self.padding = np.array(padding)
             assert (self.padding <= self.kernel_size // 2).any(), 'error: padding should be at most half of kernel size'
-                
-            if isinstance(stride, tuple) or isinstance(stride, list):
+            
+            if isinstance(stride, int):
+                assert stride > 0, 'error: stride should positive integer'
+                self.stride = np.ones(2, dtype=np.uint16)*stride
+            else:
                 if len(stride) == 1:
                     assert stride[0] > 0, 'error: stride should positive integer'
                     self.stride = np.ones(2, dtype=np.uint16)*stride[0]
@@ -92,10 +99,7 @@ class AvgPool2DLayer(object):
                     self.stride = np.array(stride).astype(np.uint16)
                 else:
                     raise Exception('error: incorrect padding')
-            else:
-                assert stride > 0, 'error: stride should positive integer'
-                self.stride = np.ones(2, dtype=np.uint16)*stride
-
+                
         elif self.module == 'pytorch':
 
             self.layer = torch.nn.AvgPool2d(
@@ -105,7 +109,7 @@ class AvgPool2DLayer(object):
             )
 
 
-    def info(self):
+    def __str__(self):
         print('Average Pooling 2D Layer')
         print('module: {}'.format(self.module))
         print('kernel size: {}'.format(self.kernel_size))
@@ -241,8 +245,8 @@ class AvgPool2DLayer(object):
         # change input shape to H, W, C, N
         output.transpose([2, 3, 1, 0])
         
-        if in_dim == 3:
-            output = output.reshape(H, W, C) 
+        # if in_dim == 3:
+        #     output = output.reshape(H, W, C) 
 
         return output
 
@@ -299,10 +303,10 @@ class AvgPool2DLayer(object):
                 output[:, :, k, z] = out_ch
         output = output / (H*W)
 
-        if in_dim == 2:
-            output = output.reshape(ho, wo)
-        elif in_dim == 3:
-            output = output.reshape(ho, wo, c)
+        # if in_dim == 2:
+        #     output = output.reshape(ho, wo)
+        # elif in_dim == 3:
+        #     output = output.reshape(ho, wo, c)
         return output
     
     def avgpool2d(self, input):
@@ -382,12 +386,13 @@ class AvgPool2DLayer(object):
         #     output[i, :, :] = XF[ind, :] #XF in [m*n*c, b]
         # output = output.sum(axis=1) / (p*q)
             
-        if in_dim == 2:
-            output = output.reshape(mo, no)
-        elif in_dim == 3:
-            output = output.reshape(mo, no, c)
-        else:
-            output = output.reshape(mo, no, c, b)
+        # if in_dim == 2:
+        #     output = output.reshape(mo, no)
+        # elif in_dim == 3:
+        #     output = output.reshape(mo, no, c)
+        # else:
+        #     output = output.reshape(mo, no, c, b)
+        output = output.reshape(mo, no, c, b)
         return output
     
     def avgpool2d_sparse(self, input):
@@ -855,7 +860,6 @@ class AvgPool2DLayer(object):
             else:
                 raise Exception('error: unknown/unsupport pool type')         
 
-        else:
-            S = self.reachExactSingleInput(inputSet)
-                
-        return S
+            return S
+        
+        return self.reachExactSingleInput(inputSet)

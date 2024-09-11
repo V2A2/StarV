@@ -31,6 +31,9 @@ class FullyConnectedLayer(object):
         else:
             raise Exception('error: unsupported neural network module')
 
+        # assert (isinstance(W, np.ndarray) and len(W.shape) == 2) or W is None, 'error: weight matrix should be a 2D numpy array'
+        # assert (isinstance(b, np.ndarray) and len(b.shape) == 1) or b is None, 'error: bias vector should be a 1D numpy array'
+
         assert isinstance(W, np.ndarray) or W is None, 'error: weight matrix should be a numpy array'
         assert isinstance(b, np.ndarray) or b is None, 'error: bias vector should be a numpy array'
 

@@ -7,12 +7,14 @@ import copy
 import time
 import pickle
 import numpy as np
+from sklearn.metrics import jaccard_score
 from StarV.net.network import NeuralNetwork
 from StarV.set.sparsestar import SparseStar
 from StarV.set.star import Star
 from StarV.set.imagestar import ImageStar
 from StarV.set.sparseimagestar2dcoo import SparseImageStar2DCOO
 from StarV.set.sparseimagestar2dcsr import SparseImageStar2DCSR
+from StarV.layer.PixelClassificationLayer import PixelClassificationLayer
 
 class Certifier(object):
     """
@@ -38,12 +40,37 @@ def reachBFS(net, inputSet, reachMethod='approx', lp_solver='gurobi', pool=None,
         or  isinstance(inputSet, SparseImageStar2DCOO) or isinstance(inputSet, SparseImageStar2DCSR), \
         'error: second input should be a list of Star/ImageStar/ProbStar/SparseStar/SparseImageStar2DCOO/SparseImageStar2DCSR sets or a single set'
 
-    # reachSet = []
-    reachTime = []
-
     # compute reachable set
-    # In = copy.deepcopy(inputSet)
+    reachTime = []
     In = inputSet
+
+    # For semantic segmentation neural network
+    if isinstance(net.layers[-1], PixelClassificationLayer):
+        for i in range(net.n_layers-1):
+            if show:
+                print(f"\nComputing {net.layers[i].__class__.__name__} layer {i} reachable set...")
+            
+            start = time.time()
+            In = net.layers[i].reach(In, method=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
+            vt = time.time() - start
+
+            # reachSet.append(In)
+            reachTime.append(vt)
+
+            if show:
+                print('Number of stars/sparsestars: {}'.format(len(In)))
+                if reachMethod == 'approx':
+                    print(f"Number of predicate variables: {In.num_pred}")
+                    if isinstance(In, ImageStar) or isinstance(In, Star):
+                        print(f"Shape of the set: {In.V.shape}")
+                    elif isinstance(In, SparseImageStar2DCOO) or isinstance(In, SparseImageStar2DCSR):
+                        print(f"Shape of the set: {In.shape + (In.num_pred)}")
+
+        outputSet = In
+        totalReachTime = sum(reachTime)    
+        pixel_classification = net.layers[-1].reach(In, method=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
+        return outputSet, totalReachTime, pixel_classification
+        
     for i in range(net.n_layers):
         if show:
             print(f"\nComputing {net.layers[i].__class__.__name__} layer {i} reachable set...")
@@ -61,8 +88,7 @@ def reachBFS(net, inputSet, reachMethod='approx', lp_solver='gurobi', pool=None,
                 print(f"Number of predicate variables: {In.num_pred}")
 
     outputSet = In
-    totalReachTime = sum(reachTime)
-
+    totalReachTime = sum(reachTime)    
     return outputSet, totalReachTime
 
 def certifyRobustness_sigmoid(net, input, label=None, epsilon=0.01, veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
@@ -388,11 +414,66 @@ def certifyRobustness_sequence(net, inputs, epsilon=0.01, veriMethod='BFS', reac
 #     r = sum(cnt) / N
 #     return r, rb, ce, cands, vt
 
-def certifyRobustness(net, inputs, labels=None, veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, return_output=False, show=False):
+def certifyRobustness_pixel(net, in_sets, in_datas, veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, return_output=False, show=False):
+    assert isinstance(net.layers[-1], PixelClassificationLayer), f"The network's last layer should be PixelClassificationLayer, but network has {net.layers[-1]}"
+    assert len(in_sets) == len(in_datas), f"Inconsistent number of elements in in_sets and in_datas"
+    start = time.perf_counter()
+    N = len(in_sets)
+    veri_set = []
+    veri_time = np.zeros(N)
+    out_sets = []
 
-    if not isinstance(inputs, list): 
+    num_rbPix  = np.zeros(N) # number of robust pixels
+    num_unkPix = np.zeros(N) # number of unknown pixels
+    num_misPix = np.zeros(N) # number of missclassified pixels
+    num_attPix = np.zeros(N) # number of attacked pixels
+    iou = np.zeros(N)
+
+    num_classes = in_datas[0].shape[2]
+    num_pixels = np.prod(in_datas[0].shape)
+
+    UNK_PIX = num_classes
+    MIS_PIX = num_classes + 1
+    
+    for i in range(N):
+        ver_image, veri_time[i], _, O = certifyPixelRobustness_single_input(net, in_sets[i], in_datas[i], veriMethod, reachMethod, lp_solver, pool, RF, DR, show)
+        veri_set.append(ver_image)
+        
+        num_attPix[i] = in_sets[i].geNumAttackedPixels()
+        num_misPix[i] = (ver_image == MIS_PIX).sum()
+        num_unkPix[i] = (ver_image == UNK_PIX).sum()
+        num_rbPix[i] = num_pixels - (num_misPix[i] + num_unkPix[i])
+        iou[i] = jaccard_score(ver_image.ravel(), in_datas[i].ravel())
+        
+        if return_output:
+            out_sets.append(O)
+
+    avg_numRb = num_rbPix.sum() / N
+    avg_numUnk = num_unkPix.sum() / N
+    avg_numMis = num_misPix.sum() / N
+    avg_numAtt = num_attPix.sum() / N
+    avg_riou = iou.sum() / N
+    avg_rv = (num_rbPix / num_pixels) / N
+    avg_rs = (num_misPix + num_unkPix / num_attPix).sum() / N
+    avg_vt = veri_time.sum() / N
+    avg_data = [avg_numRb, avg_numUnk, avg_numMis, avg_numAtt, avg_riou, avg_rv, avg_rs, avg_vt]
+
+    vt_total = time.perf_counter() - start 
+    return ver_image, veri_time, vt_total, out_sets, avg_data
+
+
+def certifyRobustness(net, inputs, labels=None, veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, return_output=False, show=False):
+    
+    start = time.perf_counter()
+    N = len(inputs)
+    RB = np.zeros(N)
+    VT = np.zeros(N)
+    Y = []
+   
+    if not (isinstance(inputs, list) or isinstance(labels, np.ndarray)): 
         RB, VT, Y = certifyRobustness_single_input(net, inputs, labels, veriMethod, reachMethod, lp_solver, pool, RF, DR, show)
-        return RB, VT, VT, Y
+        vt_total = time.perf_counter() - start 
+        return RB, VT, vt_total, Y
 
     if labels is None:
         labels = []
@@ -401,28 +482,80 @@ def certifyRobustness(net, inputs, labels=None, veriMethod='BFS', reachMethod='a
             labels.append(y.argmax())
 
     else:
-        assert isinstance(labels, list), \
+        assert isinstance(labels, list) or isinstance(labels, np.ndarray), \
         f"labels should be a list containing arg_max(F(x))"
 
-    start = time.perf_counter()
-    N = len(inputs)
-    RB = np.zeros(N)
-    VT = np.zeros(N)
-    Y = []
     for i, (input, label) in enumerate(zip(inputs, labels)):
         RB[i], VT[i], O = certifyRobustness_single_input(net, input, label, veriMethod, reachMethod, lp_solver, pool, RF, DR, show)
         if return_output:
             Y.append(O)
-    
-    vt_total = time.perf_counter() - start 
 
+    vt_total = time.perf_counter() - start 
     return RB, VT, vt_total, Y
 
+def certifyPixelRobustness_single_input(net, in_set, in_data, veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
 
-def certifyRobustness_single_input(net, input, label=None, veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
+    start = time.perf_counter()
+    
+    if isinstance(in_set, ImageStar):
+        shape = in_set.V.shape[:3]
+    else:
+        shape = in_set.shape
+    
+    # if pix_labels is None:
+    #     y = net.evaluate(in_datas).squeeze(axis=2)
+    #     gr_pix_id = y.argmax()
+    # else:
+    #     gr_pix_id = np.array(pix_labels)
+    #     assert gr_pix_id.shape == shape[:2], f"pix_lables should be a 2D numpy array or list"
+
+    gr_pix_id = net.evaluate(in_data).squeeze(axis=2)
+
+    # Compute output reachable sets
+    if veriMethod == 'BFS':
+        # outputSet, totalReachTime, pixel_classification
+        Y, VT, pixel_labels = reachBFS(net=net, inputSet=in_set, reachMethod=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
+    else:
+        raise Exception('other verification methods is not yet implemented, i.e. DFS')
+
+    # num_classes = shape[2]
+    classes = net.layers[-1].classes
+    h, w = pixel_labels.shape
+
+    ver_im = np.zeros([h, w])
+
+    for i in range(h):
+        for j in range(w):
+            pc = pixel_labels[i][j]
+            # if len(pc) == 1:
+            #     if pc == gr_pix_id[i, j]:
+            #         ver_im[i, j] = pc
+            #     else:
+            #         ver_im[i, j] = num_classes + 1 # misclass (unrobust pixel)
+            # else:
+            #     c = sum(pc == gr_pix_id[i, j])
+            #     if sum > 0:
+            #         ver_im[i, j] = num_classes # unkown pixel
+            #     else:
+            #         ver_im[i, j] = num_classes + 1
+
+            if pc == gr_pix_id[i, j]:
+                ver_im[i, j] = pc
+            elif pc < classes:
+                ver_im[i, j] = classes # multiple classification (unknown pixel) 
+            else:
+                ver_im[i, j] = classes + 1 # incorrect classification (unrobust / missclassified pixel)
+
+    vt_total = time.perf_counter() - start  
+    return ver_im, VT, vt_total, Y
+
+
+
+
+def certifyRobustness_single_input(net, in_set, label=None, veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
 
     if label is None:
-        y = net.evaluate(input)
+        y = net.evaluate(in_set)
         max_id = np.array([y.argmax()])
     else:
         max_id = np.array([label]).reshape(-1)
@@ -431,7 +564,7 @@ def certifyRobustness_single_input(net, input, label=None, veriMethod='BFS', rea
 
     # Compute output reachable sets
     if veriMethod == 'BFS':
-        Y, _ = reachBFS(net=net, inputSet=input, reachMethod=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
+        Y, _ = reachBFS(net=net, inputSet=in_set, reachMethod=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
     else:
         raise Exception('other verification methods is not yet implemented, i.e. DFS')
     

@@ -188,8 +188,8 @@ class BatchNorm2DLayer(object):
         # change input shape to H, W, C, N
         output.transpose([2, 3, 1, 0])
         
-        if in_dim == 3:
-            output = output.reshape(H, W, C) 
+        # if in_dim == 3:
+        #     output = output.reshape(H, W, C) 
 
         return output
     
@@ -225,10 +225,12 @@ class BatchNorm2DLayer(object):
         else:
             output = gamma * input / np.sqrt(var + eps)
 
-        if in_dim == 2:
-            output = output.reshape(h, w)
-        elif in_dim == 3:
-            output = output.reshape(h, w, F)
+        # output = np.nan_to_num(output)
+
+        # if in_dim == 2:
+        #     output = output.reshape(h, w)
+        # elif in_dim == 3:
+        #     output = output.reshape(h, w, F)
         return output
     
     def batchnorm2d_basis_matrix(self, input, bias=True):
@@ -267,10 +269,10 @@ class BatchNorm2DLayer(object):
         # output = gamma * (input - mean) / np.sqrt(var + eps) + beta
 
 
-        if in_dim == 2:
-            output = output.reshape(h, w)
-        elif in_dim == 3:
-            output = output.reshape(h, w, F)
+        # if in_dim == 2:
+        #     output = output.reshape(h, w)
+        # elif in_dim == 3:
+        #     output = output.reshape(h, w, F)
         return output
 
     def batchnorm2d_sparse(self, input):

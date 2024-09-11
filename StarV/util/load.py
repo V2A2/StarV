@@ -13,10 +13,12 @@ from StarV.layer.SatLinLayer import SatLinLayer
 from StarV.layer.LSTMLayer import LSTMLayer
 from StarV.layer.GRULayer import GRULayer
 from StarV.layer.Conv2DLayer import Conv2DLayer
+from StarV.layer.ConvTranspose2DLayer import ConvTranspose2DLayer       
 from StarV.layer.AvgPool2DLayer import AvgPool2DLayer
 from StarV.layer.BatchNorm2DLayer import BatchNorm2DLayer
 from StarV.layer.MaxPool2DLayer import MaxPool2DLayer
 from StarV.layer.FlattenLayer import FlattenLayer
+from StarV.layer.PixelClassificationLayer import PixelClassificationLayer
 from StarV.net.network import NeuralNetwork
 from StarV.nncs.nncs import NNCS
 from StarV.plant.lode import LODE, DLODE
@@ -30,6 +32,7 @@ import math
 import copy
 import onnx
 import onnx2pytorch
+from onnx2torch import convert
 import csv
 
 def load_2017_IEEE_TNNLS():
@@ -745,6 +748,7 @@ def load_neural_network_file(file_path, layer=None, net_type=None, dtype='float6
         if show: print('loading onnx module')
         model = onnx.load(file_path)
         model = onnx2pytorch.ConvertModel(model)
+        # model = convert(model)
         model.eval()
 
     elif file_path.endswith('.pt') or file_path.endswith('.pth'):
@@ -902,3 +906,296 @@ def load_neural_network(model, layer=None, net_type=None, dtype='float64', chann
         raise Exception('error: unsupported neural network module {}'.format(type(model)))
     
 
+def find_node_with_input(graph, input_name):
+    'find the unique onnx node with the given input, can return None'
+
+    rv = None
+
+    for n in graph.node:
+        for i in n.input:
+            if i == input_name:
+                assert rv is None, f"multiple onnx nodes accept network input {input_name}"
+                rv = n
+
+    return rv
+
+
+def find_node_with_input(graph, input_name):
+    'find the unique onnx node with the given input, can return None'
+
+    rv = None
+
+    for n in graph.node:
+        for i in n.input:
+            if i == input_name:
+                assert rv is None, f"multiple onnx nodes accept network input {input_name}"
+                rv = n
+
+    return rv
+
+def load_onnx_network(filename, net_type=None, channel_last=True, num_pixel_classes=None, dtype='float64', show=False):
+    model = onnx.load(filename)
+    onnx.checker.check_model(model)
+
+    graph = model.graph
+
+    #print(graph)
+
+    # find the node with input "input"
+    all_input_names = sum([[str(i) for i in n.input] for n in graph.node], [])
+
+    #print(f"all input names: {all_input_names}")
+
+    all_initializer_names = [i.name for i in graph.initializer]
+    all_output_names = sum([[str(o) for o in n.output] for n in graph.node], [])
+
+    # the input to the network is the one not in all_inputs_list and not in all_outputs_list
+    network_input = None
+    
+    for i in all_input_names:
+        if i not in all_initializer_names and i not in all_output_names:
+            assert network_input is None, f"multiple onnx network inputs {network_input} and {i}"        
+            network_input = i
+
+    assert network_input, "did not find onnx network input"
+
+    assert len(graph.output) == 1, "onnx network defined multiple outputs"
+    network_output = graph.output[0].name
+
+    #print(f"input: '{network_input}', output: '{network_output}'")
+    
+    #assert network_input == graph.input[0].name, \
+    #    f"network_input ({network_input}) != graph.input[0].name ({graph.input[0].name})"
+    ##########
+
+    # map names -> structs
+    # input_map = {i.name: i for i in graph.input}
+    init_map = {i.name: i for i in graph.initializer}
+
+    # i = input_map[network_input]
+
+    # find the node which takes the input (probably node 0)
+    cur_node = find_node_with_input(graph, network_input)
+    cur_input_name = network_input
+    # ok! now proceed recusively
+    layers = []
+
+    # data types
+    onnx_type_float = 1
+    onnx_type_int = 2
+
+    cnt = 0
+    while cur_node is not None:
+        assert cur_node.input[0] == cur_input_name, \
+            f"cur_node.input[0] ({cur_node.input[0]}) should be previous output ({cur_input_name}) in " + \
+            f"node:\n{cur_node.name}"
+        
+        op = cur_node.op_type
+        layer = None
+        neglect = False
+
+#         if layers:
+#             prev_shape = layers[-1].get_output_shape()
+#         else:
+#             s_node = graph.input[0].type.tensor_type.shape
+#             prev_shape = tuple(d.dim_value if d.dim_value != 0 else 1 for d in s_node.dim)
+
+        if show:
+            print(f"Parsing layer {cnt}: {op}")
+        
+        if op in ['Add', 'Sub']:
+            assert len(cur_node.input) == 2
+            init = init_map[cur_node.input[1]]
+            assert init.data_type == onnx_type_float
+            
+            var = np.frombuffer(init.raw_data, dtype='<f4') # little endian float32
+            if op == 'Sub':
+                var = -var
+            
+            layer = FullyConnectedLayer(layer=[None, var], dtype=dtype)
+        
+        elif op == 'Flatten':
+            layer = FlattenLayer(channel_last)
+            
+#         elif op == 'MatMul':
+#             assert len(cur_node.input) == 2
+#             init = init_map[cur_node.input[1]]
+#             assert init.data_type == onnx_type_float
+
+#             b = np.frombuffer(init.raw_data, dtype='<f4') # little endian float32
+#             shape = tuple(d for d in reversed(init.dims)) # note dims reversed, acasxu has 5, 50 but want 5 cols
+
+#             b = nn_unflatten(b, shape, order='F')
+
+#             layers.append(FullyConnectedLayer(layer=[None, -b], dtype=dtype))
+            
+        
+#         elif op == 'Gemm':
+#             assert len(cur_node.input) == 3
+            
+#             weight_init = init_map[cur_node.input[1]]
+#             bias_init = init_map[cur_node.input[2]]
+
+#             # weight
+#             assert weight_init.data_type == onnx_type_float
+#             b = np.frombuffer(weight_init.raw_data, dtype='<f4') # little endian float32
+#             shape = tuple(d for d in reversed(weight_init.dims)) # note dims reversed, acasxu has 5, 50 but want 5 cols
+#             weight_mat = nn_unflatten(b, shape, order='F')
+
+#             # bias
+#             assert bias_init.data_type == onnx_type_float
+#             b = np.frombuffer(bias_init.raw_data, dtype='<f4') # little endian float32
+#             shape = tuple(d for d in reversed(bias_init.dims)) # note dims reversed, acasxu has 5, 50 but want 5 cols
+#             bias_vec = nn_unflatten(b, shape, order='F')
+
+#             for a in cur_node.attribute:
+#                 assert a.name in ['alpha', 'beta', 'transB'], "general Gemm node unsupported"
+
+#                 if a.name in ['alpha', 'beta']:
+#                     assert a.f == 1.0
+#                     assert a.type == onnx_type_float
+#                 elif a.name == 'transB':
+#                     assert a.type == onnx_type_int
+#                     assert a.i == 1
+#                     weight_mat = weight_mat.transpose().copy()
+
+#             layer = FullyConnectedLayer([weight_mat, bias_vec], dtype=dtype)
+
+        elif op == 'Conv':
+            assert len(cur_node.input) == 3
+            weight_init = init_map[cur_node.input[1]]
+            bias_init = init_map[cur_node.input[2]]
+
+            assert weight_init.data_type == onnx_type_float
+            shape = weight_init.dims[::-1]
+            weight = np.frombuffer(weight_init.raw_data, dtype='<f4') # little endian float32
+            weight = weight.reshape(shape, order='F').transpose([1, 0, 2, 3])
+
+            if not channel_last:
+                weight.transpose([2, 3, 1, 0])
+
+            assert bias_init.data_type == onnx_type_float
+            shape = bias_init.dims[::-1]
+            bias = np.frombuffer(bias_init.raw_data, dtype='<f4') # little endian float32
+            bias = bias.reshape(shape, order='F')
+            
+            dilation = np.array(cur_node.attribute[1].ints, dtype='b')
+            padding = np.array(cur_node.attribute[3].ints, dtype='b')
+            padding = np.array([padding[0], padding[2], padding[1], padding[3]])
+            stride = np.array(cur_node.attribute[4].ints, dtype='b')
+
+            layer = Conv2DLayer([weight, bias], stride, padding, dilation, dtype=dtype)
+        
+        elif op == 'BatchNormalization':
+            assert len(cur_node.input) == 5
+            gamma_init = init_map[cur_node.input[1]]
+            beta_init = init_map[cur_node.input[2]]
+            mean_init = init_map[cur_node.input[3]]
+            var_init = init_map[cur_node.input[4]]
+            
+            assert gamma_init.data_type == onnx_type_float
+            shape = gamma_init.dims[::-1]
+            gamma = np.frombuffer(gamma_init.raw_data, dtype='<f4').reshape(shape) # little endian float32
+            
+            assert beta_init.data_type == onnx_type_float
+            shape = beta_init.dims[::-1]
+            beta = np.frombuffer(beta_init.raw_data, dtype='<f4').reshape(shape) # little endian float32
+           
+            assert mean_init.data_type == onnx_type_float
+            shape = mean_init.dims[::-1]
+            mean = np.frombuffer(mean_init.raw_data, dtype='<f4').reshape(shape) # little endian float32
+
+            assert var_init.data_type == onnx_type_float
+            shape = var_init.dims[::-1]
+            var = np.frombuffer(var_init.raw_data, dtype='<f4').reshape(shape) # little endian float32
+            
+            eps = np.array(cur_node.attribute[0].f, dtype='<f4')
+            layer = BatchNorm2DLayer(layer=[gamma, beta, mean, var], num_features = shape[0], eps = eps, dtype=dtype)
+        
+        elif op == 'AveragePool':
+            assert len(cur_node.input) == 1
+            kernel_size = np.array(cur_node.attribute[0].ints, dtype='b')
+            padding = np.array(cur_node.attribute[1].ints, dtype='b')
+            padding = np.array([padding[0], padding[2], padding[1], padding[3]])
+            stride = np.array(cur_node.attribute[2].ints, dtype='b')
+            # count_include_pad = np.array(cur_node.attribute[3].ints, dtype='b')
+            layer = AvgPool2DLayer(kernel_size=kernel_size, stride=stride, padding=padding, dtype=dtype)
+
+        elif op == 'MaxPool':
+            assert len(cur_node.input) == 1
+            kernel_size = np.array(cur_node.attribute[0].ints, dtype='b')
+            padding = np.array(cur_node.attribute[1].ints, dtype='b')
+            padding = np.array([padding[0], padding[2], padding[1], padding[3]])
+            stride = np.array(cur_node.attribute[2].ints, dtype='b')
+            layer = MaxPool2DLayer(kernel_size=kernel_size, stride=stride, padding=padding, dtype=dtype)
+                        
+        elif op == 'ConvTranspose':
+            assert len(cur_node.input) == 3
+            weight_init = init_map[cur_node.input[1]]
+            bias_init = init_map[cur_node.input[2]]
+
+            assert weight_init.data_type == onnx_type_float
+            shape = weight_init.dims[::-1]
+            weight = np.frombuffer(weight_init.raw_data, dtype='<f4') # little endian float32
+            weight = weight.reshape(shape, order='F').transpose([1, 0, 2, 3])
+
+            if not channel_last:
+                weight.transpose([2, 3, 1, 0])
+
+            assert bias_init.data_type == onnx_type_float
+            shape = bias_init.dims[::-1]
+            bias = np.frombuffer(bias_init.raw_data, dtype='<f4') # little endian float32
+            bias = bias.reshape(shape, order='F')
+            
+            for attr in cur_node.attribute:
+                name = attr.name
+                if name == 'dilations':
+                    dilation = np.array(attr.ints, dtype='b')
+                elif name == 'pads':
+                    padding = np.array(attr.ints, dtype='b')
+                    padding = np.array([padding[0], padding[2], padding[1], padding[3]])
+                elif name == 'strides':
+                    stride = np.array(attr.ints, dtype='b')
+                elif name == 'output_padding ':
+                    output_padding = np.array(attr.ints, dtype='b')
+
+            layer = ConvTranspose2DLayer([weight, bias], stride, padding, dilation, dtype=dtype)
+            
+        elif op == 'Relu':
+            layer = ReLULayer()
+            
+        elif op == 'Transpose':
+            neglect = True
+        
+        elif op == 'Softmax':
+            neglect = True
+            
+        else:
+            assert False, f"unsupported onnx op_type {op} in node {cur_node.name}"
+
+        if neglect:
+            if show:
+                print(f"onnx op_type {op} is neglected in the analysis")
+        else:
+            assert layer is not None
+            layers.append(layer)
+
+        assert len(cur_node.output) == 1, f"multiple output at onnx node {cur_node.name}"
+        cur_input_name = cur_node.output[0]
+
+        #print(f"{cur_node.name} -> {cur_input_name}")
+        cur_node = find_node_with_input(graph, cur_input_name)
+
+        cnt += 1
+        
+
+    assert cur_input_name == network_output, \
+        f"output witout node {cur_input_name} is not network output {network_output}"
+
+    if num_pixel_classes != None:
+        assert isinstance(num_pixel_classes, int), f"num_pixel_classes should be integer, but received {type(num_pixel_classes)}"
+        assert num_pixel_classes > 0, f"num_pixel_classes should be a positive integer"
+        
+        layers.append(PixelClassificationLayer(num_pixel_classes))
+
+    return NeuralNetwork(layers, net_type=net_type)
