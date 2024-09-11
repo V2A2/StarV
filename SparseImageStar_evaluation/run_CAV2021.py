@@ -94,7 +94,7 @@ def load_network(folder_dir, net_type='relu', data_type='mnist', dtype='float64'
         else:
             net_dir = f"{folder_dir}/m2nist_75iou_{net_type}.onnx"
             
-    return load_onnx_network(net_dir, pixel_classification=True, dtype=dtype)
+    return load_onnx_network(net_dir, num_pixel_classes=10, dtype=dtype)
 
 
 def verify_CAV2021_MNIST_SSNN(net_type, dtype='float64'):
