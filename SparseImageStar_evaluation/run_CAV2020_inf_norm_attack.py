@@ -59,7 +59,8 @@ def verify_convnet_network(net_type='Small', dtype='float32'):
     data = mat_file['IM_data'].astype(dtype)
     labels = mat_file['IM_labels'] - 1
 
-    epsilon = [1, 2, 5]
+    # epsilon = [1, 2, 5]
+    epsilon = [0.002, 0.004, 0.006, 0.008, 0.01, 0.012]
     N = 100 # number of test images used for robustness verification
     E = len(epsilon)
 
@@ -173,6 +174,6 @@ def verify_convnet_network(net_type='Small', dtype='float32'):
 
 
 if __name__ == "__main__":
-    verify_convnet_network(net_type='Small', dtype='float32')
-    verify_convnet_network(net_type='Medium', dtype='float32')
-    verify_convnet_network(net_type='Large', dtype='float32')
+    verify_convnet_network(net_type='Small', dtype='float64')
+    verify_convnet_network(net_type='Medium', dtype='float64')
+    verify_convnet_network(net_type='Large', dtype='float64')
