@@ -103,7 +103,7 @@ def verify_CAV2021_MNIST_SSNN(net_type, dtype='float64'):
     print('=========================================================================================\n')
     
     data_type = 'mnist'
-    folder_dir = f"./SparseImageStar_evaluation/CAV2021_SSNN/MNIST/"
+    folder_dir = f"./SparseImageStar_evaluation/CAV2021_SSNN/MNIST"
     starvNet = load_network(folder_dir, net_type, data_type, dtype)
     
     print(starvNet.info())
@@ -192,7 +192,7 @@ def verify_CAV2021_M2NIST_SSNN(net_type, dtype='float64'):
     print('==========================================================================================\n')
     
     data_type = 'm2nist'
-    folder_dir = f"./SparseImageStar_evaluation/CAV2021_SSNN/M2NIST/"
+    folder_dir = f"./SparseImageStar_evaluation/CAV2021_SSNN/M2NIST"
     starvNet = load_network(folder_dir, net_type, data_type, dtype)
     
     print(starvNet.info())
