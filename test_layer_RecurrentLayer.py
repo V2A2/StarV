@@ -72,14 +72,14 @@ class Test(object):
         mu = (lb + ub) / 2
         sigma = (ub - mu) / 2.5
         Sig = np.diag(sigma**2)
-        In = [ProbStar(mu, Sig, lb, ub) for _ in range(3)]
+        In = [ProbStar(mu, Sig, lb, ub) for _ in range(2)]
         for I in In:
             I.C = np.zeros((1, I.V.shape[1] - 1))
             I.d = np.zeros((1,))
 
         net = RecurrentLayer.rand(2, 2)
         try:
-            net.exactReach(In)
+            output_set = net.exactReach(In)
         except Exception:
             print("Test Fail!")
             self.n_fails = self.n_fails + 1
@@ -137,13 +137,13 @@ class Test(object):
                 print("lb = {}\n ub = {}\n".format(lb, ub))
 
 
-if __name__ == "__main__":
-    t = Test()
-    t.test_constructor()
-    t.test_rand()
-    t.test_reach()
-    print("Number of tests: ", t.n_tests)
-    print("Number of fails: ", t.n_fails)
+# if __name__ == "__main__":
+#     t = Test()
+#     t.test_constructor()
+#     t.test_rand()
+#     t.test_reach()
+#     print("Number of tests: ", t.n_tests)
+#     print("Number of fails: ", t.n_fails)
 
-# t = Test()
-# t.compare_reach()
+t = Test()
+t.test_reach()

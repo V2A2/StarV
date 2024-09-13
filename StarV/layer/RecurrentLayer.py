@@ -5,7 +5,7 @@ Bryan Duong, 6/27/2024
 
 import numpy as np
 import multiprocessing
-from StarV.set.star import Star
+from StarV.set.probstar import ProbStar
 from StarV.layer.ReLULayer import ReLULayer
 from StarV.layer.LeakyReLULayer import LeakyReLULayer
 from StarV.layer.SatLinLayer import SatLinLayer
@@ -49,20 +49,20 @@ class RecurrentLayer(object):
         self.Woh = Woh
         self.bo = bo
 
-    def evaluate(self, x: Star, step: int) -> list:
+    def evaluate(self, x: ProbStar, step: int) -> list:
         """
         Evaluates the RecurrentLayer model for a given input and number of steps.
 
         Args:
-            x (Star): The input star.
+            x (ProbStar): The input Probstar.
             step (int): The number of steps to evaluate.
 
         Returns:
             list: The list of outputs for each step.
         """
-        if not isinstance(x, Star):
+        if not isinstance(x, ProbStar):
             raise Exception(
-                "error: input is not a Star set, type of input = {}".format(type(x))
+                "error: input is not a ProbStar set, type of input = {}".format(type(x))
             )
         if not isinstance(step, int):
             raise Exception(
