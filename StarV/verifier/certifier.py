@@ -50,9 +50,9 @@ def reachBFS(net, inputSet, reachMethod='approx', lp_solver='gurobi', pool=None,
             if show:
                 print(f"\nComputing {net.layers[i].__class__.__name__} layer {i} reachable set...")
             
-            start = time.time()
+            start = time.perf_counter()
             In = net.layers[i].reach(In, method=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
-            vt = time.time() - start
+            vt = time.perf_counter() - start
 
             # reachSet.append(In)
             reachTime.append(vt)
@@ -65,6 +65,7 @@ def reachBFS(net, inputSet, reachMethod='approx', lp_solver='gurobi', pool=None,
                         print(f"Shape of the set: {In.V.shape}")
                     elif isinstance(In, SparseImageStar2DCOO) or isinstance(In, SparseImageStar2DCSR):
                         print(f"Shape of the set: {In.shape + (In.num_pred)}")
+                print(f"Reachability analysis is done in {vt} seconds")
 
         outputSet = In
         totalReachTime = sum(reachTime)    
@@ -75,9 +76,9 @@ def reachBFS(net, inputSet, reachMethod='approx', lp_solver='gurobi', pool=None,
         if show:
             print(f"\nComputing {net.layers[i].__class__.__name__} layer {i} reachable set...")
         
-        start = time.time()
+        start = time.perf_counter()
         In = net.layers[i].reach(In, method=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
-        vt = time.time() - start
+        vt = time.perf_counter() - start
 
         # reachSet.append(In)
         reachTime.append(vt)
@@ -167,7 +168,7 @@ def certifyRobustness_sigmoid(net, input, label=None, epsilon=0.01, veriMethod='
                     
                     X = SparseStar.inf_attack(data=x[i, :], epsilon=eps[e], data_type='image')
                     
-                    start = time.time()
+                    start = time.perf_counter()
 
                     # Compute output reachable sets
                     if veriMethod == 'BFS':
@@ -201,7 +202,7 @@ def certifyRobustness_sigmoid(net, input, label=None, epsilon=0.01, veriMethod='
                                 else:
                                     rb[rf, dr, e, i] = 1
 
-                    vt[rf, dr, e, i] = time.time() - start  
+                    vt[rf, dr, e, i] = time.perf_counter() - start  
 
                     if show:
                         print('Robustness result of data {} (eps = {}, RF = {}, DR = {}): {}'.format(i, eps[e], RF_[rf], DR_[dr], rb[rf, dr, e, i]))
@@ -235,7 +236,7 @@ def certifyRobustness_sequence(net, inputs, epsilon=0.01, veriMethod='BFS', reac
 
             @vt: verification time
     """
-    start = time.time()
+    start = time.perf_counter()
     
     x = inputs
     in_seq = x.shape[1] # sequence
@@ -283,7 +284,7 @@ def certifyRobustness_sequence(net, inputs, epsilon=0.01, veriMethod='BFS', reac
                     else:
                         rb[i] = 1
 
-    vt = time.time() - start       
+    vt = time.perf_counter() - start       
 
     return Y, rb, vt 
 
@@ -316,7 +317,7 @@ def certifyRobustness_sequence(net, inputs, epsilon=0.01, veriMethod='BFS', reac
     
 #     assert label < net.out_dim and label >= 0, 'error: invalid classification label'
 
-#     start = time.time()
+#     start = time.perf_counter()
 
 #     robust = 2 # unknown first
 #     cands = None
@@ -363,7 +364,7 @@ def certifyRobustness_sequence(net, inputs, epsilon=0.01, veriMethod='BFS', reac
 #         else:
 #             raise Exception('other verification methods is not yet implemented, i.e. DFS')
 
-#     end = time.time()
+#     end = time.perf_counter()
 #     vt = end - start
 #     return robust, ce, cands, vt
 
