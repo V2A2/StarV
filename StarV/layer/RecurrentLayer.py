@@ -48,6 +48,8 @@ class RecurrentLayer(object):
         self.Whx = Whx
         self.Woh = Woh
         self.bo = bo
+        self.in_dim = Whx.shape[1]
+        self.out_dim = Woh.shape[0]
 
     def evaluate(self, x: ProbStar, step: int) -> list:
         """
@@ -61,13 +63,9 @@ class RecurrentLayer(object):
             list: The list of outputs for each step.
         """
         if not isinstance(x, ProbStar):
-            raise Exception(
-                "error: input is not a ProbStar set, type of input = {}".format(type(x))
-            )
+            raise Exception("error: input is not a ProbStar set, type of input = {}".format(type(x)))
         if not isinstance(step, int):
-            raise Exception(
-                "error: step is not an integer, type of step = {}".format(type(step))
-            )
+            raise Exception("error: step is not an integer, type of step = {}".format(type(step)))
         output = []
         for i in step:
             """
@@ -115,9 +113,7 @@ class RecurrentLayer(object):
         for i, input in enumerate(input_set):
             if i == 0:
                 hidden = input.affineMap(self.Whx, self.bh)
-                hidden_set_current = ReLULayer.reach(
-                    [hidden], method="exact", lp_solver=lp_solver
-                )
+                hidden_set_current = ReLULayer.reach([hidden], method="exact", lp_solver=lp_solver)
             else:
                 hidden_set_current = []
                 for hidden_input in hidden_set_previous:
@@ -126,25 +122,15 @@ class RecurrentLayer(object):
                     hj_xi = hj_affn.minKowskiSum(xi_affn)
 
                     if func == "ReLU":
-                        hj_reach = ReLULayer.reach(
-                            [hj_xi], method="exact", lp_solver=lp_solver
-                        )
+                        hj_reach = ReLULayer.reach([hj_xi], method="exact", lp_solver=lp_solver)
                     elif func == "LeakyReLU":
-                        hj_reach = LeakyReLULayer.reach(
-                            [hj_xi], method="exact", lp_solver=lp_solver
-                        )
+                        hj_reach = LeakyReLULayer.reach([hj_xi], method="exact", lp_solver=lp_solver)
                     elif func == "SatLin":
-                        hj_reach = SatLinLayer.reach(
-                            [hj_xi], method="exact", lp_solver=lp_solver
-                        )
+                        hj_reach = SatLinLayer.reach([hj_xi], method="exact", lp_solver=lp_solver)
                     elif func == "Satlins":
-                        hj_reach = SatLinsLayer.reach(
-                            [hj_xi], method="exact", lp_solver=lp_solver
-                        )
+                        hj_reach = SatLinsLayer.reach([hj_xi], method="exact", lp_solver=lp_solver)
                     elif func == "fullyConnected":
-                        hj_reach = fullyConnectedLayer.reach(
-                            [hj_xi], method="exact", lp_solver=lp_solver
-                        )
+                        hj_reach = fullyConnectedLayer.reach([hj_xi], method="exact", lp_solver=lp_solver)
 
                     hidden_set_current.extend(hj_reach)
 
@@ -155,9 +141,7 @@ class RecurrentLayer(object):
         for i, layer in enumerate(hidden_set):
             for hidden in layer:
                 o = hidden.affineMap(self.Woh, self.bo)
-                output_set[i].extend(
-                    ReLULayer.reach([o], method="exact", lp_solver=lp_solver)
-                )
+                output_set[i].extend(ReLULayer.reach([o], method="exact", lp_solver=lp_solver))
 
         return output_set
 

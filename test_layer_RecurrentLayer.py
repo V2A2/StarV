@@ -137,13 +137,13 @@ class Test(object):
                 print("lb = {}\n ub = {}\n".format(lb, ub))
 
 
-# if __name__ == "__main__":
-#     t = Test()
-#     t.test_constructor()
-#     t.test_rand()
-#     t.test_reach()
-#     print("Number of tests: ", t.n_tests)
-#     print("Number of fails: ", t.n_fails)
+if __name__ == "__main__":
+    t = Test()
+    t.test_constructor()
+    t.test_rand()
+    t.test_reach()
+    print("Number of tests: ", t.n_tests)
+    print("Number of fails: ", t.n_fails)
 
-t = Test()
-t.test_reach()
+# t = Test()
+# t.test_reach()
