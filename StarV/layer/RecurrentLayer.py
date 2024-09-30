@@ -143,7 +143,10 @@ class RecurrentLayer(object):
                 o = hidden.affineMap(self.Woh, self.bo)
                 output_set[i].extend(ReLULayer.reach([o], method="exact", lp_solver=lp_solver))
 
-        return output_set
+        return output_set, hidden_set
+
+    def combineInput(self, input_set: list) -> ProbStar:
+        return 0
 
     def reach(
         self,

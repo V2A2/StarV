@@ -23,9 +23,18 @@ def quantiverify_RecurrentNN(numCores):
     print("Quantitative Verification of Recurrent Neural Network")
     print("=====================================================")
 
+    # One-layer recurrent neural network
+    # layers = []
+    # L = RecurrentLayer.rand(2, 2)
+    # layers.append(L)
+    # net = NeuralNetwork(layers, "rnn")
+
+    # Two-layer recurrent neural network
     layers = []
     L1 = RecurrentLayer.rand(2, 2)
+    L2 = RecurrentLayer.rand(2, 2)
     layers.append(L1)
+    layers.append(L2)
     net = NeuralNetwork(layers, "rnn")
 
     lb = np.array([-4, -1])
@@ -43,10 +52,10 @@ def quantiverify_RecurrentNN(numCores):
     for i in range(t_step):
         inputSet.append(In)
 
-    # unsafe_mat = np.array([[1.0, 0.0]])
-    # unsafe_vec = np.array([1.0])
-    unsafe_mat = np.array([[1.0, 1.0]])
-    unsafe_vec = np.array([2])
+    unsafe_mat = np.array([[1.0, 0.0]])
+    unsafe_vec = np.array([3.0])
+    # unsafe_mat = np.array([[1.0, 1.0]])
+    # unsafe_vec = np.array([2])
     inputProb = In.estimateProbability()
 
     data = []
