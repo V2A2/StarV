@@ -1,7 +1,7 @@
 """
 Verify Recurrent neural networks ReLU
 Author: Bryan Duong
-Date: 9/18/2024
+Date: 9/30/2024
 """
 
 import os
