@@ -75,11 +75,11 @@ if __name__ == "__main__":
     for i in range(starv_net.n_layers):
         x_ticks_labels.append(f"{starv_net.layers[i].__class__.__name__}_{i}")
 
+    plt.rcParams["figure.figsize"] = [7.50, 5.50]
+    plt.rcParams["figure.autolayout"] = True
     fig, ax = plt.subplots(1,1)
 
     plt.title("Computation time (sec)")
-    plt.rcParams["figure.figsize"] = [7.50, 5.50]
-    plt.rcParams["figure.autolayout"] = True
     plt.plot(x, IM_time, color="red")
     plt.plot(x, COO_time, color='black')
     plt.plot(x, CSR_time, color="magenta")
@@ -102,11 +102,11 @@ if __name__ == "__main__":
     for i in range(starv_net.n_layers):
         x_ticks_labels.append(f"{starv_net.layers[i].__class__.__name__}_{i}")
 
+    plt.rcParams["figure.figsize"] = [7.50, 5.50]
+    plt.rcParams["figure.autolayout"] = True
     fig, ax = plt.subplots(1,1)
     
     plt.title("Memory Usage")
-    plt.rcParams["figure.figsize"] = [7.50, 5.50]
-    plt.rcParams["figure.autolayout"] = True
     plt.plot(x, IM_nb, color="red")
     plt.plot(x, COO_nb, color='black')
     plt.plot(x, CSR_nb, color="magenta")
