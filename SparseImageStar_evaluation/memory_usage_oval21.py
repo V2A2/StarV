@@ -98,7 +98,7 @@ if __name__ == "__main__":
     # Set ticks labels for x-axis
     ax.set_xticklabels(x_ticks_labels, rotation=80, fontsize=12)
     # set legend
-    ax.legend(['ImageStar', 'SparseCOO', 'SparseCSR'])
+    ax.legend(['ImageStar', 'SIM COO', 'SIM CSR'])
 
     plt.savefig('SparseImageStar_evaluation//results/memory_usage_oval21_computation_time_differences.png')
     # plt.show()
