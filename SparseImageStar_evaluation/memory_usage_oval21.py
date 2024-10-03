@@ -73,7 +73,15 @@ if __name__ == "__main__":
     x = np.arange(len(IM_time))
     x_ticks_labels = []
     for i in range(starv_net.n_layers):
-        x_ticks_labels.append(f"{starv_net.layers[i].__class__.__name__}_{i}")
+        if starv_net.layers[i].__class__.__name__ == 'Conv2DLayer':
+            l_name = '$L_c$'
+        elif starv_net.layers[i].__class__.__name__ == 'ReLULayer':
+            l_name = '$L_r$'
+        elif starv_net.layers[i].__class__.__name__ == 'FlattenLayer':
+            l_name = '$L_{{flat}}$'
+        elif starv_net.layers[i].__class__.__name__ == 'FullyConnectedLayer':
+            l_name = '$L_f$'
+        x_ticks_labels.append(f"{l_name}_{i}")
 
     plt.rcParams["figure.figsize"] = [7.50, 5.50]
     plt.rcParams["figure.autolayout"] = True
@@ -87,7 +95,7 @@ if __name__ == "__main__":
     # Set number of ticks for x-axis
     ax.set_xticks(x)
     # Set ticks labels for x-axis
-    ax.set_xticklabels(x_ticks_labels, rotation=80, fontsize=10)
+    ax.set_xticklabels(x_ticks_labels, rotation=80, fontsize=12)
     # set legend
     ax.legend(['ImageStar', 'SparseCOO', 'SparseCSR'])
 
@@ -98,9 +106,7 @@ if __name__ == "__main__":
 
     
     x = np.arange(len(IM_nb))
-    x_ticks_labels = ['Input']
-    for i in range(starv_net.n_layers):
-        x_ticks_labels.append(f"{starv_net.layers[i].__class__.__name__}_{i}")
+    x_ticks_labels.insert(0, 'Input')
 
     plt.rcParams["figure.figsize"] = [7.50, 5.50]
     plt.rcParams["figure.autolayout"] = True
@@ -116,7 +122,7 @@ if __name__ == "__main__":
     # Set number of ticks for x-axis
     ax.set_xticks(x)
     # Set ticks labels for x-axis
-    ax.set_xticklabels(x_ticks_labels, rotation=80, fontsize=10)
+    ax.set_xticklabels(x_ticks_labels, rotation=80, fontsize=12)
     # set legend
     ax.legend(['ImageStar', 'SIM COO', 'SIM CSR'])
 
