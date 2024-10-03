@@ -64,7 +64,7 @@ def reachBFS(net, inputSet, reachMethod='approx', lp_solver='gurobi', pool=None,
                     if isinstance(In, ImageStar) or isinstance(In, Star):
                         print(f"Shape of the set: {In.V.shape}")
                     elif isinstance(In, SparseImageStar2DCOO) or isinstance(In, SparseImageStar2DCSR):
-                        print(f"Shape of the set: {In.shape + (In.num_pred)}")
+                        print(f"Shape of the set: {In.shape + (In.num_pred,)}")
                 print(f"Reachability analysis is done in {vt} seconds")
 
         outputSet = In
@@ -428,7 +428,7 @@ def certifyRobustness_pixel(net, in_sets, in_datas, num_classes, veriMethod='BFS
     num_unkPix = np.zeros(N) # number of unknown pixels
     num_misPix = np.zeros(N) # number of missclassified pixels
     num_attPix = np.zeros(N) # number of attacked pixels
-    iou = np.zeros(N)
+    riou = np.zeros(N) # rate of Jaccard similarity coefficient score; iou = Jaccard similarity index (IoU)
 	
     num_pixels = np.prod(in_datas[0].shape)
 
@@ -436,15 +436,16 @@ def certifyRobustness_pixel(net, in_sets, in_datas, num_classes, veriMethod='BFS
     MIS_PIX = num_classes + 1
     
     for i in range(N):
-        veri_image, veri_time[i], _, O = certifyPixelRobustness_single_input(net, in_sets[i], in_datas[i], veriMethod, reachMethod, lp_solver, pool, RF, DR, show)
+        veri_image, veri_time[i], _, O,  gr_pix_id = certifyPixelRobustness_single_input(net, in_sets[i], in_datas[i], veriMethod, reachMethod, lp_solver, pool, RF, DR, show)
         veri_set.append(veri_image)
         
         num_attPix[i] = in_sets[i].geNumAttackedPixels()
         num_misPix[i] = (veri_image == MIS_PIX).sum()
         num_unkPix[i] = (veri_image == UNK_PIX).sum()
         num_rbPix[i] = num_pixels - (num_misPix[i] + num_unkPix[i])
-        iou[i] = jaccard_score(veri_image.ravel(), in_datas[i].ravel())
-        
+        iou = jaccard_score(veri_image.ravel(), gr_pix_id.ravel(), average=None) #labels = np.arange(num_classes+2)
+        riou[i] = iou.sum()/(num_classes+2)
+
         if return_output:
             out_sets.append(O)
 
@@ -452,7 +453,7 @@ def certifyRobustness_pixel(net, in_sets, in_datas, num_classes, veriMethod='BFS
     avg_numUnk = num_unkPix.sum() / N
     avg_numMis = num_misPix.sum() / N
     avg_numAtt = num_attPix.sum() / N
-    avg_riou = iou.sum() / N
+    avg_riou = riou.sum() / N
     avg_rv = (num_rbPix / num_pixels) / N
     avg_rs = (num_misPix + num_unkPix / num_attPix).sum() / N
     avg_vt = veri_time.sum() / N
@@ -496,18 +497,6 @@ def certifyRobustness(net, inputs, labels=None, veriMethod='BFS', reachMethod='a
 def certifyPixelRobustness_single_input(net, in_set, in_data, veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
 
     start = time.perf_counter()
-    
-    if isinstance(in_set, ImageStar):
-        shape = in_set.V.shape[:3]
-    else:
-        shape = in_set.shape
-    
-    # if pix_labels is None:
-    #     y = net.evaluate(in_datas).squeeze(axis=2)
-    #     gr_pix_id = y.argmax()
-    # else:
-    #     gr_pix_id = np.array(pix_labels)
-    #     assert gr_pix_id.shape == shape[:2], f"pix_lables should be a 2D numpy array or list"
 
     gr_pix_id = net.evaluate(in_data).squeeze(axis=2)
 
@@ -522,34 +511,13 @@ def certifyPixelRobustness_single_input(net, in_set, in_data, veriMethod='BFS', 
     classes = net.layers[-1].classes
     h, w = pixel_labels.shape
 
-    ver_im = np.zeros([h, w])
-
-    for i in range(h):
-        for j in range(w):
-            pc = pixel_labels[i][j]
-            # if len(pc) == 1:
-            #     if pc == gr_pix_id[i, j]:
-            #         ver_im[i, j] = pc
-            #     else:
-            #         ver_im[i, j] = num_classes + 1 # misclass (unrobust pixel)
-            # else:
-            #     c = sum(pc == gr_pix_id[i, j])
-            #     if sum > 0:
-            #         ver_im[i, j] = num_classes # unkown pixel
-            #     else:
-            #         ver_im[i, j] = num_classes + 1
-
-            if pc == gr_pix_id[i, j]:
-                ver_im[i, j] = pc
-            elif pc < classes:
-                ver_im[i, j] = classes # multiple classification (unknown pixel) 
-            else:
-                ver_im[i, j] = classes + 1 # incorrect classification (unrobust / missclassified pixel)
+    ver_im = (classes + 1)*np.ones([h, w]) # initially define incorrect classification (unrobust / misslcassified pixels)
+    ver_im[ver_im < classes] = classes # unknown pixles
+    eq = pixel_labels == gr_pix_id 
+    ver_im[eq] = pixel_labels[eq] # robust pixels / correctly classified pixels
 
     vt_total = time.perf_counter() - start  
-    return ver_im, VT, vt_total, Y
-
-
+    return ver_im, VT, vt_total, Y, gr_pix_id
 
 
 def certifyRobustness_single_input(net, in_set, label=None, veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):

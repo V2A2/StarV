@@ -59,6 +59,7 @@ def attack_multiple_images(images, format='IM', data_type='mnist', N_max=[20], b
     # @delta: sizes of input sets
     # @br: threshold to set pixel to 0
 
+    assert isinstance(images, list), f"images should be a list containg image data sets, byt received {type(images)}"
     assert isinstance(N_max, list), f"N_max should be a list containing sizes of input sets, but received {type(N_max)}"
     outputs = []
     for n_max in range(len(N_max)):

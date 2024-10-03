@@ -80,7 +80,7 @@ class SparseImageStar2DCOO(object):
             assert isinstance(c, np.ndarray) and c.ndim == 1, \
             'error: anchor image should be a 1D numpy array'
             assert c.shape[0] == V.shape[0], \
-            'error: inconsistency between anchor image and generator image'
+            f'error: inconsistency between anchor image and generator image; c.shape[0]={c.shape[0]}, V.shape[0]={V.shape[0]}'
             assert isinstance(pred_lb, np.ndarray) and pred_lb.ndim == 1, \
             'error: lower bound vector should be a 1D numpy array'
             assert isinstance(pred_ub, np.ndarray) and pred_ub.ndim == 1, \

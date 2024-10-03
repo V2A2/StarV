@@ -1306,18 +1306,16 @@ class ImageStar(object):
 
     def to_SIM(self, format='csr'):
         assert format in ['csr', 'coo'], f"format should be either 'csr' or 'coo', but received {format}"
-        shape = V.shape[:3]
-        num_pred = V.shape[3] - 1
+        shape = self.V.shape[:3]
+        num_pred = self.V.shape[3] - 1
         c = self.V[:, :, :, 0].ravel()
+        C = sp.csr_array(self.C)
         if format == 'csr':
             V = sp.csr_array(self.V[:, :, :, 1:].reshape(-1, num_pred))
-            return SparseImageStar2DCSR(c, V, self.C, self.d, self.pred_lb, self.pred_ub, shape)
+            return SparseImageStar2DCSR(c, V, C, self.d, self.pred_lb, self.pred_ub, shape)
         else:
             V = sp.coo_array(self.V[:, :, :, 1:].reshape(-1, num_pred))
-            return SparseImageStar2DCOO(c, V, self.C, self.d, self.pred_lb, self.pred_ub, shape)
-        
-
-        [c, V, C, d, pred_lb, pred_ub, shape]
+            return SparseImageStar2DCOO(c, V, C, self.d, self.pred_lb, self.pred_ub, shape)
 
     @staticmethod
     def isMax(maxMap, ori_image, center, others, lp_solver='gurobi'):
