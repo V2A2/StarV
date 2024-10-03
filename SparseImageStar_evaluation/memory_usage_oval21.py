@@ -86,11 +86,12 @@ if __name__ == "__main__":
     plt.rcParams["figure.figsize"] = [7.50, 5.50]
     plt.rcParams["figure.autolayout"] = True
     fig, ax = plt.subplots(1,1)
-
-    plt.title("Computation time (sec)")
+    plt.title("Computation Time")
     plt.plot(x, IM_time, color="red")
     plt.plot(x, COO_time, color='black')
     plt.plot(x, CSR_time, color="magenta")
+    plt.xlabel("Layers")
+    plt.ylabel("Computation Time (sec)")
 
     # Set number of ticks for x-axis
     ax.set_xticks(x)
@@ -111,7 +112,6 @@ if __name__ == "__main__":
     plt.rcParams["figure.figsize"] = [7.50, 5.50]
     plt.rcParams["figure.autolayout"] = True
     fig, ax = plt.subplots(1,1)
-    
     plt.title("Memory Usage")
     plt.plot(x, IM_nb, color="red")
     plt.plot(x, COO_nb, color='black')
@@ -131,7 +131,7 @@ if __name__ == "__main__":
     ax2.plot(x, density, color="green")
     ax2.legend(['density'])
     ax2.set_ylabel(r"Density")
-    
+
     plt.savefig('SparseImageStar_evaluation//results/memory_usage_oval21_memory_usage_differences.png')
     # plt.show()
     plt.close()
