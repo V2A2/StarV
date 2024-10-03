@@ -139,8 +139,11 @@ class ConvTranspose2DLayer(object):
                     else:
                         if len(padding) == 2:
                             padding = np.array([padding[0], padding[0], padding[1], padding[1]])
-                        self.padding = np.array(padding)
-                    
+                        elif len(padding) == 4:
+                            self.padding = padding
+                        else:
+                            raise Exception('error: padding should contain 1, 2, 4 elements')
+                        
                 if isinstance(stride, int):
                     assert stride > 0, 'error: stride should positive integer'
                     self.stride = np.ones(2, dtype=np.int16)*stride
@@ -222,10 +225,13 @@ class ConvTranspose2DLayer(object):
             self.in_channel = layer.weight.shape[0]
             self.out_channel = layer.weight.shape[1]
             
-            self.stride = layer.stride
-            self.padding = layer.padding
-            self.dilation = layer.dilation
-            self.output_padding = layer.output_padding
+            self.stride = np.array(layer.stride)
+            padding = np.array(layer.padding)
+            if len(padding) == 2:
+                padding = np.array([padding[0], padding[0], padding[1], padding[1]])
+            self.padding = padding
+            self.dilation = np.array(layer.dilation)
+            self.output_padding = np.array(layer.output_padding)
         
             # converting weight and bias in pytorch to numpy 
             if self.module == 'default':
@@ -316,6 +322,8 @@ class ConvTranspose2DLayer(object):
     def apply_padding_sparse(output, m, n, ci, padding, output_padding, tocsr=False):
         assert output.format == 'csr', \
         f"error: output should be in 'csr' format but received {output.format} format"
+        assert isinstance(padding, np.ndarray), \
+        f"error: padding should numpy ndarray but received {type(padding)}"
 
         # applying padding
         pad = (padding > 0).any()
@@ -1066,7 +1074,8 @@ class ConvTranspose2DLayer(object):
             
             elif self.module == 'default':
                 new_c = self.convtrans2d(In.c.reshape(In.shape), bias=True).reshape(-1)
-                new_V, out_shape = self.fconv2d_coo_co_loop(In.V, In.shape)
+                new_V, out_shape = self.fconvtrans2d_coo_co_loop2(In.V, In.shape)
+                # new_V, out_shape = self.fconvtrans2d_coo(In.V, In.shape)
 
             return SparseImageStar2DCOO(new_c, new_V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
         
@@ -1078,7 +1087,8 @@ class ConvTranspose2DLayer(object):
             
             elif self.module == 'default':
                 new_c = self.convtrans2d(In.c.reshape(In.shape), bias=True).reshape(-1)
-                new_V, out_shape = self.fconv2d_csr_co_loop(In.V, In.shape)
+                new_V, out_shape = self.fconvtrans2d_csr_co_loop2(In.V, In.shape)
+                # new_V, out_shape = self.fconvtrans2d_csr(In.V, In.shape)
 
             return SparseImageStar2DCSR(new_c, new_V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
         

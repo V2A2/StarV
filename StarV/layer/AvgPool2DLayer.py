@@ -820,10 +820,10 @@ class AvgPool2DLayer(object):
                 )
             
             elif self.module == 'default':
-                new_c = self.avgpool2d(In.c)
-                new_V = self.favgpool2d_coo2(In.V)
+                new_c = self.avgpool2d(In.c.reshape(In.shape)).reshape(-1)
+                new_V, out_shape = self.favgpool2d_coo2(In.V, In.shape)
                 
-            return SparseImageStar2DCOO(new_c, new_V, In.C, In.d, In.pred_lb, In.pred_ub)
+            return SparseImageStar2DCOO(new_c, new_V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
         
         elif isinstance(In, SparseImageStar2DCSR):
             if self.module == 'pytorch':
@@ -832,10 +832,10 @@ class AvgPool2DLayer(object):
                 )
             
             elif self.module == 'default':
-                new_c = self.avgpool2d(In.c)
-                new_V = self.favgpool2d_csr2(In.V)
+                new_c = self.avgpool2d(In.c.reshape(In.shape)).reshape(-1)
+                new_V, out_shape = self.favgpool2d_csr2(In.V, In.shape)
                 
-            return SparseImageStar2DCSR(new_c, new_V, In.C, In.d, In.pred_lb, In.pred_ub)
+            return SparseImageStar2DCSR(new_c, new_V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
         
         else:
             raise Exception('error: AvgPool2DLayer support ImageStar and SparseImageStar')

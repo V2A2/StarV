@@ -226,9 +226,12 @@ class Conv2DLayer(object):
             self.in_channel = layer.weight.shape[0]
             self.out_channel = layer.weight.shape[1]
             
-            self.stride = layer.stride
-            self.padding = layer.padding
-            self.dilation = layer.dilation
+            self.stride = np.array(layer.stride)
+            padding = np.array(layer.padding)
+            if len(padding) == 2:
+                padding = np.array([padding[0], padding[0], padding[1], padding[1]])
+            self.padding = padding
+            self.dilation = np.array(layer.dilation)
         
             # converting weight and bias in pytorch to numpy 
             if self.module == 'default':
@@ -361,12 +364,12 @@ class Conv2DLayer(object):
             pad = np.ones(4)*padding[0]
 
         """Adding padding to coo"""
-        row = input.row + (input.row // (shape[1]*shape[2])) * (padding[2]+padding[3])* shape[2]
-        row += shape[2]*((shape[1]+padding[2]+padding[3])*padding[0]+padding[2])
+        row = input.row + (input.row // (shape[1]*shape[2])) * (pad[2]+pad[3])* shape[2]
+        row += shape[2]*((shape[1]+pad[2]+pad[3])*pad[0]+pad[2])
 
-        mo = shape[0] + padding[0] + padding[1]
-        no = shape[1] + padding[2] + padding[3]
-        print('mo, no: ', mo, no)
+        mo = shape[0] + pad[0] + pad[1]
+        no = shape[1] + pad[2] + pad[3]
+		
         if tocsc is True:
             output = sp.csc_array((input.data, (row, input.col)), shape = (mo*no*shape[2], input.shape[1]))
         else:
@@ -439,7 +442,7 @@ class Conv2DLayer(object):
         H, W = self.weight.shape[:2]
 
         ho = ((h + 2*self.padding[0] - H - (H - 1) * (self.dilation[0] - 1)) // self.stride[0]) + 1
-        wo = ((h + 2*self.padding[1] - H - (H - 1) * (self.dilation[1] - 1)) // self.stride[1]) + 1
+        wo = ((w + 2*self.padding[1] - W - (W - 1) * (self.dilation[1] - 1)) // self.stride[1]) + 1
         
         assert ho > 0 and wo > 0, 'error: the shape of resulting output should be positive'
         return ho, wo
@@ -449,7 +452,7 @@ class Conv2DLayer(object):
         H, W = self.weight.shape[:2]
 
         ho = ((h + 2*self.padding[0] - H - (H - 1) * (self.dilation[0] - 1)) // self.stride[0]) + 1
-        wo = ((h + 2*self.padding[1] - H - (H - 1) * (self.dilation[1] - 1)) // self.stride[1]) + 1
+        wo = ((w + 2*self.padding[1] - W - (W - 1) * (self.dilation[1] - 1)) // self.stride[1]) + 1
 
         assert ho > 0 and wo > 0, 'error: the shape of resulting output should be positive'
         return ho, wo
