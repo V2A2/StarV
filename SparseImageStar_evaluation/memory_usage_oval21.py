@@ -75,13 +75,7 @@ if __name__ == "__main__":
     for i in range(starv_net.n_layers):
         x_ticks_labels.append(f"{starv_net.layers[i].__class__.__name__}_{i}")
 
-    fig, ax = plt.subplots(1,1) 
-    # Set number of ticks for x-axis
-    ax.set_xticks(x)
-    # Set ticks labels for x-axis
-    ax.set_xticklabels(x_ticks_labels, rotation=80, fontsize=10)
-    # set legend
-    ax.legend(['ImageStar', 'SparseCOO', 'SparseCSR'])
+    fig, ax = plt.subplots(1,1)
 
     plt.title("Computation time (sec)")
     plt.rcParams["figure.figsize"] = [7.50, 5.50]
@@ -89,6 +83,14 @@ if __name__ == "__main__":
     plt.plot(x, IM_time, color="red")
     plt.plot(x, COO_time, color='black')
     plt.plot(x, CSR_time, color="magenta")
+
+    # Set number of ticks for x-axis
+    ax.set_xticks(x)
+    # Set ticks labels for x-axis
+    ax.set_xticklabels(x_ticks_labels, rotation=80, fontsize=10)
+    # set legend
+    ax.legend(['ImageStar', 'SparseCOO', 'SparseCSR'])
+
     plt.savefig('SparseImageStar_evaluation//results/memory_usage_oval21_computation_time_differences.png')
     # plt.show()
     plt.close()
@@ -100,7 +102,17 @@ if __name__ == "__main__":
     for i in range(starv_net.n_layers):
         x_ticks_labels.append(f"{starv_net.layers[i].__class__.__name__}_{i}")
 
-    fig, ax = plt.subplots(1,1) 
+    fig, ax = plt.subplots(1,1)
+    
+    plt.title("Memory Usage")
+    plt.rcParams["figure.figsize"] = [7.50, 5.50]
+    plt.rcParams["figure.autolayout"] = True
+    plt.plot(x, IM_nb, color="red")
+    plt.plot(x, COO_nb, color='black')
+    plt.plot(x, CSR_nb, color="magenta")
+    plt.xlabel("Layers")
+    plt.ylabel("Bytes")
+
     # Set number of ticks for x-axis
     ax.set_xticks(x)
     # Set ticks labels for x-axis
@@ -113,15 +125,6 @@ if __name__ == "__main__":
     ax2.plot(x, density, color="green")
     ax2.legend(['density'])
     ax2.set_ylabel(r"Density")
-
-    plt.title("Memory Usage")
-    plt.rcParams["figure.figsize"] = [7.50, 5.50]
-    plt.rcParams["figure.autolayout"] = True
-    plt.plot(x, IM_nb, color="red")
-    plt.plot(x, COO_nb, color='black')
-    plt.plot(x, CSR_nb, color="magenta")
-    plt.xlabel("Layers")
-    plt.ylabel("Bytes")
     
     plt.savefig('SparseImageStar_evaluation//results/memory_usage_oval21_memory_usage_differences.png')
     # plt.show()
