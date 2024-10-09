@@ -125,8 +125,8 @@ def verify_vgg16_network(dtype='float64'):
 
         if num_attack_pixel > 150:
             print(f"Skipping {vnnlib_file} to avoid RAM issue")
-            rbIM[i] = np.nan
-            vtIM[i] = np.nan
+            rbCSR[i] = np.nan
+            vtCSR[i] = np.nan
         else:
             CSR = SparseImageStar2DCSR(lb, ub)
             rbCSR[i], vtCSR[i], _, _ = certifyRobustness(net=starvNet, inputs=CSR, labels=label,
@@ -168,8 +168,8 @@ def verify_vgg16_network(dtype='float64'):
 
         if num_attack_pixel > 150:
             print(f"Skipping {vnnlib_file} to avoid RAM issue")
-            rbIM[i] = np.nan
-            vtIM[i] = np.nan
+            rbCOO[i] = np.nan
+            vtCOO[i] = np.nan
         else:
             COO = SparseImageStar2DCOO(lb, ub)
             rbCOO[i], vtCOO[i], _, _ = certifyRobustness(net=starvNet, inputs=COO, labels=label,

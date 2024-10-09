@@ -265,7 +265,7 @@ class PosLin(object):
 
         if show:
             print('Optimize upper bounds of {} neurons'.format(len(mapO)))
-        xmax = I.getMaxs(map=mapO, lp_solver=lp_solver)
+        xmax = I.getMaxs(mapO, lp_solver)
         
         map_ = np.argwhere(xmax <= 0).reshape(-1)
         mapOL = mapO[map_]
@@ -282,7 +282,7 @@ class PosLin(object):
 
         if show:
             print('Optimize lower bounds of {} neurons'.format(len(mapO)))
-        xmin = I.getMins(map=map1, lp_solver=lp_solver)
+        xmin = I.getMins(map1, lp_solver)
 
         map2_ = np.argwhere(xmin < 0).reshape(-1)
         map2 = map1[map2_]
