@@ -112,10 +112,12 @@ def memory_usage_vgg16(spec):
     plt.rcParams["figure.figsize"] = [8.50, 5.50]
     plt.rcParams["figure.autolayout"] = True
     fig, ax = plt.subplots(1,1) 
-    plt.title("Computation time (sec)")
+    plt.title("Computation Time")
     plt.plot(x, IM_time, color='red')
     plt.plot(x, COO_time, color='black')
     plt.plot(x, CSR_time, color="magenta")
+    plt.xlabel("Layers")
+    plt.ylabel("Computation Time (sec)")
 
     # Set number of ticks for x-axis
     ax.set_xticks(x)
