@@ -83,7 +83,7 @@ if __name__ == "__main__":
             l_name = '$L_f$'
         x_ticks_labels.append(f"{l_name}_{i}")
 
-    plt.rcParams["figure.figsize"] = [7.50, 5.50]
+    plt.rcParams["figure.figsize"] = [8.50, 5.50]
     plt.rcParams["figure.autolayout"] = True
     fig, ax = plt.subplots(1,1)
     plt.title("Computation Time")
@@ -109,7 +109,7 @@ if __name__ == "__main__":
     x = np.arange(len(IM_nb))
     x_ticks_labels.insert(0, 'Input')
 
-    plt.rcParams["figure.figsize"] = [7.50, 5.50]
+    plt.rcParams["figure.figsize"] = [8.50, 5.50]
     plt.rcParams["figure.autolayout"] = True
     fig, ax = plt.subplots(1,1)
     plt.title("Memory Usage")

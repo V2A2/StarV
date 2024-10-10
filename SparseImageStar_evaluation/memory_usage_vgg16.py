@@ -101,6 +101,12 @@ def memory_usage_vgg16(spec):
             l_name = '$L_{{flat}}$'
         elif starvNet.layers[i].__class__.__name__ == 'FullyConnectedLayer':
             l_name = '$L_f$'
+        elif starvNet.layers[i].__class__.__name__ == 'MaxPool2DLayer':
+            l_name = '$L_m$'
+        elif starvNet.layers[i].__class__.__name__ == 'BatchNorm2DLayer':
+            l_name = '$L_b$'
+        else:
+            raise Exception('Unknown layer')
         x_ticks_labels.append(f"{l_name}_{i}")
 
     plt.rcParams["figure.figsize"] = [8.50, 5.50]

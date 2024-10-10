@@ -56,31 +56,6 @@ def verify_oval21_network(net_type='base', dtype='float64'):
 
     rb_table = []
     vt_table = []
-
-    print(f"\nVerifying cifar_{net_type}_kw with SparseImageStar in CSR format")
-    for i, vnnlib_file in enumerate(vnnlib_files):
-        vnnlib_file_dir = f"{vnnlib_dir}/{vnnlib_file}"
-
-        with open(vnnlib_file_dir) as f:
-            first_line = f.readline().strip('\n')
-        label = int(re.findall(r'\b\d+\b', first_line)[0])
-
-
-        vnnlib_rv = read_vnnlib_simple(vnnlib_file, num_inputs, num_outputs)
-
-        box, spec_list = vnnlib_rv[0]
-        bounds = np.array(box, dtype=inp_dtype)
-        # transpose from [C, H, W] to [H, W, C]
-        lb = bounds[:, 0].reshape(shape).transpose([1, 2, 0]).astype(dtype)
-        ub = bounds[:, 1].reshape(shape).transpose([1, 2, 0]).astype(dtype)
-
-        CSR = SparseImageStar2DCSR(lb, ub)
-        rbCSR[i], vtCSR[i], _, _ = certifyRobustness(net=starvNet, inputs=CSR, labels=label,
-            veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
-            RF=0.0, DR=0, return_output=False, show=False)
-    rb_table.append((rbCSR == 1).sum())
-    vt_table.append((vtCSR.sum() / N))
-    del CSR
     
     print(f"Verifying cifar_{net_type}_kw with ImageStar")
     for i, vnnlib_file in enumerate(vnnlib_files):
@@ -106,30 +81,30 @@ def verify_oval21_network(net_type='base', dtype='float64'):
     vt_table.append((vtIM.sum() / N))
     del IM
 
-    # print(f"\nVerifying cifar_{net_type}_kw with SparseImageStar in CSR format")
-    # for i, vnnlib_file in enumerate(vnnlib_files):
-    #     vnnlib_file_dir = f"{vnnlib_dir}/{vnnlib_file}"
+    print(f"\nVerifying cifar_{net_type}_kw with SparseImageStar in CSR format")
+    for i, vnnlib_file in enumerate(vnnlib_files):
+        vnnlib_file_dir = f"{vnnlib_dir}/{vnnlib_file}"
 
-    #     with open(vnnlib_file_dir) as f:
-    #         first_line = f.readline().strip('\n')
-    #     label = int(re.findall(r'\b\d+\b', first_line)[0])
+        with open(vnnlib_file_dir) as f:
+            first_line = f.readline().strip('\n')
+        label = int(re.findall(r'\b\d+\b', first_line)[0])
 
 
-    #     vnnlib_rv = read_vnnlib_simple(vnnlib_file, num_inputs, num_outputs)
+        vnnlib_rv = read_vnnlib_simple(vnnlib_file, num_inputs, num_outputs)
 
-    #     box, spec_list = vnnlib_rv[0]
-    #     bounds = np.array(box, dtype=inp_dtype)
-    #     # transpose from [C, H, W] to [H, W, C]
-    #     lb = bounds[:, 0].reshape(shape).transpose([1, 2, 0]).astype(dtype)
-    #     ub = bounds[:, 1].reshape(shape).transpose([1, 2, 0]).astype(dtype)
+        box, spec_list = vnnlib_rv[0]
+        bounds = np.array(box, dtype=inp_dtype)
+        # transpose from [C, H, W] to [H, W, C]
+        lb = bounds[:, 0].reshape(shape).transpose([1, 2, 0]).astype(dtype)
+        ub = bounds[:, 1].reshape(shape).transpose([1, 2, 0]).astype(dtype)
 
-    #     CSR = SparseImageStar2DCSR(lb, ub)
-    #     rbCSR[i], vtCSR[i], _, _ = certifyRobustness(net=starvNet, inputs=CSR, labels=label,
-    #         veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
-    #         RF=0.0, DR=0, return_output=False, show=False)
-    # rb_table.append((rbCSR == 1).sum())
-    # vt_table.append((vtCSR.sum() / N))
-    # del CSR
+        CSR = SparseImageStar2DCSR(lb, ub)
+        rbCSR[i], vtCSR[i], _, _ = certifyRobustness(net=starvNet, inputs=CSR, labels=label,
+            veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
+            RF=0.0, DR=0, return_output=False, show=False)
+    rb_table.append((rbCSR == 1).sum())
+    vt_table.append((vtCSR.sum() / N))
+    del CSR
 
     print(f"\nVerifying cifar_{net_type}_kw with SparseImageStar in COO format")
     for i, vnnlib_file in enumerate(vnnlib_files):

@@ -1,7 +1,7 @@
 """
 Create Table for MNIST ConvNet (CAV2020) against brightening attack results
 Author: Sung Woo Choi
-Date: 06/24/2024
+Date: 10/09/2024
 """
 
 import numpy as np
