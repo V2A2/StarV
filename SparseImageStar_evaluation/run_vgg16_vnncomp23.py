@@ -368,7 +368,7 @@ def plot_table_vgg16_network():
     N = 15
     vt_NNENUM = [3.5, 3.4, 9.3, 4.8, 18.1, 35.7, 6.5, 18.3, 133.85, 10.6, 40.9, 57.6, 'T/O', 236.52, 746.60]
 
-    headers = ['Specs', '$e$', 'Result', 'IM', 'SIM_csr', 'SIM_coo', 'IM', 'NNENUM']
+    headers = ['Specs', 'e', 'Result', 'IM', 'SIM_csr', 'SIM_coo', 'IM', 'NNENUM']
     result = 'UNSAT'
     
     data = []
