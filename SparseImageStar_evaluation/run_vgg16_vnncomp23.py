@@ -306,7 +306,7 @@ def verify_vgg16_converted_network(dtype='float64'):
     print('-----------------------------------------------------')
     print('Robustness')
     print('-----------------------------------------------------')
-    print(tabulate([np.arange(N), rbIM, vtIM], headers=headers))
+    print(tabulate([np.arange(N), rbIM], headers=headers))
     print()
 
     Tlatex = tabulate([np.arange(N), rbIM], headers=headers, tablefmt='latex')
@@ -336,7 +336,7 @@ def plot_table_vgg16_network():
         rbIM, vtIM, rbCSR, vtCSR, rbCOO, vtCOO, _, _ = pickle.load(f)
     file_dir = folder_dir + 'vggnet16_vnncomp23_converted_results.pkl'
     with open(file_dir, 'rb') as f:
-        rbIMc, vtIMc, _, _ = pickle.load(f)
+        rbIMc, vtIMc = pickle.load(f)
 
     N = 15
     vt_NNENUM = [3.5, 3.4, 9.3, 4.8, 18.1, 35.7, 6.5, 18.3, 133.85, 10.6, 40.9, 57.6, 'T/O', 236.52, 746.60]
