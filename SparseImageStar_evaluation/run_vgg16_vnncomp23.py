@@ -358,5 +358,5 @@ def plot_table_vgg16_network():
 
 if __name__ == "__main__":
     # verify_vgg16_network(dtype='float64')
-    verify_vgg16_converted_network(dtype='float64')
+    # verify_vgg16_converted_network(dtype='float64')
     plot_table_vgg16_network()
