@@ -163,5 +163,5 @@ def memory_usage_vgg16(spec):
     plt.close()
 
 if __name__ == "__main__":
-    memory_usage_vgg16(spec=8)
+    memory_usage_vgg16(spec=11)
     
