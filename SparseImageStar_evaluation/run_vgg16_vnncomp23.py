@@ -229,7 +229,7 @@ def verify_vgg16_network(dtype='float64'):
 def verify_vgg16_converted_network(dtype='float64'):
 
     print('=================================================================================')
-    print(f"Verification of VGG16 Network against Infinity Norm Attack")
+    print(f"Verification of VGG16 Converted Network against Infinity Norm Attack")
     print('=================================================================================\n')
 
     folder_dir = f"./SparseImageStar_evaluation/vnncomp2023/vggnet16"
@@ -338,7 +338,7 @@ def verify_vgg16_converted_network(dtype='float64'):
     print('DONE!')
     print('=====================================================')
 
-    
+
 if __name__ == "__main__":
     verify_vgg16_network(dtype='float64')
     verify_vgg16_converted_network(dtype='float64')
