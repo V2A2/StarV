@@ -252,14 +252,7 @@ def verify_vgg16_converted_network(dtype='float64'):
     N = len(vnnlib_files)
     rbIM = np.zeros(N)
     vtIM = np.zeros(N)
-    rbCSR = np.zeros(N)
-    vtCSR = np.zeros(N)
-    rbCOO = np.zeros(N)
-    vtCOO = np.zeros(N)
 
-    rb_table = []
-    vt_table = []
- 
     print(f"\n\nVerifying vggnet16 with ImageStar")
     for i, vnnlib_file in enumerate(vnnlib_files):
         vnnlib_file_dir = f"{vnnlib_dir}/{vnnlib_file}"
@@ -297,9 +290,6 @@ def verify_vgg16_converted_network(dtype='float64'):
                 print(f"ROBUSTNESS RESULT: UNROBUST")
 
             print(f"VERIFICATION TIME: {vtIM[i]}")
-
-    rb_table.append((rbIM == 1).sum())
-    vt_table.append((vtIM.sum() / N))
     del IM
 
     # save verification results
@@ -308,7 +298,7 @@ def verify_vgg16_converted_network(dtype='float64'):
         os.makedirs(path)
 
     save_file = path + f"/vggnet16_vnncomp23_converted_results.pkl"
-    pickle.dump([rbIM, vtIM, rb_table, vt_table], open(save_file, "wb"))
+    pickle.dump([rbIM, vtIM], open(save_file, "wb"))
 
     headers = [f"ImageStar"]
 
@@ -316,10 +306,10 @@ def verify_vgg16_converted_network(dtype='float64'):
     print('-----------------------------------------------------')
     print('Robustness')
     print('-----------------------------------------------------')
-    print(tabulate([rb_table], headers=headers))
+    print(tabulate([np.arange(N), rbIM, vtIM], headers=headers))
     print()
 
-    Tlatex = tabulate([rb_table], headers=headers, tablefmt='latex')
+    Tlatex = tabulate([np.arange(N), rbIM], headers=headers, tablefmt='latex')
     with open(path+f"vggnet16_vnncomp23_converted_results_rb.tex", "w") as f:
         print(Tlatex, file=f)
 
@@ -327,10 +317,10 @@ def verify_vgg16_converted_network(dtype='float64'):
     print('-----------------------------------------------------')
     print('Verification Time')
     print('-----------------------------------------------------')
-    print(tabulate([vt_table], headers=headers))
+    print(tabulate([np.arange(N), vtIM], headers=headers))
     print()
 
-    Tlatex = tabulate([vt_table], headers=headers, tablefmt='latex')
+    Tlatex = tabulate([np.arange(N), vtIM], headers=headers, tablefmt='latex')
     with open(path+f"vggnet16_vnncomp23_converted_results_vt.tex", "w") as f:
         print(Tlatex, file=f)
 
@@ -339,6 +329,33 @@ def verify_vgg16_converted_network(dtype='float64'):
     print('=====================================================')
 
 
+def plot_table_vgg16_network():
+    folder_dir = 'SparseImageStar_evaluation/results/'
+    file_dir = folder_dir + 'vggnet16_vnncomp23_results.pkl'
+    with open(file_dir, 'rb') as f:
+        rbIM, vtIM, rbCSR, vtCSR, rbCOO, vtCOO = pickle.load(f)
+    with open(file_dir, 'rb') as f:
+        rbIMc, vtIMc, _, _ = pickle.load(f)
+
+    N = 15
+    vt_NNENUM = [3.5, 3.4, 9.3, 4.8, 18.1, 35.7, 6.5, 18.3, 133.85, 10.6, 40.9, 57.6, 'T/O', 236.52, 746.60]
+
+    headers = ['Specs', 'Result', 'IM', 'SIM_csr', 'SIM_coo', 'IM', 'NNENUM']
+    result = 'UNSAT'
+    
+    data = []
+    for i in range(N):
+        vt_im = 'O/M' if np.isnan(vtIM[i]) else f"{vtIM[i]:0.1f}"
+        vt_imc = 'O/M' if np.isnan(vtIMc[i]) else f"{vtIMc[i]:0.1f}"
+        data.append([i, result, vt_im, f"{vtCSR[i]:0.1f}", f"{vtCOO[i]:0.1f}", vt_imc, vt_NNENUM[i]])
+    print(tabulate(data, headers=headers))
+
+    Tlatex = tabulate(data, headers=headers, tablefmt='latex')
+    with open(folder_dir+f"vggnet16_vnncomp23_results_full_table.tex", "w") as f:
+        print(Tlatex, file=f)
+
+
 if __name__ == "__main__":
-    verify_vgg16_network(dtype='float64')
+    # verify_vgg16_network(dtype='float64')
     verify_vgg16_converted_network(dtype='float64')
+    plot_table_vgg16_network()
