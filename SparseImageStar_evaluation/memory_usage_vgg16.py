@@ -66,6 +66,7 @@ def memory_usage_vgg16(spec):
     IM_time = []; COO_time = []; CSR_time = []; 
     IM_nb = [IM.nbytes()]; COO_nb = [COO.nbytes()]; CSR_nb = [CSR.nbytes()]
     IM_shape = [IM.V.shape]; COO_shape = [COO.shape + (COO.num_pred, )]; CSR_shape = [CSR.shape + (CSR.num_pred, )]
+    nPred = [CSR.num_pred]
     density = [CSR.density()]
     
     for i in range(starvNet.n_layers):
@@ -73,6 +74,7 @@ def memory_usage_vgg16(spec):
         IM = starvNet.layers[i].reach(IM, method='approx', show=False)
         IM_time.append(time.perf_counter() - start)
         IM_nb.append(IM.nbytes())
+        IM_shape.append(IM.V.shape)
     del IM
     
     for i in range(starvNet.n_layers):
@@ -80,6 +82,8 @@ def memory_usage_vgg16(spec):
         CSR = starvNet.layers[i].reach(CSR, method='approx', show=False)
         CSR_time.append(time.perf_counter() - start)
         CSR_nb.append(CSR.nbytes())
+        nPred.apeend(CSR.num_pred)
+        CSR_shape.append(CSR_shape.shape)
         density.append(CSR.density())
     del CSR
         
@@ -88,6 +92,7 @@ def memory_usage_vgg16(spec):
         COO = starvNet.layers[i].reach(COO, method='approx', show=False)
         COO_time.append(time.perf_counter() - start)
         COO_nb.append(COO.nbytes())
+        COO_shape.append(COO_shape.shape)
     del COO
 
     x = np.arange(len(CSR_time))
@@ -161,6 +166,20 @@ def memory_usage_vgg16(spec):
     plt.savefig('SparseImageStar_evaluation//results/memory_usage_vgg16_memory_usage_differences.png')
     # plt.show()
     plt.close()
+
+
+
+    IM_time = []; COO_time = []; CSR_time = []; 
+    IM_nb = [IM.nbytes()]; COO_nb = [COO.nbytes()]; CSR_nb = [CSR.nbytes()]
+    IM_shape = [IM.V.shape]; COO_shape = [COO.shape + (COO.num_pred, )]; CSR_shape = [CSR.shape + (CSR.num_pred, )]
+    nPred = [CSR.num_pred]
+    density = [CSR.density()]
+
+    path = f"./SparseImageStar_evaluation/results"
+    save_file = path + f"/memory_usage_vgg16_results.pkl"
+    pickle.dump([IM_time, COO_time, CSR_time, IM_nb, COO_nb, CSR_nb, \
+                 IM_shape, COO_shape, CSR_nb, nPred, density], open(save_file, "wb"))
+
 
 if __name__ == "__main__":
     memory_usage_vgg16(spec=11)
