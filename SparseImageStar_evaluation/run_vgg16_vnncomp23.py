@@ -334,7 +334,7 @@ def plot_table_vgg16_network():
     file_dir = folder_dir + 'vggnet16_vnncomp23_results.pkl'
     with open(file_dir, 'rb') as f:
         rbIM, vtIM, rbCSR, vtCSR, rbCOO, vtCOO, _, _ = pickle.load(f)
-    file_dir = folder_dir + 'vggnet16_converted_vnncomp23_results.pkl'
+    file_dir = folder_dir + 'vggnet16_vnncomp23_converted_results.pkl'
     with open(file_dir, 'rb') as f:
         rbIMc, vtIMc, _, _ = pickle.load(f)
 
