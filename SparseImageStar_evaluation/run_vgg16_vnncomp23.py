@@ -339,10 +339,10 @@ def plot_table_vgg16_network():
         rbIMc, vtIMc = pickle.load(f)
 
 
-    folder_dir = f"./SparseImageStar_evaluation/vnncomp2023/vggnet16"
-    net_dir = f"{folder_dir}/onnx/vgg16-7.onnx"
+    f_dir = f"./SparseImageStar_evaluation/vnncomp2023/vggnet16"
+    net_dir = f"{f_dir}/onnx/vgg16-7.onnx"
     num_inputs, num_outputs, inp_dtype = get_num_inputs_outputs(net_dir)
-    vnnlib_dir = f"{folder_dir}/vnnlib"
+    vnnlib_dir = f"{f_dir}/vnnlib"
     vnnlib_files = [f for f in os.listdir(vnnlib_dir) if f.endswith('.vnnlib')]
     vnnlib_files.sort(key = natural_keys)
     shape = (3, 224, 224)
@@ -368,7 +368,7 @@ def plot_table_vgg16_network():
     N = 15
     vt_NNENUM = [3.5, 3.4, 9.3, 4.8, 18.1, 35.7, 6.5, 18.3, 133.85, 10.6, 40.9, 57.6, 'T/O', 236.52, 746.60]
 
-    headers = ['Specs', 'e', 'Result', 'IM', 'SIM_csr', 'SIM_coo', 'IM', 'NNENUM']
+    headers = ['Specs', '$e$', 'Result', 'IM', 'SIM_csr', 'SIM_coo', 'IM', 'NNENUM']
     result = 'UNSAT'
     
     data = []
