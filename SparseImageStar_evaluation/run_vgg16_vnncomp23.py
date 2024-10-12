@@ -353,12 +353,13 @@ def verify_vgg16_converted_network_relaxation(dtype='float64'):
     vnnlib_files.sort(key = natural_keys)
 
     N = len(vnnlib_files)
-    RF = (np.arange(4)+1)*0.25
-    rbIM = np.zeros([RF, N])
-    vtIM = np.zeros([RF, N])
+    M = 4
+    RF = (np.arange(M)+1)*0.25
+    rbIM = np.zeros([M, N])
+    vtIM = np.zeros([M, N])
 
     print(f"\n\nVerifying vggnet16 with ImageStar")
-    for j in range(len(RF)):
+    for j in range(M):
         for i, vnnlib_file in enumerate(vnnlib_files):
             vnnlib_file_dir = f"{vnnlib_dir}/{vnnlib_file}"
 
@@ -413,7 +414,7 @@ def verify_vgg16_converted_network_relaxation(dtype='float64'):
     print('-----------------------------------------------------')
     print()
     data = [np.arange(N)]
-    for j in range(len(RF)):
+    for j in range(M):
         data.append(rbIM[j,:])
     print(tabulate(data, headers=headers))
 
@@ -427,7 +428,7 @@ def verify_vgg16_converted_network_relaxation(dtype='float64'):
     print('-----------------------------------------------------')
     print()
     data = [np.arange(N)]
-    for j in range(len(RF)):
+    for j in range(M):
         data.append(vtIM[j,:])
     print(tabulate(data, headers=headers))
 
