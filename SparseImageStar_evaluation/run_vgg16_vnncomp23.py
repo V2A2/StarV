@@ -395,7 +395,7 @@ def verify_vgg16_converted_network_relaxation(dtype='float64'):
                 elif rbIM[j, i] == 0:
                     print(f"ROBUSTNESS RESULT: UNROBUST")
 
-                print(f"VERIFICATION TIME: {vtIM[i]}")
+                print(f"VERIFICATION TIME: {vtIM[j, i]}")
     del IM
 
     # save verification results
