@@ -538,7 +538,7 @@ def plot_table_vgg16_network_with_relaxation():
 
     headers = ['Specs', '$e$', 'Result', 'IM', 'SIM_csr', 'SIM_coo', 'IM']
     for rf_ in RF:
-        headers.append(f'IM_{RF:0.2f}')
+        headers.append(f'{rf_:0.2f}')
     headers.append('NNENUM')
                 
     result = 'UNSAT'
