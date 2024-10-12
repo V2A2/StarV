@@ -293,7 +293,7 @@ def verify_vgg16_network_get_num_pred(dtype='float64'):
                 print(f"ROBUSTNESS RESULT: UNROBUST")
 
             print(f"VERIFICATION TIME: {vtCSR[i]}")
-            print(f"NUM_PRED: " {numPred[i]})
+            print(f"NUM_PRED: {numPred[i]}")
     del CSR
 
     # save verification results
