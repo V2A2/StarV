@@ -549,7 +549,7 @@ def plot_table_vgg16_network_with_relaxation():
         vt_imc = 'O/M' if np.isnan(vtIMc[i]) else f"{vtIMc[i]:0.1f}"
         data_ = [i, num_attack_pixel[i], result,  vt_im, f"{vtCSR[i]:0.1f}", f"{vtCOO[i]:0.1f}", vt_imc]
         for j in RF:
-            vt_imc_rf = 'O/M' if np.isnan(vtIMc_RF[i]) else f"{vtIMc_RF[i]:0.1f}"
+            vt_imc_rf = 'O/M' if np.isnan(vtIMc_RF[j, i]) else f"{vtIMc_RF[j, i]:0.1f}"
             data_.append(vt_imc_rf)
         data_.append(vt_NNENUM[i])
         data.append(data_)
