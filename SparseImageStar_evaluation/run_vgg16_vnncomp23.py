@@ -380,11 +380,11 @@ def verify_vgg16_converted_network_relaxation(dtype='float64'):
 
             if num_attack_pixel > 50:
                 print(f"Skipping {vnnlib_file} to avoid RAM issue")
-                rbIM[i] = np.nan
-                vtIM[i] = np.nan
+                rbIM[j, i] = np.nan
+                vtIM[j, i] = np.nan
             else:
                 IM = ImageStar(lb, ub)
-                rbIM[i], vtIM[i], _, _ = certifyRobustness(net=starvNet, inputs=IM, labels=label,
+                rbIM[j, i], vtIM[j, i], _, _ = certifyRobustness(net=starvNet, inputs=IM, labels=label,
                     veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
                     RF=RF[j], DR=0, return_output=False, show=False)
                 
