@@ -532,8 +532,9 @@ def plot_table_vgg16_network():
     file_dir = folder_dir + 'vggnet16_vnncomp23_converted_results.pkl'
     with open(file_dir, 'rb') as f:
         rbIMc, vtIMc = pickle.load(f)
+    file_dir = folder_dir + 'vggnet16_vnncomp23_csr_num_pred__results.pkl'
     with open(file_dir, 'rb') as f:
-        rbCSR, vtCSR, num_pred = pickle.load(f)
+        _, _, num_pred = pickle.load(f)
 
     f_dir = f"./SparseImageStar_evaluation/vnncomp2023/vggnet16"
     net_dir = f"{f_dir}/onnx/vgg16-7.onnx"
@@ -562,7 +563,7 @@ def plot_table_vgg16_network():
 
 
     N = 15
-    vt_NNENUM = [3.5, 3.4, 9.3, 4.8, 18.1, 35.7, 6.5, 18.3, 133.85, 10.6, 40.9, 57.6, 'T/O', 236.52, 746.60]
+    vt_NNENUM = [3.5, 3.4, 9.3, 4.8, 18.1, 35.7, 6.5, 18.3, 133.8, 10.6, 40.9, 57.6, 'T/O', 236.5, 746.6]
 
     headers = ['Specs', 'm', 'e', 'Result', 'IM', 'SIM_csr', 'SIM_coo', 'IM', 'NNENUM']
 
@@ -651,5 +652,5 @@ if __name__ == "__main__":
     # verify_vgg16_converted_network(dtype='float64')
     # verify_vgg16_converted_network_relaxation(dtype='float64')
     # plot_table_vgg16_network_with_relaxation()
-    verify_vgg16_network_get_num_pred(dtype='float64')
+    # verify_vgg16_network_get_num_pred(dtype='float64')
     plot_table_vgg16_network()
