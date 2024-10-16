@@ -536,6 +536,15 @@ def plot_table_vgg16_network():
     with open(file_dir, 'rb') as f:
         _, _, num_pred = pickle.load(f)
 
+    mat_file = scipy.io.loadmat(f"{folder_dir}/nnv_vggnet16_results.mat")
+    rbNNV = mat_file['rb_im']
+    vtNNV = mat_file['vt_im']
+
+    mat_file = scipy.io.loadmat(f"{folder_dir}/nnv_vggnet16_converted_results.mat")
+    rbNNVc = mat_file['rb_im']
+    vtNNVc = mat_file['vt_im']
+
+
     f_dir = f"./SparseImageStar_evaluation/vnncomp2023/vggnet16"
     net_dir = f"{f_dir}/onnx/vgg16-7.onnx"
     num_inputs, num_outputs, inp_dtype = get_num_inputs_outputs(net_dir)
@@ -566,7 +575,7 @@ def plot_table_vgg16_network():
     vt_NNENUM = [3.5, 3.4, 9.3, 4.8, 18.1, 35.7, 6.5, 18.3, 133.8, 10.6, 40.9, 57.6, 'T/O', 236.5, 746.6]
     vt_DP = 'O/M'
 
-    headers = ['Specs', 'm', 'e', 'Result', 'IM', 'SIM_csr', 'SIM_coo', 'DP', 'IM', 'NNENUM']
+    headers = ['Specs', 'm', 'e', 'Result', 'IM', 'SIM_csr', 'SIM_coo', 'DP', 'NNV', 'IM', 'NNV', 'NNENUM']
 
     result = 'UNSAT'
     
@@ -574,8 +583,10 @@ def plot_table_vgg16_network():
     for i in range(N):
         vt_im = 'O/M' if np.isnan(vtIM[i]) else f"{vtIM[i]:0.1f}"
         vt_imc = 'O/M' if np.isnan(vtIMc[i]) else f"{vtIMc[i]:0.1f}"
+        vt_nnv = 'O/M' if vtNNV[i] < 0 else f"{vtIMc[i]:0.1f}"
+        vt_nnvc = 'O/M' if vtNNV[i] < 0 else f"{vtIMc[i]:0.1f}"
         nPred = 'NA' if np.isnan(vtCSR[i]) else f"{num_pred[i]}"
-        data.append([i, nPred, num_attack_pixel[i], result,  vt_im, f"{vtCSR[i]:0.1f}", f"{vtCOO[i]:0.1f}", vt_DP, vt_imc, vt_NNENUM[i]])
+        data.append([i, nPred, num_attack_pixel[i], result,  vt_im, f"{vtCSR[i]:0.1f}", f"{vtCOO[i]:0.1f}", vt_DP, vt_nnv, vt_imc, vt_nnvc, vt_NNENUM[i]])
     print(tabulate(data, headers=headers))
 
     Tlatex = tabulate(data, headers=headers, tablefmt='latex')
