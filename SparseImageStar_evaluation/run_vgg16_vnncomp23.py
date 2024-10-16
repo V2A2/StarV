@@ -537,11 +537,11 @@ def plot_table_vgg16_network():
     with open(file_dir, 'rb') as f:
         _, _, num_pred = pickle.load(f)
 
-    mat_file = scipy.io.loadmat(f"{folder_dir}/nnv_vggnet16_results.mat")
+    mat_file = scipy.io.loadmat(f"{folder_dir}nnv_vggnet16_results.mat")
     rbNNV = mat_file['rb_im']
     vtNNV = mat_file['vt_im']
 
-    mat_file = scipy.io.loadmat(f"{folder_dir}/nnv_vggnet16_converted_results.mat")
+    mat_file = scipy.io.loadmat(f"{folder_dir}nnv_vggnet16_converted_results.mat")
     rbNNVc = mat_file['rb_im']
     vtNNVc = mat_file['vt_im']
 
