@@ -538,12 +538,12 @@ def plot_table_vgg16_network():
         _, _, num_pred = pickle.load(f)
 
     mat_file = scipy.io.loadmat(f"{folder_dir}nnv_vggnet16_results.mat")
-    rbNNV = mat_file['rb_im']
-    vtNNV = mat_file['vt_im']
+    rbNNV = mat_file['rb_im'].ravel()
+    vtNNV = mat_file['vt_im'].ravel()
 
     mat_file = scipy.io.loadmat(f"{folder_dir}nnv_vggnet16_converted_results.mat")
-    rbNNVc = mat_file['rb_im']
-    vtNNVc = mat_file['vt_im']
+    rbNNVc = mat_file['rb_im'].ravel()
+    vtNNVc = mat_file['vt_im'].ravel()
 
 
     f_dir = f"./SparseImageStar_evaluation/vnncomp2023/vggnet16"
