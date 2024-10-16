@@ -564,8 +564,9 @@ def plot_table_vgg16_network():
 
     N = 15
     vt_NNENUM = [3.5, 3.4, 9.3, 4.8, 18.1, 35.7, 6.5, 18.3, 133.8, 10.6, 40.9, 57.6, 'T/O', 236.5, 746.6]
+    vt_DP = 'O/M'
 
-    headers = ['Specs', 'm', 'e', 'Result', 'IM', 'SIM_csr', 'SIM_coo', 'IM', 'NNENUM']
+    headers = ['Specs', 'm', 'e', 'Result', 'IM', 'SIM_csr', 'SIM_coo', 'DP', 'IM', 'NNENUM']
 
     result = 'UNSAT'
     
@@ -574,7 +575,7 @@ def plot_table_vgg16_network():
         vt_im = 'O/M' if np.isnan(vtIM[i]) else f"{vtIM[i]:0.1f}"
         vt_imc = 'O/M' if np.isnan(vtIMc[i]) else f"{vtIMc[i]:0.1f}"
         nPred = 'NA' if np.isnan(vtCSR[i]) else f"{num_pred[i]}"
-        data.append([i, nPred, num_attack_pixel[i], result,  vt_im, f"{vtCSR[i]:0.1f}", f"{vtCOO[i]:0.1f}", vt_imc, vt_NNENUM[i]])
+        data.append([i, nPred, num_attack_pixel[i], result,  vt_im, f"{vtCSR[i]:0.1f}", f"{vtCOO[i]:0.1f}", vt_DP, vt_imc, vt_NNENUM[i]])
     print(tabulate(data, headers=headers))
 
     Tlatex = tabulate(data, headers=headers, tablefmt='latex')
