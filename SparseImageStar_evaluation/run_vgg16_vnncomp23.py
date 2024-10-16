@@ -4,6 +4,7 @@ Author: Sung Woo Choi
 Date: 06/24/2024
 """
 
+import scipy
 import numpy as np
 import matplotlib.pyplot as plt
 from tabulate import tabulate
