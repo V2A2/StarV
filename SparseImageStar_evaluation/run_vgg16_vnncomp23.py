@@ -561,6 +561,8 @@ def verify_vgg16_network_spec_cn(dtype='float64'):
     rbCOO = np.zeros(N)
     vtCOO = np.zeros(N)
     numPred = np.zeros(N)
+
+    show = True
  
     print(f"\n\nVerifying vggnet16 with SparseImageStar in CSR format")
     for i, vnnlib_file in enumerate(vnnlib_files):
@@ -584,26 +586,21 @@ def verify_vgg16_network_spec_cn(dtype='float64'):
         num_attack_pixel = (lb != ub).sum()
         print(f"\nVerifying {vnnlib_file} with {num_attack_pixel} attacked pixels")
 
-        if num_attack_pixel > 150:
-            print(f"Skipping {vnnlib_file} to avoid RAM issue")
-            rbCSR[i] = np.nan
-            vtCSR[i] = np.nan
-        else:
-            CSR = SparseImageStar2DCSR(lb, ub)
-            rbCSR[i], vtCSR[i], _, Y = certifyRobustness(net=starvNet, inputs=CSR, labels=label,
-                veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
-                RF=0.0, DR=0, return_output=False, show=False)
-            numPred[i] = Y.num_pred
-        
-            if rbCSR[i] == 1:
-                print(f"ROBUSTNESS RESULT: ROBUST")
-            elif rbCSR[i] == 2:
-                print(f"ROBUSTNESS RESULT: UNKNOWN")
-            elif rbCSR[i] == 0:
-                print(f"ROBUSTNESS RESULT: UNROBUST")
+        CSR = SparseImageStar2DCSR(lb, ub)
+        rbCSR[i], vtCSR[i], _, Y = certifyRobustness(net=starvNet, inputs=CSR, labels=label,
+            veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
+            RF=0.0, DR=0, return_output=False, show=show)
+        numPred[i] = Y.num_pred
+    
+        if rbCSR[i] == 1:
+            print(f"ROBUSTNESS RESULT: ROBUST")
+        elif rbCSR[i] == 2:
+            print(f"ROBUSTNESS RESULT: UNKNOWN")
+        elif rbCSR[i] == 0:
+            print(f"ROBUSTNESS RESULT: UNROBUST")
 
-            print(f"VERIFICATION TIME: {vtCSR[i]}")
-            print(f"NUM_PRED: {numPred[i]}")
+        print(f"VERIFICATION TIME: {vtCSR[i]}")
+        print(f"NUM_PRED: {numPred[i]}")
         pickle.dump([numPred, rbCSR, vtCSR, rbCOO, vtCOO], open(save_file, "wb"))
     del CSR
 
@@ -627,24 +624,19 @@ def verify_vgg16_network_spec_cn(dtype='float64'):
         num_attack_pixel = (lb != ub).sum()
         print(f"\nVerifying {vnnlib_file} with {num_attack_pixel} attacked pixels")
 
-        if num_attack_pixel > 150:
-            print(f"Skipping {vnnlib_file} to avoid RAM issue")
-            rbCOO[i] = np.nan
-            vtCOO[i] = np.nan
-        else:
-            COO = SparseImageStar2DCOO(lb, ub)
-            rbCOO[i], vtCOO[i], _, _ = certifyRobustness(net=starvNet, inputs=COO, labels=label,
-                veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
-                RF=0.0, DR=0, return_output=False, show=False)
-            
-            if rbCOO[i] == 1:
-                print(f"ROBUSTNESS RESULT: ROBUST")
-            elif rbCOO[i] == 2:
-                print(f"ROBUSTNESS RESULT: UNKNOWN")
-            elif rbCOO[i] == 0:
-                print(f"ROBUSTNESS RESULT: UNROBUST")
+        COO = SparseImageStar2DCOO(lb, ub)
+        rbCOO[i], vtCOO[i], _, _ = certifyRobustness(net=starvNet, inputs=COO, labels=label,
+            veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
+            RF=0.0, DR=0, return_output=False, show=show)
+        
+        if rbCOO[i] == 1:
+            print(f"ROBUSTNESS RESULT: ROBUST")
+        elif rbCOO[i] == 2:
+            print(f"ROBUSTNESS RESULT: UNKNOWN")
+        elif rbCOO[i] == 0:
+            print(f"ROBUSTNESS RESULT: UNROBUST")
 
-            print(f"VERIFICATION TIME: {vtCOO[i]}")
+        print(f"VERIFICATION TIME: {vtCOO[i]}")
         pickle.dump([numPred, rbCSR, vtCSR, rbCOO, vtCOO], open(save_file, "wb"))
 
     pickle.dump([numPred, rbCSR, vtCSR, rbCOO, vtCOO], open(save_file, "wb"))
