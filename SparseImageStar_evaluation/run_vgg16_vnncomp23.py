@@ -528,7 +528,7 @@ def verify_vgg16_converted_network_relaxation(dtype='float64'):
 def verify_vgg16_network_spec_cn(dtype='float64'):
 
     print('=================================================================================')
-    print(f"Verification of VGG16 Network against Infinity Norm Attack")
+    print(f"Verification of VGG16 Network against Infinity Norm Attack Spec_cn")
     print('=================================================================================\n')
 
     folder_dir = f"./SparseImageStar_evaluation/vnncomp2023/vggnet16"
