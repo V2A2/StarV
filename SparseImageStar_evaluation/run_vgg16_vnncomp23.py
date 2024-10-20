@@ -602,7 +602,7 @@ def verify_vgg16_network_spec_cn(dtype='float64'):
         print(f"VERIFICATION TIME: {vtCSR[i]}")
         print(f"NUM_PRED: {numPred[i]}")
         pickle.dump([numPred, rbCSR, vtCSR, rbCOO, vtCOO], open(save_file, "wb"))
-    del CSR
+    del CSR, Y
 
     print(f"\n\nVerifying vggnet16 with SparseImageStar in COO format")
     for i, vnnlib_file in enumerate(vnnlib_files):
