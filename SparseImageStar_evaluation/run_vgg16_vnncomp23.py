@@ -572,9 +572,7 @@ def verify_vgg16_network_spec_cn(dtype='float64'):
             first_line = f.readline().strip('\n')
         label = int(re.findall(r'\b\d+\b', first_line)[0])
 
-        print('label: ', label)
-
-
+        print(f"\n Loading a VNNLIB file")
         vnnlib_rv = read_vnnlib_simple(vnnlib_file_dir, num_inputs, num_outputs)
 
         box, spec_list = vnnlib_rv[0]
@@ -587,6 +585,8 @@ def verify_vgg16_network_spec_cn(dtype='float64'):
         print(f"\nVerifying {vnnlib_file} with {num_attack_pixel} attacked pixels")
 
         CSR = SparseImageStar2DCSR(lb, ub)
+        del lb, ub, bounds
+
         rbCSR[i], vtCSR[i], _, Y = certifyRobustness(net=starvNet, inputs=CSR, labels=label,
             veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
             RF=0.0, DR=0, return_output=False, show=show)
@@ -612,7 +612,7 @@ def verify_vgg16_network_spec_cn(dtype='float64'):
             first_line = f.readline().strip('\n')
         label = int(re.findall(r'\b\d+\b', first_line)[0])
 
-
+        print(f"\n Loading a VNNLIB file")
         vnnlib_rv = read_vnnlib_simple(vnnlib_file_dir, num_inputs, num_outputs)
 
         box, spec_list = vnnlib_rv[0]
@@ -625,6 +625,8 @@ def verify_vgg16_network_spec_cn(dtype='float64'):
         print(f"\nVerifying {vnnlib_file} with {num_attack_pixel} attacked pixels")
 
         COO = SparseImageStar2DCOO(lb, ub)
+        del lb, ub, bounds
+
         rbCOO[i], vtCOO[i], _, _ = certifyRobustness(net=starvNet, inputs=COO, labels=label,
             veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
             RF=0.0, DR=0, return_output=False, show=show)
