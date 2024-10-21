@@ -740,8 +740,8 @@ def plot_table_vgg16_network():
         vt_nnv = 'O/M'
         vt_nnvc = 'O/M'
         vt_nnenum = 'N/A'
-        nPred = 'NA' if np.isnan(vtCSR[i]) else f"{numPred_cn[i]}"
-        data.append([i, nPred, num_attack_pixel[i], result,  vt_im, f"{vtCSR[i]:0.1f}", f"{vtCOO[i]:0.1f}", vt_DP, vt_nnv, vt_imc, vt_nnvc, vt_nnenum])
+        nPred = 'NA' if np.isnan(vtCSR_cn[i]) else f"{numPred_cn[i]}"
+        data.append([f"c_{i}", nPred, num_attack_pixel[i], result,  vt_im, f"{vtCSR_cn[i]:0.1f}", f"{vtCOO_cn[i]:0.1f}", vt_DP, vt_nnv, vt_imc, vt_nnvc, vt_nnenum])
 
     print(tabulate(data, headers=headers))
 
@@ -821,5 +821,6 @@ if __name__ == "__main__":
     # verify_vgg16_converted_network_relaxation(dtype='float64')
     # plot_table_vgg16_network_with_relaxation()
     # verify_vgg16_network_get_num_pred(dtype='float64')
-    verify_vgg16_network_spec_cn()
+    # verify_vgg16_network_spec_cn()
+    # verify_vgg16_network_spec_cn_vnnlib()
     plot_table_vgg16_network()
