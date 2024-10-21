@@ -741,7 +741,7 @@ def plot_table_vgg16_network():
         vt_nnvc = 'O/M'
         vt_nnenum = 'N/A'
         nPred = 'NA' if np.isnan(vtCSR_cn[i]) else f"{numPred_cn[i]}"
-        data.append([f"c_{i}", nPred, num_attack_pixel[i], result,  vt_im, f"{vtCSR_cn[i]:0.1f}", f"{vtCOO_cn[i]:0.1f}", vt_DP, vt_nnv, vt_imc, vt_nnvc, vt_nnenum])
+        data.append([f"c_{i}", nPred, num_attack_pixel_cn[i], result,  vt_im, f"{vtCSR_cn[i]:0.1f}", f"{vtCOO_cn[i]:0.1f}", vt_DP, vt_nnv, vt_imc, vt_nnvc, vt_nnenum])
 
     print(tabulate(data, headers=headers))
 
