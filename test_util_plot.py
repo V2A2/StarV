@@ -7,7 +7,7 @@ Date: 9/11/2022
 import numpy as np
 from StarV.set.probstar import ProbStar
 from StarV.set.star import Star
-from StarV.util.plot import plot_probstar, plot_star, plot_2D_UnsafeSpec, get_bounding_box
+from StarV.util.plot import plot_probstar, plot_star, plot_2D_UnsafeSpec, get_bounding_box, plot_multivariate_normal_distribution, plot_probstar_distribution
 
 
 
@@ -97,6 +97,45 @@ class Test(object):
         else:
             print("Test Successfull!")
 
+    def test_plot_multivariate_normal_distribution(self):
+
+        self.n_tests = self.n_tests + 1
+        
+        mu = np.random.rand(2,)
+        Sig = np.eye(2)
+        pred_lb = np.array([-3, -3])
+        pred_ub = np.array([4, 4])
+        print('Testing plot_multivariate_normal_distribution method...')
+
+        try:
+            plot_multivariate_normal_distribution(mu, Sig, pred_lb, pred_ub)
+        except Exception:
+            print('Test Fail!')
+            self.n_fails = self.n_fails + 1
+        else:
+            print('Test Successfull!')
+
+    def test_plot_probstar_distribution(self):
+
+        
+        self.n_tests = self.n_tests + 1
+        
+        mu = np.random.rand(2,)
+        Sig = np.eye(2)
+        pred_lb = np.array([-3, -3])
+        pred_ub = np.array([4, 4])
+        S = ProbStar(mu, Sig, pred_lb, pred_ub)
+        print('Testing plot_probstar_distribution method...')
+
+        try:
+            plot_probstar_distribution(S)
+        except Exception:
+            print('Test Fail!')
+            self.n_fails = self.n_fails + 1
+        else:
+            print('Test Successfull!')
+        
+
 
 if __name__ == "__main__":
 
@@ -107,8 +146,10 @@ if __name__ == "__main__":
     ===============================\n')
     # test_plot.test_probstar2polytope()
     # test_plot.test_plot_probstar()
-    test_plot.test_plot_2D_UnsafeSpec()
+    #test_plot.test_plot_2D_UnsafeSpec()
     #test_plot.test_get_bounding_box()
+    #test_plot.test_plot_multivariate_normal_distribution()
+    test_plot.test_plot_probstar_distribution()
     
     print('\n========================\
     =================================\
