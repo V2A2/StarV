@@ -1049,7 +1049,7 @@ def plot_table_vgg16_network():
 
     num_attack_pixel_cn = [200, 300, 400, 500, 1000, 2000, 3000]
     N_cn = len(numPred_cn)
-    vt_NNENUM_cn = [744.02, 1060.96, 1354.75, 1781.26, 'T/O', 'T/O', 'T/O']
+    vt_NNENUM_cn = [744.02, 1060.96, 1354.75, 1781.26, 'T/O', 'T/O', 'O/M']
     for i in range(N_cn):
         vt_im = 'O/M' 
         vt_imc = 'O/M'
@@ -1138,4 +1138,5 @@ if __name__ == "__main__":
     # verify_vgg16_network_get_num_pred(dtype='float64')
     # verify_vgg16_network_spec_cn()
     # verify_vgg16_network_spec_cn_direct()
-    plot_table_vgg16_network()
+    verify_vgg16_network_spec_cn_relaxation()
+    # plot_table_vgg16_network()
