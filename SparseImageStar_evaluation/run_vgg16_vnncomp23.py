@@ -732,20 +732,20 @@ def verify_vgg16_network_spec_cn_relaxation(dtype='float64'):
             CSR = SparseImageStar2DCSR(lb, ub)
             del lb, ub, bounds
 
-            rbCSR[i], vtCSR[i], _, Y = certifyRobustness(net=starvNet, inputs=CSR, labels=label,
+            rbCSR[j, i], vtCSR[j, i], _, Y = certifyRobustness(net=starvNet, inputs=CSR, labels=label,
                 veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
                 RF=RF[j], DR=0, return_output=False, show=show)
-            numPred[i] = Y.num_pred
+            numPred[j, i] = Y.num_pred
         
-            if rbCSR[i] == 1:
+            if rbCSR[j, i] == 1:
                 print(f"ROBUSTNESS RESULT: ROBUST")
-            elif rbCSR[i] == 2:
+            elif rbCSR[j, i] == 2:
                 print(f"ROBUSTNESS RESULT: UNKNOWN")
-            elif rbCSR[i] == 0:
+            elif rbCSR[j, i] == 0:
                 print(f"ROBUSTNESS RESULT: UNROBUST")
 
-            print(f"VERIFICATION TIME: {vtCSR[i]}")
-            print(f"NUM_PRED: {numPred[i]}")
+            print(f"VERIFICATION TIME: {vtCSR[j, i]}")
+            print(f"NUM_PRED: {numPred[j, i]}")
             pickle.dump([numPred, rbCSR, vtCSR, rbCOO, vtCOO], open(save_file, "wb"))
         del CSR, Y
 
@@ -772,18 +772,18 @@ def verify_vgg16_network_spec_cn_relaxation(dtype='float64'):
             COO = SparseImageStar2DCOO(lb, ub)
             del lb, ub, bounds
 
-            rbCOO[i], vtCOO[i], _, _ = certifyRobustness(net=starvNet, inputs=COO, labels=label,
+            rbCOO[j, i], vtCOO[j, i], _, _ = certifyRobustness(net=starvNet, inputs=COO, labels=label,
                 veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
                 RF=RF[j], DR=0, return_output=False, show=show)
             
-            if rbCOO[i] == 1:
+            if rbCOO[j, i] == 1:
                 print(f"ROBUSTNESS RESULT: ROBUST")
-            elif rbCOO[i] == 2:
+            elif rbCOO[j, i] == 2:
                 print(f"ROBUSTNESS RESULT: UNKNOWN")
-            elif rbCOO[i] == 0:
+            elif rbCOO[j, i] == 0:
                 print(f"ROBUSTNESS RESULT: UNROBUST")
 
-            print(f"VERIFICATION TIME: {vtCOO[i]}")
+            print(f"VERIFICATION TIME: {vtCOO[j, i]}")
             pickle.dump([numPred, rbCSR, vtCSR, rbCOO, vtCOO], open(save_file, "wb"))
 
     pickle.dump([numPred, rbCSR, vtCSR, rbCOO, vtCOO], open(save_file, "wb"))

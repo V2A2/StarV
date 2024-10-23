@@ -87,7 +87,12 @@ def reachBFS(net, inputSet, reachMethod='approx', lp_solver='gurobi', pool=None,
             print('Number of stars/sparsestars: {}'.format(len(In)))
             if reachMethod == 'approx':
                 print(f"Number of predicate variables: {In.num_pred}")
-
+                if isinstance(In, ImageStar) or isinstance(In, Star):
+                    print(f"Shape of the set: {In.V.shape}")
+                elif isinstance(In, SparseImageStar2DCOO) or isinstance(In, SparseImageStar2DCSR):
+                    print(f"Shape of the set: {In.shape + (In.num_pred,)}")
+            print(f"Reachability analysis is done in {vt} seconds")
+            
     outputSet = In
     totalReachTime = sum(reachTime)    
     return outputSet, totalReachTime
@@ -471,7 +476,11 @@ def certifyRobustness(net, inputs, labels=None, veriMethod='BFS', reachMethod='a
     VT = np.zeros(N)
     Y = []
    
-    if not (isinstance(inputs, list) or isinstance(labels, np.ndarray)): 
+    if not ((isinstance(inputs, list) and len(inputs) > 1) or (isinstance(labels, np.ndarray) and len(labels) > 1)): 
+        if isinstance(inputs, list):
+            inputs = inputs[0]
+            if labels != None:
+                labels = labels[0]
         RB, VT, Y = certifyRobustness_single_input(net, inputs, labels, veriMethod, reachMethod, lp_solver, pool, RF, DR, show)
         vt_total = time.perf_counter() - start 
         return RB, VT, vt_total, Y

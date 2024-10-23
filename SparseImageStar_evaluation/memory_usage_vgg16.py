@@ -131,7 +131,7 @@ def memory_usage_vgg16(spec):
     # set legend
     ax.legend(['ImageStar', 'SparseCOO', 'SparseCSR'])
 
-    plt.savefig('SparseImageStar_evaluation//results/memory_usage_vgg16_computation_time_differences.png')
+    plt.savefig(f'SparseImageStar_evaluation/results/memory_usage_vgg16_computation_time_differences_spec_{spec}.png')
     # plt.show()
     plt.close()
 
@@ -163,12 +163,12 @@ def memory_usage_vgg16(spec):
     ax2.legend(['density'])
     ax2.set_ylabel(r"Density")
 
-    plt.savefig('SparseImageStar_evaluation//results/memory_usage_vgg16_memory_usage_differences.png')
+    plt.savefig(f'SparseImageStar_evaluation/results/memory_usage_vgg16_memory_usage_differences_spec_{spec}.png')
     # plt.show()
     plt.close()
 
     path = f"./SparseImageStar_evaluation/results"
-    save_file = path + f"/memory_usage_vgg16_results.pkl"
+    save_file = path + f"/memory_usage_vgg16_results_spec_{spec}.pkl"
     pickle.dump([IM_time, COO_time, CSR_time, IM_nb, COO_nb, CSR_nb, \
                  IM_shape, COO_shape, CSR_nb, nPred, density], open(save_file, "wb"))
     
@@ -270,9 +270,9 @@ def memory_usage_vgg16_spec_cn(spec):
     # Set ticks labels for x-axis
     ax.set_xticklabels(x_ticks_labels, rotation=80, fontsize=10)
     # set legend
-    ax.legend(['ImageStar', 'SparseCOO', 'SparseCSR'])
+    ax.legend(['SparseCOO', 'SparseCSR'])
 
-    plt.savefig('SparseImageStar_evaluation//results/memory_usage_vgg16_computation_time_differences.png')
+    plt.savefig(f'SparseImageStar_evaluation/results/memory_usage_vgg16_computation_time_differences_spec_c{spec}.png')
     # plt.show()
     plt.close()
 
@@ -295,7 +295,7 @@ def memory_usage_vgg16_spec_cn(spec):
     # Set ticks labels for x-axis
     ax.set_xticklabels(x_ticks_labels, rotation=80, fontsize=10)
     # set legend
-    ax.legend(['ImageStar', 'SIM COO', 'SIM CSR'])
+    ax.legend(['SIM COO', 'SIM CSR'])
 
     ax2 = ax.twinx()  # instantiate a second axes that shares the same x-axis
 
@@ -303,7 +303,7 @@ def memory_usage_vgg16_spec_cn(spec):
     ax2.legend(['density'])
     ax2.set_ylabel(r"Density")
 
-    plt.savefig('SparseImageStar_evaluation//results/memory_usage_vgg16_memory_usage_differences.png')
+    plt.savefig(f'SparseImageStar_evaluation/results/memory_usage_vgg16_memory_usage_differences_spec_c{spec}.png')
     # plt.show()
     plt.close()
 
