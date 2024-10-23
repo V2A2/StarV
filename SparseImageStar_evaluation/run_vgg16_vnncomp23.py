@@ -8,6 +8,8 @@ import scipy
 import numpy as np
 import matplotlib.pyplot as plt
 from tabulate import tabulate
+import torchvision.transforms as transforms
+import torchvision
 import pickle
 import re
 
@@ -664,6 +666,319 @@ def verify_vgg16_network_spec_cn(dtype='float64'):
     print('=====================================================')
 
 
+def verify_vgg16_network_spec_cn_relaxation(dtype='float64'):
+
+    print('=================================================================================')
+    print(f"Verification of VGG16 Network against Infinity Norm Attack Spec_cn")
+    print('=================================================================================\n')
+
+    folder_dir = f"./SparseImageStar_evaluation/vnncomp2023/vggnet16"
+    net_dir = f"{folder_dir}/onnx/vgg16-7.onnx"
+    num_inputs, num_outputs, inp_dtype = get_num_inputs_outputs(net_dir)
+
+    # loading DNNs into StarV network
+    starvNet = load_neural_network_file(net_dir, dtype=dtype, channel_last=False, in_shape=None, sparse=False, show=False)
+    print()
+    print(starvNet.info())
+
+
+    shape = (3, 224, 224)
+    
+    # VNNLIB_FILE = 'vnncomp2023_benchmarks/benchmarks/vggnet16/vnnlib/spec_cn/spec_c0_corn_atk200.vnnlib'
+    vnnlib_dir = f"{folder_dir}/vnnlib/spec_cn"
+    vnnlib_files = [f for f in os.listdir(vnnlib_dir) if f.endswith('.vnnlib')]
+    vnnlib_files.sort(key = natural_keys)
+
+    # save verification results
+    path = f"./SparseImageStar_evaluation/results"
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+    save_file = path + f"/vggnet16_vnncomp23_spec_cn_relaxation_results.pkl"
+
+    N = len(vnnlib_files)
+    M = 4
+    RF = (np.arange(M)+1)*0.25
+    rbCSR = np.zeros([M, N])
+    vtCSR = np.zeros([M, N])
+    rbCOO = np.zeros([M, N])
+    vtCOO = np.zeros([M, N])
+    numPred = np.zeros([M, N])
+
+    show = True
+
+    for j in range(M):
+
+        print(f"\n\nVerifying vggnet16 with SparseImageStar in CSR format")
+        for i, vnnlib_file in enumerate(vnnlib_files):
+            vnnlib_file_dir = f"{vnnlib_dir}/{vnnlib_file}"
+
+            with open(vnnlib_file_dir) as f:
+                first_line = f.readline().strip('\n')
+            label = int(re.findall(r'\b\d+\b', first_line)[0])
+
+            print(f"\n Loading a VNNLIB file")
+            vnnlib_rv = read_vnnlib_simple(vnnlib_file_dir, num_inputs, num_outputs)
+
+            box, spec_list = vnnlib_rv[0]
+            bounds = np.array(box, dtype=inp_dtype)
+            # transpose from [C, H, W] to [H, W, C]
+            lb = bounds[:, 0].reshape(shape).transpose([1, 2, 0]).astype(dtype)
+            ub = bounds[:, 1].reshape(shape).transpose([1, 2, 0]).astype(dtype)
+
+            num_attack_pixel = (lb != ub).sum()
+            print(f"\nVerifying {vnnlib_file} with {num_attack_pixel} attacked pixels")
+
+            CSR = SparseImageStar2DCSR(lb, ub)
+            del lb, ub, bounds
+
+            rbCSR[i], vtCSR[i], _, Y = certifyRobustness(net=starvNet, inputs=CSR, labels=label,
+                veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
+                RF=RF[j], DR=0, return_output=False, show=show)
+            numPred[i] = Y.num_pred
+        
+            if rbCSR[i] == 1:
+                print(f"ROBUSTNESS RESULT: ROBUST")
+            elif rbCSR[i] == 2:
+                print(f"ROBUSTNESS RESULT: UNKNOWN")
+            elif rbCSR[i] == 0:
+                print(f"ROBUSTNESS RESULT: UNROBUST")
+
+            print(f"VERIFICATION TIME: {vtCSR[i]}")
+            print(f"NUM_PRED: {numPred[i]}")
+            pickle.dump([numPred, rbCSR, vtCSR, rbCOO, vtCOO], open(save_file, "wb"))
+        del CSR, Y
+
+        print(f"\n\nVerifying vggnet16 with SparseImageStar in COO format")
+        for i, vnnlib_file in enumerate(vnnlib_files):
+            vnnlib_file_dir = f"{vnnlib_dir}/{vnnlib_file}"
+
+            with open(vnnlib_file_dir) as f:
+                first_line = f.readline().strip('\n')
+            label = int(re.findall(r'\b\d+\b', first_line)[0])
+
+            print(f"\n Loading a VNNLIB file")
+            vnnlib_rv = read_vnnlib_simple(vnnlib_file_dir, num_inputs, num_outputs)
+
+            box, spec_list = vnnlib_rv[0]
+            bounds = np.array(box, dtype=inp_dtype)
+            # transpose from [C, H, W] to [H, W, C]
+            lb = bounds[:, 0].reshape(shape).transpose([1, 2, 0]).astype(dtype)
+            ub = bounds[:, 1].reshape(shape).transpose([1, 2, 0]).astype(dtype)
+
+            num_attack_pixel = (lb != ub).sum()
+            print(f"\nVerifying {vnnlib_file} with {num_attack_pixel} attacked pixels")
+
+            COO = SparseImageStar2DCOO(lb, ub)
+            del lb, ub, bounds
+
+            rbCOO[i], vtCOO[i], _, _ = certifyRobustness(net=starvNet, inputs=COO, labels=label,
+                veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
+                RF=RF[j], DR=0, return_output=False, show=show)
+            
+            if rbCOO[i] == 1:
+                print(f"ROBUSTNESS RESULT: ROBUST")
+            elif rbCOO[i] == 2:
+                print(f"ROBUSTNESS RESULT: UNKNOWN")
+            elif rbCOO[i] == 0:
+                print(f"ROBUSTNESS RESULT: UNROBUST")
+
+            print(f"VERIFICATION TIME: {vtCOO[i]}")
+            pickle.dump([numPred, rbCSR, vtCSR, rbCOO, vtCOO], open(save_file, "wb"))
+
+    pickle.dump([numPred, rbCSR, vtCSR, rbCOO, vtCOO], open(save_file, "wb"))
+
+    headers = [f"SIM_csr, SIM_coo"]
+
+    # Robustness Resluts
+    print('-----------------------------------------------------')
+    print('Robustness')
+    print('-----------------------------------------------------')
+    print(tabulate([np.arange(N), rbCSR, rbCOO], headers=headers))
+    print()
+
+    # Verification Time Results
+    print('-----------------------------------------------------')
+    print('Verification Time')
+    print('-----------------------------------------------------')
+    print(tabulate([np.arange(N), vtCSR, vtCOO], headers=headers))
+    print()
+
+    print('=====================================================')
+    print('DONE!')
+    print('=====================================================')
+
+
+resize = 224
+mean = (0.485, 0.456, 0.406)
+std = (0.229, .224, 0.225)
+
+class VGG16_crop() :
+    def __init__(self, resize) :
+        self.crop = transforms.Compose([
+            transforms.Resize(resize),
+            transforms.CenterCrop(resize)
+        ])
+        
+    def __call__(self, img) :
+        return self.crop(img)
+    
+class VGG16_normalizer() :
+    def __init__(self, mean, std) :
+        self.normalize = transforms.Compose([
+            transforms.Normalize(mean, std)
+        ])
+        
+    def __call__(self, img) :
+        return self.normalize(img)
+    
+def verify_vgg16_network_spec_cn_direct(dtype='float64'):
+
+    print('=================================================================================')
+    print(f"Verification of VGG16 Network against Infinity Norm Attack Spec_cn")
+    print('=================================================================================\n')
+
+    folder_dir = f"./SparseImageStar_evaluation/vnncomp2023/vggnet16"
+    net_dir = f"{folder_dir}/onnx/vgg16-7.onnx"
+    num_inputs, num_outputs, inp_dtype = get_num_inputs_outputs(net_dir)
+
+    # loading DNNs into StarV network
+    starvNet = load_neural_network_file(net_dir, dtype=dtype, channel_last=False, in_shape=None, sparse=False, show=False)
+    print()
+    print(starvNet.info())
+
+
+    shape = (3, 224, 224)
+    
+    crop = VGG16_crop(resize)
+    normalizer = VGG16_normalizer(mean, std)
+
+    epsilon = 0.01/(255) 
+
+    image_dir = folder_dir + f"/vnnlib/spec_cn/ILSVRC2012_val_00011122.JPEG"
+    image = torchvision.io.read_image(path = image_dir) / 255.0
+    image = crop(image)
+
+    data = normalizer(image).permute(1, 2, 0).numpy().copy()
+    y = starvNet.evaluate(data)
+    label = np.array([y.argmax()])[0]
+    m = np.prod(shape)
+
+    print(f"image_file_path: {image_dir}")
+    print(f"label: {label}")
+    print(f"epsilon: {epsilon}")
+
+    index_pixel2attack_list = np.load('vgg16_attack_pixel_lists_200_300_400_500_1000_2000_3000.npy', allow_pickle=True)
+
+    # save verification results
+    path = f"./SparseImageStar_evaluation/results"
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+    save_file = path + f"/vggnet16_vnncomp23_spec_cn_results.pkl"
+
+    N = len(index_pixel2attack_list)
+    rbCSR = np.zeros(N)
+    vtCSR = np.zeros(N)
+    rbCOO = np.zeros(N)
+    vtCOO = np.zeros(N)
+    numPred = np.zeros(N)
+
+    show = True
+ 
+    print(f"\n\nVerifying vggnet16 with SparseImageStar in CSR format")
+    for i, attack_pixel_index in enumerate(index_pixel2attack_list):
+        
+        image_lb = image.clone().reshape(-1)
+        image_ub = image.clone().reshape(-1)
+        image_lb[attack_pixel_index] = (image_lb[attack_pixel_index] - epsilon).clamp(0, 1)
+        image_ub[attack_pixel_index] = (image_ub[attack_pixel_index] + epsilon).clamp(0, 1)
+        image_lb = image_lb.reshape(shape)
+        image_ub = image_ub.reshape(shape)
+
+        lb = normalizer(image_lb).permute(1, 2, 0).numpy().ravel()
+        ub = normalizer(image_ub).permute(1, 2, 0).numpy().ravel()
+
+        num_attack_pixel = (lb != ub).sum()
+        print(f"\nVerifying image with {num_attack_pixel}, {len(attack_pixel_index)} attacked pixels")
+
+        CSR = SparseImageStar2DCSR(lb, ub)
+        del lb, ub, bounds
+
+        rbCSR[i], vtCSR[i], _, Y = certifyRobustness(net=starvNet, inputs=CSR, labels=label,
+            veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
+            RF=0.0, DR=0, return_output=False, show=show)
+        numPred[i] = Y.num_pred
+    
+        if rbCSR[i] == 1:
+            print(f"ROBUSTNESS RESULT: ROBUST")
+        elif rbCSR[i] == 2:
+            print(f"ROBUSTNESS RESULT: UNKNOWN")
+        elif rbCSR[i] == 0:
+            print(f"ROBUSTNESS RESULT: UNROBUST")
+
+        print(f"VERIFICATION TIME: {vtCSR[i]}")
+        print(f"NUM_PRED: {numPred[i]}")
+        pickle.dump([numPred, rbCSR, vtCSR, rbCOO, vtCOO], open(save_file, "wb"))
+    del CSR, Y
+
+    print(f"\n\nVerifying vggnet16 with SparseImageStar in COO format")
+    for i, attack_pixel_index in enumerate(index_pixel2attack_list):
+        
+        image_lb = image.clone().reshape(-1)
+        image_ub = image.clone().reshape(-1)
+        image_lb[attack_pixel_index] = (image_lb[attack_pixel_index] - epsilon).clamp(0, 1)
+        image_ub[attack_pixel_index] = (image_ub[attack_pixel_index] + epsilon).clamp(0, 1)
+        image_lb = image_lb.reshape(shape)
+        image_ub = image_ub.reshape(shape)
+
+        lb = normalizer(image_lb).permute(1, 2, 0).numpy().ravel()
+        ub = normalizer(image_ub).permute(1, 2, 0).numpy().ravel()
+
+        num_attack_pixel = (lb != ub).sum()
+        print(f"\nVerifying image with {num_attack_pixel}, {len(attack_pixel_index)} attacked pixels")
+
+        COO = SparseImageStar2DCOO(lb, ub)
+        del lb, ub, bounds
+
+        rbCOO[i], vtCOO[i], _, _ = certifyRobustness(net=starvNet, inputs=COO, labels=label,
+            veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
+            RF=0.0, DR=0, return_output=False, show=show)
+        
+        if rbCOO[i] == 1:
+            print(f"ROBUSTNESS RESULT: ROBUST")
+        elif rbCOO[i] == 2:
+            print(f"ROBUSTNESS RESULT: UNKNOWN")
+        elif rbCOO[i] == 0:
+            print(f"ROBUSTNESS RESULT: UNROBUST")
+
+        print(f"VERIFICATION TIME: {vtCOO[i]}")
+        pickle.dump([numPred, rbCSR, vtCSR, rbCOO, vtCOO], open(save_file, "wb"))
+
+    pickle.dump([numPred, rbCSR, vtCSR, rbCOO, vtCOO], open(save_file, "wb"))
+
+    headers = [f"SIM_csr, SIM_coo"]
+
+    # Robustness Resluts
+    print('-----------------------------------------------------')
+    print('Robustness')
+    print('-----------------------------------------------------')
+    print(tabulate([np.arange(N), rbCSR, rbCOO], headers=headers))
+    print()
+
+    # Verification Time Results
+    print('-----------------------------------------------------')
+    print('Verification Time')
+    print('-----------------------------------------------------')
+    print(tabulate([np.arange(N), vtCSR, vtCOO], headers=headers))
+    print()
+
+    print('=====================================================')
+    print('DONE!')
+    print('=====================================================')
+
+
+
 
 def plot_table_vgg16_network():
     folder_dir = 'SparseImageStar_evaluation/results/'
@@ -822,5 +1137,5 @@ if __name__ == "__main__":
     # plot_table_vgg16_network_with_relaxation()
     # verify_vgg16_network_get_num_pred(dtype='float64')
     # verify_vgg16_network_spec_cn()
-    # verify_vgg16_network_spec_cn_vnnlib()
+    # verify_vgg16_network_spec_cn_direct()
     plot_table_vgg16_network()
