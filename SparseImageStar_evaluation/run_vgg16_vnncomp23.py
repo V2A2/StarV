@@ -1218,7 +1218,7 @@ def plot_table_vgg16_network_spec_cn_relaxation():
         vt_nnv = 'O/M'
         vt_nnvc = 'O/M'
         nPred = 'NA' if np.isnan(vtCSR_cn[i]) else f"{numPred_cn[i]}"
-        data.append([f"c_{i}", nPred, numPred_cn_rf, num_attack_pixel_cn[i], result,  vt_im, f"{vtCSR_cn[i]:0.1f}", f"{vtCOO_cn[i]:0.1f}", f"{rbCSR_cn_rf[0, i]:0.1f}", f"{rbCSR_cn_rf[1, i]:0.1f}",  f"{rbCSR_cn_rf[2, i]:0.1f}",  f"{rbCSR_cn_rf[3, i]:0.1f}", f"{rbCOO_cn_rf[0, i]:0.1f}", f"{rbCOO_cn_rf[1, i]:0.1f}",  f"{rbCOO_cn_rf[2, i]:0.1f}",  f"{rbCOO_cn_rf[3, i]:0.1f}", vt_DP, vt_nnv, vt_imc, vt_nnvc, vt_NNENUM_cn[i]])
+        data.append([f"c_{i}", nPred, numPred_cn_rf[0, i], num_attack_pixel_cn[i], result,  vt_im, f"{vtCSR_cn[i]:0.1f}", f"{vtCOO_cn[i]:0.1f}", f"{vtCSR_cn_rf[0, i]:0.1f}", f"{vtCSR_cn_rf[1, i]:0.1f}",  f"{vtCSR_cn_rf[2, i]:0.1f}",  f"{vtCSR_cn_rf[3, i]:0.1f}", f"{vtCOO_cn_rf[0, i]:0.1f}", f"{vtCOO_cn_rf[1, i]:0.1f}",  f"{vtCOO_cn_rf[2, i]:0.1f}",  f"{vtCOO_cn_rf[3, i]:0.1f}", vt_DP, vt_nnv, vt_imc, vt_nnvc, vt_NNENUM_cn[i]])
 
 
     print(tabulate(data, headers=headers))
