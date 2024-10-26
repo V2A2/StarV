@@ -708,7 +708,9 @@ def verify_vgg16_network_spec_cn_relaxation(dtype='float64'):
     show = True
 
     for j in range(M):
-
+        print('\n\n=============================')
+        print(f'RF: {RF[j]}')
+        print('=============================')
         print(f"\n\nVerifying vggnet16 with SparseImageStar in CSR format")
         for i, vnnlib_file in enumerate(vnnlib_files):
             vnnlib_file_dir = f"{vnnlib_dir}/{vnnlib_file}"
