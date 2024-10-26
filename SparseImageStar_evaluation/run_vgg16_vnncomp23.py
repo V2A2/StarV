@@ -1160,7 +1160,7 @@ def plot_table_vgg16_network_spec_cn_relaxation():
     with open(file_dir, 'rb') as f:
         numPred_cn, rbCSR_cn, vtCSR_cn, rbCOO_cn, vtCOO_cn = pickle.load(f)
 
-    file_dir = folder_dir + 'vggnet16_vnncomp23_spec_cn_results.pkl'
+    file_dir = folder_dir + 'vggnet16_vnncomp23_spec_cn_relaxation_results.pkl'
     with open(file_dir, 'rb') as f:
         numPred_cn_rf, rbCSR_cn_rf, vtCSR_cn_rf, rbCOO_cn_rf, vtCOO_cn_rf = pickle.load(f)
 
