@@ -1191,6 +1191,7 @@ def plot_table_vgg16_network_spec_cn_relaxation():
 
 
     N = 15
+    M = 4
     vt_NNENUM = [3.5, 3.4, 9.3, 4.8, 18.1, 35.7, 6.5, 18.3, 133.8, 10.6, 40.9, 57.6, 'T/O', 236.5, 746.6]
     vt_DP = 'O/M'
     RF = (np.arange(M)+1)*0.25
