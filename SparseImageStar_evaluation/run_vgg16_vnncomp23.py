@@ -1010,6 +1010,7 @@ def plot_table_vgg16_network():
     with open(file_dir, 'rb') as f:
         numPred_cn, rbCSR_cn, vtCSR_cn, rbCOO_cn, vtCOO_cn = pickle.load(f)
 
+
     f_dir = f"./SparseImageStar_evaluation/vnncomp2023/vggnet16"
     net_dir = f"{f_dir}/onnx/vgg16-7.onnx"
     num_inputs, num_outputs, inp_dtype = get_num_inputs_outputs(net_dir)
@@ -1135,6 +1136,96 @@ def plot_table_vgg16_network_with_relaxation():
     with open(folder_dir+f"vggnet16_vnncomp23_results_full_table.tex", "w") as f:
         print(Tlatex, file=f)
 
+def plot_table_vgg16_network_spec_cn_relaxation():
+    folder_dir = 'SparseImageStar_evaluation/results/'
+    file_dir = folder_dir + 'vggnet16_vnncomp23_results.pkl'
+    with open(file_dir, 'rb') as f:
+        rbIM, vtIM, rbCSR, vtCSR, rbCOO, vtCOO, _, _ = pickle.load(f)
+    file_dir = folder_dir + 'vggnet16_vnncomp23_converted_results.pkl'
+    with open(file_dir, 'rb') as f:
+        rbIMc, vtIMc = pickle.load(f)
+    file_dir = folder_dir + 'vggnet16_vnncomp23_csr_num_pred__results.pkl'
+    with open(file_dir, 'rb') as f:
+        _, _, num_pred = pickle.load(f)
+
+    mat_file = scipy.io.loadmat(f"{folder_dir}nnv_vggnet16_results.mat")
+    rbNNV = mat_file['rb_im'].ravel()
+    vtNNV = mat_file['vt_im'].ravel()
+
+    mat_file = scipy.io.loadmat(f"{folder_dir}nnv_vggnet16_converted_results.mat")
+    rbNNVc = mat_file['rb_im'].ravel()
+    vtNNVc = mat_file['vt_im'].ravel()
+
+    file_dir = folder_dir + 'vggnet16_vnncomp23_spec_cn_results.pkl'
+    with open(file_dir, 'rb') as f:
+        numPred_cn, rbCSR_cn, vtCSR_cn, rbCOO_cn, vtCOO_cn = pickle.load(f)
+
+    file_dir = folder_dir + 'vggnet16_vnncomp23_spec_cn_results.pkl'
+    with open(file_dir, 'rb') as f:
+        numPred_cn_rf, rbCSR_cn_rf, vtCSR_cn_rf, rbCOO_cn_rf, vtCOO_cn_rf = pickle.load(f)
+
+    f_dir = f"./SparseImageStar_evaluation/vnncomp2023/vggnet16"
+    net_dir = f"{f_dir}/onnx/vgg16-7.onnx"
+    num_inputs, num_outputs, inp_dtype = get_num_inputs_outputs(net_dir)
+    vnnlib_dir = f"{f_dir}/vnnlib"
+    vnnlib_files = [f for f in os.listdir(vnnlib_dir) if f.endswith('.vnnlib')]
+    vnnlib_files.sort(key = natural_keys)
+    shape = (3, 224, 224)
+
+    num_attack_pixel = []
+    for i, vnnlib_file in enumerate(vnnlib_files):
+        vnnlib_file_dir = f"{vnnlib_dir}/{vnnlib_file}"
+
+        with open(vnnlib_file_dir) as f:
+            first_line = f.readline().strip('\n')
+        label = int(re.findall(r'\b\d+\b', first_line)[0])
+
+        vnnlib_rv = read_vnnlib_simple(vnnlib_file_dir, num_inputs, num_outputs)
+
+        box, spec_list = vnnlib_rv[0]
+        bounds = np.array(box, dtype='float32')
+        # transpose from [C, H, W] to [H, W, C]
+        lb = bounds[:, 0].reshape(shape).transpose([1, 2, 0])
+        ub = bounds[:, 1].reshape(shape).transpose([1, 2, 0])
+        num_attack_pixel.append(int((lb != ub).sum())) 
+
+
+    N = 15
+    vt_NNENUM = [3.5, 3.4, 9.3, 4.8, 18.1, 35.7, 6.5, 18.3, 133.8, 10.6, 40.9, 57.6, 'T/O', 236.5, 746.6]
+    vt_DP = 'O/M'
+    RF = (np.arange(M)+1)*0.25
+
+    headers = ['Specs', 'm', 'm_rf', 'e', 'Result', 'IM', 'SIM_csr', 'SIM_coo', f'CSR {RF[0]}', f'CSR {RF[1]}', f'CSR {RF[2]}', f'CSR {RF[3]}', f'COO {RF[0]}', f'COO {RF[1]}', f'COO {RF[2]}', f'COO {RF[3]}', 'NNV', 'IM', 'NNV', 'NNENUM']
+
+    result = 'UNSAT'
+    
+    data = []
+    for i in range(N):
+        vt_im = 'O/M' if np.isnan(vtIM[i]) else f"{vtIM[i]:0.1f}"
+        vt_imc = 'O/M' if np.isnan(vtIMc[i]) else f"{vtIMc[i]:0.1f}"
+        vt_nnv = 'O/M' if vtNNV[i] < 0 else f"{vtNNV[i]:0.1f}"
+        vt_nnvc = 'O/M' if vtNNVc[i] < 0 else f"{vtNNVc[i]:0.1f}"
+        nPred = 'NA' if np.isnan(vtCSR[i]) else f"{num_pred[i]}"
+        data.append([i, nPred, num_attack_pixel[i], result,  vt_im, f"{vtCSR[i]:0.1f}", f"{vtCOO[i]:0.1f}", vt_DP, vt_nnv, vt_imc, vt_nnvc, vt_NNENUM[i]])
+
+    num_attack_pixel_cn = [200, 300, 400, 500, 1000, 2000, 3000]
+    N_cn = len(numPred_cn)
+    vt_NNENUM_cn = [744.02, 1060.96, 1354.75, 1781.26, 'T/O', 'T/O', 'O/M']
+    for i in range(N_cn):
+        vt_im = 'O/M' 
+        vt_imc = 'O/M'
+        vt_nnv = 'O/M'
+        vt_nnvc = 'O/M'
+        nPred = 'NA' if np.isnan(vtCSR_cn[i]) else f"{numPred_cn[i]}"
+        data.append([f"c_{i}", nPred, numPred_cn_rf, num_attack_pixel_cn[i], result,  vt_im, f"{vtCSR_cn[i]:0.1f}", f"{vtCOO_cn[i]:0.1f}", f"{rbCSR_cn_rf[0, i]:0.1f}", f"{rbCSR_cn_rf[1, i]:0.1f}",  f"{rbCSR_cn_rf[2, i]:0.1f}",  f"{rbCSR_cn_rf[3, i]:0.1f}", f"{rbCOO_cn_rf[0, i]:0.1f}", f"{rbCOO_cn_rf[1, i]:0.1f}",  f"{rbCOO_cn_rf[2, i]:0.1f}",  f"{rbCOO_cn_rf[3, i]:0.1f}", vt_DP, vt_nnv, vt_imc, vt_nnvc, vt_NNENUM_cn[i]])
+
+
+    print(tabulate(data, headers=headers))
+
+    Tlatex = tabulate(data, headers=headers, tablefmt='latex')
+    with open(folder_dir+f"vggnet16_vnncomp23_results_full_table.tex", "w") as f:
+        print(Tlatex, file=f)
+
 
 if __name__ == "__main__":
     # verify_vgg16_network(dtype='float64')
@@ -1145,4 +1236,5 @@ if __name__ == "__main__":
     # verify_vgg16_network_spec_cn()
     # verify_vgg16_network_spec_cn_direct()
     verify_vgg16_network_spec_cn_relaxation()
+    plot_table_vgg16_network_spec_cn_relaxation()
     # plot_table_vgg16_network()
