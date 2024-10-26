@@ -796,15 +796,19 @@ def verify_vgg16_network_spec_cn_relaxation(dtype='float64'):
     print('-----------------------------------------------------')
     print('Robustness')
     print('-----------------------------------------------------')
-    print(tabulate([np.arange(N), rbCSR, rbCOO], headers=headers))
-    print()
+    for rf_ in RF:
+        print(f'RF: {rf_}')
+        print(tabulate([np.arange(N), rbCSR, rbCOO], headers=headers))
+        print()
 
     # Verification Time Results
     print('-----------------------------------------------------')
     print('Verification Time')
     print('-----------------------------------------------------')
-    print(tabulate([np.arange(N), vtCSR, vtCOO], headers=headers))
-    print()
+    for rf_ in RF:
+        print(f'RF: {rf_}')
+        print(tabulate([np.arange(N), vtCSR, vtCOO], headers=headers))
+        print()
 
     print('=====================================================')
     print('DONE!')
@@ -960,7 +964,7 @@ def verify_vgg16_network_spec_cn_direct(dtype='float64'):
     pickle.dump([numPred, rbCSR, vtCSR, rbCOO, vtCOO], open(save_file, "wb"))
 
     headers = [f"SIM_csr, SIM_coo"]
-
+    
     # Robustness Resluts
     print('-----------------------------------------------------')
     print('Robustness')
