@@ -1235,6 +1235,6 @@ if __name__ == "__main__":
     # verify_vgg16_network_get_num_pred(dtype='float64')
     # verify_vgg16_network_spec_cn()
     # verify_vgg16_network_spec_cn_direct()
-    verify_vgg16_network_spec_cn_relaxation()
+    # verify_vgg16_network_spec_cn_relaxation()
     plot_table_vgg16_network_spec_cn_relaxation()
     # plot_table_vgg16_network()
