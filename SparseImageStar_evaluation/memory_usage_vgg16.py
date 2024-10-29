@@ -325,6 +325,6 @@ def memory_usage_vgg16_spec_cn(spec):
 
 
 if __name__ == "__main__":
-    # memory_usage_vgg16(spec=11)
-    memory_usage_vgg16_spec_cn(spec=4)
+    memory_usage_vgg16(spec=11)
+    # memory_usage_vgg16_spec_cn(spec=4)
     
