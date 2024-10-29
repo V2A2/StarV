@@ -126,7 +126,7 @@ def memory_usage_vgg16(spec):
     plt.plot(x, IM_time, color='red')
     plt.plot(x, COO_time, color='black')
     plt.plot(x, CSR_time, color="magenta")
-    plt.plot(x, nnv_time, color='blue')
+    plt.plot(x, nnv_time[1:], color='blue')
     plt.xlabel("Layers")
     plt.ylabel("Computation Time (sec)")
 
