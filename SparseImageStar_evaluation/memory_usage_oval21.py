@@ -84,7 +84,6 @@ if __name__ == "__main__":
     save_file = path + f"/memory_usage_oval21_results.pkl"
     pickle.dump([IM_nb, CSR_nb, COO_time, IM_time, CSR_time, COO_time], open(save_file, "wb"))
 
-
     x = np.arange(len(IM_time))
     x_ticks_labels = []
     for i in range(starv_net.n_layers):
@@ -105,7 +104,7 @@ if __name__ == "__main__":
     plt.plot(x, IM_time, color="red")
     plt.plot(x, COO_time, color='black')
     plt.plot(x, CSR_time, color="magenta")
-    plt.plot(x, nnv_time[1:], color='green')
+    plt.plot(x, nnv_time[1:], color='blue')
     plt.xlabel("Layers")
     plt.ylabel("Computation Time (sec)")
 
@@ -114,7 +113,7 @@ if __name__ == "__main__":
     # Set ticks labels for x-axis
     ax.set_xticklabels(x_ticks_labels, rotation=80, fontsize=12)
     # set legend
-    ax.legend(['ImageStar', 'SIM COO', 'SIM CSR, NNV'])
+    ax.legend(['ImageStar', 'SIM COO', 'SIM CSR', 'NNV'])
 
     plt.savefig('SparseImageStar_evaluation//results/memory_usage_oval21_computation_time_differences.png')
     # plt.show()
@@ -132,7 +131,7 @@ if __name__ == "__main__":
     plt.plot(x, IM_nb, color="red")
     plt.plot(x, COO_nb, color='black')
     plt.plot(x, CSR_nb, color="magenta")
-    plt.plot(x, nnv_nb, color='green')
+    plt.plot(x, nnv_nb, color='blue')
     plt.xlabel("Layers")
     plt.ylabel("Bytes")
 
