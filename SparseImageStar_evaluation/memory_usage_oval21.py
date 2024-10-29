@@ -34,7 +34,7 @@ if __name__ == "__main__":
     starv_net = load_neural_network_file(net_dir, net_type='oval21', dtype=dtype, channel_last=False)
     print(starv_net.info())
 
-    mat_file = scipy.io.loadmat("SparseImageStar_evaluation/vnncomp2021/oval21/nnv/nnv_oval21_memory_suage.mat")
+    mat_file = scipy.io.loadmat("SparseImageStar_evaluation/vnncomp2021/oval21/nnv/nnv_oval21_memory_usage.mat")
     nnv_nb = mat_file['memory_usage']
     nnv_time = mat_file['reach_time']
 
