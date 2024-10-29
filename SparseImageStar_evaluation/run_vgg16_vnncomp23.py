@@ -1222,7 +1222,7 @@ def plot_table_vgg16_network_spec_cn_relaxation():
 
 
     print(tabulate(data, headers=headers))
-
+    
     Tlatex = tabulate(data, headers=headers, tablefmt='latex')
     with open(folder_dir+f"vggnet16_vnncomp23_results_full_table.tex", "w") as f:
         print(Tlatex, file=f)

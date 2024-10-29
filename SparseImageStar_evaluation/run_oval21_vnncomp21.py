@@ -68,10 +68,11 @@ def verify_oval21_network(net_type='base', dtype='float64'):
         vnnlib_rv = read_vnnlib_simple(vnnlib_file_dir, num_inputs, num_outputs)
 
         box, spec_list = vnnlib_rv[0]
-        bounds = np.array(box, dtype=inp_dtype)
+        # bounds = np.array(box, dtype=inp_dtype)
+        bounds = np.array(box, dtype=dtype)
         # transpose from [C, H, W] to [H, W, C]
-        lb = bounds[:, 0].reshape(shape).transpose([1, 2, 0]).astype(dtype)
-        ub = bounds[:, 1].reshape(shape).transpose([1, 2, 0]).astype(dtype)
+        lb = bounds[:, 0].reshape(shape).transpose([1, 2, 0])
+        ub = bounds[:, 1].reshape(shape).transpose([1, 2, 0])
 
         IM = ImageStar(lb, ub)
         rbIM[i], vtIM[i], _, _ = certifyRobustness(net=starvNet, inputs=IM, labels=label,
@@ -93,10 +94,11 @@ def verify_oval21_network(net_type='base', dtype='float64'):
         vnnlib_rv = read_vnnlib_simple(vnnlib_file, num_inputs, num_outputs)
 
         box, spec_list = vnnlib_rv[0]
-        bounds = np.array(box, dtype=inp_dtype)
+        # bounds = np.array(box, dtype=inp_dtype)
+        bounds = np.array(box, dtype=dtype)
         # transpose from [C, H, W] to [H, W, C]
-        lb = bounds[:, 0].reshape(shape).transpose([1, 2, 0]).astype(dtype)
-        ub = bounds[:, 1].reshape(shape).transpose([1, 2, 0]).astype(dtype)
+        lb = bounds[:, 0].reshape(shape).transpose([1, 2, 0])
+        ub = bounds[:, 1].reshape(shape).transpose([1, 2, 0])
 
         CSR = SparseImageStar2DCSR(lb, ub)
         rbCSR[i], vtCSR[i], _, _ = certifyRobustness(net=starvNet, inputs=CSR, labels=label,
@@ -118,10 +120,11 @@ def verify_oval21_network(net_type='base', dtype='float64'):
         vnnlib_rv = read_vnnlib_simple(vnnlib_file, num_inputs, num_outputs)
 
         box, spec_list = vnnlib_rv[0]
-        bounds = np.array(box, dtype=inp_dtype)
+        # bounds = np.array(box, dtype=inp_dtype)
+        bounds = np.array(box, dtype=dtype)
         # transpose from [C, H, W] to [H, W, C]
-        lb = bounds[:, 0].reshape(shape).transpose([1, 2, 0]).astype(dtype)
-        ub = bounds[:, 1].reshape(shape).transpose([1, 2, 0]).astype(dtype)
+        lb = bounds[:, 0].reshape(shape).transpose([1, 2, 0])
+        ub = bounds[:, 1].reshape(shape).transpose([1, 2, 0])
     
         COO = SparseImageStar2DCOO(lb, ub)
         rbCOO[i], vtCOO[i], _, _ = certifyRobustness(net=starvNet, inputs=COO, labels=label,

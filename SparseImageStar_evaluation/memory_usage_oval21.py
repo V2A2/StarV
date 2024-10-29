@@ -4,6 +4,8 @@ import numpy as np
 import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 import matplotlib.pyplot as plt
+import pickle
+import scipy
 
 import os
 import sys
@@ -26,18 +28,23 @@ if __name__ == "__main__":
                                 transform=transforms.Compose([transforms.ToTensor()]))
 
     shape = (3, 32, 32)
+    dtype = 'float64'
 
     net_dir = 'SparseImageStar_evaluation/vnncomp2021/oval21/onnx/cifar_deep_kw.onnx'
-    starv_net = load_neural_network_file(net_dir, net_type='oval21', dtype='float64', channel_last=False)
+    starv_net = load_neural_network_file(net_dir, net_type='oval21', dtype=dtype, channel_last=False)
     print(starv_net.info())
+
+    mat_file = scipy.io.loadmat("SparseImageStar_evaluation/vnncomp2021/oval21/nnv/nnv_oval21_memory_suage.mat")
+    nnv_nb = mat_file['memory_usage']
+    nnv_time = mat_file['reach_time']
 
     eps = 0.005
     img_num = 876 + 1
     img_py, label = cifar_test[img_num]
 
     img = img_py.type(torch.float64)
-    lb = normalizer((img - eps).clamp(0, 1)).permute(1, 2, 0).numpy()
-    ub = normalizer((img + eps).clamp(0, 1)).permute(1, 2, 0).numpy()
+    lb = normalizer((img - eps).clamp(0, 1)).permute(1, 2, 0).numpy().astype(dtype)
+    ub = normalizer((img + eps).clamp(0, 1)).permute(1, 2, 0).numpy().astype(dtype)
 
     IM = ImageStar(lb, ub)
     COO = SparseImageStar2DCOO(lb, ub)
@@ -69,6 +76,14 @@ if __name__ == "__main__":
         COO_time.append(time.perf_counter() - start)
         COO_nb.append(COO.nbytes())
 
+    # save verification results
+    path = f"./SparseImageStar_evaluation/results"
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+    save_file = path + f"/memory_usage_oval21_results.pkl"
+    pickle.dump([IM_nb, CSR_nb, COO_time, IM_time, CSR_time, COO_time], open(save_file, "wb"))
+
 
     x = np.arange(len(IM_time))
     x_ticks_labels = []
@@ -90,6 +105,7 @@ if __name__ == "__main__":
     plt.plot(x, IM_time, color="red")
     plt.plot(x, COO_time, color='black')
     plt.plot(x, CSR_time, color="magenta")
+    plt.plot(x, nnv_time[1:], color='green')
     plt.xlabel("Layers")
     plt.ylabel("Computation Time (sec)")
 
@@ -98,7 +114,7 @@ if __name__ == "__main__":
     # Set ticks labels for x-axis
     ax.set_xticklabels(x_ticks_labels, rotation=80, fontsize=12)
     # set legend
-    ax.legend(['ImageStar', 'SIM COO', 'SIM CSR'])
+    ax.legend(['ImageStar', 'SIM COO', 'SIM CSR, NNV'])
 
     plt.savefig('SparseImageStar_evaluation//results/memory_usage_oval21_computation_time_differences.png')
     # plt.show()
@@ -116,6 +132,7 @@ if __name__ == "__main__":
     plt.plot(x, IM_nb, color="red")
     plt.plot(x, COO_nb, color='black')
     plt.plot(x, CSR_nb, color="magenta")
+    plt.plot(x, nnv_nb, color='green')
     plt.xlabel("Layers")
     plt.ylabel("Bytes")
 
@@ -124,7 +141,7 @@ if __name__ == "__main__":
     # Set ticks labels for x-axis
     ax.set_xticklabels(x_ticks_labels, rotation=80, fontsize=12)
     # set legend
-    ax.legend(['ImageStar', 'SIM COO', 'SIM CSR'])
+    ax.legend(['ImageStar', 'SIM COO', 'SIM CSR', 'NNV'])
 
     ax2 = ax.twinx()  # instantiate a second axes that shares the same x-axis
 
