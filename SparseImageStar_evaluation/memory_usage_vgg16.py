@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tabulate import tabulate
 import pickle
+import scipy
 import re
 import time
 
@@ -33,6 +34,10 @@ def memory_usage_vgg16(spec):
     starvNet = load_neural_network_file(net_dir, dtype=dtype, channel_last=False, in_shape=None, sparse=False, show=False)
     print()
     print(starvNet.info())
+
+    mat_file = scipy.io.loadmat(f"{folder_dir}/nnv/nnv_vgg16_memory_usage.mat")
+    nnv_nb = mat_file['memory_usage'].ravel()
+    nnv_time = mat_file['reach_time'].ravel()
 
     shape = (3, 224, 224)
 
@@ -121,6 +126,7 @@ def memory_usage_vgg16(spec):
     plt.plot(x, IM_time, color='red')
     plt.plot(x, COO_time, color='black')
     plt.plot(x, CSR_time, color="magenta")
+    plt.plot(x, nnv_time, color='blue')
     plt.xlabel("Layers")
     plt.ylabel("Computation Time (sec)")
 
@@ -129,7 +135,7 @@ def memory_usage_vgg16(spec):
     # Set ticks labels for x-axis
     ax.set_xticklabels(x_ticks_labels, rotation=80, fontsize=10)
     # set legend
-    ax.legend(['ImageStar', 'SparseCOO', 'SparseCSR'])
+    ax.legend(['ImageStar', 'SparseCOO', 'SparseCSR', 'NNV'])
 
     plt.savefig(f'SparseImageStar_evaluation/results/memory_usage_vgg16_computation_time_differences_spec_{spec}.png')
     # plt.show()
@@ -147,6 +153,7 @@ def memory_usage_vgg16(spec):
     plt.plot(x, IM_nb, color="red")
     plt.plot(x, COO_nb, color='black')
     plt.plot(x, CSR_nb, color="magenta")
+    plt.plot(x, nnv_nb, color='blue')
     plt.xlabel("Layers")
     plt.ylabel("Bytes")
 
@@ -155,7 +162,7 @@ def memory_usage_vgg16(spec):
     # Set ticks labels for x-axis
     ax.set_xticklabels(x_ticks_labels, rotation=80, fontsize=10)
     # set legend
-    ax.legend(['ImageStar', 'SIM COO', 'SIM CSR'])
+    ax.legend(['ImageStar', 'SIM COO', 'SIM CSR', 'NNV'])
 
     ax2 = ax.twinx()  # instantiate a second axes that shares the same x-axis
 
@@ -167,7 +174,11 @@ def memory_usage_vgg16(spec):
     # plt.show()
     plt.close()
 
+    # save verification results
     path = f"./SparseImageStar_evaluation/results"
+    if not os.path.exists(path):
+        os.makedirs(path)
+
     save_file = path + f"/memory_usage_vgg16_results_spec_{spec}.pkl"
     pickle.dump([IM_time, COO_time, CSR_time, IM_nb, COO_nb, CSR_nb, \
                  IM_shape, COO_shape, CSR_nb, nPred, density], open(save_file, "wb"))
