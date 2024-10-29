@@ -35,8 +35,8 @@ if __name__ == "__main__":
     print(starv_net.info())
 
     mat_file = scipy.io.loadmat("SparseImageStar_evaluation/vnncomp2021/oval21/nnv/nnv_oval21_memory_usage.mat")
-    nnv_nb = mat_file['memory_usage']
-    nnv_time = mat_file['reach_time']
+    nnv_nb = mat_file['memory_usage'].ravel()
+    nnv_time = mat_file['reach_time'].ravel()
 
     eps = 0.005
     img_num = 876 + 1
