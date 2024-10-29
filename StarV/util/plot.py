@@ -343,31 +343,89 @@ def plot_probstar_reachset_with_unsafeSpec(rs, unsafe_mat, unsafe_vec, dir_mat=N
     n = len(rs)
     L = []
     U = []
-    for i in range(0, n):
-        rsi = rs[i]
-        m = len(rsi)
-        for j in range(0, m):
-            rsij = rsi[j]
-            I = rsij.affineMap(dir_mat, dir_vec)         
-            if I.dim > 2:
+    if type(rs[0]) is list:
+        for i in range(0, n):
+            rsi = rs[i]
+            m = len(rsi)
+            for j in range(0, m):
+                rsij = rsi[j]
+                I = rsij.affineMap(dir_mat, dir_vec)         
+                if I.dim > 2:
+                    raise Exception('error: only 2D plot is supported')
+                prob = I.estimateProbability()
+                plot_2D_Star(I, show=False, color=color)
+                l, u = I.getRanges()
+                if i==0 and j==0:
+                    L = l
+                    U = u
+                else:
+                    L = np.vstack((L, l))
+                    U = np.vstack([U, u])
+                if show_prob:
+                    ax = plt.gca()
+                    ax.text(0.5*(l[0] + u[0]), 0.5*(l[1] + u[1]), str(prob))
+
+    else:
+
+        if isinstance(rs, ProbStar):
+            I1 = rs.affineMap(dir_mat, dir_vec)
+
+            if I1.dim > 2:
                 raise Exception('error: only 2D plot is supported')
-            prob = I.estimateProbability()
-            plot_2D_Star(I, show=False, color=color)
-            l, u = I.getRanges()
-            if i==0 and j==0:
-                L = l
-                U = u
-            else:
-                L = np.vstack((L, l))
-                U = np.vstack([U, u])
+            prob = I1.estimateProbability()
+            plot_2D_Star(I1, show=False, color=color)
+            l, u = I1.getRanges()
+            L = l
+            U = u
             if show_prob:
                 ax = plt.gca()
                 ax.text(0.5*(l[0] + u[0]), 0.5*(l[1] + u[1]), str(prob))
+                ax.set_xlim(l[0], u[0])
+                ax.set_ylim(l[1], u[1])
+
+        elif isinstance(rs, list) and len(rs) > 1:
+            
+            for i in range(0,len(rs)):
+                I2 = rs[i].affineMap(dir_mat, dir_vec)
+                if I2.dim > 2:
+                    raise Exception('error: only 2D plot is supported')
+                prob = I2.estimateProbability()
+                plot_2D_Star(I2, show=False)
+                l, u = I2.getRanges()
+                if i==0:
+                    L = l
+                    U = u
+                else:
+                    L = np.vstack((L, l))
+                    U = np.vstack([U, u])
+                if show_prob:
+                    ax = plt.gca()
+                    ax.text(0.5*(l[0] + u[0]), 0.5*(l[1] + u[1]), str(prob))
+
+        elif isinstance(rs, list) and len(rs) == 1:
+            I1 = rs[0].affineMap(dir_mat, dir_vec)
+
+            if I1.dim > 2:
+                raise Exception('error: only 2D plot is supported')
+            prob = I1.estimateProbability()
+            plot_2D_Star(I1, show=False)
+            l, u = I1.getRanges()
+            L = l
+            U = u
+            if show_prob:
+                ax = plt.gca()
+                ax.text(0.5*(l[0] + u[0]), 0.5*(l[1] + u[1]), str(prob))
+                ax.set_xlim(l[0], u[0])
+                ax.set_ylim(l[1], u[1])
+
+        else:
+            raise Exception('error: first input should be a ProbStar or a list of ProbStar')
+
 
     plot_2D_UnsafeSpec(unsafe_mat, unsafe_vec, show=False, color='r')
     lb, ub = get_bounding_box(unsafe_mat, unsafe_vec)
     L = np.vstack((L, lb))
-    U = np.vstack((L, ub))
+    U = np.vstack((U, ub))
     Lm = L.min(axis=0)
     Um = U.max(axis=0)
     ax = plt.gca()
@@ -418,75 +476,6 @@ def plot_star(I, dir_mat=None, dir_vec=None, label=('$y_1$', '$y_2$'), show=True
         ax = plt.gca()
         ax.set_xlim(Lm[0], Um[0])
         ax.set_ylim(Lm[1], Um[1])
-    else:
-        raise Exception('error: first input should be a ProbStar or a list of ProbStar')
-
-    plt.xlabel(label[0], fontsize=13)
-    plt.ylabel(label[1], fontsize=13)
-    plt.xticks(fontsize=13)
-    plt.yticks(fontsize=13)
-    if show:
-        plt.show()
-
-def plot_probstar_2D_distribution(I, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g'):
-    """Plot distribution of a probstar set in a specific direction
-       y = dir_mat*x + dir_vec, x in I
-    """
-
-    if isinstance(I, ProbStar):
-        I1 = I.affineMap(dir_mat, dir_vec)
-        
-        if I1.dim > 2:
-            raise Exception('error: only 2D plot is supported')
-        prob = I1.estimateProbability()
-        plot_2D_Star(I1, show=False, color=color)
-        l, u = I1.getRanges()
-        if show_prob:
-            ax = plt.gca()
-            ax.text(0.5*(l[0] + u[0]), 0.5*(l[1] + u[1]), str(prob))
-            ax.set_xlim(l[0], u[0])
-            ax.set_ylim(l[1], u[1])
-
-    elif isinstance(I, list) and len(I) > 1:
-        L = []
-        U = []
-        for i in range(0,len(I)):
-            I2 = I[i].affineMap(dir_mat, dir_vec)
-            if I2.dim > 2:
-                raise Exception('error: only 2D plot is supported')
-            prob = I2.estimateProbability()
-            plot_2D_Star(I2, show=False)
-            l, u = I2.getRanges()
-            if i==0:
-                L = l
-                U = u
-            else:
-                L = np.vstack((L, l))
-                U = np.vstack([U, u])
-            if show_prob:
-                ax = plt.gca()
-                ax.text(0.5*(l[0] + u[0]), 0.5*(l[1] + u[1]), str(prob))
-
-        Lm = L.min(axis=0)
-        Um = U.max(axis=0)
-        ax = plt.gca()
-        ax.set_xlim(Lm[0], Um[0])
-        ax.set_ylim(Lm[1], Um[1])
-
-    elif isinstance(I, list) and len(I) == 1:
-        I1 = I[0].affineMap(dir_mat, dir_vec)
-        
-        if I1.dim > 2:
-            raise Exception('error: only 2D plot is supported')
-        prob = I1.estimateProbability()
-        plot_2D_Star(I1, show=False)
-        l, u = I1.getRanges()
-        if show_prob:
-            ax = plt.gca()
-            ax.text(0.5*(l[0] + u[0]), 0.5*(l[1] + u[1]), str(prob))
-            ax.set_xlim(l[0], u[0])
-            ax.set_ylim(l[1], u[1])
-        
     else:
         raise Exception('error: first input should be a ProbStar or a list of ProbStar')
 
@@ -591,9 +580,7 @@ def plot_probstar_distribution(I, dir_mat=None, dir_vec=None, show_prob=True, la
 
 
         if show:
-            plt.show()
-
-       
+            plt.show()  
 
     else:
         raise RuntimeError('The input I is not a probstar')
