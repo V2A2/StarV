@@ -384,6 +384,40 @@ class ConvTranspose2DLayer(object):
         """Adding padding to csr"""
         output, mo, no = ConvTranspose2DLayer.pad_coo(input, shape, padding, tocsc=False)
         return output.tocsr(False), mo, no
+    
+    def pad_csr2(input, shape, padding):
+        if len(padding) == 4:
+            pad = np.array(padding)
+        elif len(padding) == 2:
+            pad = np.array([padding[0], padding[0], padding[1], padding[1]])
+        elif len(padding) == 1:
+            pad = np.ones(4)*padding[0]
+        
+        t = shape[1]+pad[2]+pad[3]
+        bp = shape[2]*(t*pad[0]+pad[2])
+        ep = shape[2]*(t*pad[1]+pad[3])+1
+        
+        ptr = input.indptr
+        dtype = ptr.dtype
+        indptr = [np.zeros(bp, dtype=dtype)]
+        
+        k = shape[1]*shape[2]
+        r = np.ones((pad[2]+pad[3])*shape[2], dtype=dtype)
+        for i in range(shape[0]):
+            b = i*k
+            e = (i+1)*k
+            indptr.append(ptr[b:e])
+            if i < shape[0]-1:
+                indptr.append(ptr[e]*r)
+
+        indptr.append(ptr[-1]*np.ones(ep, dtype=dtype))
+        indptr = np.concatenate(indptr, dtype=dtype)
+        
+        mo = shape[0] + pad[0] + pad[1]
+        no = shape[1] + pad[2] + pad[3]
+        
+        output = sp.csr_array((input.data, input.indices, indptr), shape = (mo*no*shape[2], input.shape[1]))
+        return output, mo, no
 
     def get_output_size(self, input):
         h, w, c, n = input.shape

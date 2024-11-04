@@ -1093,7 +1093,6 @@ class SparseImageStar2DCOO(object):
         V = self.V.toarray().reshape(self.shape + (self.num_pred, )) != 0
         return np.max(V, axis=3).sum()
 
-
     def get_max_point_cadidates(self):
         """ Quickly estimate max-point candidates """
 

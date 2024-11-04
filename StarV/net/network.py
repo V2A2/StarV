@@ -69,7 +69,7 @@ class NeuralNetwork(object):
         for i in range(0, self.n_layers):
             str_ = 'Layer {}: {}'.format(i, type(self.layers[i]))
             layer_ = self.layers[i]
-            if isinstance(layer_, FullyConnectedLayer):
+            if isinstance(layer_, FullyConnectedLayer) or isinstance(layer_, fullyConnectedLayer):
                 if layer_.W is not None:
                     str_ += ' ({}, {}, dtype={})'.format(layer_.out_dim, layer_.in_dim, layer_.W.dtype)
                 else:
@@ -177,7 +177,7 @@ def reachExactBFS(net, inputSet, lp_solver='gurobi', pool=None, show=True):
     S = copy.deepcopy(inputSet)
     for i in range(0, net.n_layers):
         if show:
-            print('Computing layer {} reachable set...'.format(i))
+            print('Computing layer {} {} reachable set...'.format(i, net.layers[i].__class__.__name__))
         S = net.layers[i].reach(S, method='exact', lp_solver=lp_solver, pool=pool)
         if show:
             print('Number of stars/probstars: {}'.format(len(S)))

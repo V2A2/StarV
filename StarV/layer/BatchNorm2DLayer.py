@@ -133,7 +133,7 @@ class BatchNorm2DLayer(object):
         else:
             raise Exception('Unknown layer module')
         
-    def info(self):
+    def __str__(self):
         print(f"Batch Normalization 2D Layer")
         print(f"module: {self.module}")
         print(f"gamma: {self.gamma}")
@@ -142,7 +142,7 @@ class BatchNorm2DLayer(object):
         print(f"epsilon: {self.eps}")
         print(f"mean: {self.mean}")
         print(f"variance: {self.var}")
-        return '\n'
+        return ''
 
     def evaluate(self, input):
         """
@@ -220,10 +220,10 @@ class BatchNorm2DLayer(object):
         if bias:
             mean = self.mean[None, None, :, None]
             beta = self.beta[None, None, :, None]
-            output = gamma * (input - mean) / np.sqrt(var + eps) + beta
+            output = (gamma / np.sqrt(var + eps)) * (input - mean)  + beta
 
         else:
-            output = gamma * input / np.sqrt(var + eps)
+            output = (gamma / np.sqrt(var + eps)) * input 
 
         # output = np.nan_to_num(output)
 
@@ -303,50 +303,39 @@ class BatchNorm2DLayer(object):
             sp_im.append(im3d)        
         return SparseImage(sp_im)
     
-    def fbatchnorm2d_coo(self, input, shape, bias=False):
+  
+    def fbatchnorm2d_coo(self, input, shape):
         
         assert isinstance(input, sp.coo_array) or isinstance(input, sp.coo_matrix), \
         'error: input should be a scipy coo or csr array or matrix'
 
         eps = self.eps
-        mean = self.mean
         var = self.var
         gamma = self.gamma
         c = shape[2]
         
         output = copy.deepcopy(input)
         row_ch = output.row % c
-        if bias:
-            mean = self.mean
-            beta = self.beta
-            output.data = gamma[row_ch] * (output.data - mean[row_ch]) / np.sqrt(var[row_ch] + eps) + beta[row_ch]
-        else:
-            output.data = gamma[row_ch] * output.data / np.sqrt(var[row_ch] + eps)
+        a = gamma / np.sqrt(var + eps)
+        output.data *= a[row_ch]
         return output
-    
-    def fbatchnorm2d_csr(self, input, shape, bias=False):
+
+    def fbatchnorm2d_csr(self, input, shape):
         
         assert isinstance(input, sp.csr_array) or isinstance(input, sp.csr_matrix), \
         'error: input should be a scipy coo or csr array or matrix'
 
         eps = self.eps
-        
         var = self.var
         gamma = self.gamma
-        beta = self.beta
         c = shape[2]
         
         T = input.tocoo(copy=False)
         output = copy.deepcopy(input)
         row_ch = T.row % c
-        if bias:
-            mean = self.mean
-            beta = self.beta
-            output.data = gamma[row_ch] * (output.data - mean[row_ch]) / np.sqrt(var[row_ch] + eps) + beta[row_ch]
-        else:
-            output.data = gamma[row_ch] * output.data / np.sqrt(var[row_ch] + eps)
+        a = gamma / np.sqrt(var + eps)
+        output.data *= a[row_ch] 
         return output
-
 
     def reachExactSingleInput(self, In):
         if isinstance(In, ImageStar):
@@ -379,7 +368,7 @@ class BatchNorm2DLayer(object):
             
             elif self.module == 'default':
                 new_c = self.batchnorm2d(In.c.reshape(In.shape), bias=True).reshape(-1)
-                new_V = self.fbatchnorm2d_coo(In.V, In.shape, bias=False)
+                new_V = self.fbatchnorm2d_coo(In.V, In.shape)
                 
             return SparseImageStar2DCOO(new_c, new_V, In.C, In.d, In.pred_lb, In.pred_ub, In.shape)
         
@@ -391,7 +380,7 @@ class BatchNorm2DLayer(object):
             
             elif self.module == 'default':
                 new_c = self.batchnorm2d(In.c.reshape(In.shape), bias=True).reshape(-1)
-                new_V = self.fbatchnorm2d_csr(In.V, In.shape, bias=False)
+                new_V = self.fbatchnorm2d_csr(In.V, In.shape)
                 
             return SparseImageStar2DCSR(new_c, new_V, In.C, In.d, In.pred_lb, In.pred_ub, In.shape)
         
