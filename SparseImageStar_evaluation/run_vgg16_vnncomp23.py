@@ -1196,7 +1196,7 @@ def plot_table_vgg16_network_spec_cn_relaxation():
     vt_DP = 'O/M'
     RF = (np.arange(M)+1)*0.25
 
-    headers = ['Specs', 'm', 'm_rf', 'e', 'Result', 'IM', 'SIM_csr', 'SIM_coo', f'CSR {RF[0]}', f'CSR {RF[1]}', f'CSR {RF[2]}', f'CSR {RF[3]}', f'COO {RF[0]}', f'COO {RF[1]}', f'COO {RF[2]}', f'COO {RF[3]}', 'NNV', 'IM', 'NNV', 'NNENUM']
+    headers = ['Specs', 'm_rf', 'e', 'Result', 'm',  'IM', 'SIM_csr', 'SIM_coo', f'CSR {RF[0]}', f'CSR {RF[1]}', f'CSR {RF[2]}', f'CSR {RF[3]}', f'COO {RF[0]}', f'COO {RF[1]}', f'COO {RF[2]}', f'COO {RF[3]}', 'NNV', 'IM', 'NNV', 'NNENUM']
 
     result = 'UNSAT'
     
@@ -1218,7 +1218,7 @@ def plot_table_vgg16_network_spec_cn_relaxation():
         vt_nnv = 'O/M'
         vt_nnvc = 'O/M'
         nPred = 'NA' if np.isnan(vtCSR_cn[i]) else f"{numPred_cn[i]}"
-        data.append([f"c_{i}", nPred, numPred_cn_rf[0, i], num_attack_pixel_cn[i], result,  vt_im, f"{vtCSR_cn[i]:0.1f}", f"{vtCOO_cn[i]:0.1f}", f"{vtCSR_cn_rf[0, i]:0.1f}", f"{vtCSR_cn_rf[1, i]:0.1f}",  f"{vtCSR_cn_rf[2, i]:0.1f}",  f"{vtCSR_cn_rf[3, i]:0.1f}", f"{vtCOO_cn_rf[0, i]:0.1f}", f"{vtCOO_cn_rf[1, i]:0.1f}",  f"{vtCOO_cn_rf[2, i]:0.1f}",  f"{vtCOO_cn_rf[3, i]:0.1f}", vt_DP, vt_nnv, vt_imc, vt_nnvc, vt_NNENUM_cn[i]])
+        data.append([f"c_{i}", numPred_cn_rf[0, i], num_attack_pixel_cn[i], result, nPred, vt_im, f"{vtCSR_cn[i]:0.1f}", f"{vtCOO_cn[i]:0.1f}", f"{vtCSR_cn_rf[0, i]:0.1f}", f"{vtCSR_cn_rf[1, i]:0.1f}",  f"{vtCSR_cn_rf[2, i]:0.1f}",  f"{vtCSR_cn_rf[3, i]:0.1f}", f"{vtCOO_cn_rf[0, i]:0.1f}", f"{vtCOO_cn_rf[1, i]:0.1f}",  f"{vtCOO_cn_rf[2, i]:0.1f}",  f"{vtCOO_cn_rf[3, i]:0.1f}", vt_DP, vt_nnv, vt_imc, vt_nnvc, vt_NNENUM_cn[i]])
 
 
     print(tabulate(data, headers=headers))
@@ -1237,5 +1237,5 @@ if __name__ == "__main__":
     # verify_vgg16_network_spec_cn()
     # verify_vgg16_network_spec_cn_direct()
     # verify_vgg16_network_spec_cn_relaxation()
-    plot_table_vgg16_network_spec_cn_relaxation()
-    # plot_table_vgg16_network()
+    # plot_table_vgg16_network_spec_cn_relaxation()
+    plot_table_vgg16_network()

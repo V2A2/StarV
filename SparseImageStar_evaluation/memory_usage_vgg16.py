@@ -135,7 +135,7 @@ def memory_usage_vgg16(spec):
     # Set ticks labels for x-axis
     ax.set_xticklabels(x_ticks_labels, rotation=80, fontsize=10)
     # set legend
-    ax.legend(['ImageStar', 'SparseCOO', 'SparseCSR', 'NNV'])
+    ax.legend(['ImageStar', 'SIM COO', 'SIM CSR', 'NNV'])
 
     plt.savefig(f'SparseImageStar_evaluation/results/memory_usage_vgg16_computation_time_differences_spec_{spec}.png')
     # plt.show()
@@ -281,7 +281,7 @@ def memory_usage_vgg16_spec_cn(spec):
     # Set ticks labels for x-axis
     ax.set_xticklabels(x_ticks_labels, rotation=80, fontsize=10)
     # set legend
-    ax.legend(['SparseCOO', 'SparseCSR'])
+    ax.legend(['SIM COO', 'SIM CSR'])
 
     plt.savefig(f'SparseImageStar_evaluation/results/memory_usage_vgg16_computation_time_differences_spec_c{spec}.png')
     # plt.show()
@@ -326,5 +326,5 @@ def memory_usage_vgg16_spec_cn(spec):
 
 if __name__ == "__main__":
     memory_usage_vgg16(spec=11)
-    # memory_usage_vgg16_spec_cn(spec=4)
+    memory_usage_vgg16_spec_cn(spec=4)
     

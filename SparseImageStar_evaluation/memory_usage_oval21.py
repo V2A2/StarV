@@ -82,7 +82,7 @@ if __name__ == "__main__":
         os.makedirs(path)
 
     save_file = path + f"/memory_usage_oval21_results.pkl"
-    pickle.dump([IM_nb, CSR_nb, COO_time, IM_time, CSR_time, COO_time], open(save_file, "wb"))
+    pickle.dump([IM_nb, CSR_nb, COO_nb, COO_time, IM_time, CSR_time, COO_time], open(save_file, "wb"))
 
     x = np.arange(len(IM_time))
     x_ticks_labels = []
