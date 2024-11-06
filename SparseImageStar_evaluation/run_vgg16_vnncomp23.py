@@ -1041,7 +1041,7 @@ def plot_table_vgg16_network():
     vt_NNENUM = [3.5, 3.4, 9.3, 4.8, 18.1, 35.7, 6.5, 18.3, 133.8, 10.6, 40.9, 57.6, 'T/O', 236.5, 746.6]
     vt_DP = 'O/M'
 
-    headers = ['Specs', 'm', 'e', 'Result', 'IM', 'SIM_csr', 'SIM_coo', 'DP', 'NNV', 'IM', 'NNV', 'NNENUM']
+    headers = ['Specs', 'e', 'Result', 'm', 'IM', 'SIM_csr', 'SIM_coo', 'NNV', 'DP',  'IM', 'NNV', 'NNENUM']
 
     result = 'UNSAT'
     
@@ -1063,7 +1063,7 @@ def plot_table_vgg16_network():
         vt_nnv = 'O/M'
         vt_nnvc = 'O/M'
         nPred = 'NA' if np.isnan(vtCSR_cn[i]) else f"{numPred_cn[i]}"
-        data.append([f"c_{i}", nPred, num_attack_pixel_cn[i], result,  vt_im, f"{vtCSR_cn[i]:0.1f}", f"{vtCOO_cn[i]:0.1f}", vt_DP, vt_nnv, vt_imc, vt_nnvc, vt_NNENUM_cn[i]])
+        data.append([f"c_{i}", num_attack_pixel_cn[i], result, nPred,  vt_im, f"{vtCSR_cn[i]:0.1f}", f"{vtCOO_cn[i]:0.1f}", vt_nnv, vt_DP, vt_imc, vt_nnvc, vt_NNENUM_cn[i]])
 
     print(tabulate(data, headers=headers))
 
