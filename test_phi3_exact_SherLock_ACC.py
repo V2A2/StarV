@@ -41,9 +41,6 @@ def load_modelNN_controllerNN():
             
     model_net = NeuralNetwork(controller_layers, net_type='model network')
 
-    print('model network:\n', model_net.info())
-    print('model network:\n', controller_net.info())
-
     return model_net, controller_net
 
 def load_Trapezius_network():
