@@ -6,8 +6,45 @@ import time
 from StarV.set.star import Star
 from StarV.set.probstar import ProbStar
 from StarV.layer.fullyConnectedLayer import fullyConnectedLayer
+from StarV.layer.ReLULayer import ReLULayer
 from StarV.layer.MixedActivationLayer import MixedActivationLayer
 from StarV.net.network import NeuralNetwork, reachExactBFS
+
+def load_modelNN_controllerNN():
+    folder_dir = './artifacts/Scherlock_ACC_Trapezius'
+    net_name = 'networks'
+    mat_file = scipy.io.loadmat(f"{folder_dir}/{net_name}.mat")
+    controller_nn = mat_file['controller_nn']
+    model_nn = mat_file['Model_nn']
+
+    Wc = controller_nn[0][0][0].ravel()
+    bc = controller_nn[0][0][1].ravel()
+    
+    n_weight = len(Wc)
+
+    controller_layers = []
+    for i in range(n_weight):
+        controller_layers.append(fullyConnectedLayer(Wc[i], bc[i].ravel()))
+        controller_layers.append(ReLULayer())
+            
+    controller_net = NeuralNetwork(controller_layers, net_type='controller network')
+
+    Wm = model_nn[0][0][0].ravel()
+    bm = model_nn[0][0][1].ravel()
+    
+    n_weight = len(Wm)
+
+    model_layers = []
+    for i in range(n_weight):
+        model_layers.append(fullyConnectedLayer(Wm[i], bm[i].ravel()))
+        model_layers.append(ReLULayer())
+            
+    model_net = NeuralNetwork(controller_layers, net_type='model network')
+
+    print('model network:\n', model_net.info())
+    print('model network:\n', controller_net.info())
+
+    return model_net, controller_net
 
 def load_Trapezius_network():
     folder_dir = './artifacts/Scherlock_ACC_Trapezius'
@@ -74,4 +111,5 @@ def quantiverify_trapezius_network(lp_solver = 'gurobi', numCores=1, show=True):
 
 
 if __name__ == "__main__":
-    quantiverify_trapezius_network(numCores = 1)
+    # quantiverify_trapezius_network(numCores = 1)
+    load_modelNN_controllerNN()
