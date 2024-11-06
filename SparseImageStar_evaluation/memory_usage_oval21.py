@@ -115,7 +115,7 @@ if __name__ == "__main__":
     # set legend
     ax.legend(['ImageStar', 'SIM COO', 'SIM CSR', 'NNV'])
 
-    plt.savefig('SparseImageStar_evaluation//results/memory_usage_oval21_computation_time_differences.png')
+    plt.savefig('SparseImageStar_evaluation/results/memory_usage_oval21_computation_time_differences.png')
     # plt.show()
     plt.close()
 
@@ -148,6 +148,6 @@ if __name__ == "__main__":
     ax2.legend(['density'])
     ax2.set_ylabel(r"Density")
 
-    plt.savefig('SparseImageStar_evaluation//results/memory_usage_oval21_memory_usage_differences.png')
+    plt.savefig('SparseImageStar_evaluation/results/memory_usage_oval21_memory_usage_differences.png')
     # plt.show()
     plt.close()
