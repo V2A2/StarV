@@ -306,7 +306,7 @@ def memory_usage_vgg16_spec_cn(spec):
     # Set ticks labels for x-axis
     ax.set_xticklabels(x_ticks_labels, rotation=80, fontsize=10)
     # set legend
-    ax.legend(['SIM COO', 'SIM CSR'])
+    ax.legend(['SIM COO', 'SIM CSR'], loc='center right')
 
     ax2 = ax.twinx()  # instantiate a second axes that shares the same x-axis
 

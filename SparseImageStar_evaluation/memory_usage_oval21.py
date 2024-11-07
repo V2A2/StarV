@@ -82,7 +82,7 @@ if __name__ == "__main__":
         os.makedirs(path)
 
     save_file = path + f"/memory_usage_oval21_results.pkl"
-    pickle.dump([IM_nb, CSR_nb, COO_nb, COO_time, IM_time, CSR_time, COO_time], open(save_file, "wb"))
+    pickle.dump([IM_nb, CSR_nb, COO_nb, COO_time, IM_time, CSR_time, COO_time, density], open(save_file, "wb"))
 
     x = np.arange(len(IM_time))
     x_ticks_labels = []
@@ -140,7 +140,7 @@ if __name__ == "__main__":
     # Set ticks labels for x-axis
     ax.set_xticklabels(x_ticks_labels, rotation=80, fontsize=12)
     # set legend
-    ax.legend(['ImageStar', 'SIM COO', 'SIM CSR', 'NNV'])
+    ax.legend(['ImageStar', 'SIM COO', 'SIM CSR', 'NNV'], loc='center right')
 
     ax2 = ax.twinx()  # instantiate a second axes that shares the same x-axis
 
