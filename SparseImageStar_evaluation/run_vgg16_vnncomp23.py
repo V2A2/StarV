@@ -1045,7 +1045,7 @@ def plot_table_vgg16_network():
     vt_bcrown = np.array(vt_bcrown, dtype='float64')
     vt_abcrown = 'O/M'
 
-    headers = ['Specs', 'e', 'Result', 'm', 'IM', 'SIM_csr', 'SIM_coo', 'NNV', 'ERAN',  'Marabou', 'IM', 'NNV', 'NNENUM', 'ab-CROWN', 'b-CROWN']
+    headers = ['Specs', 'e', 'Result', 'm', 'IM', 'SIM_csr', 'SIM_coo', 'NNV', 'DeepPoly',  'Marabou', 'IM', 'NNV', 'NNENUM', 'ab-CROWN', 'b-CROWN']
 
     result = 'UNSAT'
     
