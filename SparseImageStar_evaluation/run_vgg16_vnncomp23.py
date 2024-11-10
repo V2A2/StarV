@@ -1061,14 +1061,16 @@ def plot_table_vgg16_network():
     num_attack_pixel_cn = [200, 300, 400, 500, 1000, 2000, 3000]
     N_cn = len(numPred_cn)
     vt_NNENUM_cn = [744.02, 1060.96, 1354.75, 1781.26, 'T/O', 'T/O', 'O/M']
+    vt_bcrown_cn = [26782.327130317688, 37052.68477010727, 'T/O', 'T/O', 'T/O', 'T/O', 'T/O']
     for i in range(N_cn):
         vt_im = 'O/M' 
         vt_imc = 'O/M'
         vt_nnv = 'O/M'
         vt_nnvc = 'O/M'
-        vt_bcrownc = [26782.327130317688, 37052.68477010727, 'T/O', 'T/O', 'T/O', 'T/O', 'T/O']
+        vt_bcrown_cd = vt_bcrown_cn[i] if vt_bcrown_cn[i] == 'T/0' else f"{vt_bcrown_cn[i]:0.1f}"
+
         nPred = 'NA' if np.isnan(vtCSR_cn[i]) else f"{numPred_cn[i]}"
-        data.append([f"c_{i}", num_attack_pixel_cn[i], result, nPred,  vt_im, f"{vtCSR_cn[i]:0.1f}", f"{vtCOO_cn[i]:0.1f}", vt_nnv, vt_DP, vt_marabou, vt_imc, vt_nnvc, vt_NNENUM_cn[i]], vt_abcrown, f"{vt_bcrownc[i]:0.1f}")
+        data.append([f"c_{i}", num_attack_pixel_cn[i], result, nPred,  vt_im, f"{vtCSR_cn[i]:0.1f}", f"{vtCOO_cn[i]:0.1f}", vt_nnv, vt_DP, vt_marabou, vt_imc, vt_nnvc, vt_NNENUM_cn[i]], vt_abcrown, vt_bcrown_cd")
 
     print(tabulate(data, headers=headers))
 
