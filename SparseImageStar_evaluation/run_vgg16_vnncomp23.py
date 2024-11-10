@@ -1068,7 +1068,7 @@ def plot_table_vgg16_network():
         vt_imc = 'O/M'
         vt_nnv = 'O/M'
         vt_nnvc = 'O/M'
-        vt_bcrown_cd = vt_bcrown_cn[i] if vt_bcrown_cn[i] == 'T/0' else f"{vt_bcrown_cn[i]:0.1f}"
+        vt_bcrown_cd = vt_bcrown_cn[i] if vt_bcrown_cn[i] == 'T/0' else f"{np.array(vt_bcrown_cn[i], dtype='float64'):0.1f}"
 
         nPred = 'NA' if np.isnan(vtCSR_cn[i]) else f"{numPred_cn[i]}"
         data.append([f"c_{i}", num_attack_pixel_cn[i], result, nPred,  vt_im, f"{vtCSR_cn[i]:0.1f}", f"{vtCOO_cn[i]:0.1f}", vt_nnv, vt_DP, vt_marabou, vt_imc, vt_nnvc, vt_NNENUM_cn[i], vt_abcrown, vt_bcrown_cd])
