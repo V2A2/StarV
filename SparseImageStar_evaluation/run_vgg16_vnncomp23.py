@@ -1042,6 +1042,7 @@ def plot_table_vgg16_network():
     vt_DP = 'O/M'
     vt_marabou = 'T/O'
     vt_bcrown = [7.355725526809692, 8.868661165237427, 8.908552885055542, 9.075981855392456, 8.986030578613281, 8.999144315719604, 8.916476249694824, 9.294207572937012, 10.620023727416992, 9.017800092697144, 9.108751058578491, 9.2491958141326, 594.9671733379364, 17.784186124801636, 34.14556264877319]
+    vt_bcrown = np.array(vt_bcrown, dtype='float64')
     vt_abcrown = 'O/M'
 
     headers = ['Specs', 'e', 'Result', 'm', 'IM', 'SIM_csr', 'SIM_coo', 'NNV', 'ERAN',  'Marabou', 'IM', 'NNV', 'NNENUM', 'ab-CROWN', 'b-CROWN']
