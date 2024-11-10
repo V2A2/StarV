@@ -1041,11 +1041,10 @@ def plot_table_vgg16_network():
     vt_NNENUM = [3.5, 3.4, 9.3, 4.8, 18.1, 35.7, 6.5, 18.3, 133.8, 10.6, 40.9, 57.6, 'T/O', 236.5, 746.6]
     vt_DP = 'O/M'
     vt_marabou = 'T/O'
-    vt_acrown = 'NA'
     vt_bcrown = [7.355725526809692, 8.868661165237427, 8.908552885055542, 9.075981855392456, 8.986030578613281, 8.999144315719604, 8.916476249694824, 9.294207572937012, 9.017800092697144, 9.108751058578491, 9.2491958141326, 594.9671733379364, 17.784186124801636, 34.14556264877319]
     vt_abcrown = 'O/M'
 
-    headers = ['Specs', 'e', 'Result', 'm', 'IM', 'SIM_csr', 'SIM_coo', 'NNV', 'ERAN',  'Marabou', 'IM', 'NNV', 'NNENUM', 'ab-CROWN', 'b-CROWN', 'a-CROWN']
+    headers = ['Specs', 'e', 'Result', 'm', 'IM', 'SIM_csr', 'SIM_coo', 'NNV', 'ERAN',  'Marabou', 'IM', 'NNV', 'NNENUM', 'ab-CROWN', 'b-CROWN']
 
     result = 'UNSAT'
     
@@ -1057,7 +1056,7 @@ def plot_table_vgg16_network():
         vt_nnvc = 'O/M' if vtNNVc[i] < 0 else f"{vtNNVc[i]:0.1f}"
         
         nPred = 'NA' if np.isnan(vtCSR[i]) else f"{num_pred[i]}"
-        data.append([i, num_attack_pixel[i], result, nPred,  vt_im, f"{vtCSR[i]:0.1f}", f"{vtCOO[i]:0.1f}", vt_nnv, vt_DP, vt_marabou, vt_imc, vt_nnvc, vt_NNENUM[i]], vt_abcrown, f"{vt_bcrown[i]:0.1f}", vt_acrown)
+        data.append([i, num_attack_pixel[i], result, nPred,  vt_im, f"{vtCSR[i]:0.1f}", f"{vtCOO[i]:0.1f}", vt_nnv, vt_DP, vt_marabou, vt_imc, vt_nnvc, vt_NNENUM[i]], vt_abcrown, f"{vt_bcrown[i]:0.1f}")
 
     num_attack_pixel_cn = [200, 300, 400, 500, 1000, 2000, 3000]
     N_cn = len(numPred_cn)
@@ -1069,7 +1068,7 @@ def plot_table_vgg16_network():
         vt_nnvc = 'O/M'
         vt_bcrownc = [26782.327130317688, 37052.68477010727, 'T/O', 'T/O', 'T/O', 'T/O', 'T/O']
         nPred = 'NA' if np.isnan(vtCSR_cn[i]) else f"{numPred_cn[i]}"
-        data.append([f"c_{i}", num_attack_pixel_cn[i], result, nPred,  vt_im, f"{vtCSR_cn[i]:0.1f}", f"{vtCOO_cn[i]:0.1f}", vt_nnv, vt_DP, vt_marabou, vt_imc, vt_nnvc, vt_NNENUM_cn[i]], vt_abcrown, f"{vt_bcrownc[i]:0.1f}", vt_acrown)
+        data.append([f"c_{i}", num_attack_pixel_cn[i], result, nPred,  vt_im, f"{vtCSR_cn[i]:0.1f}", f"{vtCOO_cn[i]:0.1f}", vt_nnv, vt_DP, vt_marabou, vt_imc, vt_nnvc, vt_NNENUM_cn[i]], vt_abcrown, f"{vt_bcrownc[i]:0.1f}")
 
     print(tabulate(data, headers=headers))
 
