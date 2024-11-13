@@ -100,20 +100,21 @@ if __name__ == "__main__":
     plt.rcParams["figure.figsize"] = [8.50, 5.50]
     plt.rcParams["figure.autolayout"] = True
     fig, ax = plt.subplots(1,1)
-    plt.title("Computation Time")
-    plt.plot(x, IM_time, color="red")
-    plt.plot(x, COO_time, color='black')
-    plt.plot(x, CSR_time, color="magenta")
-    plt.plot(x, nnv_time[1:], color='blue')
-    plt.xlabel("Layers")
-    plt.ylabel("Computation Time (sec)")
+    plt.title("Computation Time", fontsize=14)
+    plt.plot(x, IM_time, color="red", linewidth=2)
+    plt.plot(x, COO_time, color='black', linewidth=2)
+    plt.plot(x, CSR_time, color="magenta", linewidth=2)
+    plt.plot(x, nnv_time[1:], color='blue', linewidth=2)
+    plt.xlabel("Layers", fontsize=12)
+    plt.ylabel("Computation Time (sec)", fontsize=12)
 
     # Set number of ticks for x-axis
     ax.set_xticks(x)
     # Set ticks labels for x-axis
     ax.set_xticklabels(x_ticks_labels, rotation=80, fontsize=12)
+    ax.yaxis.set_tick_params(labelsize=12)
     # set legend
-    ax.legend(['ImageStar', 'SIM COO', 'SIM CSR', 'NNV'])
+    ax.legend(['ImageStar', 'SIM COO', 'SIM CSR', 'NNV'], fontsize=12)
 
     plt.savefig('SparseImageStar_evaluation/results/memory_usage_oval21_computation_time_differences.png')
     # plt.show()
@@ -127,26 +128,28 @@ if __name__ == "__main__":
     plt.rcParams["figure.figsize"] = [8.50, 5.50]
     plt.rcParams["figure.autolayout"] = True
     fig, ax = plt.subplots(1,1)
-    plt.title("Memory Usage")
-    plt.plot(x, IM_nb, color="red")
-    plt.plot(x, COO_nb, color='black')
-    plt.plot(x, CSR_nb, color="magenta")
-    plt.plot(x, nnv_nb, color='blue')
-    plt.xlabel("Layers")
-    plt.ylabel("Bytes")
+    plt.title("Memory Usage", fontsize=14)
+    plt.plot(x, IM_nb, color="red", linewidth=2)
+    plt.plot(x, COO_nb, color='black', linewidth=2)
+    plt.plot(x, CSR_nb, color="magenta", linewidth=2)
+    plt.plot(x, nnv_nb, color='blue', linewidth=2)
+    plt.xlabel("Layers", fontsize=12)
+    plt.ylabel("Bytes", fontsize=12)
 
     # Set number of ticks for x-axis
     ax.set_xticks(x)
     # Set ticks labels for x-axis
     ax.set_xticklabels(x_ticks_labels, rotation=80, fontsize=12)
+    ax.yaxis.set_tick_params(labelsize=12)
     # set legend
-    ax.legend(['ImageStar', 'SIM COO', 'SIM CSR', 'NNV'], loc='center right')
+    ax.legend(['ImageStar', 'SIM COO', 'SIM CSR', 'NNV'], loc='center right', fontsize=12)
 
     ax2 = ax.twinx()  # instantiate a second axes that shares the same x-axis
 
-    ax2.plot(x, density, color="green")
-    ax2.legend(['density'])
-    ax2.set_ylabel(r"Density")
+    ax2.plot(x, density, color="green", linewidth=2)
+    ax2.legend(['density'], fontsize=12)
+    ax2.set_ylabel("Density", fontsize=12)
+    ax2.yaxis.set_tick_params(labelsize=12)
 
     plt.savefig('SparseImageStar_evaluation/results/memory_usage_oval21_memory_usage_differences.png')
     # plt.show()

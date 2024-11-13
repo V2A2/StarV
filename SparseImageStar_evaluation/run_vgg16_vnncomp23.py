@@ -1043,7 +1043,7 @@ def plot_table_vgg16_network():
     vt_marabou = 'T/O'
     vt_bcrown = [7.355725526809692, 8.868661165237427, 8.908552885055542, 9.075981855392456, 8.986030578613281, 8.999144315719604, 8.916476249694824, 9.294207572937012, 10.620023727416992, 9.017800092697144, 9.108751058578491, 9.2491958141326, 594.9671733379364, 17.784186124801636, 34.14556264877319]
     vt_bcrown = np.array(vt_bcrown, dtype='float64')
-    vt_abcrown = 'O/M'
+    vt_abcrown = [302.8435814380646, 243.49199199676514, 174.6395332813263, 622.3142883777618, 430.933091878891, 622.221896648407, 664.8663415908813, 709.2889895439148, 708.833279132843, 893.600474357605, 897.9993720054626, 860.9506402015686, 945.6725194454193, 1077.005056142807, 1191.9225597381592]
 
     headers = ['Specs', 'e', 'Result', 'm', 'IM', 'SIM_csr', 'SIM_coo', 'NNV', 'DeepPoly',  'Marabou', 'IM', 'NNV', 'NNENUM', 'ab-CROWN', 'b-CROWN']
 
@@ -1057,12 +1057,13 @@ def plot_table_vgg16_network():
         vt_nnvc = 'O/M' if vtNNVc[i] < 0 else f"{vtNNVc[i]:0.1f}"
         
         nPred = 'NA' if np.isnan(vtCSR[i]) else f"{num_pred[i]}"
-        data.append([i, num_attack_pixel[i], result, nPred,  vt_im, f"{vtCSR[i]:0.1f}", f"{vtCOO[i]:0.1f}", vt_nnv, vt_DP, vt_marabou, vt_imc, vt_nnvc, vt_NNENUM[i], vt_abcrown, f"{vt_bcrown[i]:0.1f}"])
+        data.append([i, num_attack_pixel[i], result, nPred,  vt_im, f"{vtCSR[i]:0.1f}", f"{vtCOO[i]:0.1f}", vt_nnv, vt_DP, vt_marabou, vt_imc, vt_nnvc, vt_NNENUM[i], f"{vt_abcrown[i]:0.1f}", f"{vt_bcrown[i]:0.1f}"])
 
     num_attack_pixel_cn = [200, 300, 400, 500, 1000, 2000, 3000]
     N_cn = len(numPred_cn)
     vt_NNENUM_cn = [744.02, 1060.96, 1354.75, 1781.26, 'T/O', 'T/O', 'O/M']
     vt_bcrown_cn = [26782.327130317688, 37052.68477010727, 'T/O', 'T/O', 'T/O', 'T/O', 'T/O']
+    vt_abcrown_cn = 'T/O'
     for i in range(N_cn):
         vt_im = 'O/M' 
         vt_imc = 'O/M'
@@ -1071,7 +1072,7 @@ def plot_table_vgg16_network():
         vt_bcrown_cd = vt_bcrown_cn[i] if vt_bcrown_cn[i] == 'T/O' else f"{np.array(vt_bcrown_cn[i], dtype='float64'):0.1f}"
 
         nPred = 'NA' if np.isnan(vtCSR_cn[i]) else f"{numPred_cn[i]}"
-        data.append([f"c_{i}", num_attack_pixel_cn[i], result, nPred,  vt_im, f"{vtCSR_cn[i]:0.1f}", f"{vtCOO_cn[i]:0.1f}", vt_nnv, vt_DP, vt_marabou, vt_imc, vt_nnvc, vt_NNENUM_cn[i], vt_abcrown, vt_bcrown_cd])
+        data.append([f"c_{i}", num_attack_pixel_cn[i], result, nPred,  vt_im, f"{vtCSR_cn[i]:0.1f}", f"{vtCOO_cn[i]:0.1f}", vt_nnv, vt_DP, vt_marabou, vt_imc, vt_nnvc, vt_NNENUM_cn[i], vt_abcrown_cn, vt_bcrown_cd])
 
     print(tabulate(data, headers=headers))
 
