@@ -1,0 +1,7 @@
+Category,Model,#Outputs1,#Outputs2,#CounterInputs,#Counter,ReachTime1,ReachTime2,ApproxTime,ExactTime,TotalTime,Timeout
+AC,AC-8(2),143,144,2,728,0.16,0.16,0.16,18.98,19.14,No
+AC,AC-9(5),56,55,30,2010,0.07,0.07,5.13,1018.97,1024.10,No
+AC,AC-10,-,-,-,-,-,-,-,-,TO,Yes
+BM,BM-6(2),201,180,2,1192,0.31,0.31,0.31,55.00,55.31,No
+GC,GC-3(2),176,193,2,3902,0.07,0.07,0.07,60.91,60.99,No
+GC,GC-4(2),36,28,2,2,0.13,0.13,0.13,4.58,4.71,No

@@ -1,0 +1,4 @@
+Category,Model,#Outputs1,#Outputs2,#Counter,ReachTime1,ReachTime2,VerifyTime,TotalTime
+AC,AC-8,141,143,341,1.03,0.71,3.90,5.81
+BM,BM-6,201,180,596,1.50,1.29,10.75,13.72
+GM,GM-3,188,180,1914,2.05,1.76,12.91,16.88

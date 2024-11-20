@@ -61,12 +61,8 @@ class Test(object):
             S = SatLins.stepReach(inputSet, 0)
             print('\nInput Set:')
             inputSet.__str__()
-            print('\nOutput Set 1:')
-            S[0].__str__()
-            print('\nOutput Set 2:')
-            S[1].__str__()
-            print('\nOutput Set 3:')
-            S[1].__str__()
+            for output_set in S:
+                output_set.__str__()
         except Exception:
             print('Test Fail!')
             self.n_fails = self.n_fails + 1
@@ -91,6 +87,8 @@ class Test(object):
             S = SatLins.stepReachMultiInputs(In, 1)
             print('\nNumber of input set = {}'.format(len(In)))
             print('\nNumber of output set = {}'.format(len(S)))
+            for output_set in S:
+                output_set.__str__()
         except Exception:
             print('Test Fail!')
             self.n_fails = self.n_fails + 1
@@ -111,6 +109,8 @@ class Test(object):
         try:
             S = SatLins.reachExactSingleInput(inputSet, 'gurobi')
             print('\nNumber of output set = {}'.format(len(S)))
+            for output_set in S:
+                output_set.__str__()
         except Exception:
             print('\nTest Fail!')
             self.n_fails = self.n_fails + 1
@@ -136,6 +136,8 @@ class Test(object):
             S = SatLins.reachExactMultiInputs(In, 'gurobi')
             print('\nNumber of input sets = {}'.format(len(In)))
             print('\nNumber of output sets = {}'.format(len(S)))
+            for output_set in S:
+                output_set.__str__()
         except Exception:
             print('\nTest Fail!')
             self.n_fails = self.n_fails + 1
@@ -149,6 +151,8 @@ class Test(object):
             print('\nNumber of input sets = {}'.format(len(In)))
             print('\nNumber of output sets = {}'.format(len(S)))
             pool.close()
+            for output_set in S:
+                output_set.__str__()
         except Exception:
             print('\nTest Fail!')
             self.n_fails = self.n_fails + 1

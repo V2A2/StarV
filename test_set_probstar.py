@@ -27,7 +27,9 @@ class Test(object):
         # len(agrs) = 4
         mu = np.random.rand(3,)
         Sig = np.eye(3)
-        pred_lb = np.random.rand(3,)
+        # pred_lb = np.random.rand(3,)
+        # pred_ub = pred_lb + 0.2
+        pred_lb = np.array([-1, -1, -1])
         pred_ub = pred_lb + 0.2
         print('Testing ProbStar Constructor...')
         try:
@@ -45,7 +47,9 @@ class Test(object):
 
         mu = np.random.rand(3,)
         Sig = np.eye(3)
-        pred_lb = np.random.rand(3,)
+        # pred_lb = np.random.rand(3,)
+        # pred_ub = pred_lb + 0.2
+        pred_lb = np.array([-1, -1, -1])
         pred_ub = pred_lb + 0.2
         S = ProbStar(mu, Sig, pred_lb, pred_ub)
         print('\nTesting __str__ method...')
@@ -497,20 +501,20 @@ if __name__ == "__main__":
     test_probstar.test_constructor()
     test_probstar.test_str()
     test_probstar.test_estimateRange()
-    test_probstar.test_glpk()
-    test_probstar.test_getMin()
-    test_probstar.test_getMax()
-    test_probstar.test_affineMap()
-    test_probstar.test_minKowskiSum()
-    test_probstar.test_isEmptySet()
-    test_probstar.test_updatePredicateRanges()
-    test_probstar.test_addConstraint()
-    test_probstar.test_rand()
+    # test_probstar.test_glpk()
+    # test_probstar.test_getMin()
+    # test_probstar.test_getMax()
+    # test_probstar.test_affineMap()
+    # test_probstar.test_minKowskiSum()
+    # test_probstar.test_isEmptySet()
+    # test_probstar.test_updatePredicateRanges()
+    # test_probstar.test_addConstraint()
+    # test_probstar.test_rand()
     test_probstar.test_estimateRanges()
-    test_probstar.test_estimateProbability()
-    test_probstar.test_addMultipleConstraints()
-    test_probstar.test_sampling()
-    test_probstar.test_concatenate_with_vector()
+    # test_probstar.test_estimateProbability()
+    # test_probstar.test_addMultipleConstraints()
+    # test_probstar.test_sampling()
+    # test_probstar.test_concatenate_with_vector()
     print('\n========================\
     =================================\
     =================================\

@@ -1,9 +1,9 @@
 """
-LeakyReLU Class
-Yuntao Li, 1/10/2024
+LeakyReLU Class for reachability analysis of neural network layers with LeakyReLU activation function.
+Author: Yuntao Li
+Date: 1/10/2024
 """
 
-# !/usr/bin/python3
 from StarV.set.probstar import ProbStar
 from StarV.set.star import Star
 import numpy as np
@@ -13,206 +13,194 @@ import ipyparallel
 
 class LeakyReLU:
     """
-    LeakyReLU Class contains method for reachability analysis for Layer with LeakyReLU activation function
-    Yuntao Li, 1/10/2024
+    LeakyReLU Class contains methods for reachability analysis for Layer with LeakyReLU activation function.
     """
 
     @staticmethod
     def evaluate(x, gamma):
         """
-        Evaluate method for LeakyReLU
+        Evaluate method for LeakyReLU.
+
         Args:
-            @x: input array
-            @gamma: leaking factor
+            x: input array
+            gamma: leaking factor
+
         Returns:
             Modified array with LeakyReLU applied
 
-        Author: Yuntao Li, Date: 1/18/2024
+        The LeakyReLU function is defined as:
+        f(x) = x if x >= 0
+              = gamma * x if x < 0
+        where gamma is a small positive value (e.g., 0.01).
         """
-        y = np.array(x, dtype=float)  # Ensure the array is of float type for proper arithmetic operations
-        negative_indices = y < 0
-        y[negative_indices] = gamma * y[negative_indices]
-        return y
-    
+        return np.where(x >= 0, x, gamma * x)
 
     @staticmethod
     def stepReach(*args):
         """
-        StepReach method, compute reachable set for a single step
+        StepReach method, compute reachable set for a single step.
+
         Args:
-            @I: single star set input
-            @index: index of the neuron performing stepLeakyReLU
-            @gamma: leaking factor
-            @lp_solver: LP solver method
+            I: single star set input
+            index: index of the neuron performing stepLeakyReLU
+            gamma: leaking factor
+            lp_solver: LP solver method (optional, default: 'gurobi')
+
         Returns:
-            @S: star output set
+            S: star output set
 
-        Author: Yuntao Li, Date: 1/18/2024
+        This method computes the reachable set for a single neuron in the LeakyReLU layer.
+        It handles three cases:
+        1. The entire input set is non-negative
+        2. The entire input set is negative
+        3. The input set intersects both positive and negative regions
         """
-        len_args = len(args)
-        if len_args == 3:  # 3 arguments
-            [I, index, gamma] = args
+        if len(args) == 3:
+            I, index, gamma = args
             lp_solver = 'gurobi'
-        elif len_args == 4:  # 4 arguments
-            [I, index, gamma, lp_solver] = args
+        elif len(args) == 4:
+            I, index, gamma, lp_solver = args
         else:
-            raise Exception('error: \
-            Invalid number of input arguments, should be 3 or 4')
+            raise ValueError('Invalid number of input arguments, should be 3 or 4')
 
-        if not isinstance(I, ProbStar) and not isinstance(In, Star):
-            raise Exception('error: input is not a Star or ProbStar set, \
-            type of input = {}'.format(type(I)))
+        if not isinstance(I, (ProbStar, Star)):
+            raise TypeError(f'Input is not a Star or ProbStar set, type of input = {type(I)}')
 
-        # xmin = I.getMin(index, lp_solver) # Star
-        xmin, xmax = I.estimateRange(index) # Prob Star
+        xmin, xmax = I.estimateRange(index)
+        
         if xmin >= 0:
-            S = []
-            S.append(I)
-        else:
-            xmax = I.getMax(index, lp_solver) # Star
-            if xmax <= 0:
-                S = []
-                S.append(I.resetRowWithFactor(index, gamma))
-            else:
-                xmin = I.getMin(index, lp_solver)
-                if xmin >= 0:
-                    S = []
-                    S.append(I)
-                else:
-                    C = np.zeros(I.dim,)
-                    C[index] = 1.0
-                    d = np.zeros(1,)
-                    S1 = copy.deepcopy(I)
-                    S2 = copy.deepcopy(I)
-                    S1.addConstraint(C, d)  # x <= 0
-                    S1.resetRowWithFactor(index, gamma)
-                    S2.addConstraint(-C, d)  # x >= 0
-                    S = []
-                    S.append(S1)
-                    S.append(S2)
-
-        return S
-
+            return [I]
+        
+        xmax = I.getMax(index, lp_solver)
+        if xmax <= 0:
+            return [I.resetRowWithFactor(index, gamma)]
+        
+        xmin = I.getMin(index, lp_solver)
+        if xmin >= 0:
+            return [I]
+        
+        C = np.zeros(I.dim)
+        C[index] = 1.0
+        d = np.zeros(1)
+        S1 = I.clone()
+        S2 = I.clone()
+        S1.addConstraint(C, d)  # x <= 0
+        S1.resetRowWithFactor(index, gamma)
+        S2.addConstraint(-C, d)  # x >= 0
+        return [S1, S2]
 
     @staticmethod
     def stepReachMultipleInputs(*args):
         """
-        StepReach with multiple inputs
-        Args:
-            @I: an array of stars
-            @index: index where stepReach is performed
-            @gamma: leaking factor
-            @option: parallel computation option
-            @lp_solver: LP solver method
-        Returns:
-            @S: a list of output set
+        StepReach with multiple inputs.
 
-        Author: Yuntao Li, Date: 1/18/2024
+        Args:
+            I: an array of stars
+            index: index where stepReach is performed
+            gamma: leaking factor
+            lp_solver: LP solver method (optional, default: 'gurobi')
+
+        Returns:
+            S: a list of output sets
+
+        This method applies stepReach to multiple input sets.
         """
         if len(args) == 3:
-            [I, index, gamma] = args
+            I, index, gamma = args
             lp_solver = 'gurobi'
         elif len(args) == 4:
-            [I, index, gamma, lp_solver] = args
+            I, index, gamma, lp_solver = args
         else:
-            raise Exception('error: \
-            Invalid number of input arguments, should be 3 or 4 ')
+            raise ValueError('Invalid number of input arguments, should be 3 or 4')
 
-        assert isinstance(I, list), 'error: input is not a list, \
-        type of input is {}'.format(type(I))
+        if not isinstance(I, list):
+            raise TypeError(f'Input is not a list, type of input is {type(I)}')
 
         S = []
-        for i in range(0, len(I)):
-            S1 = LeakyReLU.stepReach(I[i], index, gamma, lp_solver)
-            S.extend(S1)
+        for input_set in I:
+            S.extend(LeakyReLU.stepReach(input_set, index, gamma, lp_solver))
         return S
-
 
     @staticmethod
     def reachExactSingleInput(*args):
         """
-        Exact reachability using stepReach
+        Exact reachability using stepReach for a single input set.
+
         Args:
-            @I: a single input set
-            @lp_solver: lp_solver
+            In: a single input set
+            gamma: leaking factor
+            lp_solver: LP solver method (optional, default: 'gurobi')
 
         Returns:
-            @S: output set
+            S: output set
 
-        Author: Yuntao Li, Date: 1/18/2024
+        This method computes the exact reachable set for a single input set
+        by applying stepReach to each dimension sequentially.
         """
-
-        if isinstance(args[0], tuple):  # when this method is called in parallel
-            args1 = list(args[0])
-        else:
-            args1 = args
-        if len(args1) == 2:
-            [In, gamma] = args1
+        if isinstance(args[0], tuple):
+            args = list(args[0])
+        
+        if len(args) == 2:
+            In, gamma = args
             lp_solver = 'gurobi'
-        elif len(args1) == 3:
-            [In, gamma, lp_solver] = args1
+        elif len(args) == 3:
+            In, gamma, lp_solver = args
         else:
-            raise Exception('error: Invalid \
-            number of input arguments, should be 1 or 2')
+            raise ValueError('Invalid number of input arguments, should be 2 or 3')
 
-        if not isinstance(In, ProbStar) and not isinstance(In, Star):
-            raise Exception('error: input is not a Star or ProbStar, \
-            type of input is {}'.format(type(In)))
+        if not isinstance(In, (ProbStar, Star)):
+            raise TypeError(f'Input is not a Star or ProbStar, type of input is {type(In)}')
 
-        S = []
-        S1 = [In]
-        for i in range(0, In.dim):
-            S1 = LeakyReLU.stepReachMultipleInputs(S1, i, gamma, lp_solver)
-
-        S.extend(S1)
+        S = [In]
+        for i in range(In.dim):
+            S = LeakyReLU.stepReachMultipleInputs(S, i, gamma, lp_solver)
 
         return S
 
-
+    @staticmethod
     def reachExactMultiInputs(*args):
         """
-        Exact reachability with multiple inputs
-        Work with bread-first-search verification
+        Exact reachability with multiple inputs.
+        Works with breadth-first-search verification.
 
         Args:
-            @I: a single input set
-            @lp_solver: lp_solver ('gurobi' or 'glpk' or 'linprog')
-            @pool: pool for parallel computation
-        Returns:
-            @S: output set
+            In: a list of input sets
+            gamma: leaking factor
+            lp_solver: LP solver method (optional, default: 'gurobi')
+            pool: pool for parallel computation (optional)
 
-        Author: Yuntao Li, Date: 1/18/2024
+        Returns:
+            S: output set
+
+        This method computes the exact reachable set for multiple input sets,
+        optionally using parallel computation.
         """
-        lp_solver_default = 'gurobi'
-        
         if len(args) == 2:
-            [In, gamma] = args
-            lp_solver = lp_solver_default
+            In, gamma = args
+            lp_solver = 'gurobi'
             pool = None
         elif len(args) == 3:
-            [In, gamma, lp_solver] = args
+            In, gamma, lp_solver = args
             pool = None
         elif len(args) == 4:
-            [In, gamma, lp_solver, pool] = args
-       
+            In, gamma, lp_solver, pool = args
         else:
-            raise Exception('error: Invalid \
-            number of input arguments, should be 1, 2 or 3')
+            raise ValueError('Invalid number of input arguments, should be 2, 3, or 4')
 
-        assert isinstance(In, list), 'error: inputsets should be in a list'
-        S = []
+        if not isinstance(In, list):
+            raise TypeError('Input sets should be in a list')
+
         if pool is None:
-            for i in range(0, len(In)):
-                S.extend(LeakyReLU.reachExactSingleInput(In[i], gamma, lp_solver))
+            S = []
+            for input_set in In:
+                S.extend(LeakyReLU.reachExactSingleInput(input_set, gamma, lp_solver))
         elif isinstance(pool, multiprocessing.pool.Pool):
-            S1 = []
-            S1 = S1 + pool.map(LeakyReLU.reachExactSingleInput, zip(In, [gamma]*len(In), [lp_solver]*len(In)))
-            for i in range(0, len(S1)):
-                S.extend(S1[i])
+            results = pool.starmap(LeakyReLU.reachExactSingleInput, 
+                                   [(input_set, gamma, lp_solver) for input_set in In])
+            S = [item for sublist in results for item in sublist]
         elif isinstance(pool, ipyparallel.client.view.DirectView):
-            # S1 = pool.map(LeakyReLU.reachExactSingleInput, zip(In, [lp_solver]*len(In)))
-            # print('S1 = {}'.format(S1))
-            raise Exception('error: ipyparallel option is under testing...')
+            raise NotImplementedError('ipyparallel option is under testing')
         else:
-            raise Exception('error: unknown/unsupport pool type')    
+            raise ValueError('Unknown/unsupported pool type')
+        
         return S

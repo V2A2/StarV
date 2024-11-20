@@ -1,0 +1,8 @@
+Category,Model,#Outputs1,#Outputs2,#CounterInputs,#Counter,ReachTime1,ReachTime2,ApproxTime,ExactTime,TotalTime,Timeout
+AC,AC-1,-,-,-,-,-,-,-,-,TO,Yes
+AC,AC-6,-,-,-,-,-,-,-,-,TO,Yes
+AC,AC-11,-,-,-,-,-,-,-,-,TO,Yes
+AC,AC-12,-,-,-,-,-,-,-,-,TO,Yes
+BM,BM-2,-,-,-,-,-,-,-,-,TO,Yes
+BM,BM-4,-,-,-,-,-,-,-,-,TO,Yes
+GC,GC-1,-,-,-,-,-,-,-,-,TO,Yes

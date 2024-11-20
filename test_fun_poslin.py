@@ -84,6 +84,8 @@ class Test(object):
             S = PosLin.stepReachMultiInputs(In, 1)
             print('\nNumber of input set = {}'.format(len(In)))
             print('\nNumber of output set = {}'.format(len(S)))
+            for output_set in S:
+                output_set.__str__()
         except Exception:
             print('Test Fail!')
             self.n_fails = self.n_fails + 1
@@ -104,6 +106,8 @@ class Test(object):
         try:
             S = PosLin.reachExactSingleInput(inputSet, 'gurobi')
             print('\nNumber of output set = {}'.format(len(S)))
+            for output_set in S:
+                output_set.__str__()
         except Exception:
             print('\nTest Fail!')
             self.n_fails = self.n_fails + 1
@@ -129,6 +133,8 @@ class Test(object):
             S = PosLin.reachExactMultiInputs(In, 'gurobi')
             print('\nNumber of input sets = {}'.format(len(In)))
             print('\nNumber of output sets = {}'.format(len(S)))
+            for output_set in S:
+                output_set.__str__()
         except Exception:
             print('\nTest Fail!')
             self.n_fails = self.n_fails + 1
@@ -142,6 +148,8 @@ class Test(object):
             print('\nNumber of input sets = {}'.format(len(In)))
             print('\nNumber of output sets = {}'.format(len(S)))
             pool.close()
+            for output_set in S:
+                output_set.__str__()
         except Exception:
             print('\nTest Fail!')
             self.n_fails = self.n_fails + 1

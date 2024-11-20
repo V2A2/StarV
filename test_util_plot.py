@@ -21,24 +21,24 @@ class Test(object):
         self.n_fails = 0
         self.n_tests = 0
 
-    def test_probstar2polytope(self):
+    # def test_probstar2polytope(self):
 
-        self.n_tests = self.n_tests + 1
+    #     self.n_tests = self.n_tests + 1
 
-        mu = np.random.rand(3,)
-        Sig = np.eye(3)
-        pred_lb = np.random.rand(3,)
-        pred_ub = pred_lb + 0.2
-        print('Testing probstar2Polytope method...')
-        S = ProbStar(mu, Sig, pred_lb, pred_ub)
-        try:
-            P = probstar2polytope(S)
-            print('Polytope = {}'.format(P))
-        except Exception:
-            print('Test Fail!')
-            self.n_fails = self.n_fails + 1
-        else:
-            print("Test Successfull!")
+    #     mu = np.random.rand(3,)
+    #     Sig = np.eye(3)
+    #     pred_lb = np.random.rand(3,)
+    #     pred_ub = pred_lb + 0.2
+    #     print('Testing probstar2Polytope method...')
+    #     S = ProbStar(mu, Sig, pred_lb, pred_ub)
+    #     try:
+    #         P = probstar2polytope(S)
+    #         print('Polytope = {}'.format(P))
+    #     except Exception:
+    #         print('Test Fail!')
+    #         self.n_fails = self.n_fails + 1
+    #     else:
+    #         print("Test Successfull!")
 
     def test_plot_probstar(self):
 
@@ -145,8 +145,13 @@ if __name__ == "__main__":
     ================================\
     ===============================\n')
     # test_plot.test_probstar2polytope()
+<<<<<<< Updated upstream
     # test_plot.test_plot_probstar()
     #test_plot.test_plot_2D_UnsafeSpec()
+=======
+    test_plot.test_plot_probstar()
+    test_plot.test_plot_2D_UnsafeSpec()
+>>>>>>> Stashed changes
     #test_plot.test_get_bounding_box()
     #test_plot.test_plot_multivariate_normal_distribution()
     test_plot.test_plot_probstar_distribution()

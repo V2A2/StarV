@@ -1,0 +1,25 @@
+\begin{table*}[htbp]
+\centering
+\begin{tabular}{|l|r|r|r|r|r|r|r|r|r|}
+\hline
+Model & \#Out$_1$ & \#Out$_2$ & \#CInput & \#Counter & Reach$_1$ (s) & Reach$_2$ (s) & Approx (s) & Exact (s) & Total (s) \\
+\hline
+\multicolumn{10}{|c|}{\textbf{AC Models}} \\
+\hline
+AC-8(2) & 143 & 144 & 2 & 728 & 0.16 & 0.16 & 0.16 & 18.98 & 19.14 \\
+AC-9(5) & 56 & 55 & 30 & 2010 & 0.07 & 0.07 & 5.13 & 1018.97 & 1024.10 \\
+AC-10 & - & - & - & - & - & - & - & - & TO \\
+\hline
+\multicolumn{10}{|c|}{\textbf{BM Models}} \\
+\hline
+BM-6(2) & 201 & 180 & 2 & 1192 & 0.31 & 0.31 & 0.31 & 55.00 & 55.31 \\
+\hline
+\multicolumn{10}{|c|}{\textbf{GC Models}} \\
+\hline
+GC-3(2) & 176 & 193 & 2 & 3902 & 0.07 & 0.07 & 0.07 & 60.91 & 60.99 \\
+GC-4(2) & 36 & 28 & 2 & 2 & 0.13 & 0.13 & 0.13 & 4.58 & 4.71 \\
+\hline
+\end{tabular}
+\caption{Strict fairness results using hybrid approach. TO indicates timeout (>1h).}
+\label{tab:strict_fair_hybrid}
+\end{table*}
