@@ -46,7 +46,6 @@ def memory_usage_vgg16(spec):
 
     shape = (3, 224, 224)
 
-    # VNNLIB_FILE = 'vnncomp2023_benchmarks/benchmarks/vggnet16/vnnlib/spec0_pretzel.vnnlib'
     vnnlib_dir = f"{folder_dir}/vnnlib"
     vnnlib_files = [f for f in os.listdir(vnnlib_dir) if f.endswith('.vnnlib')]
     vnnlib_files.sort(key = natural_keys)
@@ -206,8 +205,7 @@ def memory_usage_vgg16_spec_cn(spec):
 
     shape = (3, 224, 224)
 
-    # VNNLIB_FILE = 'vnncomp2023_benchmarks/benchmarks/vggnet16/vnnlib/spec0_pretzel.vnnlib'
-    vnnlib_dir = f"{folder_dir}/vnnlib/spec_cn"
+    vnnlib_dir = f"{folder_dir}/vnnlib"
     vnnlib_files = [f for f in os.listdir(vnnlib_dir) if f.endswith('.vnnlib')]
     vnnlib_files.sort(key = natural_keys)
 

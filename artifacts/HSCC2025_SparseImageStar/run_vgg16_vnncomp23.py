@@ -350,8 +350,7 @@ def verify_vgg16_network_spec_cn(dtype='float64'):
 
 
     shape = (3, 224, 224)
-    
-    # VNNLIB_FILE = 'vnncomp2023_benchmarks/benchmarks/vggnet16/vnnlib/spec_cn/spec_c0_corn_atk200.vnnlib'
+
     vnnlib_dir = f"{folder_dir}/vnnlib"
     vnnlib_files = [f for f in os.listdir(vnnlib_dir) if f.endswith('.vnnlib')]
     vnnlib_files.sort(key = natural_keys)
