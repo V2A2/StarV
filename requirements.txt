@@ -1,6 +1,6 @@
 gurobipy==11.0.2
 glpk
-pycddlib
+pycddlib<=2.1.8
 polytope
 pypoman
 tabulate
