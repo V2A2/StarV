@@ -481,11 +481,12 @@ def plot_table_vgg16_network():
     with open(file_dir, 'rb') as f:
         rbIMc, vtIMc = pickle.load(f)
 
-    mat_file = scipy.io.loadmat(f"{folder_dir}nnv_vggnet16_results.mat")
+    nnv_dir = 'StarV/util/data/nets/vggnet16/nnv'
+    mat_file = scipy.io.loadmat(f"{nnv_dir}/nnv_vggnet16_results.mat")
     rbNNV = mat_file['rb_im'].ravel()
     vtNNV = mat_file['vt_im'].ravel()
 
-    mat_file = scipy.io.loadmat(f"{folder_dir}nnv_vggnet16_converted_results.mat")
+    mat_file = scipy.io.loadmat(f"{nnv_dir}/nnv_vggnet16_converted_results.mat")
     rbNNVc = mat_file['rb_im'].ravel()
     vtNNVc = mat_file['vt_im'].ravel()
 
