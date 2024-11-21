@@ -715,6 +715,24 @@ def load_sigmoidal_networks(data_type='mnist', net_size='small', func='tanh', op
 
     return net, data, label
 
+
+def load_convnet(net_dir, net_type, dtype='float32'):
+
+    assert net_type in ['Small', 'Medium', 'Large'], \
+    f"There are 3 types of ConvNet networks: /'Small/', /'Medium/', and /'Large/'"
+
+     # loading DNNs into StarV network
+    if net_type == 'Small':
+        network = load_CAV2020_MNIST_Small_ConvNet(net_dir=net_dir, dtype=dtype)
+    elif net_type == 'Medium':
+        network = load_CAV2020_MNIST_Medium_ConvNet(net_dir=net_dir, dtype=dtype)
+    elif net_type == 'Large':
+        network = load_CAV2020_MNIST_Large_ConvNet(net_dir=net_dir, dtype=dtype)
+    else:
+        raise Exception('Unknown network type for ConvNet')
+    return network
+
+
 def load_CAV2020_MNIST_Small_ConvNet(net_dir, dtype='float32'):
     b = np.array([-22.511615753173828125]).astype(dtype)
     layers = [FullyConnectedLayer(layer=[None, b], dtype=dtype)]

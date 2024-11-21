@@ -1,0 +1,5 @@
+#!/bin/bash
+python3 artifacts/HSCC2025_SparseImageStar/memory_usage_oval21.py
+python3 artifacts/HSCC2025_SparseImageStar/memory_usage_vgg16.py
+python3 artifacts/HSCC2025_SparseImageStar/run_CAV2020_MNIST_CovNet_brightening_attack.py
+python3 artifacts/HSCC2025_SparseImageStar/run_vgg16_vnncomp23.py
