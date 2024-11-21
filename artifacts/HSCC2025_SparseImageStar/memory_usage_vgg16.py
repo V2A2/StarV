@@ -24,6 +24,11 @@ def natural_keys(text):
     return [ atoi(c) for c in re.split(r'(\d+)', text)]
 
 def memory_usage_vgg16(spec):
+
+    print('=================================================================================')
+    print(f"Memory Usage of VGG16")
+    print('=================================================================================\n')
+
     dtype = 'float64'
     
     folder_dir = 'StarV/util/data/nets/vggnet16'

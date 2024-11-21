@@ -21,47 +21,13 @@ from StarV.verifier.certifier import certifyRobustness
 from StarV.util.load import *
 from StarV.util.attack import brightening_attack
 
-# def brightening_attack(image, delta=0.05, d=240, dtype=np.float32):
-#     # d is for threshold for brightnening attack
-#     shape = image.shape
-#     n = np.prod(shape)
-    
-#     flatten_img = image.reshape(-1)
-
-#     lb = flatten_img.copy().astype(dtype)
-#     ub = flatten_img.copy().astype(dtype)
-#     for i in range(n):
-#         if lb[i] >= d:
-#             lb[i] = 0
-#             ub[i] *= delta
-            
-#     lb = lb.reshape(shape)
-#     ub = ub.reshape(shape)
-#     return lb, ub
-
-# def load_convnet(net_dir, net_type, dtype='float32'):
-
-#     assert net_type in ['Small', 'Medium', 'Large'], \
-#     f"There are 3 types of ConvNet networks: /'Small/', /'Medium/', and /'Large/'"
-
-#      # loading DNNs into StarV network
-#     if net_type == 'Small':
-#         network = load_CAV2020_MNIST_Small_ConvNet(net_dir=net_dir, dtype=dtype)
-#     elif net_type == 'Medium':
-#         network = load_CAV2020_MNIST_Medium_ConvNet(net_dir=net_dir, dtype=dtype)
-#     elif net_type == 'Large':
-#         network = load_CAV2020_MNIST_Large_ConvNet(net_dir=net_dir, dtype=dtype)
-#     else:
-#         raise Exception('Unknown network type for ConvNet')
-#     return network
-
 def verify_convnet_network(net_type='Small', dtype='float32'):
     
     print('=================================================================================')
     print(f"Verification of CAV2020 {net_type} ConvNet Network against Brightnening Attack")
     print('=================================================================================\n')
 
-    folder_dir = f"StarV/util/data/nets/CAV2020_MNIST_ConvNet/{net_type}"
+    folder_dir = f"StarV/util/data/nets/CAV2020_MNIST_ConvNet"
     net_dir = f"{folder_dir}/onnx/{net_type}_ConvNet.onnx"
     starvNet = load_convnet(net_dir, net_type, dtype=dtype)
     print()

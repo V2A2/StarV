@@ -24,6 +24,11 @@ def imshow(img):
 normalizer = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.225, 0.225, 0.225])
 
 if __name__ == "__main__":
+
+    print('=================================================================================')
+    print(f"Memory Usage of OVAL21")
+    print('=================================================================================\n')
+
     data_path = 'StarV/util/data/nets/'
     cifar_test = datasets.CIFAR10(data_path+'cifardata/', train=False, download=True,
                                 transform=transforms.Compose([transforms.ToTensor()]))
