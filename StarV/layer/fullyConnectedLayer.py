@@ -1,6 +1,7 @@
 """
 Fully Connected Layer Class
 Dung Tran, 9/9/2022
+Update: 12/20/2024 (Sung Woo Choi, merging)
 """
 
 import numpy as np
@@ -51,18 +52,21 @@ class fullyConnectedLayer(object):
     def reachExactSingleInput(self, In):
         return In.affineMap(self.W, self.b)
         
-    def reach(self, inputSet, method=None, lp_solver='gurobi', pool=None, RF=0.0):
+    def reach(self, inputSet, method=None, lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
         """main reachability method
            Args:
                @I: a list of input set (Star or ProbStar)
                @pool: parallel pool: None or multiprocessing.pool.Pool
+               @RF: relaxation factor
+               @DR: depth reduction; maximum depth allowed for predicate variables
                
             Return: 
                @R: a list of reachable set
             Unused inputs: method, lp_solver, RF (relaxation factor)
 
         """
-        print("\nfullyConnectedLayer reach function\n")
+        if show:
+            print("\nfullyConnectedLayer reach function\n")
 
         pool = None
         

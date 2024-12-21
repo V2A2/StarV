@@ -2,11 +2,26 @@
   Generic Network Class
   
   Dung Tran, 9/10/2022
+  Update: 12/20/2024 (Sung Woo Choi, merging)
 """
 
+import copy
+import torch
 import numpy as np
-from StarV.layer.fullyConnectedLayer import fullyConnectedLayer
+
 from StarV.layer.ReLULayer import ReLULayer
+from StarV.layer.FlattenLayer import FlattenLayer
+from StarV.layer.fullyConnectedLayer import fullyConnectedLayer
+from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
+from StarV.layer.Conv2DLayer import Conv2DLayer
+from StarV.layer.ConvTranspose2DLayer import ConvTranspose2DLayer
+from StarV.layer.AvgPool2DLayer import AvgPool2DLayer
+from StarV.layer.MaxPool2DLayer import MaxPool2DLayer
+from StarV.layer.BatchNorm2DLayer import BatchNorm2DLayer
+from StarV.layer.LogSigLayer import LogSigLayer
+from StarV.layer.TanSigLayer import TanSigLayer
+from StarV.layer.PixelClassificationLayer import PixelClassificationLayer
+
 from StarV.set.probstar import ProbStar
 import copy
 import multiprocessing
@@ -44,7 +59,7 @@ class NeuralNetwork(object):
                 self.out_dim = layers[i].out_dim
                 break
 
-    def info(self):
+    def __str__(self):
         """print information of the network"""
 
         print('\n=============NETWORK===============')
@@ -54,18 +69,49 @@ class NeuralNetwork(object):
         print('Number of Layers: {}'.format(self.n_layers))
         print('Layer types:')
         for i in range(0, self.n_layers):
-            print('Layer {}: {}'.format(i, type(self.layers[i])))
+            str_ = 'Layer {}: {}'.format(i, type(self.layers[i]))
+            layer_ = self.layers[i]
+            if isinstance(layer_, FullyConnectedLayer) or isinstance(layer_, fullyConnectedLayer):
+                if layer_.W is not None:
+                    str_ += ' ({}, {}, dtype={})'.format(layer_.out_dim, layer_.in_dim, layer_.W.dtype)
+                else:
+                    str_ += ' ({}, {}, dtype={})'.format(layer_.out_dim, layer_.in_dim, layer_.b.dtype)
+
+            elif isinstance(layer_, LogSigLayer) or isinstance(layer_, TanSigLayer):
+                str_ += ' (opt = {}, delta = {})'.format(layer_.opt, layer_.delta)
+            elif isinstance(layer_, Conv2DLayer):
+                if layer_.sparse:
+                    str_ += ' ({}, {}, kernel_size = {}, stride = {}, padding = {}, dtype={})'.format(layer_.in_shape[2], layer_.out_shape[2], layer_.kernel_size, layer_.stride, layer_.padding, layer_.weight.dtype)
+                else:
+                    str_ += ' ({}, {}, kernel_size = {}, stride = {}, padding = {}, dtype={})'.format(layer_.weight.shape[2], layer_.weight.shape[3], layer_.weight.shape[:2], layer_.stride, layer_.padding, layer_.weight.dtype)
+            elif isinstance(layer_, ConvTranspose2DLayer):
+                str_ += ' ({}, {}, kernel_size = {}, stride = {}, padding = {}, output_padding={}, dtype={})'.format(
+                    layer_.weight.shape[2], layer_.weight.shape[3], layer_.weight.shape[:2], layer_.stride, layer_.padding, layer_.output_padding,  layer_.weight.dtype)
+            elif isinstance(layer_, AvgPool2DLayer):
+                str_ += ' (kernel_size = {}, stride = {}, padding = {})'.format(layer_.kernel_size, layer_.stride, layer_.padding)
+            elif isinstance(layer_, MaxPool2DLayer):
+                str_ += ' (kernel_size = {}, stride = {}, padding = {})'.format(layer_.kernel_size, layer_.stride, layer_.padding)
+            elif isinstance(layer_, BatchNorm2DLayer):
+                str_ += ' ({}, eps={}, dtype={})'.format(layer_.num_features, layer_.eps, layer_.gamma.dtype)
+            elif isinstance(layer_, FlattenLayer):
+                str_ += ' (channel_last={})'.format(layer_.channel_last)
+            print(str_)
+        return ''
+
+    def info(self):
+        print(self)
 
     def evaluate(self, input_vec):
         'evaluate a network on a specific input vector'
 
         assert isinstance(input_vec, np.ndarray), 'error: input vector is not a numpy array'
-        assert len(input_vec.shape) == 1, 'error: input vector should be a 1-d numpy array'
+        # assert len(input_vec.shape) == 1, 'error: input vector should be a 1-d numpy array'
 
-        y = input_vec
-        for i in range(0, self.n_layers):
+        y = input_vec.copy()
+        for i in range(self.n_layers):
+            if show: print(f"evaluating {i} layer: {self.layers[i].__class__.__name__}"); print(f"input shape: {y.shape}")
             y = self.layers[i].evaluate(y)
-
+            if show: print(f"output shape: {y.shape}")
         return y
 
 def rand_ffnn(arch, actvs):
@@ -128,7 +174,7 @@ def reachExactBFS(net, inputSet, lp_solver='gurobi', pool=None, show=True):
     S = copy.deepcopy(inputSet)
     for i in range(0, net.n_layers):
         if show:
-            print('Computing layer {} reachable set...'.format(i))
+            print('Computing layer {} {} reachable set...'.format(i, net.layers[i].__class__.__name__))
         S = net.layers[i].reach(S, method='exact', lp_solver=lp_solver, pool=pool)
         if show:
             print('Number of stars/probstars: {}'.format(len(S)))

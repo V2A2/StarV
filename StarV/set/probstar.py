@@ -3,7 +3,7 @@ Probabilistics Star Class
 Dung Tran, 8/10/2022
 
 Update: 8/13/2023
-
+Update: 12/20/2024 (Sung Woo Choi, merging)
 """
 
 # !/usr/bin/python3
@@ -173,6 +173,21 @@ class ProbStar(object):
         print('mu: {}'.format(self.mu))
         print('Sig: {}'.format(self.Sig))
         return '\n'
+		
+	def __repr__(self):
+        print('ProbStar Set:')
+        print('V: {}'.format(self.V.shape))
+        print('Predicate Constraints:')
+        print('C: {}'.format(self.C.shape))
+        print('d: {}'.format(self.d.shape))
+        print('dim: {}'.format(self.dim))
+        print('nVars: {}'.format(self.nVars))
+        print('pred_lb: {}'.format(self.pred_lb.shape))
+        print('pred_ub: {}'.format(self.pred_ub.shape))
+        print('mu: {}'.format(self.mu.shape))
+        print('Sig: {}'.format(self.Sig.shape))
+        print('')
+        return '\n'	
 
     def printConstraints(self):
         'Print constraints of probstar'
