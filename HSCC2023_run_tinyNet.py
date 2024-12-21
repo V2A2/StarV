@@ -68,6 +68,9 @@ def quantiverify_tiny_network(numCores):
     OutputSet, unsafeOutputSet, counterInputSet, _, _, _, _ = quantiVerifyBFS(net=net, inputSet=inputSet, unsafe_mat=unsafe_mat, \
                                                                               unsafe_vec=unsafe_vec, numCores=numCores, p_filter=0.0)
     dir_mat = np.array([[1., 0.], [0., 1.]])
+    plot_probstar(inputSet[0], dir_mat=dir_mat, dir_vec=None, show_prob=True, show=False)
+    plt.savefig(path+"/InputSet.png", bbox_inches='tight')  # save figure
+    plt.show()
     plot_probstar(OutputSet, dir_mat=dir_mat, dir_vec=None, show_prob=True, show=False)
     plt.savefig(path+"/OutputSet.png", bbox_inches='tight')  # save figure
     plt.show()

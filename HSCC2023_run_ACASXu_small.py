@@ -71,9 +71,6 @@ if __name__ == "__main__":
     x = [1, 2, 2, 3, 3, 3, 4, 4, 5, 1, 1]
     y = [6, 2, 9, 1, 6, 7, 1, 7, 3, 7, 9] 
     s = [2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 4] # property id
-    # x = [1, 2, 2]
-    # y = [6, 2, 9] 
-    # s = [2, 2, 2] # property id
     quantiverify_ACASXU_all(x=x, y=y, spec_ids=s, numCores=8, unsafe_mat=None, unsafe_vec=None, p_filters=[0.0, 1e-5])
 
     

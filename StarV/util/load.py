@@ -5,7 +5,16 @@ Dung Tran, 9/12/2022
 Update: 12/20/2024 (Sung Woo Choi, merging)
 """
 import os
+import numpy as np
+import torch
+import math
+import copy
+import onnx
+import onnx2pytorch
+import csv
+
 from scipy.io import loadmat
+from scipy.sparse import csc_matrix
 from StarV.layer.fullyConnectedLayer import fullyConnectedLayer
 from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
 from StarV.layer.LogSigLayer import LogSigLayer
@@ -28,13 +37,14 @@ from StarV.set.star import Star
 from StarV.set.probstar import ProbStar
 from StarV.spec.dProbStarTL import _ALWAYS_, _EVENTUALLY_, AtomicPredicate, Formula, _LeftBracket_, _RightBracket_, _AND_, _OR_
 from StarV.spec.dProbStarTL import DynamicFormula
-import numpy as np
-import torch
-import math
-import copy
-import onnx
-import onnx2pytorch
-import csv
+
+def convert_to_numpy(matrix):
+    if matrix is None:
+        return None
+    elif isinstance(matrix, csc_matrix):
+        return matrix.toarray()
+    else:
+        return matrix
 
 def load_2017_IEEE_TNNLS():
     """Load network from the IEEE TNNLS 2017 paper
@@ -653,22 +663,151 @@ def load_AEBS_temporal_specs():
 def load_building_model():
     """Load LODE building model"""
 
-    pass
+    cur_path = os.path.dirname(__file__)
+    cur_path = cur_path + '/data/lodes/build.mat' 
+    mat_contents = loadmat(cur_path)
+    A = mat_contents['A']
+    A = convert_to_numpy(A)
+    B = mat_contents['B']
+    B = convert_to_numpy(B)
+    C = mat_contents['C']
+    C = convert_to_numpy(C)
+
+    plant = LODE(A, B,C)
+    return plant
+
 
 def load_iss_model():
     """Load LODE International State Space Model"""
+    cur_path = os.path.dirname(__file__)
+    cur_path = cur_path + '/data/lodes/iss.mat' 
+    mat_contents = loadmat(cur_path)
+    A = mat_contents['A']
+    A = convert_to_numpy(A)
+    B = mat_contents['B']
+    B = convert_to_numpy(B)
+    C = mat_contents['C']
+    C = convert_to_numpy(C)
+    plant = LODE(A, B, C)
+    return plant
 
-    pass
 
 def load_helicopter_model():
     """Load LODE helicopter model"""
+    cur_path = os.path.dirname(__file__)
+    cur_path = cur_path + '/data/lodes/heli28.mat' 
+    mat_contents = loadmat(cur_path)
+    A = mat_contents['A']
+    A = convert_to_numpy(A)
+    plant = LODE(A)
+    return plant
 
-    pass
 
 def load_MNA5_model():
     """Load LODE MNA5 model"""
+    cur_path = os.path.dirname(__file__)
+    cur_path = cur_path + '/data/lodes/MNA_5.mat' 
+    mat_contents = loadmat(cur_path)
+    A = mat_contents['A']
+    B = mat_contents['B']
+    A = convert_to_numpy(A)
+    B = convert_to_numpy(B)
+    plant = LODE(A,B)
+    return plant
 
-    pass
+
+def load_MNA1_model():
+    """Load LODE MNA1 model"""
+    cur_path = os.path.dirname(__file__)
+    cur_path = cur_path + '/data/lodes/MNA_1.mat' 
+    mat_contents = loadmat(cur_path)
+    A = mat_contents['A']
+    B = mat_contents['B']
+    A = convert_to_numpy(A)
+    B = convert_to_numpy(B)
+    plant = LODE(A, B)
+    return plant
+
+
+def load_mcs_model():
+    """Load LODE MCS model"""
+    cur_path = os.path.dirname(__file__)
+    cur_path = cur_path + '/data/lodes/mcs.mat' 
+    mat_contents = loadmat(cur_path)
+    A = mat_contents['A']
+    mat_contents = loadmat(cur_path)
+    A = mat_contents['A']
+    B = mat_contents['B']
+    A = convert_to_numpy(A)
+    B = convert_to_numpy(B)
+    plant = LODE(A, B)
+    return plant
+
+
+def load_heat_model():
+    """Load LODE HEAT model"""
+    cur_path = os.path.dirname(__file__)
+    cur_path = cur_path + '/data/lodes/heat.mat' 
+    mat_contents = loadmat(cur_path)
+    A = mat_contents['A']
+    B = mat_contents['B']
+    A = convert_to_numpy(A)
+    B = convert_to_numpy(B)
+    C = mat_contents['C']
+    C = convert_to_numpy(C)
+    plant = LODE(A, B, C)
+    return plant
+
+def load_beam_model():
+    """Load LODE BEAM model"""
+    cur_path = os.path.dirname(__file__)
+    cur_path = cur_path + '/data/lodes/beam.mat' 
+    mat_contents = loadmat(cur_path)
+    A = mat_contents['A']
+    B = mat_contents['B']
+    A = convert_to_numpy(A)
+    B = convert_to_numpy(B)
+    C = mat_contents['C']
+    C = convert_to_numpy(C)
+
+    plant = LODE(A, B, C)
+    return plant
+
+    # C = mat_contents['C']
+    # C = convert_to_numpy(C)
+    # plant = LODE(A, B, C)
+    # return plant
+
+
+def load_pde_model():
+    """Load LODE PDE model"""
+    cur_path = os.path.dirname(__file__)
+    cur_path = cur_path + '/data/lodes/pde.mat' 
+    mat_contents = loadmat(cur_path)
+    A = mat_contents['A']
+    B = mat_contents['B']
+    A = convert_to_numpy(A)
+    B = convert_to_numpy(B)
+    C = mat_contents['C']
+    C = convert_to_numpy(C)
+    plant = LODE(A, B, C)
+    return plant
+
+
+def load_fom_model():
+    """Load LODE FOM model"""
+    cur_path = os.path.dirname(__file__)
+    cur_path = cur_path + '/data/lodes/fom.mat' 
+    mat_contents = loadmat(cur_path)
+    A = mat_contents['A']
+    B = mat_contents['B']
+    A = convert_to_numpy(A)
+    B = convert_to_numpy(B)
+    C = mat_contents['C']
+    C = convert_to_numpy(C)
+    plant = LODE(A, B, C)
+    return plant
+
 
 def load_JPVowel_GRU_network(net_dir, dtype='float32'):
     model = onnx.load(net_dir)

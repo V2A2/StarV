@@ -1,0 +1,173 @@
+
+\end{tabular}
+\begin{tabular}{rrrrrrrrrrrr}
+\hline
+   o &   TimeStep &   ReachableSet &   UnsafeReachableSet &   CounterInputSet &   US-prob-Min &   US-prob-Min-Timestep &   US-prob-Max &   US-prob-Max-Timestep &   inputSet Probability &   Krylov-Time &   VerificationTime \\
+\hline
+   2 &       0.1  &            201 &                   95 &                95 &      0.881316 &                  11.7  &      0.883732 &                  12.7  &               0.882523 &       32.067  &            56.6631 \\
+   2 &       0.01 &           2001 &                  948 &               948 &      0.486652 &                   9.81 &      0.884549 &                   9.13 &               0.882523 &       31.5905 &            99.9111 \\
+\hline
+\end{tabular}
+\begin{tabular}{rrrrrrrrrrrr}
+\hline
+   o &   TimeStep &   ReachableSet &   UnsafeReachableSet &   CounterInputSet &   US-prob-Min &   US-prob-Min-Timestep &   US-prob-Max &   US-prob-Max-Timestep &   inputSet Probability &   Krylov-Time &   VerificationTime \\
+\hline
+   2 &       0.1  &            201 &                   95 &                95 &      0.880928 &                  12.2  &      0.883738 &                     16 &               0.882523 &       31.7193 &            56.1902 \\
+   2 &       0.01 &           2001 &                  948 &               948 &      0.486867 &                   9.81 &      0.884549 &                      3 &               0.882523 &       30.5025 &           102.254  \\
+\hline
+\end{tabular}
+\begin{tabular}{rrrrrrrrrrrr}
+\hline
+   o &   TimeStep &   ReachableSet &   UnsafeReachableSet &   CounterInputSet &   US-prob-Min &   US-prob-Min-Timestep &   US-prob-Max &   US-prob-Max-Timestep &   inputSet Probability &   Krylov-Time &   VerificationTime \\
+\hline
+   1 &       0.01 &           2001 &                  948 &               948 &      0.486724 &                   9.81 &      0.884897 &                  19.08 &               0.882523 &       15.4828 &            98.0688 \\
+\hline
+\end{tabular}
+\begin{tabular}{rrrrrrrrrrrrr}
+\hline
+   o &   TimeStep &   ReachableSet &   UnsafeReachableSet &   CounterInputSet &   US-prob-Min &   US-prob-Min-Timestep &   US-prob-Max &   US-prob-Max-Timestep &   inputSet Probability &   Krylov-Time &   ReachabilityTime &   VerificationTime \\
+\hline
+   2 &       0.1  &            201 &                   95 &                95 &      0.881316 &                  11.7  &      0.883732 &                  12.7  &               0.882523 &       31.1225 &            50.448  &            53.0392 \\
+   2 &       0.01 &           2001 &                  948 &               948 &      0.486305 &                   9.81 &      0.884549 &                  11.64 &               0.882523 &       32.997  &            52.95   &            79.5294 \\
+   2 &       0.01 &           2001 &                  948 &               948 &      0.486257 &                   9.81 &      0.884897 &                  18.42 &               0.882523 &       32.3212 &            51.9866 &            79.6191 \\
+\hline
+\end{tabular}
+
+
+
+#use addconstraint
+\begin{tabular}{rrrrrrrrrrrrr}
+\hline
+   o &   TimeStep &   ReachableSet &   UnsafeReachableSet &   CounterInputSet &   US-prob-Min &   US-prob-Min-Timestep &   US-prob-Max &   US-prob-Max-Timestep &   inputSet Probability &   Krylov-Time &   ReachabilityTime &   VerificationTime \\
+\hline
+   2 &      0.1   &            201 &                   95 &                95 &    0.880928   &                 12.2   &      0.883738 &                 16     &               0.882523 &       30.8624 &            50.1034 &            53.1067 \\
+   2 &      0.01  &           2001 &                  948 &               948 &    0.486472   &                  9.81  &      0.88438  &                 18.31  &               0.882523 &       31.0509 &            50.5966 &            80.3383 \\
+   2 &      0.001 &          20001 &                 9473 &              9473 &    0.00015948 &                  1.919 &      0.884618 &                 11.865 &               0.882523 &       31.1753 &            51.2422 &           349.263  \\
+\hline
+\end{tabular}
+\begin{tabular}{rrrrrrrrrrrrr}
+\hline
+   i &   TimeStep &   ReachableSet &   UnsafeReachableSet &   CounterInputSet &   US-prob-Min &   US-prob-Min-Timestep &   US-prob-Max &   US-prob-Max-Timestep &   inputSet Probability &   Krylov-Time &   ReachabilityTime &   VerificationTime \\
+\hline
+  11 &      0.1   &            201 &                   95 &                95 &    0.880928   &                 12.2   &      0.883738 &                 16     &               0.882523 &       145.732 &            241.846 &            244.871 \\
+  11 &      0.01  &           2001 &                  948 &               948 &    0.486472   &                  9.81  &      0.88438  &                 18.31  &               0.882523 &       144.818 &            241.289 &            271.25  \\
+  11 &      0.001 &          20001 &                 9473 &              9473 &    0.00015948 &                  1.919 &      0.884618 &                 11.865 &               0.882523 &       144.325 &            241.903 &            539.596 \\
+\hline
+\end{tabular}
+
+
+using check probsatr
+\begin{tabular}{rrrrrrrrrrrrr}
+\hline
+   i &   TimeStep &   ReachableSet &   UnsafeReachableSet &   CounterInputSet &   US-prob-Min &   US-prob-Min-Timestep &   US-prob-Max &   US-prob-Max-Timestep &   inputSet Probability &   Krylov-Time &   ReachabilityTime &   VerificationTime \\
+\hline
+  11 &      0.1   &            201 &                   95 &                95 &     0.881316  &                 11.7   &      0.883732 &                 12.7   &               0.882523 &       142.52  &            238.182 &            240.884 \\
+  11 &      0.01  &           2001 &                  948 &               948 &     0.486305  &                  9.81  &      0.884549 &                 11.64  &               0.882523 &       147.682 &            244.877 &            271.16  \\
+  11 &      0.001 &          20001 &                 9473 &              9473 &     0.0737192 &                  1.919 &      0.885069 &                 11.779 &               0.882523 &       145.382 &            243.934 &            502.774 \\
+\hline
+\end{tabular}
+
+a =3
+
+\begin{tabular}{rrrrrrrrrrrrr}
+\hline
+   o &   TimeStep &   ReachableSet &   UnsafeReachableSet &   CounterInputSet &   US-prob-Min &   US-prob-Min-Timestep &   US-prob-Max &   US-prob-Max-Timestep &   inputSet Probability &   Krylov-Time &   ReachabilityTime &   VerificationTime \\
+\hline
+   2 &      0.1   &            201 &                   95 &                95 &     0.972357  &                 12.8   &      0.97426  &                 18.2   &               0.973328 &       31.5667 &            49.1292 &            52.0009 \\
+   2 &      0.01  &           2001 &                  948 &               948 &     0.536565  &                  9.81  &      0.974667 &                 18.93  &               0.973328 &       30.7258 &            48.0882 &            77.3638 \\
+   2 &      0.001 &          20001 &                 9473 &              9473 &     0.0733247 &                  1.919 &      0.974894 &                  6.288 &               0.973328 &       32.152  &            50.4119 &           340.386  \\
+\hline
+\end{tabular}
+\begin{tabular}{rrrrrrrrrrrrr}
+\hline
+   i &   TimeStep &   ReachableSet &   UnsafeReachableSet &   CounterInputSet &   US-prob-Min &   US-prob-Min-Timestep &   US-prob-Max &   US-prob-Max-Timestep &   inputSet Probability &   Krylov-Time &   ReachabilityTime &   VerificationTime \\
+\hline
+  11 &      0.1   &            201 &                   95 &                95 &     0.972357  &                 12.8   &      0.97426  &                 18.2   &               0.973328 &       156.276 &            191.256 &            194.144 \\
+  11 &      0.01  &           2001 &                  948 &               948 &     0.536565  &                  9.81  &      0.974667 &                 18.93  &               0.973328 &       154.429 &            189.356 &            218.796 \\
+  11 &      0.001 &          20001 &                 9473 &              9473 &     0.0733247 &                  1.919 &      0.974894 &                  6.288 &               0.973328 &       144.567 &            180.64  &            471.244 \\
+\hline
+\end{tabular}
+\begin{tabular}{rrrrrrrrrrrrr}
+\hline
+   o &   TimeStep &   ReachableSet &   UnsafeReachableSet &   CounterInputSet &   US-prob-Min &   US-prob-Min-Timestep &   US-prob-Max &   US-prob-Max-Timestep &   inputSet Probability &   Krylov-Time &   ReachabilityTime &   VerificationTime \\
+\hline
+   2 &        0.1 &            201 &                   95 &                95 &      0.972447 &                    6.6 &      0.974305 &                    5.7 &               0.973328 &       34.9988 &            53.2251 &            63.6171 \\
+\hline
+\end{tabular}
+\begin{tabular}{rrrrrrrrrrrrr}
+\hline
+   o &   TimeStep &   ReachableSet &   UnsafeReachableSet &   CounterInputSet &   US-prob-Min &   US-prob-Min-Timestep &   US-prob-Max &   US-prob-Max-Timestep &   inputSet Probability &   Krylov-Time &   ReachabilityTime &   VerificationTime \\
+\hline
+   2 &        0.1 &            201 &                   95 &                95 &      0.972447 &                    6.6 &      0.974305 &                    5.7 &               0.973328 &       32.3416 &            51.4617 &            76.0349 \\
+\hline
+\end{tabular}
+\begin{tabular}{rrrrrrrrrrrrr}
+\hline
+   o &   TimeStep &   ReachableSet &   UnsafeReachableSet &   CounterInputSet &   US-prob-Min &   US-prob-Min-Timestep &   US-prob-Max &   US-prob-Max-Timestep &   inputSet Probability &   Krylov-Time &   ReachabilityTime &   VerificationTime \\
+\hline
+   2 &        0.1 &            201 &                   95 &                95 &      0.972447 &                    6.6 &      0.974305 &                    5.7 &               0.973328 &        30.363 &            47.9597 &            66.4518 \\
+\hline
+\end{tabular}
+\begin{tabular}{rrrrrrrrrrrrr}
+\hline
+   o &   TimeStep &   ReachableSet &   UnsafeReachableSet &   CounterInputSet &   US-prob-Min &   US-prob-Min-Timestep &   US-prob-Max &   US-prob-Max-Timestep &   inputSet Probability &   Krylov-Time &   ReachabilityTime &   VerificationTime \\
+\hline
+   2 &       0.01 &           2001 &                  948 &               948 &       0.53694 &                   9.81 &      0.974758 &                  11.98 &               0.973328 &       33.8622 &            52.5623 &            133.492 \\
+\hline
+\end{tabular}
+\begin{tabular}{rrrrrrrrrrrrr}
+\hline
+   o &   TimeStep &   ReachableSet &   UnsafeReachableSet &   CounterInputSet &   US-prob-Min &   US-prob-Min-Timestep &   US-prob-Max &   US-prob-Max-Timestep &   inputSet Probability &   Krylov-Time &   ReachabilityTime &   VerificationTime \\
+\hline
+   2 &        0.1 &            201 &                   95 &                95 &      0.972447 &                    6.6 &      0.974305 &                    5.7 &               0.973328 &       31.0219 &            48.8362 &            989.541 \\
+\hline
+\end{tabular}
+\begin{tabular}{rrrrrrrrrrrrr}
+\hline
+   o &   TimeStep &   ReachableSet &   UnsafeReachableSet &   CounterInputSet &   US-prob-Min &   US-prob-Min-Timestep &   US-prob-Max &   US-prob-Max-Timestep &   inputSet Probability &   Krylov-Time &   ReachabilityTime &   VerificationTime \\
+\hline
+   2 &        0.1 &            201 &                   95 &                95 &      0.972447 &                    6.6 &      0.974305 &                    5.7 &               0.973328 &       31.6827 &            49.3648 &            69.6132 \\
+\hline
+\end{tabular}
+\begin{tabular}{rrrrrrrrrrrrr}
+\hline
+   o &   TimeStep &   ReachableSet &   UnsafeReachableSet &   CounterInputSet &   US-prob-Min &   US-prob-Min-Timestep &   US-prob-Max &   US-prob-Max-Timestep &   inputSet Probability &   Krylov-Time &   ReachabilityTime &   VerificationTime \\
+\hline
+   2 &        0.1 &            201 &                   95 &                95 &      0.972447 &                    6.6 &      0.974305 &                    5.7 &               0.973328 &       31.0407 &            49.0916 &             846.52 \\
+\hline
+\end{tabular}
+\begin{tabular}{rrrrrrrrrrrrr}
+\hline
+   o &   TimeStep &   ReachableSet &   UnsafeReachableSet &   CounterInputSet &   US-prob-Min &   US-prob-Min-Timestep &   US-prob-Max &   US-prob-Max-Timestep &   inputSet Probability &   Krylov-Time &   ReachabilityTime &   VerificationTime \\
+\hline
+   2 &        0.1 &            201 &                   95 &                95 &      0.972357 &                   12.8 &       0.97426 &                   18.2 &               0.973328 &       31.1413 &            48.5711 &            81.9419 \\
+\hline
+\end{tabular}
+\begin{tabular}{rrrrrrrrrrrrr}
+\hline
+   o &   TimeStep &   ReachableSet &   UnsafeReachableSet &   CounterInputSet &   US-prob-Min &   US-prob-Min-Timestep &   US-prob-Max &   US-prob-Max-Timestep &   inputSet Probability &   Krylov-Time &   ReachabilityTime &   VerificationTime \\
+\hline
+   2 &        0.1 &            201 &                   95 &                95 &      0.972357 &                   12.8 &       0.97426 &                   18.2 &               0.973328 &       32.8481 &            50.4906 &            299.633 \\
+\hline
+\end{tabular}
+\begin{tabular}{rrrrrrrrrrrrr}
+\hline
+   o &   TimeStep &   ReachableSet &   UnsafeReachableSet &   CounterInputSet &   US-prob-Min &   US-prob-Min-Timestep &   US-prob-Max &   US-prob-Max-Timestep &   inputSet Probability &   Krylov-Time &   ReachabilityTime &   VerificationTime \\
+\hline
+   2 &        0.1 &            201 &                   95 &                95 &      0.972447 &                    6.6 &      0.974305 &                    5.7 &               0.973328 &       33.4217 &             51.104 &            271.622 \\
+\hline
+\end{tabular}
+\begin{tabular}{rrrrrrrrrrrrr}
+\hline
+   o &   TimeStep &   ReachableSet &   UnsafeReachableSet &   CounterInputSet &   US-prob-Min &   US-prob-Min-Timestep &   US-prob-Max &   US-prob-Max-Timestep &   inputSet Probability &   Krylov-Time &   ReachabilityTime &   VerificationTime \\
+\hline
+   2 &        0.1 &            201 &                   95 &                95 &      0.972357 &                   12.8 &       0.97426 &                   18.2 &               0.973328 &       33.7472 &            51.6124 &            82.2186 \\
+\hline
+\end{tabular}
+\begin{tabular}{rrrrrrrrrrrrr}
+\hline
+   o &   TimeStep &   ReachableSet &   UnsafeReachableSet &   CounterInputSet &   US-prob-Min &   US-prob-Min-Timestep &   US-prob-Max &   US-prob-Max-Timestep &   inputSet Probability &   Krylov-Time &   ReachabilityTime &   VerificationTime \\
+\hline
+   2 &        0.1 &            201 &                   95 &                95 &      0.972357 &                   12.8 &       0.97426 &                   18.2 &               0.973328 &       36.4079 &            54.9532 &            69.8854 \\
+\hline
+\end{tabular}
