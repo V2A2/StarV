@@ -21,30 +21,33 @@ from StarV.layer.BatchNorm2DLayer import BatchNorm2DLayer
 from StarV.layer.LogSigLayer import LogSigLayer
 from StarV.layer.TanSigLayer import TanSigLayer
 from StarV.layer.PixelClassificationLayer import PixelClassificationLayer
+from StarV.layer.RecurrentLayer import RecurrentLayer
 
 from StarV.set.probstar import ProbStar
 import copy
 import multiprocessing
+import itertools
+from collections import Counter
 
 class NeuralNetwork(object):
     """Generic serial Neural Network class
 
-       It can be: 
-        * feedforward
-        * concolutional
-        * semantic segmentation
-        * recurrent (may be)
-        * binary
+    It can be:
+     * feedforward
+     * concolutional
+     * semantic segmentation
+     * recurrent (may be)
+     * binary
 
-       Properties:
-           @type: network type
-           @layers: a list of layers
-           @n_layers: number of layers
-           @in_dim: input dimension
-           @out_dim: output dimension
+    Properties:
+        @type: network type
+        @layers: a list of layers
+        @n_layers: number of layers
+        @in_dim: input dimension
+        @out_dim: output dimension
 
-       Methods: 
-           @rand: randomly  generate a network 
+    Methods:
+        @rand: randomly  generate a network
     """
 
     def __init__(self, layers, net_type=None):
