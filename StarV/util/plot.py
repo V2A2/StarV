@@ -25,8 +25,11 @@ def getVertices(I):
         C = np.vstack((A, -A))
         d = np.concatenate([ub, -lb])
     else:
-        lb = I.pred_lb
-        ub = I.pred_ub
+        if len(I.pred_lb) == 0:
+            [lb, ub] = I.estimateRanges()
+        else:
+            lb = I.pred_lb
+            ub = I.pred_ub
         A = np.eye(I.nVars)
         C1 = np.vstack((A, -A))
         d1 = np.concatenate([ub, -lb])
