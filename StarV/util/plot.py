@@ -1,17 +1,24 @@
 """
 Plot module, contains methods for plotting
 Dung Tran, 9/11/2022
+Update: 12/24/2024 (Sung Woo Choi, merging)
 """
 
 from StarV.set.probstar import ProbStar
 from StarV.set.star import Star
-import numpy as np
-import matplotlib.pyplot as plt
 from matplotlib import cm
 from mpl_toolkits.mplot3d import Axes3D
+from scipy.spatial import ConvexHull
 from scipy.stats import multivariate_normal
+
 import pypoman
 import warnings
+import itertools
+import numpy as np
+import matplotlib.pyplot as plt
+import mpl_toolkits.mplot3d as a3
+import plotly.graph_objects as go
+
 
 
 def getVertices(I):
@@ -587,3 +594,114 @@ def plot_probstar_distribution(I, dir_mat=None, dir_vec=None, show_prob=True, la
 
     else:
         raise RuntimeError('The input I is not a probstar')
+
+
+
+def plot_3D_Star(I, ax, color='r',alpha=1.0, edgecolor='k', linewidth=1.0, show=True):
+    """
+    From https://github.com/Shaddadi/veritex/blob/master/veritex/utils/plot_poly.py
+    eritex/veritex/utils/plot_poly.py 
+
+    Function to plot 3-dimensional polytope
+    Parameters:
+        set_vs (np.ndarray): Vertices of the set
+        ax (AxesSubplot): AxesSubplot
+        color (str): Face color
+        alpha (float): Color transparency
+        edgecolor (str): Edge color
+        Linewidth (float): Line width of edges
+    """
+    set_vs = np.array(getVertices(I))
+
+    hull = ConvexHull(set_vs)
+    faces = hull.simplices
+    for s in faces:
+        sq = [
+            [set_vs[s[0], 0], set_vs[s[0], 1], set_vs[s[0], 2]],
+            [set_vs[s[1], 0], set_vs[s[1], 1], set_vs[s[1], 2]],
+            [set_vs[s[2], 0], set_vs[s[2], 1], set_vs[s[2], 2]]
+        ]
+        f = a3.art3d.Poly3DCollection([sq])
+        f.set_color(color)
+        f.set_edgecolor(edgecolor)
+        f.set_alpha(alpha)
+        f.set_linewidth(linewidth)
+        ax.add_collection3d(f)
+        ax.set_xlabel('X-axis')
+        ax.set_ylabel('Y-axis')
+        ax.set_zlabel('Z-axis')
+    if show:
+        plt.show()
+
+
+def plot_Mesh3D_Star(I, opacity=1.0,show=True):
+    vs = np.array(getVertices(I))
+    hull = ConvexHull(vs)
+    faces = hull.simplices
+    data=go.Mesh3d(
+        x = vs[:, 0],
+        y = vs[:, 1],
+        z = vs[:, 2],
+        colorbar_title='z',
+        colorscale=[[0, 'gold'],
+                    [0.5, 'mediumturquoise'],
+                    [1, 'magenta']],
+        # Intensity of each vertex, which will be interpolated and color-coded
+        intensity = np.linspace(0, 1, faces.shape[0], endpoint=True),
+        intensitymode='cell',
+        # i, j and k give the vertices of triangles
+        i = faces[:, 0],
+        j = faces[:, 1],
+        k = faces[:, 2],
+        opacity=opacity,
+        name='y',
+        showscale=True
+    )
+    if show:
+        fig = go.Figure(data=data)
+        fig.show()
+    else:
+        return data
+
+
+def plot_Mesh3D_Box(lb, ub, opacity=1.0, show=True):
+    assert isinstance(lb, np.ndarray), 'error: \
+    lower bound vector should be a 1D numpy array'
+    assert isinstance(ub, np.ndarray), 'error: \
+    upper bound vector should be a 1D numpy array'
+    assert len(lb.shape) == 1, 'error: \
+    lower bound vector should be a 1D numpy array'
+    assert len(ub.shape) == 1, 'error: \
+    upper bound vector should be a 1D numpy array'
+
+    lb = lb.reshape(lb.shape[0], 1)
+    ub = ub.reshape(ub.shape[0], 1)
+    V = []
+    for i in range(len(lb)):
+        V.append([lb[i], ub[i]])
+
+    vs = np.array(list(itertools.product(*V))).reshape(8,3)
+    data = go.Mesh3d(
+        # 8 vertices of a cube
+        x=vs[:, 0],
+        y=vs[:, 1],
+        z=vs[:, 2],
+        colorbar_title='z',
+        colorscale=[[0, 'gold'],
+                    [0.5, 'mediumturquoise'],
+                    [1, 'magenta']],
+        # Intensity of each vertex, which will be interpolated and color-coded
+        intensity = np.linspace(0, 1, 8, endpoint=True),
+        # i, j and k give the vertices of triangles
+        i=[0,0,0,0,0,0,7,7,7,7,7,7],
+        j=[1,1,2,2,4,4,1,1,2,2,4,4],
+        k=[3,5,3,6,5,6,3,5,3,6,5,6],
+        opacity=opacity,
+        name='y',
+        showscale=True
+    )
+    if show:
+        fig = go.Figure(data=data)
+        fig.show()
+    else:
+        return data
