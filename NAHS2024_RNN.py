@@ -134,7 +134,7 @@ def verify_MNIST_LSTM_GRU(type='lstm', hidden=15):
         vt_dr2 = np.hstack([vt_dr2, VT_dr2[e].sum()/NSample])
 
     # save verification results
-    path = f"artifacts/NAHS2024_RNN"
+    path = f"artifacts/NAHS2024_RNN/results"
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -152,7 +152,7 @@ def verify_MNIST_LSTM_GRU(type='lstm', hidden=15):
 
 def plot_rnns_results(type='lstm', hidden=15):
 
-    f_dir = f"artifacts/NAHS2024_RNN/"
+    f_dir = f"artifacts/NAHS2024_RNN/results/"
     with open(f_dir + f'mnist_{type}_{hidden}_results.npy', 'rb') as f:
         rb_est = np.load(f)
         rb_lp = np.load(f)
@@ -244,7 +244,7 @@ def plot_rnns_results(type='lstm', hidden=15):
     plt.show()
 
 if __name__ == "__main__":
-    
+
     # Figure 8: G15 certification results with different attack bounds \epsilon.
     verify_MNIST_LSTM_GRU(type='gru', hidden=15)
     plot_rnns_results(type='gru', hidden=15)
@@ -260,9 +260,3 @@ if __name__ == "__main__":
     # Figure 11: L30 certification results with different attack bounds \epsilon.
     verify_MNIST_LSTM_GRU(type='lstm', hidden=30)
     plot_rnns_results(type='lstm', hidden=30)
-
-    
-    
-    
-    
-    
