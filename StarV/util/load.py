@@ -30,6 +30,7 @@ from StarV.layer.BatchNorm2DLayer import BatchNorm2DLayer
 from StarV.layer.MaxPool2DLayer import MaxPool2DLayer
 from StarV.layer.FlattenLayer import FlattenLayer
 from StarV.layer.PixelClassificationLayer import PixelClassificationLayer
+from StarV.layer.MixedActivationLayer import MixedActivationLayer
 from StarV.net.network import NeuralNetwork
 from StarV.nncs.nncs import NNCS
 from StarV.plant.lode import LODE, DLODE
@@ -535,6 +536,290 @@ def load_acc_model(netname='controller_5_20', plant='linear', spec_ids=None, ini
         return sys, phi_v, initSets[initSet_id], refInputs
 
 
+def load_acc_trapezius(t=10):
+    # load_Trapezius_network
+
+    net_name = f'phi3_acc_network_t{t}'
+    cur_path = os.path.dirname(__file__)
+    cur_path = cur_path + f'/data/nets/ACC/Trapezius/{net_name}.mat'
+    mat_file = loadmat(cur_path)
+    Net = mat_file['Net']
+    W = Net[0][0][0].ravel()
+    b = Net[0][0][1].ravel()
+    act_fun = Net[0][0][2].ravel() # containts activation list of each neurons
+    
+    n_weight = len(W)
+    n_act_fun = len(act_fun)
+    
+    
+    layers = []
+    for i in range(n_weight):
+        layers.append(fullyConnectedLayer(W[i].toarray(), b[i].toarray().ravel()))
+        if i < n_act_fun:
+            layers.append(MixedActivationLayer(act_fun[i]))
+
+    return NeuralNetwork(layers, net_type=net_name)
+
+
+
+def load_acc_trapezius_model(netname='controller_3_20', plant='linear', spec_ids=None, T=None, t=None, a_lead=-2):
+    'load advanced neural network-controlled adaptive cruise control system'
+
+    # This is from the paper:
+    # NNV: A Verification Tool for Deep Neural Networks and Learning-enabled Cyber-Physical Systems,
+    # Tran et al, CAV 2020
+
+    # System model
+    # a_lead = -5 (m^2/s)
+    # x1 = lead_car position
+    # x2 = lead_car velocity
+    # x3 = lead_car internal state
+    # x4 = ego_car position
+    # x5 = ego_car velocity
+    # x6 = ego_car internal state
+
+    # lead car dynamics
+    # dx1 = x2
+    # dx2 = x3
+    # dx3 = -2x3 + 2*a_lead - mu*x2^2 (mu = 0 for linear case)
+    
+    # ego car dynamics
+    # dx4 = x5
+    # dx5 = x6
+    # dx6 = -2x6 + 2*a_ego - mu*x5^2 (mu = 0 for linear case)
+
+    # let x7 = -2x3 + 2*a_lead -> x7(0) = -2x3(0) + 2*a_lead (initial condition consistency)
+    # dx7 = -2dx3
+    # dx3 = x7 and dx7 = -2dx3 = -2x7 (There may be a mistake in the code for CAV2020???)
+
+    # controller net option:
+    # 1) controller_3_20, 2) controller_5_20, 3) controller_7_20, 4) controller_10_20
+
+    cur_path = os.path.dirname(__file__)
+    cur_path = cur_path + '/data/nets/ACC/' + netname
+    mat_contents = loadmat(cur_path)
+    W = mat_contents['W']
+    b = mat_contents['b']
+
+    n = W.shape[1]
+    layers = []
+    for i in range(0,n-1):
+        Wi = W[0,i]
+        bi = b[i,0]
+        bi = bi.reshape(bi.shape[0],)
+        L1 = fullyConnectedLayer(Wi, bi)
+        L2 = ReLULayer()
+        layers.append(L1)
+        layers.append(L2)
+
+
+    bi = b[n-1,0]
+    bi = bi.reshape(bi.shape[0],)
+    L1 = fullyConnectedLayer(W[0,n-1], bi)
+    layers.append(L1)
+    
+    net = NeuralNetwork(layers, netname)
+    net.info()
+
+    if plant=='linear':
+
+        A = np.array([[0., 1., 0., 0., 0., 0., 0.],
+                      [0., 0., 1., 0., 0., 0., 0.],
+                      [0., 0.,-2., 0., 0., 0., 1.],
+                      [0., 0., 0., 0., 1., 0., 0.],
+                      [0., 0., 0., 0., 0., 1., 0.],
+                      [0., 0., 0., 0., 0., -2, 0.],
+                      [0., 0., 0., 0., 0., 0., -2.]])
+        B = np.array([[0.], [0.], [0.], [0.], [0.], [2.], [0.]])
+        C = np.array([[1., 0., 0., -1., 0., 0., 0.],
+                      [0., 1., 0., 0., -1., 0., 0.],
+                      [0., 0., 0., 0., 1., 0., 0.]])
+        
+        # feedbacks:
+        # 1) relative distance: x1 - x4
+        # 2) relative velocity: x2 - x5
+        # 3) longtitudinal velocity: x5 
+
+        D = np.array([[0.], [0.], [0.]])
+
+        plant_model = LODE(A, B, C, D)
+        dplant = plant_model.toDLODE(0.1)  # dt = 0.1
+        
+    else:
+        raise RuntimeError("Unknown option: only have linear model for ACC for now")
+
+
+    sys = NNCS(net, dplant, type='DLNNCS')
+    sys.info()
+
+    # reference inputs
+    refInputs = np.array([30., 1.4])
+
+    # input sets (multiple input set - 6 individual depending on v_lead_0)
+    x_lead_0 = [90., 110.]
+    v_lead_0 = [32.0, 32.2]
+    acc_lead_0 = [0., 0.]
+
+    x_ego_0 = [10., 11.]
+    v_ego_0 = [30., 30.2]
+    acc_ego_0 = [0., 0.]
+    x7_0 = [2*a_lead, 2*a_lead]
+
+    # initSets = []
+    # for i in range(0, 6):
+    #     v_lead_0_i = v_lead_0[i]
+    #     lb = np.array([x_lead_0[0], v_lead_0_i[0], acc_lead_0[0], x_ego_0[0], v_ego_0[0], acc_ego_0[0], x7_0[0]])
+    #     ub = np.array([x_lead_0[1], v_lead_0_i[1], acc_lead_0[1], x_ego_0[1], v_ego_0[1], acc_ego_0[1], x7_0[1]])
+    #     S = Star(lb, ub)
+    #     mu = 0.5*(S.pred_lb + S.pred_ub)
+    #     a = 2.5 # coefficience to adjust the distribution
+    #     sig = (mu - S.pred_lb)/a
+    #     Sig = np.diag(np.square(sig))
+    #     I1 = ProbStar(S.V, S.C, S.d, mu, Sig, S.pred_lb, S.pred_ub)
+    #     initSets.append(I1)
+
+
+    lb = np.array([x_lead_0[0], v_lead_0[0], acc_lead_0[0], x_ego_0[0], v_ego_0[0], acc_ego_0[0], x7_0[0]])
+    ub = np.array([x_lead_0[1], v_lead_0[1], acc_lead_0[1], x_ego_0[1], v_ego_0[1], acc_ego_0[1], x7_0[1]])
+    S = Star(lb, ub)
+    mu = 0.5*(S.pred_lb + S.pred_ub)
+    a = 2.5 # coefficience to adjust the distribution
+    sig = (mu - S.pred_lb)/a
+    Sig = np.diag(np.square(sig))
+    initSet = ProbStar(S.V, S.C, S.d, mu, Sig, S.pred_lb, S.pred_ub)
+
+    # unsafe constraints
+    # safety property: actual distance > alpha * safe distance <=> d = (x1 - x4) > alpha * d_safe = alpha * (1.4 * v_ego + 10)
+    # unsafe region: x1 - x4 <= alpha * (1.4 * v_ego + 10)
+
+    alpha = 1.0
+    unsafe_mat = np.array([[1.0, 0., 0., -1., -alpha*1.4, 0., 0.]])
+    unsafe_vec = np.array([alpha*10.0])
+
+    if spec_ids is None: # return systems with unsafe properties
+        
+        return sys, initSet, refInputs, unsafe_mat, unsafe_vec
+
+    else: # return system with temporal specifications
+
+        # Temporal Specifications
+
+        assert T is not None, 'error: T should be > 0'
+        assert t is not None, 'error: t should be > 0'
+
+        EV0T = _EVENTUALLY_(0,T)
+        EV0t = _EVENTUALLY_(0,t)
+        AND = _AND_()
+        OR = _OR_()
+        lb = _LeftBracket_()
+        rb = _RightBracket_()
+        AW0T = _ALWAYS_(0,T)
+        AW0t = _ALWAYS_(0,t)
+
+        # phi1 : eventually_[0, T](x_lead - x_ego <= D_safe = 10 + 1.4 v_ego) : A2x <= b2
+        A1 = np.array([1., 0., 0., -1., -1.4, 0., 0.])
+        b1 = np.array([10.])
+        P1 = AtomicPredicate(A1,b1)
+        phi1 = Formula([EV0T, lb, P1, rb])
+
+        #phi1c always_[0, T] (x_lead - x_ego >= D_safe = 10 + 1.4 v_ego): A1x <= b1
+        P1c = AtomicPredicate(-A1,-b1)
+        phi1c = Formula([AW0T, lb, P1c, rb])
+
+        # phi2 : eventually_[0, T](v_lead <= v_lead(0)_min - 0.1 OR v_ego <= v_ego(0)_min - 0.1): A3 <= b3
+
+        # phi2 IS DIFFERENT FOR DIFFERENT INITIAL CONDITION
+
+        A21 = np.array([0., 1., 0., 0., 0, 0., 0.])
+        b21 = np.array([min(v_lead_0) - 0.1])
+        P21 = AtomicPredicate(A21,b21)
+
+        A22 = np.array([0., 0., 0., 0., 1., 0., 0.])
+        b22 = np.array([min(v_ego_0) - 0.1])
+        P22 = AtomicPredicate(A22,b22)
+
+        phi2= Formula([EV0T, lb, P21, OR, P22, rb]) #
+
+        P21c = AtomicPredicate(-A21, -b21)
+        P22c = AtomicPredicate(-A22, -b22)
+
+        # complement properties
+        phi2c = Formula([AW0T, lb, P21c, AND, P22c, rb])
+
+        # phi3 : eventually_[0, T](v_lead <= v_lead(0)_min - 0.1  AND eventually_[0, 10](v_ego <= v_ego(0)_min - 0.1))
+
+        # phi3 is different for different initial condition
+
+
+        A31 = np.array([0., 1., 0., 0., 0, 0., 0.])
+        b31 = np.array([min(v_lead_0) - 0.1])
+        P31 = AtomicPredicate(A31,b31)
+
+        A32 = np.array([0., 0., 0., 0., 1., 0., 0.])
+        b32 = np.array([min(v_ego_0) - 0.1])
+        P32 = AtomicPredicate(A32,b32)
+
+        phi3 = Formula([EV0T, lb, P31, AND, lb, EV0t, P32, rb, rb])
+
+
+        # phi4 : always_[0, T](x_lead - x_ego <= D_safe -> eventually_[0,10](x_lead - x_ego >= D_safe))
+        # equivalent to : always_[0, T](x_lead - x_ego >= D_safe OR eventually_[0,t](x_lead - x_ego >= D_safe))
+        # P(phi4) = 1 - P(phi4')
+        # P(always(A or B)) = 1 - P(eventually (not A AND not B))
+        # not B = not eventually C = always not C
+
+        # phi4' = eventually_[0,T](x_lead-x_ego <= D_safe AND always_[0,t](x_lead - x_ego <= D_safe))
+
+        A41 = np.array([1., 0., 0., -1., -1.4, 0., 0.])
+        b41 = np.array([10.])
+        P41 = AtomicPredicate(A41,b41)
+        P42 = AtomicPredicate(-A41,-b41)
+
+        phi4 = Formula([AW0T, lb, P41, OR, lb, EV0t, P42 , rb, rb])
+
+        phi4c = Formula([EV0T, lb, P41, AND, lb, AW0t, P41, rb, rb])
+
+
+        # phi5 : always_[0, T](x_lead - x_ego <= D_safe -> eventually_[0,10](x_lead - x_ego >= D*_safe))
+        # equivalent to : always_[0, T](x_lead - x_ego >= D_safe OR eventually_[0,t](x_lead - x_ego >= D*_safe))
+        # P(phi5) = 1 - P(phi5')
+        # P(always(A or B)) = 1 - P(eventually (not A AND not B))
+        # not B = not eventually C = always not C
+
+
+        # ICCPS: 
+        # phi5: G_[0,50](x_lead - x_ego < D_safe -> F_[0, 3](x_lead - x_eg > D*_safe))
+
+        # phi5': eventually_[0,T](x_lead-x_ego <= D_safe AND always_[0,t](x_lead - x_ego <= D*_safe))
+
+        A51 = np.array([1., 0., 0., -1., -1.4, 0., 0.])
+        b51 = np.array([10.])
+        P51 = AtomicPredicate(A51,b51)
+
+        A52 = np.array([1., 0., 0., -1., -1.4, 0., 0.])
+        b52 = np.array([12.])
+        P52 = AtomicPredicate(-A52,-b52)
+
+        phi5 = Formula([AW0T, lb, P51, OR, lb, EV0t, P52 , rb, rb])
+
+        phi5c = Formula([EV0T, lb, P51, AND, lb, AW0t, P51, rb, rb])
+
+        phi = [phi1, phi1c, phi2, phi2c, phi3, phi4, phi4c, phi5, phi5c]
+
+        assert isinstance(spec_ids, list), 'Error: spec_ids should be a list'
+        id_max = max(spec_ids)
+        id_min = min(spec_ids)
+
+        if id_min < 0 or id_max > 8:
+            raise RuntimeError('Invalid spec_ids, id should be between 0 and 8')
+
+        phi_v = []
+        for id in spec_ids:
+            phi_v.append(phi[id])
+        
+        return sys, phi_v, initSet, refInputs
+    
+
 def load_AEBS_model():
     """load avanced emergency braking system
     
@@ -658,6 +943,68 @@ def load_AEBS_temporal_specs():
     specs = [phi1]
 
     return specs
+
+
+def load_scherlock_acc():
+    #modelNN_controllerNN
+
+    cur_path = os.path.dirname(__file__)
+    cur_path = cur_path + '/data/nets/Scherlock_ACC_Trapezius/networks.mat'
+
+    mat_file = loadmat(cur_path)
+    controller_nn = mat_file['controller_nn']
+    model_nn = mat_file['Model_nn']
+
+    Wc = controller_nn[0][0][0].ravel()
+    bc = controller_nn[0][0][1].ravel()
+    
+    n_weight = len(Wc)
+
+    controller_layers = []
+    for i in range(n_weight):
+        controller_layers.append(fullyConnectedLayer(Wc[i], bc[i].ravel()))
+        controller_layers.append(ReLULayer())
+            
+    controller_net = NeuralNetwork(controller_layers, net_type='controller_scherlock_acc')
+
+    Wm = model_nn[0][0][0].ravel()
+    bm = model_nn[0][0][1].ravel()
+    
+    n_weight = len(Wm)
+
+    model_layers = []
+    for i in range(n_weight):
+        model_layers.append(fullyConnectedLayer(Wm[i], bm[i].ravel()))
+        model_layers.append(ReLULayer())
+            
+    model_net = NeuralNetwork(controller_layers, net_type='model_scherlock_acc')
+
+    return model_net, controller_net
+
+
+def load_sherlock_acc_trapezius():
+    # load_Trapezius_network
+
+    net_name = 'trapezius'
+    cur_path = os.path.dirname(__file__)
+    cur_path = cur_path + f'/data/nets/Scherlock_ACC_Trapezius/{net_name}.mat'
+    mat_file = loadmat(cur_path)
+    Net = mat_file['Net']
+    W = Net[0][0][0].ravel()
+    b = Net[0][0][1].ravel()
+    act_fun = Net[0][0][2].ravel() # containts activation list of each neurons
+    
+    n_weight = len(W)
+    n_act_fun = len(act_fun)
+    
+    
+    layers = []
+    for i in range(n_weight):
+        layers.append(fullyConnectedLayer(W[i].toarray(), b[i].toarray().ravel()))
+        if i < n_act_fun:
+            layers.append(MixedActivationLayer(act_fun[i]))
+            
+    return NeuralNetwork(layers, net_type=net_name)
     
 
 def load_building_model():

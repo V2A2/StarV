@@ -8,7 +8,7 @@ Date: 05/2024
 from StarV.verifier.verifier import quantiVerifyBFS
 from StarV.set.probstar import ProbStar
 import numpy as np
-from StarV.util.load import load_acc_model, load_AEBS_model, load_AEBS_temporal_specs
+from StarV.util.load import load_acc_model, load_acc_trapezius_model, load_AEBS_model, load_AEBS_temporal_specs
 from StarV.util.plot import plot_probstar_reachset, plot_probstar_signal, plot_probstar_signals, plot_SAT_trace
 import time
 from StarV.util.plot import plot_probstar, plot_probstar_reachset_with_unsafeSpec
@@ -22,6 +22,8 @@ from StarV.spec.dProbStarTL import _ALWAYS_, _EVENTUALLY_, AtomicPredicate, Form
 from StarV.spec.dProbStarTL import DynamicFormula
 import os
 import copy
+import pickle
+import scipy
 
 
 
@@ -897,9 +899,117 @@ def verify_AEBS():
          print(tabulate(verification_data_full, headers=["X0", "Spec.", "T", "pf", "p_max", "p_min", "reachTime", "checkTime", "verifyTime", "N_traces"], tablefmt='latex'), file=f)
 
 
-    
+def verify_temporal_specs_ACC_trapezius(net='controller_3_20'):
+    'verify temporal properties of Le-ACC, tables are generated and stored in artifacts/2024POPL/table'
 
+    plant='linear'
+    spec_ids = [8]
+    T = [10, 20, 30, 50] # numSteps
+    numCores = 1
+    t = 3
     
+    verification_acc_trapezius_data = []
+    for T1 in T:
+        
+        # load NNCS ACC system
+        print('Loading the ACC system...')
+        ncs, specs, initSet, refInputs = load_acc_trapezius_model(net, plant, spec_ids, T1, t)
+        p = initSet.estimateProbability()
+
+         # verify parameters
+        verifyPRM = VerifyPRM_NNCS()
+        verifyPRM.initSet = copy.deepcopy(initSet)
+        verifyPRM.refInputs = copy.deepcopy(refInputs)
+        verifyPRM.numSteps = T1
+        verifyPRM.pf = 0.0
+        verifyPRM.numCores = numCores
+        verifyPRM.temporalSpecs = copy.deepcopy(specs)
+
+        traces, p_max, p_min, reachTime, checkingTime, verifyTime = verify_temporal_specs_DLNNCS(ncs, verifyPRM)
+        
+        for i, spec_id in enumerate(spec_ids):
+            if spec_id == 6:
+                spec_id1 = 5
+            else:
+                spec_id1 = spec_id
+
+            pc_max = p - np.array(p_max)
+            pc_min = p - np.array(p_min)
+            verification_acc_trapezius_data.append(['p_{}'.format(spec_id), T1 , \
+                                             pc_max[i], pc_min[i], \
+                                             reachTime, checkingTime[i], \
+                                             verifyTime[i]])
+            
+    print(tabulate(verification_acc_trapezius_data, headers=["Spec.", "T", "pc_max", "pc_min", "reachTime", "checkTime", "verifyTime"]))   
+    
+    path = "artifacts/2024POPL/ACC/table"
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+    with open(path+f"/verification_acc_trapezius_{net}_tab.tex", "w") as f:
+         print(tabulate(verification_acc_trapezius_data, headers=["Spec.", "T", "p_max", "p_min", "reachTime", "checkTime", "verifyTime"], tablefmt='latex'), file=f)
+
+    path = "artifacts/2024POPL/ACC/results"
+    if not os.path.exists(path):
+        os.makedirs(path)
+    save_file = path + f"/verification_acc_trapezius_{net}_results.pkl"
+    pickle.dump(verification_acc_trapezius_data, open(save_file, "wb"))
+
+def generate_temporal_specs_ACC_trapezius_table():
+    T = [10, 20, 30, 50]
+    Nets = ['controller_3_20', 'controller_5_20']
+
+    path = "artifacts/2024POPL/ACC/results"
+    NS_path = "StarV/util/data/nets/ACC/NeuroSymbolic_results/"
+
+    header = ['CtrlNet', 'Method']
+    for t in T:
+        header.extend([f'[T = {t}] range', f'[T = {t}] vt (sec)'])
+    header
+
+    result_table = []
+    for net in Nets:
+        NeuroSymb_interval = []
+        NeuroSymb_vt = []
+        
+        if net == 'controller_3_20':
+            netname = 'N_3_20'
+        else:
+            netname = 'N_5_20'
+            
+        load_file = path + f"/verification_acc_trapezius_{net}_results.pkl"
+        with open(load_file, 'rb') as f:
+            data = pickle.load(f)
+            
+        for t in T:
+            mat_file = NS_path + f"NeuroSymbolic_{net}_phi3_linear_exact_t{t}_linprog_results.mat"
+            file = scipy.io.loadmat(mat_file)
+            NeuroSymb_interval.append(file['interval'])
+            NeuroSymb_vt.append(file['Computation_time'])
+        
+        table_row = []
+        table_row.extend([netname, 'ProbStar'])
+        for j in range(len(T)):
+            table_row.extend([f'[{data[j][2]:2.4f}, {data[j][3]:2.4f}]', f'{data[j][6]:0.4f}'])
+        result_table.append(table_row)
+
+        table_row = []
+        table_row.extend([netname, 'NeuroSymbolic'])
+        for j in range(len(T)):
+            table_row.extend([f'[{NeuroSymb_interval[j][0, 0]:0.4f}, {NeuroSymb_interval[j][0, 1]:0.4f}]', f'{NeuroSymb_vt[j].item():0.4f}'])
+            
+        result_table.append(table_row)
+
+    print(tabulate(result_table, headers=header))
+
+    path = "artifacts/2024POPL/ACC/table"
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+    with open(path+f"/verification_acc_trapezius_full_tab.tex", "w") as f:
+        print(tabulate(result_table, headers=header, tablefmt='latex'), file=f)
+
+
 if __name__ == "__main__":
 
     # verify Le-ACC
@@ -917,4 +1027,9 @@ if __name__ == "__main__":
 
     # verify AEBS 
     #generate_exact_reachset_figs_AEBS()
-    verify_AEBS()
+    # verify_AEBS()
+    
+    verify_temporal_specs_ACC_trapezius(net='controller_3_20')
+    verify_temporal_specs_ACC_trapezius(net='controller_5_20')
+    generate_temporal_specs_ACC_trapezius_table()
+

@@ -2,6 +2,8 @@ import numpy as np
 import multiprocessing
 import scipy
 import time
+import os
+import pickle
 
 from StarV.set.star import Star
 from StarV.set.probstar import ProbStar
@@ -9,6 +11,7 @@ from StarV.layer.fullyConnectedLayer import fullyConnectedLayer
 from StarV.layer.ReLULayer import ReLULayer
 from StarV.layer.MixedActivationLayer import MixedActivationLayer
 from StarV.net.network import NeuralNetwork, reachExactBFS
+from StarV.util.load import load_scherlock_acc, load_sherlock_acc_trapezius, load_acc_trapezius
 
 def load_modelNN_controllerNN():
     folder_dir = './artifacts/Scherlock_ACC_Trapezius'
@@ -65,7 +68,7 @@ def load_Trapezius_network():
     network = NeuralNetwork(layers, net_type=net_name)
     return network
 
-def quantiverify_trapezius_network(lp_solver = 'gurobi', numCores=1, show=True):
+def quantiverify_sherlock_acc_trapezius_network(lp_solver = 'gurobi', numCores=1, show=True):
     center = np.array([100, 32.1, 0, 10.5, 30.1, 0])
     epsilon = np.array([10, 0.1, 0, 0.5, 0.1, 0])
     lb = center - epsilon
@@ -81,7 +84,7 @@ def quantiverify_trapezius_network(lp_solver = 'gurobi', numCores=1, show=True):
     print('Variance matrix of predicate variables: Sig = {}'.format(Sig))
     InputSet = [ProbStar(S.V, S.C, S.d, mu, Sig, S.pred_lb, S.pred_ub)]
 
-    starv_net = load_Trapezius_network()
+    starv_net = load_sherlock_acc_trapezius()
     print(starv_net)
 
     if numCores > 1:
@@ -107,6 +110,100 @@ def quantiverify_trapezius_network(lp_solver = 'gurobi', numCores=1, show=True):
     print(f'verification time: {vt}')
 
 
+def quantiverify_sherlock_acc_trapezius_network(lp_solver = 'gurobi', numCores=1, show=True):
+    center = np.array([100, 32.1, 0, 10.5, 30.1, 0])
+    epsilon = np.array([10, 0.1, 0, 0.5, 0.1, 0])
+    lb = center - epsilon
+    ub = center + epsilon
+
+    S = Star(lb, ub)
+    mu = 0.5*(S.pred_lb + S.pred_ub)
+    a = 2.5 # coefficience to adjust the distribution
+    sig = (mu - S.pred_lb)/a
+    print('Mean of predicate variables: mu = {}'.format(mu))
+    print('Standard deviation of predicate variables: sig = {}'.format(sig))
+    Sig = np.diag(np.square(sig))
+    print('Variance matrix of predicate variables: Sig = {}'.format(Sig))
+    InputSet = [ProbStar(S.V, S.C, S.d, mu, Sig, S.pred_lb, S.pred_ub)]
+
+    # starv_net = load_Trapezius_network()
+    starv_net = load_sherlock_acc_trapezius()
+    print(starv_net)
+
+    if numCores > 1:
+        pool = multiprocessing.Pool(numCores)
+    else:
+        pool = None
+    
+    start = time.perf_counter()
+    OutputSet = reachExactBFS(starv_net, InputSet, lp_solver, pool, show)
+
+    k = len(OutputSet)
+    lb = np.zeros(k)
+    ub = np.zeros(k)
+    for i in range(k):
+        lb[i], ub[i] = OutputSet[i].getRanges()
+
+    lb = lb.min()
+    ub = ub.max()
+    interval = [lb, ub]
+    vt = time.perf_counter() - start
+
+    print(f'interval: {interval}')
+    print(f'verification time: {vt}')
+
+
+def quantiverify_acc_trapezius_network(timestep=10, lp_solver = 'gurobi', numCores=1, show=True):
+    center = np.array([100, 32.1, 0, 10.5, 30.1, 0])
+    epsilon = np.array([10, 0.1, 0, 0.5, 0.1, 0])
+    lb = center - epsilon
+    ub = center + epsilon
+
+    S = Star(lb, ub)
+    mu = 0.5*(S.pred_lb + S.pred_ub)
+    a = 2.5 # coefficience to adjust the distribution
+    sig = (mu - S.pred_lb)/a
+    print('Mean of predicate variables: mu = {}'.format(mu))
+    print('Standard deviation of predicate variables: sig = {}'.format(sig))
+    Sig = np.diag(np.square(sig))
+    print('Variance matrix of predicate variables: Sig = {}'.format(Sig))
+    InputSet = [ProbStar(S.V, S.C, S.d, mu, Sig, S.pred_lb, S.pred_ub)]
+
+    starv_net = load_acc_trapezius(t=timestep)
+    print(starv_net)
+
+    if numCores > 1:
+        pool = multiprocessing.Pool(numCores)
+    else:
+        pool = None
+    
+    start = time.perf_counter()
+    OutputSet = reachExactBFS(starv_net, InputSet, lp_solver, pool, show)
+
+    k = len(OutputSet)
+    lb = np.zeros(k)
+    ub = np.zeros(k)
+    for i in range(k):
+        lb[i], ub[i] = OutputSet[i].getRanges()
+
+    lb = lb.min()
+    ub = ub.max()
+    interval = [lb, ub]
+    vt = time.perf_counter() - start
+
+    print(f'interval: {interval}')
+    print(f'verification time: {vt}')
+
+    path = "artifacts/2024POPL/ACC/"
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+    save_file = path + f"/phi3_acc_network_t{timestep}_results.pkl"
+    pickle.dump([interval, vt], open(save_file, "wb"))
+
 if __name__ == "__main__":
-    # quantiverify_trapezius_network(numCores = 1)
-    load_modelNN_controllerNN()
+    # quantiverify_sherlock_acc_trapezius_network(numCores = 1)
+    quantiverify_acc_trapezius_network(timestep=10, numCores = 1)
+    quantiverify_acc_trapezius_network(timestep=20, numCores = 1)
+    quantiverify_acc_trapezius_network(timestep=30, numCores = 1)
+    quantiverify_acc_trapezius_network(timestep=50, numCores = 1)
