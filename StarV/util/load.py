@@ -1156,7 +1156,7 @@ def load_fom_model():
     return plant
 
 
-def load_JPVowel_GRU_network(net_dir, dtype='float32'):
+def load_GRU_network(net_dir, net_name='GRU', dtype='float32'):
     model = onnx.load(net_dir)
     model_initializer = model.graph.initializer
     Weights = []
@@ -1171,11 +1171,11 @@ def load_JPVowel_GRU_network(net_dir, dtype='float32'):
     FC_b = Weights[5]
     L2 = FullyConnectedLayer(layer=[FC_W, FC_b], dtype=dtype)
 
-    net_name = 'JPVowel_GRU'
+    net_name = 'GRU'
     return NeuralNetwork(layers=[L1, L2], net_type=net_name)
 
 
-def load_JPVowel_LSTM_network(net_dir, dtype='float32'):
+def load_LSTM_network(net_dir, net_name='LSTM', dtype='float32'):
     model = onnx.load(net_dir)
     model_initializer = model.graph.initializer
     Weights = []
@@ -1190,8 +1190,9 @@ def load_JPVowel_LSTM_network(net_dir, dtype='float32'):
     FC_b = Weights[6]
     L2 = FullyConnectedLayer(layer=[FC_W, FC_b], dtype=dtype)
 
-    net_name = 'JPVowel_LSTM'
+    net_name = 'LSTM'
     return NeuralNetwork(layers=[L1, L2], net_type=net_name)
+
 
 def load_sigmoidal_networks(data_type='mnist', net_size='small', func='tanh', opt=False, delta=0.98):
 

@@ -1,5 +1,7 @@
 """
-apply adversarial attacks for verifying networks
+	Apply adversarial attacks for verifying networks
+	
+	Sung Woo Choi, 10/20/2024
 """
 import numpy as np
 
