@@ -3,7 +3,7 @@ HSCC2025: Memory-Efficient Verification for
           Deep Convolutional Neural Networks using SparseImageStar
 Evaluation
 
-Author: Sung Woo Choi
+Author: Anomynous
 Date: 12/25/2024
 """
 
