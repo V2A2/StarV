@@ -802,40 +802,7 @@ class SparseStar(object):
                                 self.pred_depth[self.nZVars:self.nVars], S.pred_depth[S.nZVars:S.nVars]))
         
         return SparseStar(A, C, d, pred_lb, pred_ub, pred_depth)
-    
-    # def Product(self, S):
-    #     """Product of two sparse stars """
 
-    #     assert isinstance(S, SparseStar), 'error: input is not a SparseStar'
-    #     assert self.dim == S.dim, 'error: inconsistent dimension between the input and the self object'
-
-    #     X = np.hstack((self.X(), S.X()))
-    #     c = self.c() * S.c()
-    #     A = np.hstack((c, X))
-
-    #     OC1 = self.C[:, 0:self.nZVars]
-    #     OC2 = self.C[:, self.nZVars:self.nVars]
-
-    #     SC1 = S.C[:, 0:S.nZVars]
-    #     SC2 = S.C[:, S.nZVars:S.nVars]
-
-    #     C1 = sp.block_diag((OC1, SC1))
-    #     C2 = sp.block_diag((OC2, SC2))
-
-    #     if C1.nnz > 0:
-    #         C = sp.hstack((C1, C2)).tocsc()
-    #     else:
-    #         C = C2.tocsc()
-    #     d = np.concatenate((self.d, S.d))
-
-    #     pred_lb = np.hstack((self.pred_lb[0:self.nZVars], S.pred_lb[0:S.nZVars],
-    #                         self.pred_lb[self.nZVars:self.nVars], S.pred_lb[S.nZVars:S.nVars]))
-    #     pred_ub = np.hstack((self.pred_ub[0:self.nZVars], S.pred_ub[0:S.nZVars],
-    #                         self.pred_ub[self.nZVars:self.nVars], S.pred_ub[S.nZVars:S.nVars]))
-    #     pred_depth = np.hstack((self.pred_depth[0:self.nZVars], S.pred_depth[0:S.nZVars],
-    #                             self.pred_depth[self.nZVars:self.nVars], S.pred_depth[S.nZVars:S.nVars]))
-        
-    #     return SparseStar(A, C, d, pred_lb, pred_ub, pred_depth)
 
     def concatenate(self, S):
         """Concatenate two sparse star sets """
