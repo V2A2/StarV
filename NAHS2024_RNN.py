@@ -122,7 +122,7 @@ def verify_MNIST_LSTM_GRU(type='lstm', hidden=15):
             RB_dr2[e] = np.hstack([RB_dr2[e], rb[0]])
             VT_dr2[e] = np.hstack([VT_dr2[e], vt])
         print()
-        
+
     rb_est = np.array([]) 
     vt_est = np.array([])
     rb_lp = np.array([]) 
@@ -160,7 +160,8 @@ def verify_MNIST_LSTM_GRU(type='lstm', hidden=15):
 
 def plot_rnns_results(type='lstm', hidden=15):
 
-    f_dir = f"artifacts/NAHS2024_RNN/results/"
+    ft_dir = f"artifacts/NAHS2024_RNN/"
+    f_dir = ft_dir + "results/"
     with open(f_dir + f'mnist_{type}_{hidden}_results.npy', 'rb') as f:
         rb_est = np.load(f)
         rb_lp = np.load(f)
@@ -172,11 +173,11 @@ def plot_rnns_results(type='lstm', hidden=15):
         vt_dr1 = np.load(f)
         vt_dr2 = np.load(f)
 
-    with open(f_dir + f'auto_lirpa_results/auto_lirpa_{type}_{hidden}_results.pkl', 'rb') as f:
+    with open(ft_dir + f'auto_lirpa_results/auto_lirpa_{type}_{hidden}_results.pkl', 'rb') as f:
         rb_autolirpa, vt_autolirpa, _ = pickle.load(f)
 
     if type == 'lstm':
-        with open(f_dir + f'popqorn_results/popqorn_{type}_{hidden}_results.pkl', 'rb') as f:
+        with open(ft_dir + f'popqorn_results/popqorn_{type}_{hidden}_results.pkl', 'rb') as f:
             rb_popqorn, vt_popqorn, _ = pickle.load(f)
 
     if hidden == 15:
