@@ -1,5 +1,5 @@
 # StarV Dockerfile
-Update: 12/20/2024 (Sung Woo Choi, merging)
+# Update: 12/20/2024 (Sung Woo Choi, merging)
 #
 # To build image at StarV root director:
 # docker build . -t starv -f .devcontainer/Dockerfile
