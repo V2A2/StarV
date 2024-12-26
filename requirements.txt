@@ -6,7 +6,7 @@ pypoman
 tabulate
 matplotlib
 numpy<=1.26.4
-scipy
+scipy<2.0.0
 ipyparallel
 torchvision
 plotly==5.14.1
