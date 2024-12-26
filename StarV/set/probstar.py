@@ -173,8 +173,8 @@ class ProbStar(object):
         print('mu: {}'.format(self.mu))
         print('Sig: {}'.format(self.Sig))
         return '\n'
-		
-	def __repr__(self):
+    
+    def __repr__(self):
         print('ProbStar Set:')
         print('V: {}'.format(self.V.shape))
         print('Predicate Constraints:')

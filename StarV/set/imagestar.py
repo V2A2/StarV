@@ -56,15 +56,15 @@ class ImageStar(object):
         len_ = len(args)
 
         if len_ == 5:
-			[V, C, d, pred_lb, pred_ub] = args
-			
+            [V, C, d, pred_lb, pred_ub] = args
+            
             if copy_ is True:
                 V = V.copy()
-				C = C.copy()
-				d = d.copy()
-				pred_lb = pred_lb.copy()
-				pred_ub = pred_ub.copy()
-
+                C = C.copy()
+                d = d.copy()
+                pred_lb = pred_lb.copy()
+                pred_ub = pred_ub.copy()
+                
             assert isinstance(V, np.ndarray), \
             'error: basis matrix should be a numpy array'
             assert isinstance(pred_lb, np.ndarray), \
@@ -131,11 +131,11 @@ class ImageStar(object):
         
         elif len_ == 2:
             [lb, ub] = args
-			
-			if copy_ is True:
-				lb = lb.copy()
-				ub = ub.copy()
-
+            
+            if copy_ is True:
+                lb = lb.copy()
+                ub = ub.copy()
+                
             assert isinstance(lb, np.ndarray), \
             'error: lower bound vector should be a numpy array'
             assert isinstance(ub, np.ndarray), \
@@ -346,9 +346,9 @@ class ImageStar(object):
         
         else:
             raise Exception('Basis image dimension issue')
-			
-	def clone(self):
-		return ImageStar(self.V, self.C, self.d, self.pred_lb, self.pred_ub)
+        
+    def clone(self):
+        return ImageStar(self.V, self.C, self.d, self.pred_lb, self.pred_ub)
                 
     def index_to3D(self, index):
         # V is in [height, width, channel] order

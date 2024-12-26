@@ -48,12 +48,12 @@ class SparseStar(object):
             [A, C, d, pred_lb, pred_ub, pred_depth] = args
 
             if copy_ is True:
-				A = A.copy()
-				C = C.copy()
+                A = A.copy()
+                C = C.copy()
                 d = d.copy()
-				pred_lb = pred_lb.copy()
-				pred_ub = pred_ub.copy()
-            
+                pred_lb = pred_lb.copy()
+                pred_ub = pred_ub.copy()
+                
             assert isinstance(A, np.ndarray), \
             'error: basis matrix should be a 2D numpy array'
             assert isinstance(pred_lb, np.ndarray), \
@@ -150,11 +150,11 @@ class SparseStar(object):
 
         elif len_ == 2:
             [lb, ub] = args
-				
+            
             if copy_ is True:
                 lb = lb.copy()
-				ub = ub.copy()          
-
+                ub = ub.copy()
+                
             assert isinstance(lb, np.ndarray), \
             'error: lower bound vector should be a 1D numpy array'
             assert isinstance(ub, np.ndarray), \

@@ -16,7 +16,6 @@ import glpk
 import polytope as pc
 import copy
 
-
 class Star(object):
     """
         Star Class for reachability
@@ -46,14 +45,14 @@ class Star(object):
            pred_ub = []; % upper bound of predicate variables
         """
         if len(args) == 5:
-			[V, C, d, pred_lb, pred_ub] = args
-			
+            [V, C, d, pred_lb, pred_ub] = args
+            
             if copy_ is True:
-				V = V.copy()
-				C = C.copy()
+                V = V.copy()
+                C = C.copy()
                 d = d.copy()
-				pred_lb = pred_lb.copy()
-				pred_ub = pred_ub.copy()
+                pred_lb = pred_lb.copy()
+                pred_ub = pred_ub.copy()
 
             assert isinstance(V, np.ndarray), 'error: \
             basis matrix should be a 2D numpy array'
@@ -117,11 +116,11 @@ class Star(object):
 
         
         elif len(args) == 2:  # the most common use
-			[lb, ub] = args
-				
+            [lb, ub] = args
+            
             if copy_ is True:
                 lb = lb.copy()
-				ub = ub.copy()          
+                ub = ub.copy()          
 
             assert isinstance(lb, np.ndarray), 'error: \
             lower bound vector should be a 1D numpy array'
@@ -193,9 +192,9 @@ class Star(object):
     
     def __len__(self):
         return 1
-		
-	def clone(self):
-		return Star(self.V, self.C,	self.d, self.pred_lb, self.pred_ub)
+    
+    def clone(self):
+        return Star(self.V, self.C,	self.d, self.pred_lb, self.pred_ub)
 
     def getMinimizedConstraints(self):
         """minimize constraints of a star"""
@@ -776,8 +775,8 @@ class Star(object):
         V = self.V
         V[map, :] = 0.0
         return Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
-		
-	def sample(self, N):
+    
+    def sample(self, N):
         """
         Sample N points in the feasible Star set.
 
