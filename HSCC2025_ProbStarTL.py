@@ -1010,7 +1010,11 @@ def generate_temporal_specs_ACC_trapezius_table():
     with open(path+f"/verification_acc_trapezius_full_tab.tex", "w") as f:
         print(tabulate(result_table, headers=header, tablefmt='latex'), file=f)
 
-
+def verify_temporal_specs_ACC_trapeziu_full():
+    verify_temporal_specs_ACC_trapezius(net='controller_3_20')
+    verify_temporal_specs_ACC_trapezius(net='controller_5_20')
+    generate_temporal_specs_ACC_trapezius_table()
+    
 if __name__ == "__main__":
     
     #test_verification_ACC()
@@ -1039,10 +1043,8 @@ if __name__ == "__main__":
     analyze_verification_complexity_3()             # Figure 5a
     visualize_satisfied_traces()                    # Figure 5b
 
-    # Table 3:
-    verify_temporal_specs_ACC_trapezius(net='controller_3_20')
-    verify_temporal_specs_ACC_trapezius(net='controller_5_20')
-    generate_temporal_specs_ACC_trapezius_table()   # Table 3
+    # Table 3: Verification results (robustness intervals) of NeuroSymbolic [ 12] are consistent with the proposed ProbStarTL verification results (probabilities of satisfaction). 
+    verify_temporal_specs_ACC_trapeziu_full()       # Table 3
 
     # Table 4: Quantitative verification results of AEBS system
     # against property 𝜑 = ⋄[0,𝑇 ] (𝑑𝑘 ≤ 𝐿 ∧ 𝑣𝑘 ≥ 0.2) 
