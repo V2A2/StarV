@@ -49,7 +49,7 @@ def load_fairness(id, type, show=False):
 
     model_name = f'{t}-{id}'
     cur_path = os.path.dirname(__file__)
-    model_path = cur_path + '/data/nets/Fairness_Models/adult/' + model_name + '.h5'
+    model_path = f'{cur_path}/data/nets/Fairness_Models/{type}/{model_name}.h5'
 
     # Check if the model file exists
     if os.path.exists(model_path):
@@ -73,12 +73,10 @@ def load_fairness(id, type, show=False):
                 L2 = ReLULayer()
                 layers.append(L2)
 
-        net = NeuralNetwork(layers, net_type=f'ffnn_{model_name}')
-        
-    else:
-        print(f"Model file not found at {model_path}")
+        return NeuralNetwork(layers, net_type=f'ffnn_{model_name}')
 
-    return net
+    print(f"Model file not found at {model_path}")
+
 
 
 def load_fairness_adult(id):
