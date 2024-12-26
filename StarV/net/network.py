@@ -8,7 +8,7 @@
 import copy
 import torch
 import numpy as np
-
+from typing import List, Union, Tuple, Optional
 from StarV.layer.ReLULayer import ReLULayer
 from StarV.layer.FlattenLayer import FlattenLayer
 from StarV.layer.fullyConnectedLayer import fullyConnectedLayer
@@ -24,6 +24,7 @@ from StarV.layer.PixelClassificationLayer import PixelClassificationLayer
 from StarV.layer.RecurrentLayer import RecurrentLayer
 
 from StarV.set.probstar import ProbStar
+from StarV.set.star import Star
 import copy
 import multiprocessing
 import itertools
@@ -104,7 +105,7 @@ class NeuralNetwork(object):
     def info(self):
         print(self)
 
-    def evaluate(self, input_vec):
+    def evaluate(self, input_vec, show=False):
         'evaluate a network on a specific input vector'
 
         assert isinstance(input_vec, np.ndarray), 'error: input vector is not a numpy array'
@@ -224,3 +225,17 @@ def reachApproxBFS(net, inputSet, p_filter, lp_solver='gurobi', pool=None, show=
 
 
     return I, p_ignored
+
+
+def reach_exact_bfs_star_relu(net: NeuralNetwork, inputSet: List[Star], method = 'exact',
+                  lp_solver: str = 'gurobi', pool: Optional[multiprocessing.Pool] = None, 
+                  show: bool = True) -> List[Union[Star, ProbStar]]:
+    """Compute Reachable Set layer-by-layer"""
+    S = [star.clone() for star in inputSet]
+    for i, layer in enumerate(net.layers):
+        if show:
+            print(f'Computing layer {i} reachable set...')
+        S = layer.reach(S, method, lp_solver=lp_solver, pool=pool)
+        if show:
+            print(f'Number of stars: {len(S)}\n')
+    return S
