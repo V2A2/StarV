@@ -896,7 +896,7 @@ def verify_AEBS():
     if not os.path.exists(path):
         os.makedirs(path)
 
-    with open(path+"/AEBS_verification_tab_full.tex", "w") as f:
+    with open(path+"/Table_4__AEBS_verification_tab_full.tex", "w") as f:
          print(tabulate(verification_data_full, headers=["X0", "Spec.", "T", "pf", "p_max", "p_min", "reachTime", "checkTime", "verifyTime", "N_traces"], tablefmt='latex'), file=f)
 
 
@@ -947,7 +947,7 @@ def verify_temporal_specs_ACC_trapezius(net='controller_3_20'):
     if not os.path.exists(path):
         os.makedirs(path)
 
-    with open(path+f"/verification_acc_trapezius_{net}_tab.tex", "w") as f:
+    with open(path+f"/Table_3__verification_acc_trapezius_{net}_tab.tex", "w") as f:
          print(tabulate(verification_acc_trapezius_data, headers=["Spec.", "T", "p_max", "p_min", "reachTime", "checkTime", "verifyTime"], tablefmt='latex'), file=f)
 
     path = "artifacts/HSCC2025_ProbStarTL/ACC/results"
