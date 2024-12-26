@@ -85,23 +85,34 @@ class Test(object):
             print('Test Successfull!')
 
         print('Using Parallel Computing')
+
+        pool = multiprocessing.Pool(2)
+        L = fullyConnectedLayer.rand(2, 3)
+        I1 = ProbStar.rand(2)
+        In = []
+        In.append(I1)
+        In.append(I1)
+        print('Number of input sets: {}'.format(len(In)))
+        S = L.reach(inputSet=In, pool=pool)
+        print('Number of output Set: {}'.format(len(S)))
+        pool.close()
                 
-        try:
-            pool = multiprocessing.Pool(2)
-            L = fullyConnectedLayer.rand(2, 3)
-            I1 = ProbStar.rand(2)
-            In = []
-            In.append(I1)
-            In.append(I1)
-            print('Number of input sets: {}'.format(len(In)))
-            S = L.reach(inputSet=In, pool=pool)
-            print('Number of output Set: {}'.format(len(S)))
-            pool.close()
-        except Exception:
-            print('Test Fail!')
-            self.n_fails = self.n_fails + 1
-        else:
-            print('Test Successfull!')
+        # try:
+        #     pool = multiprocessing.Pool(2)
+        #     L = fullyConnectedLayer.rand(2, 3)
+        #     I1 = ProbStar.rand(2)
+        #     In = []
+        #     In.append(I1)
+        #     In.append(I1)
+        #     print('Number of input sets: {}'.format(len(In)))
+        #     S = L.reach(inputSet=In, pool=pool)
+        #     print('Number of output Set: {}'.format(len(S)))
+        #     pool.close()
+        # except Exception:
+        #     print('Test Fail!')
+        #     self.n_fails = self.n_fails + 1
+        # else:
+        #     print('Test Successfull!')
 
 
             

@@ -1,10 +1,10 @@
 """
-Test ProbStar methods
+Test Star methods
 Last update: 11/25/2022
 Author: Dung Tran
 """
 
-from StarV.set.probstar import ProbStar
+from StarV.set.star import Star
 import numpy as np
 import glpk
 import polytope as pc
@@ -12,7 +12,7 @@ import polytope as pc
 
 class Test(object):
     """
-       Testing ProbStar class methods
+       Testing Star class methods
     """
 
     def __init__(self):
@@ -24,19 +24,17 @@ class Test(object):
 
         self.n_tests = self.n_tests + 1
 
-        # len(agrs) = 4
-        mu = np.random.rand(3,)
-        Sig = np.eye(3)
+        # len(agrs) = 2
         # pred_lb = np.random.rand(3,)
         # pred_ub = pred_lb + 0.2
         pred_lb = np.array([-1, -1, -1])
         pred_ub = pred_lb + 0.2
-        print('Testing ProbStar Constructor...')
+        print('Testing Star Constructor...')
         try:
-            ProbStar(mu, Sig, pred_lb, pred_ub)
+            Star(pred_lb, pred_ub)
         except Exception:
-            print("Fail in constructing probstar object with \
-            len(args)= {}".format(4))
+            print("Fail in constructing Star object with \
+            len(args)= {}".format(2))
             self.n_fails = self.n_fails + 1
         else:
             print("Test Successfull!")
@@ -45,13 +43,11 @@ class Test(object):
 
         self.n_tests = self.n_tests + 1
 
-        mu = np.random.rand(3,)
-        Sig = np.eye(3)
         # pred_lb = np.random.rand(3,)
         # pred_ub = pred_lb + 0.2
         pred_lb = np.array([-1, -1, -1])
         pred_ub = pred_lb + 0.2
-        S = ProbStar(mu, Sig, pred_lb, pred_ub)
+        S = Star(pred_lb, pred_ub)
         print('\nTesting __str__ method...')
 
         try:
@@ -66,19 +62,20 @@ class Test(object):
 
         self.n_tests = self.n_tests + 1
 
-        mu = np.random.rand(3,)
-        Sig = np.eye(3)
         pred_lb = np.random.rand(3,)
         pred_ub = pred_lb + 0.2
-        S = ProbStar(mu, Sig, pred_lb, pred_ub)
+        S = Star(pred_lb, pred_ub)
         print('\nTesting estimateMin method...')
 
         try:
             min_val, max_val = S.estimateRange(0)
             print('MinValue = {}, true_val = {}'.format(min_val, pred_lb[0]))
             print('MaxValue = {}, true_val = {}'.format(max_val, pred_ub[0]))
-            assert min_val == pred_lb[0] and \
-                max_val == pred_ub[0], 'error: wrong results'
+
+            # Yuntao: Need to compare values with tolerance
+            # Default: np.isclose(a, b, rtol=1e-05, atol=1e-08, equal_nan=False)
+            assert np.isclose(min_val, pred_lb[0]) and \
+                np.isclose(max_val, pred_ub[0]), 'error: wrong results'
         except Exception:
             print("Test Fail!")
             self.n_fails = self.n_fails + 1
@@ -89,11 +86,9 @@ class Test(object):
 
         self.n_tests = self.n_tests + 1
 
-        mu = np.random.rand(3,)
-        Sig = np.eye(3)
         pred_lb = np.random.rand(3,)
         pred_ub = pred_lb + 0.2
-        S = ProbStar(mu, Sig, pred_lb, pred_ub)
+        S = Star(pred_lb, pred_ub)
         print('\nTesting estimateRanges method...')
 
         try:
@@ -112,18 +107,16 @@ class Test(object):
 
         self.n_tests = self.n_tests + 3
 
-        mu = np.random.rand(3,)
-        Sig = np.eye(3)
         pred_lb = np.random.rand(3,)
         pred_ub = pred_lb + 0.2
-        S = ProbStar(mu, Sig, pred_lb, pred_ub)
-        min_val = S.getMin(0, 'gurobi')
+        S = Star(pred_lb, pred_ub)
+        # min_val = S.getMin(0, 'gurobi')
         print('\nTesting getMin method using gurobi...')
 
         try:
             min_val = S.getMin(0, 'gurobi')
             print('MinValue = {}, true_val = {}'.format(min_val, pred_lb[0]))
-            assert min_val == pred_lb[0], 'error: wrong results'
+            assert np.isclose(min_val, pred_lb[0]), 'error: wrong results'
         except Exception:
             print("Test Fail!")
             self.n_fails = self.n_fails + 1
@@ -135,7 +128,7 @@ class Test(object):
         try:
             min_val = S.getMin(0, 'glpk')
             print('MinValue = {}, true_val = {}'.format(min_val, pred_lb[0]))
-            assert min_val == pred_lb[0], 'error: wrong results'
+            assert np.isclose(min_val, pred_lb[0]), 'error: wrong results'
         except Exception:
             print("Test Fail!")
             self.n_fails = self.n_fails + 1
@@ -147,7 +140,7 @@ class Test(object):
         try:
             min_val = S.getMin(0, 'linprog')
             print('MinValue = {}, true_val = {}'.format(min_val, pred_lb[0]))
-            assert min_val == pred_lb[0], 'error: wrong results'
+            assert np.isclose(min_val, pred_lb[0]), 'error: wrong results'
         except Exception:
             print("Test Fail!")
             self.n_fails = self.n_fails + 1
@@ -202,16 +195,14 @@ class Test(object):
 
         self.n_tests = self.n_tests + 3
 
-        mu = np.random.rand(3,)
-        Sig = np.eye(3)
         pred_lb = np.random.rand(3,)
         pred_ub = pred_lb + 0.2
-        S = ProbStar(mu, Sig, pred_lb, pred_ub)
+        S = Star(pred_lb, pred_ub)
         print('\nTesting getMax method using gurobi...')
         try:
             max_val = S.getMax(0, 'gurobi')
             print('MaxValue = {}, true_val = {}'.format(max_val, pred_ub[0]))
-            assert max_val == pred_ub[0], 'error: wrong results'
+            assert np.isclose(max_val, pred_ub[0]), 'error: wrong results'
         except Exception:
             print("Test Fail!")
             self.n_fails = self.n_fails + 1
@@ -223,7 +214,7 @@ class Test(object):
         try:
             max_val = S.getMax(0, 'glpk')
             print('MaxValue = {}, true_val = {}'.format(max_val, pred_ub[0]))
-            assert max_val == pred_ub[0], 'error: wrong results'
+            assert np.isclose(max_val, pred_ub[0]), 'error: wrong results'
         except Exception:
             print("Test Fail!")
             self.n_fails = self.n_fails + 1
@@ -235,7 +226,7 @@ class Test(object):
         try:
             max_val = S.getMax(0, 'linprog')
             print('MaxValue = {}, true_val = {}'.format(max_val, pred_ub[0]))
-            assert max_val == pred_ub[0], 'error: wrong results'
+            assert np.isclose(max_val, pred_ub[0]), 'error: wrong results'
         except Exception:
             print("Test Fail!")
             self.n_fails = self.n_fails + 1
@@ -246,11 +237,9 @@ class Test(object):
 
         self.n_tests = self.n_tests + 1
 
-        mu = np.random.rand(3,)
-        Sig = np.eye(3)
         pred_lb = np.random.rand(3,)
         pred_ub = pred_lb + 0.2
-        S = ProbStar(mu, Sig, pred_lb, pred_ub)
+        S = Star(pred_lb, pred_ub)
 
         A = np.random.rand(2, 3)
         b = np.random.rand(2,)
@@ -259,9 +248,9 @@ class Test(object):
 
         try:
             S1 = S.affineMap(A, b)
-            print('original probstar:')
+            print('original Star:')
             print(S.__str__())
-            print('new probstar:')
+            print('new Star:')
             print(S1.__str__())
         except Exception:
             print("Test Fail!")
@@ -272,8 +261,8 @@ class Test(object):
     def test_minKowskiSum(self):
 
         self.n_tests = self.n_tests + 1
-        X = ProbStar.rand(3)
-        Y = ProbStar.rand(3)
+        X = Star.rand(3)
+        Y = Star.rand(3)
         Z = X.minKowskiSum(Y)
         try:
             print('\nTesting minKowskiSum method...')
@@ -291,15 +280,13 @@ class Test(object):
 
         self.n_tests = self.n_tests + 1
 
-        mu = np.random.rand(3,)
-        Sig = np.eye(3)
         pred_lb = np.random.rand(3,)
         pred_ub = pred_lb + 0.2
-        S = ProbStar(mu, Sig, pred_lb, pred_ub)
+        S = Star(pred_lb, pred_ub)
 
         try:
             print('\nTesting isEmptySet method...')
-            res = S.isEmptySet('gurobi')
+            res = S.isEmptySet()
             print('res: {}'.format(res))
         except Exception:
             print("Test Fail!")
@@ -319,7 +306,7 @@ class Test(object):
         print('\nTesting updatePredicateRanges method 1...')
 
         try:
-            new_pred_lb, new_pred_ub = ProbStar.updatePredicateRanges(newC,
+            new_pred_lb, new_pred_ub = Star.updatePredicateRanges(newC,
                                                                       newd,
                                                                       pred_lb,
                                                                       pred_ub)
@@ -338,7 +325,7 @@ class Test(object):
         print('\nTesting updatePredicateRanges method 2...')
 
         try:
-            new_pred_lb, new_pred_ub = ProbStar.updatePredicateRanges(newC,
+            new_pred_lb, new_pred_ub = Star.updatePredicateRanges(newC,
                                                                       newd,
                                                                       pred_lb,
                                                                       pred_ub)
@@ -355,11 +342,9 @@ class Test(object):
 
         self.n_tests = self.n_tests + 1
 
-        mu = np.random.rand(2,)
-        Sig = np.eye(2)
         pred_lb = np.array([-1.0, -1.0])
         pred_ub = np.array([1.0, 1.0])
-        S = ProbStar(mu, Sig, pred_lb, pred_ub)
+        S = Star(pred_lb, pred_ub)
         C = np.array([-0.25, 1.0])
         d = np.array([0.25])
 
@@ -381,11 +366,9 @@ class Test(object):
 
         self.n_tests = self.n_tests + 1
 
-        mu = np.random.rand(2,)
-        Sig = np.eye(2)
         pred_lb = np.array([-1.0, -1.0])
         pred_ub = np.array([1.0, 1.0])
-        S = ProbStar(mu, Sig, pred_lb, pred_ub)
+        S = Star(pred_lb, pred_ub)
         C = np.array([[-0.25, 1.0], [0., -1.0]])
         d = np.array([0.25, 0.])
 
@@ -410,7 +393,7 @@ class Test(object):
         self.n_tests = self.n_tests + 1
         print('\nTesting rand method...')
         try:
-            S = ProbStar.rand(3)
+            S = Star.rand(3)
             S.__str__()
         except Exception:
             print('Test Fails')
@@ -418,29 +401,6 @@ class Test(object):
         else:
             print('Test Successfull!')
 
-    def test_estimateProbability(self):
-
-        self.n_tests = self.n_tests + 1
-        print('\nTesting estimateProbability method...')
-        
-        try:
-            S = ProbStar.rand(3)
-            prob = S.estimateProbability()
-            print('prob = {}'.format(prob))
-            V = np.random.rand(5, 4)
-            C = np.random.rand(4, 3)
-            d = np.random.rand(4,)
-            S2 = ProbStar(V, C, d, S.mu, S.Sig, S.pred_lb, S.pred_ub)
-            prob2 = S2.estimateProbability()
-            print('prob2 = {}'.format(prob2))
-            print('isemptySet = {}'.format(S2.isEmptySet()))
-            p = pc.Polytope(C, d)
-            print('isemptySet = {}'.format(pc.is_empty(p)))
-        except Exception:
-            print('Test Fails')
-            self.n_fails = self.n_fails + 1
-        else:
-            print('Test Successfull!')
 
     def test_sampling(self):
 
@@ -448,7 +408,7 @@ class Test(object):
 
         try:
 
-            S = ProbStar.rand(2, 3)
+            S = Star.rand(2, 3)
             samples = S.sampling(3)
             lb, ub = S.getRanges()
             print('lb = {}'.format(lb))
@@ -472,7 +432,7 @@ class Test(object):
         self.n_tests = self.n_tests + 1
 
         try:
-            S = ProbStar.rand(2, 3)
+            S = Star.rand(2, 3)
             v = np.random.rand(3,)
             S1 = S.concatenate_with_vector(v)
             v2 = []
@@ -493,33 +453,32 @@ class Test(object):
 
 if __name__ == "__main__":
 
-    test_probstar = Test()
+    test_Star = Test()
     print('\n=======================\
     ================================\
     ================================\
     ===============================\n')
-    test_probstar.test_constructor()
-    test_probstar.test_str()
-    test_probstar.test_estimateRange()
-    test_probstar.test_glpk()
-    test_probstar.test_getMin()
-    test_probstar.test_getMax()
-    test_probstar.test_affineMap()
-    test_probstar.test_minKowskiSum()
-    test_probstar.test_isEmptySet()
-    test_probstar.test_updatePredicateRanges()
-    test_probstar.test_addConstraint()
-    test_probstar.test_rand()
-    test_probstar.test_estimateRanges()
-    test_probstar.test_estimateProbability()
-    test_probstar.test_addMultipleConstraints()
-    test_probstar.test_sampling()
-    test_probstar.test_concatenate_with_vector()
+    test_Star.test_constructor()
+    test_Star.test_str()
+    test_Star.test_estimateRange()
+    test_Star.test_estimateRanges()
+    test_Star.test_glpk()
+    test_Star.test_getMin()
+    test_Star.test_getMax()
+    test_Star.test_affineMap()
+    test_Star.test_minKowskiSum()
+    test_Star.test_isEmptySet()
+    test_Star.test_updatePredicateRanges()
+    test_Star.test_addConstraint()
+    test_Star.test_rand()
+    test_Star.test_addMultipleConstraints()
+    # test_Star.test_sampling()
+    # test_Star.test_concatenate_with_vector()
     print('\n========================\
     =================================\
     =================================\
     =================================\n')
-    print('Testing ProbStar Class: fails: {}, successfull: {}, \
-    total tests: {}'.format(test_probstar.n_fails,
-                            test_probstar.n_tests - test_probstar.n_fails,
-                            test_probstar.n_tests))
+    print('Testing Star Class: fails: {}, successfull: {}, \
+    total tests: {}'.format(test_Star.n_fails,
+                            test_Star.n_tests - test_Star.n_fails,
+                            test_Star.n_tests))

@@ -8,7 +8,7 @@ from StarV.fun.satlin import SatLin
 from StarV.set.probstar import ProbStar
 import numpy as np
 import multiprocessing
-from StarV.util.plot import plot_probstar, plot_probstar_using_Polytope
+from StarV.util.plot import plot_probstar
 # import ipyparallel as ipp
 # import subprocess
 
@@ -56,20 +56,17 @@ class Test(object):
         pred_lb = np.array([-1.0, -1.0])
         pred_ub = np.array([1.0, 1.0])
         inputSet = ProbStar(V, C, d, mu, Sig, pred_lb, pred_ub)
-        plot_probstar_using_Polytope(inputSet)
+        # plot_probstar(inputSet)
         # plot_probstar(inputSet)
         # inputSet.plot()
 
         try:
             S = SatLin.stepReach(inputSet, 0)
+            # plot_probstar(S)
             print('\nInput Set:') 
             inputSet.__str__()
-            print('\nOutput Set 1:')
-            S[0].__str__()
-            print('\nOutput Set 2:')
-            S[1].__str__()
-            print('\nOutput Set 3:')
-            S[2].__str__()
+            for output_set in S:
+                output_set.__str__()
         except Exception:
             print('Test Fail!')
             self.n_fails = self.n_fails + 1
@@ -86,14 +83,18 @@ class Test(object):
         pred_lb = np.array([-1.0, -1.0])
         pred_ub = np.array([1.0, 1.0])
         inputSet = ProbStar(mu, Sig, pred_lb, pred_ub)
+        # plot_probstar(inputSet)
         In = []
         In.append(inputSet)
         In.append(inputSet)
 
         try:
             S = SatLin.stepReachMultiInputs(In, 1)
+            # plot_probstar(S)
             print('\nNumber of input set = {}'.format(len(In)))
             print('\nNumber of output set = {}'.format(len(S)))
+            for output_set in S:
+                output_set.__str__()
         except Exception:
             print('Test Fail!')
             self.n_fails = self.n_fails + 1
@@ -110,10 +111,14 @@ class Test(object):
         pred_lb = np.array([-1.0, -1.0])
         pred_ub = np.array([1.0, 1.0])
         inputSet = ProbStar(mu, Sig, pred_lb, pred_ub)
+        # plot_probstar(inputSet)
         S = SatLin.reachExactSingleInput(inputSet, 'gurobi')
         try:
             S = SatLin.reachExactSingleInput(inputSet, 'gurobi')
+            # plot_probstar(S)
             print('\nNumber of output set = {}'.format(len(S)))
+            for output_set in S:
+                output_set.__str__()
         except Exception:
             print('\nTest Fail!')
             self.n_fails = self.n_fails + 1
@@ -130,6 +135,7 @@ class Test(object):
         pred_lb = np.array([-1.0, -1.0])
         pred_ub = np.array([1.0, 1.0])
         inputSet = ProbStar(mu, Sig, pred_lb, pred_ub)
+        # plot_probstar(inputSet)
         In = []
         In.append(inputSet)
         In.append(inputSet)
@@ -137,8 +143,11 @@ class Test(object):
         try:
             print('\n1) using default....')
             S = SatLin.reachExactMultiInputs(In, 'gurobi')
+            # plot_probstar(S)
             print('\nNumber of input sets = {}'.format(len(In)))
             print('\nNumber of output sets = {}'.format(len(S)))
+            for output_set in S:
+                output_set.__str__()
         except Exception:
             print('\nTest Fail!')
             self.n_fails = self.n_fails + 1
@@ -152,6 +161,8 @@ class Test(object):
             print('\nNumber of input sets = {}'.format(len(In)))
             print('\nNumber of output sets = {}'.format(len(S)))
             pool.close()
+            for output_set in S:
+                output_set.__str__()
         except Exception:
             print('\nTest Fail!')
             self.n_fails = self.n_fails + 1

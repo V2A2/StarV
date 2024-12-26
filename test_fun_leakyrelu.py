@@ -52,21 +52,19 @@ class Test(object):
         Sig = np.eye(2)
         pred_lb = np.array([-1.0, -1.0])
         pred_ub = np.array([1.0, 1.0])
-        # inputSet = ProbStar(mu, Sig, pred_lb, pred_ub)
-        inputSet = ProbStar.rand(2)
-        plot_probstar(inputSet)
+        inputSet = ProbStar(mu, Sig, pred_lb, pred_ub)
+        # inputSet = ProbStar.rand(2)
+        # plot_probstar(inputSet)
         
         gamma = 0.1
 
         try:
             S = LeakyReLU.stepReach(inputSet, 0, gamma)
-            plot_probstar(S)
+            # plot_probstar(S)
             print('\nInput Set:')
             inputSet.__str__()
-            print('\nOutput Set 1:')
-            S[0].__str__()
-            print('\nOutput Set 2:')
-            S[1].__str__()
+            for output_set in S:
+                output_set.__str__()
         except Exception:
             print('Test Fail!')
             self.n_fails = self.n_fails + 1
@@ -93,6 +91,8 @@ class Test(object):
             S = LeakyReLU.stepReachMultipleInputs(In, 1, gamma)
             print('\nNumber of input set = {}'.format(len(In)))
             print('\nNumber of output set = {}'.format(len(S)))
+            for output_set in S:
+                output_set.__str__()
         except Exception:
             print('Test Fail!')
             self.n_fails = self.n_fails + 1
@@ -115,6 +115,8 @@ class Test(object):
         try:
             S = LeakyReLU.reachExactSingleInput(inputSet, gamma, 'gurobi')
             print('\nNumber of output set = {}'.format(len(S)))
+            for output_set in S:
+                output_set.__str__()
         except Exception:
             print('\nTest Fail!')
             self.n_fails = self.n_fails + 1
@@ -130,8 +132,8 @@ class Test(object):
         Sig = np.eye(2)
         pred_lb = np.array([-1.0, -1.0])
         pred_ub = np.array([1.0, 1.0])
-        # inputSet = ProbStar(mu, Sig, pred_lb, pred_ub)
-        inputSet = ProbStar.rand(10)
+        inputSet = ProbStar(mu, Sig, pred_lb, pred_ub)
+        # inputSet = ProbStar.rand(10)
         In = []
         In.append(inputSet)
         In.append(inputSet)
@@ -144,6 +146,8 @@ class Test(object):
             S = LeakyReLU.reachExactMultiInputs(In, gamma, 'gurobi')
             print('\nNumber of input sets = {}'.format(len(In)))
             print('\nNumber of output sets = {}'.format(len(S)))
+            for output_set in S:
+                output_set.__str__()
         except Exception:
             print('\nTest Fail!')
             self.n_fails = self.n_fails + 1
@@ -157,6 +161,8 @@ class Test(object):
             print('\nNumber of input sets = {}'.format(len(In)))
             print('\nNumber of output sets = {}'.format(len(S)))
             pool.close()
+            for output_set in S:
+                output_set.__str__()
         except Exception:
             print('\nTest Fail!')
             self.n_fails = self.n_fails + 1

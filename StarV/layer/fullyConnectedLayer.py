@@ -42,11 +42,9 @@ class fullyConnectedLayer(object):
 
     @staticmethod
     def rand(in_dim, out_dim):
-        """ Random generate a fullyConnectedLayer"""
-
+        """Random generate a fullyConnectedLayer"""
         W = np.random.rand(out_dim, in_dim)
         b = np.random.rand(out_dim)
-
         return fullyConnectedLayer(W, b)
 
     def reachExactSingleInput(self, In):
@@ -68,7 +66,7 @@ class fullyConnectedLayer(object):
         if show:
             print("\nfullyConnectedLayer reach function\n")
 
-        pool = None
+
         
         S = []
         if pool is None:

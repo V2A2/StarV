@@ -8,7 +8,7 @@ from StarV.set.probstar import ProbStar
 import numpy as np
 import glpk
 import polytope as pc
-from StarV.util.plot import  plot_probstar
+from StarV.util.plot import plot_probstar
 
 
 class Test(object):

@@ -19,7 +19,76 @@ import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d as a3
 import plotly.graph_objects as go
 
+def plot_1D_Star(I, show=True, color='g'):
+    """Plot a 1D star set
+    Yuntao Li"""
 
+    if isinstance(I, ProbStar) or isinstance(I, Star):
+        if I.dim != 1:
+            raise Exception('error: input set is not 1D star')
+        [lb, ub] = I.getRanges()
+        if lb == ub:
+            plt.plot(lb, 0, 'o', color=color)  # Plot point if lb == ub
+        else:
+            plt.plot([lb, ub], [0, 0], color=color)  # Plot line otherwise
+        if show:
+            plt.show()
+    elif isinstance(I, list) and len(I) > 1:
+        for i in range(0, len(I)):
+            if I[i].dim != 1:
+                raise Exception('error: input set is not 1D star')
+            [lb, ub] = I[i].getRanges()
+            if lb == ub:
+                plt.plot(lb, 0, 'o', color=color)  # Plot point if lb == ub
+            else:
+                plt.plot([lb, ub], [0, 0], color=color)  # Plot line otherwise
+        if show:
+            plt.show()
+    elif isinstance(I, list) and len(I) == 1:
+        if I[0].dim != 1:
+            raise Exception('error: input set is not 1D star')
+        [lb, ub] = I[0].getRanges()
+        if lb == ub:
+            plt.plot(lb, 0, 'o', color=color)  # Plot point if lb == ub
+        else:
+            plt.plot([lb, ub], [0, 0], color=color)  # Plot line otherwise
+        if show:
+            plt.show()
+
+
+def plot_2D_Star_with_sampling(I, sample_points=None, show=True, color='g', marker='o'):
+    """
+    Plot a 2D Star set along with optional sampled points.
+
+    Parameters:
+    I (StarSet): The 2D Star set object.
+    sample_points (np.ndarray, optional): Array of sampled points to plot, with each column as a point.
+    show (bool, optional): Whether to show the plot immediately. Defaults to True.
+    color (str, optional): Color for the plot elements. Defaults to 'g' (green).
+    marker (str, optional): Marker style for the sampled points. Defaults to 'o' (circle).
+    """
+
+    if I.dim != 2:
+        raise Exception('Input set is not 2D star')
+
+    # Plot the polygon representing the Star set
+    verts = getVertices(I)  # Assuming getVertices is a function to extract vertices
+    try:
+        pypoman.plot_polygon(verts, color=color)  # Plotting the vertices as a polygon
+    except Exception:
+        warnings.warn('Potential floating-point error during plotting')
+
+    # If sample points are provided, plot them after transposing if necessary
+    if sample_points is not None:
+        sample_points = np.array(sample_points)
+        if sample_points.shape[0] != 2:
+            # Assuming points are stored in columns, transpose them
+            sample_points = sample_points.T
+        plt.scatter(sample_points.T[:, 0], sample_points.T[:, 1], color=color, marker=marker, label='Sampled Points')
+
+    if show:
+        plt.legend()
+        plt.show()
 
 def getVertices(I):
     """Get all vertices of a star"""
@@ -451,8 +520,6 @@ def plot_probstar_reachset_with_unsafeSpec(rs, unsafe_mat, unsafe_vec, dir_mat=N
 
        
     
-
-
 def plot_star(I, dir_mat=None, dir_vec=None, label=('$y_1$', '$y_2$'), show=True, color='g'):
     """Plot a star set in a specific direction
        y = dir_mat*x + dir_vec, x in I
@@ -462,8 +529,11 @@ def plot_star(I, dir_mat=None, dir_vec=None, label=('$y_1$', '$y_2$'), show=True
         I1 = I.affineMap(dir_mat, dir_vec)
         if I1.dim > 2:
             raise Exception('error: only 2D plot is supported')
-        plot_2D_Star(I, show=False, color=color)
+        plot_2D_Star(I1, show=False, color=color)
         l, u = I1.getRanges()
+        ax = plt.gca()
+        ax.set_xlim(l[0], u[0])
+        ax.set_ylim(l[1], u[1])
         
     elif isinstance(I, list):
         L = []
@@ -472,7 +542,7 @@ def plot_star(I, dir_mat=None, dir_vec=None, label=('$y_1$', '$y_2$'), show=True
             I2 = I[i].affineMap(dir_mat, dir_vec)
             if I2.dim > 2:
                 raise Exception('error: only 2D plot is supported')
-            plot_2D_Star(I2, show=False)
+            plot_2D_Star(I2, show=False, color=color)
             l, u = I2.getRanges()
             if i==0:
                 L = l

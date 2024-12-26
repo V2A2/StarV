@@ -10,8 +10,10 @@ import multiprocessing
 import numpy as np
 import polytope as pc
 from StarV.util.print_util import print_util
+from typing import Optional, Tuple, Union
 
-class Verifier_Star(object):
+
+class Verifier(object):
     """
        Verifier Class
 
@@ -41,153 +43,114 @@ class Verifier_Star(object):
         pass
 
 
-def checkSafetyStar(unsafe_mat, unsafe_vec, S):
-    """Intersect with unsafe region, can work in parallel"""
+def checkSafetyStar(unsafe_mat: np.ndarray, unsafe_vec: np.ndarray, S: Star) -> Union[Star, List]:
+    """
+    Intersect Star with unsafe region.
 
-    C = unsafe_mat
-    d = unsafe_vec
-    assert isinstance(C, np.ndarray), 'error: constraint matrix should be a numpy array'
-    assert isinstance(d, np.ndarray) and len(d.shape) == 1, 'error: constraint vector \
-    should be a 1D numpy array'
-    assert C.shape[0] == d.shape[0], 'error: inconsistency between constraint matrix and \
-    constraint vector'
+    Args:
+        unsafe_mat (np.ndarray): Constraint matrix.
+        unsafe_vec (np.ndarray): Constraint vector.
+        S (Star): Star object to check.
 
-    P = copy.deepcopy(S)
-    v = np.matmul(C, P.V)
+    Returns:
+        Union[Star, List]: Intersected Star or empty list if no intersection.
+
+    Raises:
+        ValueError: If inputs are not of correct type or shape.
+    """
+    if not isinstance(unsafe_mat, np.ndarray) or not isinstance(unsafe_vec, np.ndarray):
+        raise ValueError('Constraint matrix and vector should be numpy arrays')
+    if unsafe_vec.ndim != 1 or unsafe_mat.shape[0] != unsafe_vec.shape[0]:
+        raise ValueError('Inconsistency between constraint matrix and vector')
+
+    P = S.clone()
+    # v = np.matmul(unsafe_mat, P.V)
+    v = unsafe_mat @ P.V
     newC = v[:, 1:P.nVars+1]
-    newd = d - v[:,0]
+    newd = unsafe_vec - v[:, 0]
 
     if len(P.C) != 0:
         P.C = np.vstack((newC, P.C))
         P.d = np.concatenate([newd, P.d])
     else:
-        if len(newC.shape) == 1:
-            P.C = newC.reshape(1, P.nVars)
-        else:
-            P.C = newC
+        P.C = newC.reshape(1, P.nVars) if newC.ndim == 1 else newC
         P.d = newd
 
-    if P.isEmptySet():
-        P = []
-    return P
+    return P if not P.isEmptySet() else []
 
-def quanliVerifyExactBFS(net, inputSet, unsafe_mat, unsafe_vec, lp_solver='gurobi', numCores=1, show=True):
+def quantiVerifyExactBFS(net, inputSet, unsafe_mat, unsafe_vec, lp_solver='gurobi', numCores=1, show=True):
     """Quantitative Verification of ReLU Networks using exact bread-first-search"""
-
-    if numCores > 1:
-        pool = multiprocessing.Pool(numCores)
-    else:
-        pool = None
+    
+    pool = multiprocessing.Pool(numCores) if numCores > 1 else None
     S = reachExactBFS(net, inputSet, lp_solver, pool, show)  # output set
     P = []  # unsafe output set
+    prob = []  # probability of unsafe output set
+    
     if pool is None:
         for S1 in S:
             P1 = checkSafetyStar(unsafe_mat, unsafe_vec, S1)
             if isinstance(P1, Star):
                 P.append(P1)
     else:
+        # S1 = pool.starmap(checkSafetyStar, [(unsafe_mat, unsafe_vec, s) for s in S])
         S1 = pool.map(checkSafetyStar, zip([unsafe_mat]*len(S), [unsafe_vec]*len(S), S))
         pool.close()
         for S2 in S1:
             if isinstance(S2[0], Star):
                 P.append(S2[0])
+
+    print('length of unsafe sets: ', len(P))
           
     return S, P
 
+def evaluate(*args) -> np.ndarray:
+    """Evaluate the network on a set of samples"""
+    args1 = args[0] if isinstance(args[0], tuple) else args
+    net, samples = args1
 
-def evaluate(*args):
-    """evaluate the network on a set of samples"""
-    
-    if isinstance(args[0], tuple):
-        args1 = args[0]
-    else:
-        args1 = args
+    if not isinstance(net, NeuralNetwork):
+        raise ValueError('net should be a NeuralNetwork object')
 
-    net = args1[0]
-    samples = args1[1]
-    
-    assert isinstance(net, NeuralNetwork), 'error: net should be a NeuralNetwork object'
     x = samples
     for layer in net.layers:
-        y = layer.evaluate(x)
-        x = y
+        x = layer.evaluate(x)
+    return x
 
-    return y
+def checkSafetyPoints(*args) -> Tuple[int, int]:
+    """Check safety for a set of points"""
+    args1 = args[0] if isinstance(args[0], tuple) else args
+    unsafe_mat, unsafe_vec, points = args1
 
-
-def checkSafetyPoints(*args):
-    'check safety for a single point'
-
-    if isinstance(args[0], tuple):
-        args1 = args[0]
-    else:
-        args1 = args
-
-    unsafe_mat = args1[0]
-    unsafe_vec = args1[1]
-    points = args1[2]
-    
     P = pc.Polytope(unsafe_mat, unsafe_vec)
-
     n = points.shape[1]
-    nSAT = 0
-    for i in range(0,n):
-        y1 = points[:, i]
-        if y1 in P:
-            nSAT = nSAT + 1
-            
-    return nSAT, n 
+    nSAT = sum(1 for i in range(n) if points[:, i] in P)
 
+    return nSAT, n
 
-def quantiVerifyMC(net, inputSet, unsafe_mat, unsafe_vec, numSamples=100000, nTimes=10, numCores=1):
-    'quantitative verification using traditional Monte Carlo sampling-based method'
-
-    assert isinstance(inputSet, ProbStar), 'error: input set should be a probstar object'
-    assert nTimes >= 1, 'error: invalid number of times for computing avarage probSAT'
+def quantiVerifyMC(net: NeuralNetwork, inputSet: Star, unsafe_mat: np.ndarray, unsafe_vec: np.ndarray, 
+                   numSamples: int = 100000, nTimes: int = 10, numCores: int = 1) -> float:
+    """Quantitative verification using traditional Monte Carlo sampling-based method"""
+    if not isinstance(inputSet, Star):
+        raise ValueError('input set should be a Star object')
+    if nTimes < 1:
+        raise ValueError('invalid number of times for computing average probSAT')
 
     probSAT = 0
-    for i in range(0, nTimes):
-        
+    for _ in range(nTimes):
         samples = inputSet.sampling(numSamples)
-
+        
         if numCores > 1:
-            pool = multiprocessing.Pool(numCores)
-            # divide samples into N batches, N = numCores
-            nBatchs = numCores
-            batchSize = int(np.floor(numSamples/numCores))
-            I = []
-            for i in (0, nBatchs):
-                if i==0:
-                    start_ID = 0
-                else:
-                    start_ID = start_ID + batchSize
-
-                if i!= nBatchs-1:
-                    y1 = samples[:, start_ID:start_ID+batchSize]
-                else:
-                    y1 = samples[:, start_ID:samples.shape[1]]
-
-                I.append(y1)
-
+            with multiprocessing.Pool(numCores) as pool:
+                batchSize = numSamples // numCores
+                batches = [samples[:, i:i+batchSize] for i in range(0, numSamples, batchSize)]
+                y = pool.starmap(evaluate, [(net, batch) for batch in batches])
+                results = pool.starmap(checkSafetyPoints, [(unsafe_mat, unsafe_vec, output) for output in y])
+                nSAT = sum(result[0] for result in results)
+                n = sum(result[1] for result in results)
         else:
-            pool = None
-
-        if pool is None:
             y = evaluate(net, samples)
             nSAT, n = checkSafetyPoints(unsafe_mat, unsafe_vec, y)
 
-        else:
-            y = pool.map(evaluate, zip([net]*nBatchs, I))
-            S = pool.map(checkSafetyPoints, zip([unsafe_mat]*nBatchs, [unsafe_vec]*nBatchs, y))
+        probSAT += float(nSAT / n)
 
-            nSAT = 0
-            n = 0
-            for S1 in S:
-                nSAT = nSAT + S1[0]
-                n = n + S1[1]
-
-        probSAT = probSAT + float(nSAT/n)
-
-        probSAT = probSAT/nTimes
-
-    return probSAT
+    return probSAT / nTimes

@@ -13,7 +13,7 @@ import numpy as np
 import multiprocessing
 from StarV.util.load_fairness import load_fairness_adult, load_fairness_bank, load_fairness_german
 import time
-from StarV.util.plot import plot_star, plot_star_using_Polytope
+from StarV.util.plot import plot_star
 from matplotlib import pyplot as plt
 from StarV.set.star import Star
 from tabulate import tabulate

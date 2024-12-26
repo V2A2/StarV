@@ -5,6 +5,7 @@ Dung Tran, 9/10/2022
 
 from StarV.net.network import NeuralNetwork, reachExactBFS
 from StarV.set.probstar import ProbStar
+from StarV.set.star import Star
 from StarV.spec.dProbStarTL import Formula
 from StarV.plant.dlode import DLODE
 from StarV.plant.lode import LODE
