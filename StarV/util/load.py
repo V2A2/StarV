@@ -1557,17 +1557,16 @@ def load_onnx_network(filename, net_type=None, channel_last=True, num_pixel_clas
         elif op == 'Flatten':
             layer = FlattenLayer(channel_last)
             
-#         elif op == 'MatMul':
-#             assert len(cur_node.input) == 2
-#             init = init_map[cur_node.input[1]]
-#             assert init.data_type == onnx_type_float
+        elif op == 'MatMul':
+            assert len(cur_node.input) == 2
+            weight_init = init_map[cur_node.input[1]]
+            assert weight_init.data_type == onnx_type_float
 
-#             b = np.frombuffer(init.raw_data, dtype='<f4') # little endian float32
-#             shape = tuple(d for d in reversed(init.dims)) # note dims reversed, acasxu has 5, 50 but want 5 cols
+            shape = weight_init.dims[::-1]
+            weight = np.frombuffer(weight_init.raw_data, dtype='<f4') # little endian float32
+            weight = weight.reshape(shape, order='F').transpose([1, 0])
 
-#             b = nn_unflatten(b, shape, order='F')
-
-#             layers.append(FullyConnectedLayer(layer=[None, -b], dtype=dtype))
+            layer = FullyConnectedLayer(layer=[weight, None], dtype=dtype)
             
         
 #         elif op == 'Gemm':

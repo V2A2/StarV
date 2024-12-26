@@ -31,9 +31,6 @@ class FullyConnectedLayer(object):
         else:
             raise Exception('error: unsupported neural network module')
 
-        # assert (isinstance(W, np.ndarray) and len(W.shape) == 2) or W is None, 'error: weight matrix should be a 2D numpy array'
-        # assert (isinstance(b, np.ndarray) and len(b.shape) == 1) or b is None, 'error: bias vector should be a 1D numpy array'
-
         assert isinstance(W, np.ndarray) or W is None, 'error: weight matrix should be a numpy array'
         assert isinstance(b, np.ndarray) or b is None, 'error: bias vector should be a numpy array'
 
@@ -43,7 +40,7 @@ class FullyConnectedLayer(object):
             self.numpy_dtype = np.float64
         
         if W is not None and b is not None:
-            assert W.shape[0] == b.shape[0], 'error: inconsistent dimension between weight matrix and bias vector'
+            assert W.shape[0] == b.shape[0], f'error: inconsistent dimension between weight matrix {W.shape} and bias vector {b.shape}'
         
         if W is None:
             self.W = W
@@ -64,8 +61,9 @@ class FullyConnectedLayer(object):
     def evaluate(self, x):
         """evaluation on an input vector/array x"""
 
-        assert isinstance(x, np.ndarray), 'error: input vector should be a numpy array'
-        assert x.shape[0] == self.in_dim or self.in_dim == 1, 'error: inconsistent dimension between the weight matrix and input vector'
+        assert isinstance(x, np.ndarray), f'error: input vector should be a numpy array but received {type(x)}'
+        assert x.shape[0] == self.in_dim or self.in_dim == 1, \
+            f'error: inconsistent dimension between the mapping variables {(self.in_dim, self.out_dim)} and input vector {x.shape}'
         
         W = self.W
         b = self.b
@@ -77,7 +75,8 @@ class FullyConnectedLayer(object):
                 return np.matmul(W, x) + b[:, np.newaxis]
         
         elif W is not None:
-            if x.ndim == self.W.ndim:
+            # if x.ndim == self.W.ndim:
+            if x.shape[:2] == self.W.shape[:2]:
                 return W * x 
         
             return np.matmul(W, x)

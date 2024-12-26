@@ -12,6 +12,74 @@ import numpy as np
 from scipy.io import savemat
 # import torch
 # import math
+# import keras2onnx
+
+# def export_fairness_keras2onnx(id, type):
+#     if type =='adult':
+#         t = 'AC'
+#     elif type == 'bank':
+#         t = 'BM'
+#     else:
+#         t = 'GC'
+    
+#     model_name = '{t}-{id}.h5'
+#     cur_path = os.path.dirname(__file__)
+#     data_path = '/data/nets/Fairness_Models/adult/'
+#     model_path = cur_path + data_path + model_name
+#     onnx_path = cur_path + data_path + f'{t}-{id}.onnx'
+#     # Check if the model file exists
+#     if os.path.exists(model_path):
+
+#         # Load the model
+#         model = tf.keras.models.load_model(model_path)
+#         # Print the model summary to see its structure
+#         model.summary()
+#         onnx_model = keras2onnx.convert_keras(model, model.name)
+#         keras2onnx.save_model(onnx_model, onnx_path)
+
+def load_fairness(id, type, show=False):
+    """Load network dataset
+    """
+    if type =='adult':
+        t = 'AC'
+    elif type == 'bank':
+        t = 'BM'
+    else:
+        t = 'GC'
+
+    model_name = f'{t}-{id}'
+    cur_path = os.path.dirname(__file__)
+    model_path = cur_path + '/data/nets/Fairness_Models/adult/' + model_name + '.h5'
+
+    # Check if the model file exists
+    if os.path.exists(model_path):
+
+        # Load the model
+        model = tf.keras.models.load_model(model_path)
+        # Print the model summary to see its structure
+        if show:
+            model.summary()
+
+        layers = []
+        # Access the weights and biases of each layer
+        n_layers = len(model.layers)
+        for i, layer in enumerate(model.layers):
+            weights = layer.get_weights()[0]
+            biases = layer.get_weights()[1]
+
+            L1 = fullyConnectedLayer(weights.T, biases[:, None])
+            layers.append(L1)
+            if i < n_layers-1:
+                L2 = ReLULayer()
+                layers.append(L2)
+
+        net = NeuralNetwork(layers, net_type=f'ffnn_{model_name}')
+        
+    else:
+        print(f"Model file not found at {model_path}")
+
+    return net
+
 
 def load_fairness_adult(id):
     """Load network from adult dataset
