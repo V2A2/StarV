@@ -32,7 +32,11 @@ def verify_MNIST_LSTM_GRU(type='lstm', hidden=15):
     # import onnx network to StarV net
     net_name = f'MNIST_{type.upper()}{hidden}net'
     net_dir = f'{data_dir}/{net_name}.onnx'
-    net = load_GRU_network(net_dir, net_name)
+
+    if type == 'gru':
+        net = load_GRU_network(net_dir, net_name)
+    else:
+        net = load_LSTM_network(net_dir, net_name)
 
     NSample = 100
     # get first 100 correctly classified images
@@ -59,7 +63,7 @@ def verify_MNIST_LSTM_GRU(type='lstm', hidden=15):
     print('==============================================')
     print('Estimate')
     for e in range(len(eps)):
-        print('working epsilon: ', e)
+        print('working epsilon: ', eps[e])
         for i in range(len(x)):
             print('working image #:', i)
             _, rb, vt = certifyRobustness_sequence(net, x[i], epsilon=eps[e], lp_solver=lp_solver, DR=DR, show=False)

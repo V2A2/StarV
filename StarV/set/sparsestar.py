@@ -33,7 +33,7 @@ class SparseStar(object):
         """
             Key Attributes:
             A = []; % independent basis matrix 
-            C = []; % constraint matrix
+            C = []; % constraint matrixg
             d = []; % constraint vector
             dim = 0; % dimension of the sparse star set
             nVars = 0; % number of predicate variables
@@ -936,7 +936,7 @@ class SparseStar(object):
         assert p2_indx >= 0 and p2_indx < self.dim, 'error: invalid index for point 2'
 
         d1 = self.c(p1_indx) - self.c(p2_indx)
-        C1 = self.X(p2_indx) - self.X(p1_indx)
+        C1 = (self.X(p2_indx) - self.X(p1_indx))[None, :]
         Z1 = sp.csc_matrix((1, self.nZVars))
         C1 = sp.hstack((Z1, C1))
 

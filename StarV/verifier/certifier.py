@@ -86,11 +86,14 @@ def reachBFS(net, inputSet, reachMethod='approx', lp_solver='gurobi', pool=None,
         if show:
             print('Number of stars/sparsestars: {}'.format(len(In)))
             if reachMethod == 'approx':
-                print(f"Number of predicate variables: {In.num_pred}")
-                if isinstance(In, ImageStar) or isinstance(In, Star):
-                    print(f"Shape of the set: {In.V.shape}")
-                elif isinstance(In, SparseImageStar2DCOO) or isinstance(In, SparseImageStar2DCSR):
-                    print(f"Shape of the set: {In.shape + (In.num_pred,)}")
+                if isinstance(In, list):
+                    print(f"Number of predicate variables of In[0]: {In[0].nVars}")
+                else:
+                    print(f"Number of predicate variables: {In.num_pred}")
+                    if isinstance(In, ImageStar) or isinstance(In, Star):
+                        print(f"Shape of the set: {In.V.shape}")
+                    elif isinstance(In, SparseImageStar2DCOO) or isinstance(In, SparseImageStar2DCSR):
+                        print(f"Shape of the set: {In.shape + (In.num_pred,)}")
             print(f"Reachability analysis is done in {vt} seconds")
             
     outputSet = In
