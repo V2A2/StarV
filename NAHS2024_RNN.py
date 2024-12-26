@@ -38,6 +38,8 @@ def verify_MNIST_LSTM_GRU(type='lstm', hidden=15):
     else:
         net = load_LSTM_network(net_dir, net_name)
 
+    print(f'\nVerifying {net_name}')
+
     NSample = 100
     # get first 100 correctly classified images
     x = []
@@ -69,7 +71,7 @@ def verify_MNIST_LSTM_GRU(type='lstm', hidden=15):
             _, rb, vt = certifyRobustness_sequence(net, x[i], epsilon=eps[e], lp_solver=lp_solver, DR=DR, show=False)
             RB_est[e] = np.hstack([RB_est[e], rb[0]])
             VT_est[e] = np.hstack([VT_est[e], vt])
-
+        print()
 
     RB_lp = [np.array([]) for _ in range(len(eps))]
     VT_lp = [np.array([]) for _ in range(len(eps))]
@@ -78,12 +80,13 @@ def verify_MNIST_LSTM_GRU(type='lstm', hidden=15):
 
     print('LP')
     for e in range(len(eps)):
-        print('working epsilon: ', e)
+        print('working epsilon: ', eps[e])
         for i in range(len(x)):
             print('working image #:', i)
             _, rb, vt = certifyRobustness_sequence(net, x[i], epsilon=eps[e], lp_solver=lp_solver, DR=DR, show=False)
             RB_lp[e] = np.hstack([RB_lp[e], rb[0]])
             VT_lp[e] = np.hstack([VT_lp[e], vt])
+        print()
 
 
     ####
@@ -92,16 +95,16 @@ def verify_MNIST_LSTM_GRU(type='lstm', hidden=15):
     lp_solver = 'gurobi'
     DR = 1
 
-    print('==============================================')
+    print('\n==============================================')
     print('DR1')
     for e in range(len(eps)):
-        print('working epsilon: ', e)
+        print('working epsilon: ', eps[e])
         for i in range(len(x)):
             print('working image #:', i)
             _, rb, vt = certifyRobustness_sequence(net, x[i], epsilon=eps[e], lp_solver=lp_solver, DR=DR, show=False)
             RB_dr1[e] = np.hstack([RB_dr1[e], rb[0]])
             VT_dr1[e] = np.hstack([VT_dr1[e], vt])
-
+        print()
 
     ###
     RB_dr2 = [np.array([]) for _ in range(len(eps))]
@@ -109,16 +112,17 @@ def verify_MNIST_LSTM_GRU(type='lstm', hidden=15):
     lp_solver = 'gurobi'
     DR = 2
 
-    print('==============================================')
+    print('\n==============================================')
     print('DR2')
     for e in range(len(eps)):
-        print('working epsilon: ', e)
+        print('working epsilon: ', eps[e])
         for i in range(len(x)):
             print('working image #:', i)
             _, rb, vt = certifyRobustness_sequence(net, x[i], epsilon=eps[e], lp_solver=lp_solver, DR=DR, show=False)
             RB_dr2[e] = np.hstack([RB_dr2[e], rb[0]])
             VT_dr2[e] = np.hstack([VT_dr2[e], vt])
-
+        print()
+        
     rb_est = np.array([]) 
     vt_est = np.array([])
     rb_lp = np.array([]) 
