@@ -101,10 +101,10 @@ class RecurrentLayer(object):
             """
 
             h = self.Whh @ h + self.Whx @ x[i] + self.bh
-            if self.fh is not "purelin":
+            if self.fh != "purelin":
                 h = self.fh.evaluate(h)
             o = self.Woh @ h + self.bo
-            if self.fo is not "purelin":
+            if self.fo != "purelin":
                 o = self.fo.evaluate(o)
             output.append(o)
         return output
