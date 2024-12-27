@@ -733,8 +733,11 @@ def visualize_satisfied_traces():
             print('Plot SAT trace ...')
             plot_probstar_signal(sig, dir_mat=dir_mat1, dir_vec=dir_vec1, show_prob=True, \
                                    label=('$v_{ego}$','$D_r - D_{safe}$'), show=False)
-            plt.savefig(path+"/Figure_5b__sat_trace_{}.png".format(i), bbox_inches='tight')  # save figure
-            plt.show()
+            if i == 0:
+                plt.savefig(path+"/Figure_5b__sat_trace_{}.png".format(i), bbox_inches='tight')  # save figure
+            else:
+                plt.savefig(path+"/sat_trace_{}.png".format(i), bbox_inches='tight')  # save figure
+            # plt.show()
 
         
     
