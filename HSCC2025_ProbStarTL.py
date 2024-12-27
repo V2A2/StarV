@@ -1007,7 +1007,7 @@ def generate_temporal_specs_ACC_trapezius_table():
     if not os.path.exists(path):
         os.makedirs(path)
 
-    with open(path+f"/verification_acc_trapezius_full_tab.tex", "w") as f:
+    with open(path+f"/Table_3__verification_acc_trapezius_full_tab.tex", "w") as f:
         print(tabulate(result_table, headers=header, tablefmt='latex'), file=f)
 
 def verify_temporal_specs_ACC_trapeziu_full():
