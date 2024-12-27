@@ -105,8 +105,8 @@ class PosLin(object):
                     C = np.zeros(I.dim,)
                     C[index] = 1.0
                     d = np.zeros(1,)
-                    S1 = copy.deepcopy(I)
-                    S2 = copy.deepcopy(I)
+                    S1 = I.clone()
+                    S2 = I.clone()
                     S1.addConstraint(C, d)  # x <= 0
                     S1.resetRow(index)
                     S2.addConstraint(-C, d)  # x >= 0
@@ -506,52 +506,52 @@ class PosLin(object):
 
         return SparseImageStar(new_c, new_V, new_C, new_d, new_pred_lb, new_pred_ub)
     
-    def addConstraints_sparseimagestar_by_dense(I, map, l, u):
+    # def addConstraints_sparseimagestar_by_dense(I, map, l, u):
 
-        N = I.num_pixel
-        m = len(map) 
-        n = I.num_pred
-        dtype = I.V.dtype
+    #     N = I.num_pixel
+    #     m = len(map) 
+    #     n = I.num_pred
+    #     dtype = I.V.dtype
         
-        Ic = I.c.reshape(-1)
-        new_c = Ic.copy #copy.deepcopy(Ic)
-        new_c[map] = 0
-        new_c.reshape(I.height, I.weight, I.num_channel)
+    #     Ic = I.c.reshape(-1)
+    #     new_c = Ic.copy() #copy.deepcopy(Ic)
+    #     new_c[map] = 0
+    #     new_c.reshape(I.height, I.weight, I.num_channel)
 
-        VD = I.V.to_dense()
-        V1 = Vd.reshape(N, n ).copy #copy.deepcopy(VD).reshape(N, n)
+    #     VD = I.V.to_dense()
+    #     V1 = VD.reshape(N, n ).copy #copy.deepcopy(VD).reshape(N, n)
 
-        V2 = np.zeros([N, m], dtype=dtype)
-        for i in range(m):
-            V2[map[i], i] = 1
-        new_V = np.hstack([V1, V2])
+    #     V2 = np.zeros([N, m], dtype=dtype)
+    #     for i in range(m):
+    #         V2[map[i], i] = 1
+    #     new_V = np.hstack([V1, V2])
 
-        C0 = sp.hstack((I.C, sp.csc_matrix((I.C.shape[0], m)))) 
-        d0 = I.d
+    #     C0 = sp.hstack((I.C, sp.csc_matrix((I.C.shape[0], m)))) 
+    #     d0 = I.d
 
-        # case 1: y[index] >= 0
-        C1 = sp.hstack([sp.csc_matrix((m, n)), -np.identity(m, dtype=dtype)])
-        d1 = np.zeros(m, dtype=dtype)
+    #     # case 1: y[index] >= 0
+    #     C1 = sp.hstack([sp.csc_matrix((m, n)), -np.identity(m, dtype=dtype)])
+    #     d1 = np.zeros(m, dtype=dtype)
 
-        # case 2: y[index] >= x[index]
-        C2 = sp.hstack([VD[map, :], -V2[map, :]])
-        d2 = -Ic[map].reshape(-1)
+    #     # case 2: y[index] >= x[index]
+    #     C2 = sp.hstack([VD[map, :], -V2[map, :]])
+    #     d2 = -Ic[map].reshape(-1)
 
-        # case 3: y[index] <= (u / (u - l)) * (x - l)
-        a = u / (u - l)
-        b = a * l
+    #     # case 3: y[index] <= (u / (u - l)) * (x - l)
+    #     a = u / (u - l)
+    #     b = a * l
 
-        # C3 = sp.hstack([(-a[:, None] * VD[map, :]), V2[map, :]])
-        C3 = sp.hstack([(-a[:, None] * VD[map, :]), V2[map, :]])
-        d3 = a * Ic[map] - b
+    #     # C3 = sp.hstack([(-a[:, None] * VD[map, :]), V2[map, :]])
+    #     C3 = sp.hstack([(-a[:, None] * VD[map, :]), V2[map, :]])
+    #     d3 = a * Ic[map] - b
 
-        new_C = sp.vstack([C0, C1, C2, C3]).tocsc()
-        new_d = np.hstack([d0, d1, d2, d3])
+    #     new_C = sp.vstack([C0, C1, C2, C3]).tocsc()
+    #     new_d = np.hstack([d0, d1, d2, d3])
 
-        new_pred_lb = np.hstack([I.pred_lb, np.zeros(m, dtype=dtype)])
-        new_pred_ub = np.hstack([I.pred_ub, u])
+    #     new_pred_lb = np.hstack([I.pred_lb, np.zeros(m, dtype=dtype)])
+    #     new_pred_ub = np.hstack([I.pred_ub, u])
 
-        return SparseImageStar(new_c, new_V, new_C, new_d, new_pred_lb, new_pred_ub)
+    #     return SparseImageStar(new_c, new_V, new_C, new_d, new_pred_lb, new_pred_ub)
     
     def addConstraints_sparseimagestar2d_coo(I, map, l, u):
         map = map.astype(np.int32)
@@ -831,7 +831,7 @@ class PosLin(object):
         """
         toStar = None
 
-        I = copy.deepcopy(In)
+        I = In.clone() #copy.deepcopy(In)
 
         if show:
             print('Applying approximate reachability on \'poslin\' or \'relu\' activation function')

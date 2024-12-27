@@ -39,7 +39,7 @@ class ProbStar(object):
         ==========================================================================
     """
 
-    def __init__(self, *args):
+    def __init__(self, *args, copy_=True):
         """
            Key Attributes:
            V = []; % basis matrix
@@ -54,7 +54,17 @@ class ProbStar(object):
            predicate_ub = []; % upper bound of predicate variables
         """
         if len(args) == 7:
-            [V, C, d, mu, Sig, pred_lb, pred_ub] = copy.deepcopy(args)
+            [V, C, d, mu, Sig, pred_lb, pred_ub] = args
+
+            if copy_ is True:
+                V = V.copy()
+                C = C.copy()
+                d = d.copy()
+                mu = mu.copy()
+                Sig = Sig.copy()
+                pred_lb = pred_lb.copy()
+                pred_ub = pred_ub.copy()
+
             assert isinstance(V, np.ndarray), 'error: \
             basis matrix should be a 2D numpy array'
             assert isinstance(mu, np.ndarray), 'error: \
@@ -107,7 +117,13 @@ class ProbStar(object):
             self.pred_ub = pred_ub
 
         elif len(args) == 4:  # the most common use
-            [mu, Sig, pred_lb, pred_ub] = copy.deepcopy(args)
+            [mu, Sig, pred_lb, pred_ub] = args
+
+            if copy_ is True:
+                mu = mu.copy()
+                Sig = Sig.copy()
+                pred_lb = pred_lb.copy()
+                pred_ub = pred_ub.copy()
 
             assert isinstance(mu, np.ndarray), 'error: \
             median vector should be a 1D numpy array'
@@ -248,6 +264,12 @@ class ProbStar(object):
 
         return prob
 
+    def __len__(self):
+        return 1
+    
+    def clone(self):
+        return ProbStar(self.V, self.C,	self.d, self.mu, self.Sig, self.pred_lb, self.pred_ub)
+    
     def getMinimizedConstraints(self):
         """minimize constraints of a probstar"""
 
@@ -553,43 +575,38 @@ class ProbStar(object):
 
         
     def affineMap(self, A=None, b=None):
-        """Affine mapping of a probstar: S = A*self + b"""
+        """
+        Affine mapping of a ProbStar: S = A*self + b
+
+        Args:
+            A (np.ndarray): Mapping matrix (optional)
+            b (np.ndarray): Offset vector (optional)
+
+        Returns:
+            ProbStar: ProbStar Star set after affine mapping
+        """
 
         if A is not None:
-            assert isinstance(A, np.ndarray), 'error: \
-        mapping matrix should be an 2D numpy array'
-            assert A.shape[1] == self.dim, 'error: \
-        inconsistency between mapping matrix and ProbStar dimension'
+            assert isinstance(A, np.ndarray), \
+            'error: mapping matrix should be an 2D numpy array'
+            assert A.shape[1] == self.dim, \
+            'error: inconsistency between mapping matrix and ProbStar dimension'
 
         if b is not None:
-            assert isinstance(b, np.ndarray), 'error: \
-        offset vector should be an 1D numpy array'
+            assert isinstance(b, np.ndarray), \
+            'error: \offset vector should be an 1D numpy array'
             if A is not None:
-                assert A.shape[0] == b.shape[0], 'error: \
-        inconsistency between mapping matrix and offset vector'
-            assert len(b.shape) == 1, 'error: \
-        offset vector should be a 1D numpy array '
+                assert A.shape[0] == b.shape[0], \
+                'error: inconsistency between mapping matrix and offset vector'
+            assert len(b.shape) == 1, \
+            'error: offset vector should be a 1D numpy array '
 
-
-        if A is None and b is None:
-            new_set = copy.deepcopy(self)
-
-        if A is None and b is not None:
-            V = copy.deepcopy(self.V)
-            V[:, 0] = V[:, 0] + b
-            new_set = ProbStar(V, self.C, self.d, self.mu, self.Sig, self.pred_lb, self.pred_ub)
-
-        if A is not None and b is None:
-            V = np.matmul(A, self.V)
-            new_set = ProbStar(V, self.C, self.d, self.mu, self.Sig, self.pred_lb, self.pred_ub)
-
-        if A is not None and b is not None:
-            V = np.matmul(A, self.V)
-            V[:, 0] = V[:, 0] + b
-
-            new_set = ProbStar(V, self.C, self.d, self.mu,
-                               self.Sig, self.pred_lb, self.pred_ub)
-        return new_set
+        V = self.V.copy()
+        if A is not None:
+            V = np.matmul(A, V)
+        if b is not None:
+            V[:, 0] += b
+        return ProbStar(V, self.C, self.d, self.mu, self.Sig, self.pred_lb, self.pred_ub)
 
     def minKowskiSum(self, Y):
         """MinKowskiSum of two probstars"""
@@ -611,6 +628,7 @@ class ProbStar(object):
         if len(d) == 0:
             C = []
             d = []
+
         R = ProbStar(V, C, d, mu, Sig, pred_lb, pred_ub)
 
         return R
@@ -634,63 +652,63 @@ class ProbStar(object):
         when one new constraint is added"""
 
         assert isinstance(newC, np.ndarray) and \
-            len(newC.shape) == 1, 'error: \
-            new constraint matrix should be 1D numpy array'
+            len(newC.shape) == 1, \ 
+        'error: new constraint matrix should be 1D numpy array'
         assert isinstance(newd, np.ndarray) and \
-            len(newd.shape) == 1 and newd.shape[0] == 1, 'error: \
-            new constraint vector should be 1D numpy array'
+            len(newd.shape) == 1 and newd.shape[0] == 1, \
+        'error: new constraint vector should be 1D numpy array'
         assert isinstance(pred_lb, np.ndarray) and \
-            len(pred_lb.shape) == 1, 'error: \
-            lower bound vector should be 1D numpy array'
+            len(pred_lb.shape) == 1, \
+        'error: lower bound vector should be 1D numpy array'
         assert isinstance(pred_ub, np.ndarray) and \
-            len(pred_ub.shape) == 1, 'error: \
-            upper bound vector should be 1D numpy array'
-        assert pred_lb.shape[0] == pred_ub.shape[0], 'error: \
-        inconsistency between the lower bound and upper bound vectors'
-        assert newC.shape[0] == pred_lb.shape[0], 'error: \
-        inconsistency between the lower bound vector and the constraint matrix'
+            len(pred_ub.shape) == 1, \
+        'error: upper bound vector should be 1D numpy array'
+        assert pred_lb.shape[0] == pred_ub.shape[0], \
+        'error: inconsistency between the lower bound and upper bound vectors'
+        assert newC.shape[0] == pred_lb.shape[0], \
+        'error: inconsistency between the lower bound vector and the constraint matrix'
 
-        new_pred_lb = copy.deepcopy(pred_lb)
-        new_pred_ub = copy.deepcopy(pred_ub)
+        new_pred_lb = pred_lb.copy()
+        new_pred_ub = pred_ub.copy()
 
         # estimate new bounds for predicate variables
         for i in range(newC.shape[0]):
             x = newC[i]
             if x > 0:
-                v1 = copy.deepcopy(newC)
-                d1 = copy.deepcopy(newd)
+                v1 = newC.copy()
+                d1 = newd.copy()
                 v1 = v1/x
                 d1 = d1/x
                 v1 = np.delete(v1, i)
                 v2 = -v1
-                v21 = copy.deepcopy(v2)
-                v22 = copy.deepcopy(v2)
+                v21 = v2.copy()
+                v22 = v2.copy()
                 v21[v21 < 0] = 0
                 v22[v22 > 0] = 0
                 v21 = v21.reshape(1, newC.shape[0] - 1)
                 v22 = v22.reshape(1, newC.shape[0] - 1)
-                lb = copy.deepcopy(pred_lb)
-                ub = copy.deepcopy(pred_ub)
+                lb = pred_lb.copy()
+                ub = pred_ub.copy()
                 lb = np.delete(lb, i)
                 ub = np.delete(ub, i)
 
                 xmax = d1 + np.matmul(v21, ub) + np.matmul(v22, lb)
                 new_pred_ub[i] = min(xmax, pred_ub[i])  # update upper bound
             if x < 0:
-                v1 = copy.deepcopy(newC)
-                d1 = copy.deepcopy(newd)
+                v1 = newC.copy()
+                d1 = newd.copy()
                 v1 = v1/x
                 d1 = d1/x
                 v1 = np.delete(v1, i)
                 v2 = -v1
-                v21 = copy.deepcopy(v2)
-                v22 = copy.deepcopy(v2)
+                v21 = v2.copy()
+                v22 = v2.copy()
                 v21[v21 < 0] = 0
                 v22[v22 > 0] = 0
                 v21 = v21.reshape(1, newC.shape[0] - 1)
                 v22 = v22.reshape(1, newC.shape[0] - 1)
-                lb = copy.deepcopy(pred_lb)
-                ub = copy.deepcopy(pred_ub)
+                lb = pred_lb.copy()
+                ub = pred_ub.copy()
                 lb = np.delete(lb, i)
                 ub = np.delete(ub, i)
                 xmin = d1 + np.matmul(v21, lb) + np.matmul(v22, ub)

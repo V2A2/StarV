@@ -90,7 +90,13 @@ class Star(object):
             self.pred_ub = pred_ub
 
         elif len(args) == 3:
-            [V, C, d] = copy.deepcopy(args)
+            [V, C, d] = args
+
+            if copy_ is True:
+                V = V.copy()
+                C = C.copy()
+                d = d.copy()
+
             assert isinstance(V, np.ndarray), 'error: \
             basis matrix should be a 2D numpy array'
             assert len(V.shape) == 2, 'error: \
@@ -658,47 +664,47 @@ class Star(object):
         assert newC.shape[0] == pred_lb.shape[0], 'error: \
         inconsistency between the lower bound vector and the constraint matrix'
 
-        new_pred_lb = copy.deepcopy(pred_lb)
-        new_pred_ub = copy.deepcopy(pred_ub)
+        new_pred_lb = pred_lb.copy()
+        new_pred_ub = pred_ub.copy()
 
         # estimate new bounds for predicate variables
         for i in range(newC.shape[0]):
             x = newC[i]
             if x > 0:
-                v1 = copy.deepcopy(newC)
-                d1 = copy.deepcopy(newd)
+                v1 = newC.copy()
+                d1 = newd.copy()
                 v1 = v1/x
                 d1 = d1/x
                 v1 = np.delete(v1, i)
                 v2 = -v1
-                v21 = copy.deepcopy(v2)
-                v22 = copy.deepcopy(v2)
+                v21 = v2.copy()
+                v22 = v2.copy()
                 v21[v21 < 0] = 0
                 v22[v22 > 0] = 0
                 v21 = v21.reshape(1, newC.shape[0] - 1)
                 v22 = v22.reshape(1, newC.shape[0] - 1)
-                lb = copy.deepcopy(pred_lb)
-                ub = copy.deepcopy(pred_ub)
+                lb = pred_lb.copy()
+                ub = pred_ub.copy()
                 lb = np.delete(lb, i)
                 ub = np.delete(ub, i)
 
                 xmax = d1 + np.matmul(v21, ub) + np.matmul(v22, lb)
                 new_pred_ub[i] = min(xmax, pred_ub[i])  # update upper bound
             if x < 0:
-                v1 = copy.deepcopy(newC)
-                d1 = copy.deepcopy(newd)
+                v1 = newC.copy()
+                d1 = newd.copy()
                 v1 = v1/x
                 d1 = d1/x
                 v1 = np.delete(v1, i)
                 v2 = -v1
-                v21 = copy.deepcopy(v2)
-                v22 = copy.deepcopy(v2)
+                v21 = v2.copy()
+                v22 = v2.copy()
                 v21[v21 < 0] = 0
                 v22[v22 > 0] = 0
                 v21 = v21.reshape(1, newC.shape[0] - 1)
                 v22 = v22.reshape(1, newC.shape[0] - 1)
-                lb = copy.deepcopy(pred_lb)
-                ub = copy.deepcopy(pred_ub)
+                lb = pred_lb.copy()
+                ub = pred_ub.copy()
                 lb = np.delete(lb, i)
                 ub = np.delete(ub, i)
                 xmin = d1 + np.matmul(v21, lb) + np.matmul(v22, ub)
