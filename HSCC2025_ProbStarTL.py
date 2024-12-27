@@ -204,7 +204,7 @@ def verify_temporal_specs_ACC():
     if not os.path.exists(path):
         os.makedirs(path)
 
-    with open(path+"/verification_tab_pf_0_0.tex", "w") as f:
+    with open(path+"/Table_2__verification_tab_pf_0_0.tex", "w") as f:
          print(tabulate(verification_data_pf_0_0, headers=["Spec.", "T", "p_max", "p_min", "reachTime", "checkTime", "verifyTime"], tablefmt='latex'), file=f)
 
 
@@ -215,7 +215,7 @@ def verify_temporal_specs_ACC():
     if not os.path.exists(path):
         os.makedirs(path)
 
-    with open(path+"/verification_tab_pf_0_1.tex", "w") as f:
+    with open(path+"/Table_2__verification_tab_pf_0_1.tex", "w") as f:
          print(tabulate(verification_data_pf_0_1, headers=["Spec.", "T", "p_max", "p_min",  "reachTime", "checkTime", "verifyTime"], tablefmt='latex'), file=f)
 
 
