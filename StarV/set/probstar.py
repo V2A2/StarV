@@ -652,7 +652,7 @@ class ProbStar(object):
         when one new constraint is added"""
 
         assert isinstance(newC, np.ndarray) and \
-            len(newC.shape) == 1, \ 
+            len(newC.shape) == 1, \
         'error: new constraint matrix should be 1D numpy array'
         assert isinstance(newd, np.ndarray) and \
             len(newd.shape) == 1 and newd.shape[0] == 1, \
