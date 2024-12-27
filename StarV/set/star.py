@@ -219,9 +219,9 @@ class Star(object):
 
         v = self.V[index, 1:self.nVars+1]
         c = self.V[index, 0]
-        v1 = copy.deepcopy(v)
-        v2 = copy.deepcopy(v)
-        c1 = copy.deepcopy(c)
+        v1 = v.copy()
+        v2 = v.copy()
+        c1 = c.copy()
         v1[v1 > 0] = 0  # negative part
         v2[v1 < 0] = 0  # positive part
         v1 = v1.reshape(1, self.nVars)
@@ -239,9 +239,9 @@ class Star(object):
 
         v = self.V[:, 1:self.nVars+1]
         c = self.V[:, 0]
-        v1 = copy.deepcopy(v)
-        v2 = copy.deepcopy(v)
-        c1 = copy.deepcopy(c)
+        v1 = v.copy()
+        v2 = v.copy()
+        c1 = c.copy()
         v1[v1 > 0] = 0  # negative part
         v2[v1 < 0] = 0  # positive part
         
@@ -496,42 +496,38 @@ class Star(object):
     
         
     def affineMap(self, A=None, b=None):
-        """Affine mapping of a star: S = A*self + b"""
+        """
+        Affine mapping of a star: S = A*self + b
 
+        Args:
+            A (np.ndarray): Mapping matrix (optional)
+            b (np.ndarray): Offset vector (optional)
+
+        Returns:
+            Star: New Star set after affine mapping
+        """
         if A is not None:
-            assert isinstance(A, np.ndarray), 'error: \
-        mapping matrix should be an 2D numpy array'
-            assert A.shape[1] == self.dim, 'error: \
-        inconsistency between mapping matrix and Star dimension'
+            assert isinstance(A, np.ndarray), \
+            'error: mapping matrix should be an 2D numpy array'
+            assert A.shape[1] == self.dim, \
+            'error: inconsistency between mapping matrix and Star dimension'
 
         if b is not None:
-            assert isinstance(b, np.ndarray), 'error: \
-        offset vector should be an 1D numpy array'
+            assert isinstance(b, np.ndarray), \
+            'error: offset vector should be an 1D numpy array'
             if A is not None:
-                assert A.shape[0] == b.shape[0], 'error: \
-        inconsistency between mapping matrix and offset vector'
-            assert len(b.shape) == 1, 'error: \
-        offset vector should be a 1D numpy array '
+                assert A.shape[0] == b.shape[0], \
+                'error: inconsistency between mapping matrix and offset vector'
+            assert len(b.shape) == 1, \
+            'error: offset vector should be a 1D numpy array '
 
-
-        if A is None and b is None:
-            new_set = copy.deepcopy(self)
-
-        if A is None and b is not None:
-            V = copy.deepcopy(self.V)
-            V[:, 0] = V[:, 0] + b
-            new_set = Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
-
-        if A is not None and b is None:
-            V = np.matmul(A, self.V)
-            new_set = Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
-
-        if A is not None and b is not None:
-            V = np.matmul(A, self.V)
-            V[:, 0] = V[:, 0] + b
-
-            new_set = Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
-        return new_set
+        V = self.V.copy()
+        if A is not None:
+            V = np.matmul(A, V)
+        if b is not None:
+            V[:, 0] += b
+        return Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
+    
     
     # intersection with another Star set
     def intersectStar(self, S):

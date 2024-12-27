@@ -227,11 +227,11 @@ def plot_rnns_results(type='lstm', hidden=15):
     plt.xlabel("$\epsilon$", fontsize=ft)
     plt.ylabel("Robustness", fontsize=ft)
     ax.set_xticks(eps)
-    plt.gca().xaxis.set_major_formatter(StrMethodFormatter('{x:,.3f}')) # 2 decimal places
+    plt.gca().xaxis.set_major_formatter(StrMethodFormatter('{x:,.4f}'))
     plt.savefig(f_dir + f'Figure_{fig_num}__MNIST_{type.upper()}_{hidden}_net_RB.png')
     plt.show()
 
-    fig, ax = plt.subplots(figsize=(9*cm, 15*cm), tight_layout=True) # 10 15
+    fig, ax = plt.subplots(figsize=(9*cm, 15*cm), tight_layout=True)
     plt.title(f"MNIST {type.upper()}{hidden} VT")
 
     plt.plot(eps, vt_est, "--gD", linewidth=lw)
@@ -248,7 +248,7 @@ def plot_rnns_results(type='lstm', hidden=15):
     plt.xlabel("$\epsilon$", fontsize=ft)
     plt.ylabel("Avg. Verification Time (s)", fontsize=ft)
     ax.set_xticks(eps)
-    plt.gca().xaxis.set_major_formatter(StrMethodFormatter('{x:,.3f}')) # 2 decimal places
+    plt.gca().xaxis.set_major_formatter(StrMethodFormatter('{x:,.4f}'))
     plt.savefig(f_dir + f'Figure_{fig_num}__MNIST_{type.upper()}_{hidden}_net_VT.png')
     plt.show()
 

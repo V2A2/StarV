@@ -5,6 +5,7 @@ Yuntao Li, 3/22/2024
 """
 import os
 from StarV.layer.fullyConnectedLayer import fullyConnectedLayer
+from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
 from StarV.layer.ReLULayer import ReLULayer
 from StarV.net.network import NeuralNetwork
 import tensorflow as tf
@@ -37,7 +38,7 @@ from scipy.io import savemat
 #         onnx_model = keras2onnx.convert_keras(model, model.name)
 #         keras2onnx.save_model(onnx_model, onnx_path)
 
-def load_fairness(id, type, show=False):
+def load_fairness(id, type, dtype='float32', show=False):
     """Load network dataset
     """
     if type =='adult':
@@ -64,10 +65,10 @@ def load_fairness(id, type, show=False):
         # Access the weights and biases of each layer
         n_layers = len(model.layers)
         for i, layer in enumerate(model.layers):
-            weights = layer.get_weights()[0]
-            biases = layer.get_weights()[1]
+            W = layer.get_weights()[0]
+            b = layer.get_weights()[1]
 
-            L1 = fullyConnectedLayer(weights.T, biases[:, None])
+            L1 = FullyConnectedLayer([W.T, b], dtype=dtype)
             layers.append(L1)
             if i < n_layers-1:
                 L2 = ReLULayer()

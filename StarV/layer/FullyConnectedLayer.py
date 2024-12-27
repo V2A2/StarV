@@ -27,17 +27,11 @@ class FullyConnectedLayer(object):
         elif isinstance(layer, torch.nn.Linear):
             W = layer.weight.data.numpy()
             b = layer.bias.data.numpy()
-
         else:
             raise Exception('error: unsupported neural network module')
 
-        assert isinstance(W, np.ndarray) or W is None, 'error: weight matrix should be a numpy array'
-        assert isinstance(b, np.ndarray) or b is None, 'error: bias vector should be a numpy array'
-
-        if dtype == 'float32' or dtype == np.float32:
-            self.torch_dtype = torch.float32
-        else:
-            self.numpy_dtype = np.float64
+        assert isinstance(W, np.ndarray) or W is None, f'error: weight matrix should be a numpy array or None but received {type(W)}'
+        assert isinstance(b, np.ndarray) or b is None, f'error: bias vector should be a numpy array or None but received {type(b)}'
         
         if W is not None and b is not None:
             assert W.shape[0] == b.shape[0], f'error: inconsistent dimension between weight matrix {W.shape} and bias vector {b.shape}'
