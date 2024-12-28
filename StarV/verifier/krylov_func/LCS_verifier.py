@@ -43,7 +43,7 @@ def quantiVerifier_LCS(R, inputSet,unsafe_mat, unsafe_vec,time_step):
 
    # handle multiple output constraints, satisfy one of conditions
     if isinstance(unsafe_vec,list):
-        R_index = set()
+        R_index = []
         for i in range(1,len(R)):
             for j in range(len(unsafe_mat)):
                 P1,prob1= checkSafetyProbStar(unsafe_mat[j], unsafe_vec[j],R[i])
@@ -51,8 +51,7 @@ def quantiVerifier_LCS(R, inputSet,unsafe_mat, unsafe_vec,time_step):
                         P.append(P1)
                         prob.append(prob1)
                         if i not in R_index:
-                            R_index.add(i)
-                            R_index = list(R_index)
+                            R_index.append(i)
                             C1 = ProbStar(inputSet.V, P1.C, P1.d, P1.mu, P1.Sig, P1.pred_lb, P1.pred_ub)
                             C.append(C1)
 
