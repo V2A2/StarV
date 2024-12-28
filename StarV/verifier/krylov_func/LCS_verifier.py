@@ -86,5 +86,5 @@ def quantiVerifier_LCS(R, inputSet,unsafe_mat, unsafe_vec,time_step):
     print('The time of biggest probility of all unsafe ProbStar: t_max = {}'.format(largest_prob_time_step))
 
         
-    return  prob,p_min,smallest_prob_time_step, p_max, largest_prob_time_step,P, C
+    return  p_min,smallest_prob_time_step, p_max, largest_prob_time_step,P, C
 

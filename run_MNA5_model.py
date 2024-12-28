@@ -99,7 +99,7 @@ def run_MNA5_model_krylov(use_arnoldi=None,use_init_space=None):
         # plot_probstar(R,safety_value=0.1)
 
 
-        prob,p_min,smallest_prob_time_step, p_max, largest_prob_time_step,unsafeOutputSet, counterInputSet= quantiVerifier_LCS(R = R, inputSet=X0_probstar, unsafe_mat=unsafe_mat_list, \
+        p_min,smallest_prob_time_step, p_max, largest_prob_time_step,unsafeOutputSet, counterInputSet= quantiVerifier_LCS(R = R, inputSet=X0_probstar, unsafe_mat=unsafe_mat_list, \
                                                                                 unsafe_vec=unsafe_vec_list,time_step=hi)
         verify_time_duration = time.time() - reach_start_time
 
