@@ -19,76 +19,6 @@ import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d as a3
 import plotly.graph_objects as go
 
-def plot_1D_Star(I, show=True, color='g'):
-    """Plot a 1D star set
-    Yuntao Li"""
-
-    if isinstance(I, ProbStar) or isinstance(I, Star):
-        if I.dim != 1:
-            raise Exception('error: input set is not 1D star')
-        [lb, ub] = I.getRanges()
-        if lb == ub:
-            plt.plot(lb, 0, 'o', color=color)  # Plot point if lb == ub
-        else:
-            plt.plot([lb, ub], [0, 0], color=color)  # Plot line otherwise
-        if show:
-            plt.show()
-    elif isinstance(I, list) and len(I) > 1:
-        for i in range(0, len(I)):
-            if I[i].dim != 1:
-                raise Exception('error: input set is not 1D star')
-            [lb, ub] = I[i].getRanges()
-            if lb == ub:
-                plt.plot(lb, 0, 'o', color=color)  # Plot point if lb == ub
-            else:
-                plt.plot([lb, ub], [0, 0], color=color)  # Plot line otherwise
-        if show:
-            plt.show()
-    elif isinstance(I, list) and len(I) == 1:
-        if I[0].dim != 1:
-            raise Exception('error: input set is not 1D star')
-        [lb, ub] = I[0].getRanges()
-        if lb == ub:
-            plt.plot(lb, 0, 'o', color=color)  # Plot point if lb == ub
-        else:
-            plt.plot([lb, ub], [0, 0], color=color)  # Plot line otherwise
-        if show:
-            plt.show()
-
-
-def plot_2D_Star_with_sampling(I, sample_points=None, show=True, color='g', marker='o'):
-    """
-    Plot a 2D Star set along with optional sampled points.
-
-    Parameters:
-    I (StarSet): The 2D Star set object.
-    sample_points (np.ndarray, optional): Array of sampled points to plot, with each column as a point.
-    show (bool, optional): Whether to show the plot immediately. Defaults to True.
-    color (str, optional): Color for the plot elements. Defaults to 'g' (green).
-    marker (str, optional): Marker style for the sampled points. Defaults to 'o' (circle).
-    """
-
-    if I.dim != 2:
-        raise Exception('Input set is not 2D star')
-
-    # Plot the polygon representing the Star set
-    verts = getVertices(I)  # Assuming getVertices is a function to extract vertices
-    try:
-        pypoman.plot_polygon(verts, color=color)  # Plotting the vertices as a polygon
-    except Exception:
-        warnings.warn('Potential floating-point error during plotting')
-
-    # If sample points are provided, plot them after transposing if necessary
-    if sample_points is not None:
-        sample_points = np.array(sample_points)
-        if sample_points.shape[0] != 2:
-            # Assuming points are stored in columns, transpose them
-            sample_points = sample_points.T
-        plt.scatter(sample_points.T[:, 0], sample_points.T[:, 1], color=color, marker=marker, label='Sampled Points')
-
-    if show:
-        plt.legend()
-        plt.show()
 
 def getVertices(I):
     """Get all vertices of a star"""
@@ -140,6 +70,100 @@ def get_bounding_box(A, b):
         ub[i] = max_sol[i]
         
     return lb, ub
+
+def plot_1D_Star(I, show=True, color='g'):
+    """Plot a 1D star set
+    Yuntao Li"""
+
+    if isinstance(I, ProbStar) or isinstance(I, Star):
+        if I.dim != 1:
+            raise Exception('error: input set is not 1D star')
+        [lb, ub] = I.getRanges()
+        if lb == ub:
+            plt.plot(lb, 0, 'o', color=color)  # Plot point if lb == ub
+        else:
+            plt.plot([lb, ub], [0, 0], color=color)  # Plot line otherwise
+        if show:
+            plt.show()
+    elif isinstance(I, list) and len(I) > 1:
+        for i in range(0, len(I)):
+            if I[i].dim != 1:
+                raise Exception('error: input set is not 1D star')
+            [lb, ub] = I[i].getRanges()
+            if lb == ub:
+                plt.plot(lb, 0, 'o', color=color)  # Plot point if lb == ub
+            else:
+                plt.plot([lb, ub], [0, 0], color=color)  # Plot line otherwise
+        if show:
+            plt.show()
+    elif isinstance(I, list) and len(I) == 1:
+        if I[0].dim != 1:
+            raise Exception('error: input set is not 1D star')
+        [lb, ub] = I[0].getRanges()
+        if lb == ub:
+            plt.plot(lb, 0, 'o', color=color)  # Plot point if lb == ub
+        else:
+            plt.plot([lb, ub], [0, 0], color=color)  # Plot line otherwise
+        if show:
+            plt.show()
+
+
+def plot_1D_Star_time(I, time_bound,step_size,safety_value=None,show=True, color='g'):
+   
+    """Plot series 1D star set over time"""
+
+    times = np.arange(0, time_bound + 2*step_size, step_size)
+    
+    if isinstance(I, list) and len(I) > 1:
+        for i in range(0, len(I)):
+            if I[i].dim != 1:
+                raise Exception('error: input set is not 1D star')
+            [lb, ub] = I[i].getRanges()
+            plt.plot([times[i], times[i]],[lb, ub], color=color)
+            plt.xlabel("Time")
+            plt.ylabel("y1")
+           
+        if show:
+            if safety_value is not None:
+                plt.axhline(y = safety_value, color = 'r', linestyle = '--',linewidth=1) 
+                # plt.text(4, plt.gca().get_ylim()[1] * 0.9, 'unsafe condition', color='r', fontsize=12, verticalalignment='center')
+
+            plt.show()
+
+
+def plot_2D_Star_with_sampling(I, sample_points=None, show=True, color='g', marker='o'):
+    """
+    Plot a 2D Star set along with optional sampled points.
+
+    Parameters:
+    I (StarSet): The 2D Star set object.
+    sample_points (np.ndarray, optional): Array of sampled points to plot, with each column as a point.
+    show (bool, optional): Whether to show the plot immediately. Defaults to True.
+    color (str, optional): Color for the plot elements. Defaults to 'g' (green).
+    marker (str, optional): Marker style for the sampled points. Defaults to 'o' (circle).
+    """
+
+    if I.dim != 2:
+        raise Exception('Input set is not 2D star')
+
+    # Plot the polygon representing the Star set
+    verts = getVertices(I)  # Assuming getVertices is a function to extract vertices
+    try:
+        pypoman.plot_polygon(verts, color=color)  # Plotting the vertices as a polygon
+    except Exception:
+        warnings.warn('Potential floating-point error during plotting')
+
+    # If sample points are provided, plot them after transposing if necessary
+    if sample_points is not None:
+        sample_points = np.array(sample_points)
+        if sample_points.shape[0] != 2:
+            # Assuming points are stored in columns, transpose them
+            sample_points = sample_points.T
+        plt.scatter(sample_points.T[:, 0], sample_points.T[:, 1], color=color, marker=marker, label='Sampled Points')
+
+    if show:
+        plt.legend()
+        plt.show()
         
 def plot_2D_UnsafeSpec(unsafe_mat, unsafe_vec, show=True, color='r'):
     'plot unsafe spec'

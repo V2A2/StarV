@@ -5,7 +5,7 @@
 
 from StarV.set.probstar import ProbStar
 import numpy as np
-from StarV.util.load_model import load_iss_model
+from StarV.util.load import load_iss_model
 import time
 from StarV.set.probstar import ProbStar
 from StarV.set.star import Star
