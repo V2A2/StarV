@@ -14,10 +14,10 @@ from StarV.layer.SatLinsLayer import SatLinsLayer
 from StarV.set.probstar import ProbStar
 import numpy as np
 import multiprocessing
-from StarV.util.load_relu import load_2017_IEEE_TNNLS_ReLU, load_ACASXU_ReLU, load_tiny_network_ReLU
-from StarV.util.load_leakyrelu import load_2017_IEEE_TNNLS_LeakyReLU, load_ACASXU_LeakyReLU, load_tiny_network_LeakyReLU
-from StarV.util.load_satlin import load_2017_IEEE_TNNLS_SatLin, load_ACASXU_SatLin, load_tiny_network_SatLin
-from StarV.util.load_satlins import load_2017_IEEE_TNNLS_SatLins, load_ACASXU_SatLins, load_tiny_network_SatLins
+from StarV.util.load_piecewise import load_2017_IEEE_TNNLS_ReLU, load_ACASXU_ReLU, load_tiny_network_ReLU
+from StarV.util.load_piecewise import load_2017_IEEE_TNNLS_LeakyReLU, load_ACASXU_LeakyReLU, load_tiny_network_LeakyReLU
+from StarV.util.load_piecewise import load_2017_IEEE_TNNLS_SatLin, load_ACASXU_SatLin, load_tiny_network_SatLin
+from StarV.util.load_piecewise import load_2017_IEEE_TNNLS_SatLins, load_ACASXU_SatLins, load_tiny_network_SatLins
 import time
 from StarV.util.plot import plot_probstar_using_Polytope, plot_probstar
 from matplotlib import pyplot as plt
