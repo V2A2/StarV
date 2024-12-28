@@ -64,7 +64,7 @@ class SparseImageStar2DCOO(object):
                 d = d.copy()
                 pred_lb = pred_lb.copy()
                 pred_ub = pred_ub.copy()
-                shape = shape.copy()
+                shape = copy.deepcopy(shape)
                 
             # if len(shape) == 2:
             #     assert isinstance(V, sp.coo_array) or isinstance(V, sp.coo_matrix) or \
@@ -126,7 +126,7 @@ class SparseImageStar2DCOO(object):
                 d = d.copy()
                 pred_lb = pred_lb.copy()
                 pred_ub = pred_ub.copy()
-                shape = shape.copy()
+                shape = copy.deepcopy(shape)
 
             assert isinstance(V, np.ndarray), 'error: basis matrix should be a numpy array'
             if len(shape) == 1:
