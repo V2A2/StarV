@@ -1,7 +1,7 @@
 # StarV
 Event-driven Monitoring and Verification Codesign for Distributed Learning-enabled Cyber-Physical Systems with Star Reachability
  - Operating System: Ubuntu 18., 20.
- - RAM: at least 32 GB
+ - RAM: at least 128 GB
  - Python version: $\leq$ 3.11
  - Key features: 
     1) Qualitative and quantitative verification algorithms for deep neural networks and distributed Le-CPS 
@@ -9,7 +9,7 @@ Event-driven Monitoring and Verification Codesign for Distributed Learning-enabl
     3) Monitoring algorithms (under development)
     4) Target ROS-based applications (under development)
 
--  Our experiment is done on a computer with the following configuration: iMAC 3.8 GHz 8-Core Intel Core i7 with a 128GB memory with a virtual 64-bit Ubuntu 20.04.4 LTS system.
+-  Our experiment is done on a computer with the following configuration: Intel Core i7-6940X CPU @ 3.0GHz x 20 Processors, 125.7 GiB Memory, 64-bit Ubuntu 20.04.6 LTS OS.
 
 # Getting Gurobi license.
 1) Docker:
@@ -31,7 +31,7 @@ Event-driven Monitoring and Verification Codesign for Distributed Learning-enabl
         StarV
         │   README.md
         |   requirements.txt
-        |   HSCC2025_ProbStarTL.py
+        |   HSCC2025_SpraseImageStar.py
         |   gurobi.lic
         │   Test scripts
         │   ...    
@@ -42,7 +42,7 @@ Event-driven Monitoring and Verification Codesign for Distributed Learning-enabl
         │   │   All main algorithm scripts
         │   
         └───artifacts
-            └───HSCC2025_ProbStarTL
+            └───HSCC2025_SparseImageStar
             └───...
   
 
@@ -159,54 +159,81 @@ Event-driven Monitoring and Verification Codesign for Distributed Learning-enabl
 
 - Paper: Memory-Efficient Verification for Deep Convolutional Neural Networks using SparseImageStar [https://www.dropbox.com/s/fd6fpydoy5rx3w3/hscc23probstar.pdf?dl=0]
 
--  Our experiment is done on a computer with the following configuration: iMAC 3.8 GHz 8-Core Intel Core i7 with a 128GB memory with a virtual 64-bit Ubuntu 20.04.4 LTS system.
+-  Our experiment is done on a computer with the following configuration: Intel Core i7-6940X CPU @ 3.0GHz x 20 Processors, 125.7 GiB Memory, 64-bit Ubuntu 20.04.6 LTS OS.
 
-- Run following commands, a new folder named `StarV/artifacts/HSCC2025_ProbStarTL`  will be generated to store all the results (figures and tables). 
+- Run following commands, a new folder named `StarV/artifacts/HSCC2025_SparseImageStar/results`  will be generated to store all the results (figures and tables). 
 
 
 ### Reproduce all evaluation results:
 
 At StarV directory, `StarV`,
 
-    python3 HSCC2025_ProbStarTL.py
+    python3 HSCC2025_SparseImageStar.py
 
 ### Reproduce individual results:
 
 At StarV directory, `StarV`, run following functions to reproduce individual the evaluation result.
 
-- Table 2: Verification results for Le-ACC with the network controller 𝑁5×20 (i.e., 5 layers, 20 neurons per layer)
+- Table 1: Verification results of the Small MNIST CNN (CAV2020)
 
-      verify_temporal_specs_ACC()
+      verify_convnet_network(net_type='Small', dtype='float64')
+      plot_table_covnet_network(net_type = 'Small')
 
-- Figure 2: Conservativeness analysis of 𝜑1.
+- Table 2: Verification results of the Medium MNIST CNN (CAV2020)
 
-      analyze_conservativeness()
+      verify_convnet_network(net_type='Medium', dtype='float64')
+      plot_table_covnet_network(net_type = 'Medium')
 
-- Figure 3: Verification timing performance of 𝜑′4.
+- Table 3: Verification results of the Large MNIST CNN (CAV2020)
    
-      analyze_timing_performance()
+      verify_convnet_network(net_type='Large', dtype='float64')
+      plot_table_covnet_network(net_type = 'Large')
 
-- Figure 4: Verification complexity depends on
-        1) the number of traces (which varies for different networks and different initial conditions),
-        2) the number of CDNFs, and
-        3) the lengths of CDNFs.
+- Table 4: Verification results of VGG16 in seconds (vnncomp2023)
 
-      analyze_verification_complexity()               # Figure 4a
-      analyze_verification_complexity_2()             # Figure 4b
+      verify_vgg16_network(dtype='float64')
+      verify_vgg16_converted_network(dtype='float64')
+      verify_vgg16_network_spec_cn()
+      plot_table_vgg16_network()
 
-- Figure 5: Length of CDNFs for 𝜑′ 4 verification with 𝑇 = 20 and the visualization of a trace satisfying the specification.
+- Figure 4: Memory usage and computation time comparison between ImageStar and SparseImageStar (SIM) in verifying the vggnet16 network (vnncomp2023) with spec 11 image
         
-      analyze_verification_complexity_3()             # Figure 5a
-      visualize_satisfied_traces()                    # Figure 5b
+      memory_usage_vgg16(spec=11)
 
-- Table 3: Verification results (robustness intervals) of NeuroSymbolic [ 12] are consistent with the proposed ProbStarTL verification results (probabilities of satisfaction). 
+- Figure 5: Memory usage and computation time comparison between ImageStar and SparseImageStar (SIM) in verifying the oval21 network with 𝑙∞ norm attack on all pixels.
         
-      verify_temporal_specs_ACC_trapeziu_full()
+      memory_usage_oval21()
 
-- Table 4: Quantitative verification results of AEBS system against property 𝜑 = ⋄[0,𝑇 ] (𝑑𝑘 ≤ 𝐿 ∧ 𝑣𝑘 ≥ 0.2) 
+- Figure 6: Memory usage and computation time comparison between ImageStar and SparseImageStar (SIM) in verifying the vggnet16 network (vnncomp2023) with spec c4 image
 
-      verify_AEBS()
+      memory_usage_vgg16_spec_cn(spec=4)
 
-- Figure 6: 50-step reachable sets (𝑑𝑘 vs. 𝑣𝑘 ) of AEBS system (in green) and the unsafe region (in red) for different initial conditions (scenarios) 𝑑0 × 𝑣0. 𝑑𝑘
+### Reproduce NNV results:
 
-      generate_exact_reachset_figs_AEBS()
+### Reproduce NNENUM results:
+
+### Reproduce $\alpha, \beta$-CROWN (VNNCOMP2024) results:
+
+Github link: https://github.com/Verified-Intelligence/alpha-beta-CROWN_vnncomp2024
+
+Clone $\alpha, \beta$-CROWN (VNNCOMP2024) verifier
+
+    git clone --recursive https://github.com/Verified-Intelligence/alpha-beta-CROWN_vnncomp2024.git
+
+Setup the conda environment:
+
+- Remove the old environment, if necessary.
+
+      conda deactivate; conda env remove --name alpha-beta-crown
+
+- install all dependents into the alpha-beta-crown environment
+
+      conda env create -f complete_verifier/environment.yaml --name alpha-beta-crown
+
+- activate the environment
+
+      conda activate alpha-beta-crown
+
+### Reproduce ERAN (DeepPoly) results:
+
+### Reproduce Marabou results:
