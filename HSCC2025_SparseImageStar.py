@@ -680,14 +680,17 @@ def plot_table_covnet_network(net_type):
     
     dir = f"artifacts/HSCC2025_SparseImageStar/results/"
     if net_type == 'Small':
-        dir += f'Table_1_{net_type}_MNIST_ConvNet_brightAttack'
+        sdir = dir + f'Table_1__{net_type}_MNIST_ConvNet_brightAttack'
+        dir += f'{net_type}_MNIST_ConvNet_brightAttack'
     elif net_type == 'Medium':
-        dir += f'Table_2_{net_type}_MNIST_ConvNet_brightAttack'
+        sdir = dir + f'Table_2__{net_type}_MNIST_ConvNet_brightAttack'
+        dir += f'{net_type}_MNIST_ConvNet_brightAttack'
     else:
-        dir += f'Table_3_{net_type}_MNIST_ConvNet_brightAttack'
+        sdir = dir + f'Table_3__{net_type}_MNIST_ConvNet_brightAttack'
+        dir += f'{net_type}_MNIST_ConvNet_brightAttack'
 
     result_dir = dir + '_results.pkl'
-    save_dir = dir + '.tex'
+    save_dir = sdir + '.tex'
 
     with open(result_dir, 'rb') as f:
         [rbIM, vtIM, rbIM_table, vtIM_table, rbCSR, vtCSR, rbCSR_table, vtCSR_table, rbCOO, vtCOO, rbCOO_table, vtCOO_table] = pickle.load(f)
