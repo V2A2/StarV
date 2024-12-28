@@ -5,7 +5,7 @@
 
 from StarV.set.probstar import ProbStar
 import numpy as np
-from StarV.util.load_model import load_mcs_model
+from StarV.util.load import load_mcs_model
 import time
 from StarV.set.probstar import ProbStar
 from StarV.set.star import Star
@@ -105,7 +105,7 @@ def run_mcs_model_Krylov(use_arnoldi = None,use_init_space=None):
         plot_probstar(R,safety_value=0.3)
 
 
-        p_min,smallest_prob_time_step, p_max, largest_prob_time_step,unsafeOutputSet, counterInputSet= quantiVerifier_LCS(R = R, inputSet=X0_probstar, unsafe_mat=unsafe_mat_list, \
+        prob, p_min,smallest_prob_time_step, p_max, largest_prob_time_step,unsafeOutputSet, counterInputSet= quantiVerifier_LCS(R = R, inputSet=X0_probstar, unsafe_mat=unsafe_mat_list, \
                                                                                 unsafe_vec=unsafe_vec_list,time_step=hi)
         verify_time_duration = time.time() - reach_start_time
 
