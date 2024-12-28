@@ -681,13 +681,11 @@ def plot_table_covnet_network(net_type):
     dir = f"artifacts/HSCC2025_SparseImageStar/results/"
     if net_type == 'Small':
         sdir = dir + f'Table_1__{net_type}_MNIST_ConvNet_brightAttack'
-        dir += f'{net_type}_MNIST_ConvNet_brightAttack'
     elif net_type == 'Medium':
         sdir = dir + f'Table_2__{net_type}_MNIST_ConvNet_brightAttack'
-        dir += f'{net_type}_MNIST_ConvNet_brightAttack'
     else:
         sdir = dir + f'Table_3__{net_type}_MNIST_ConvNet_brightAttack'
-        dir += f'{net_type}_MNIST_ConvNet_brightAttack'
+    dir += f'{net_type}ConvNet_brightAttack'
 
     result_dir = dir + '_results.pkl'
     save_dir = sdir + '.tex'
