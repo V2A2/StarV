@@ -129,13 +129,13 @@ class AvgPool2DLayer(object):
             output = sp.coo_array((input.data, (row, input.col)), shape = (mo*no*shape[2], input.shape[1]))
         return output, mo, no
 
-    def pad_csr(input, shape, padding, tocoo=False):
+    def pad_csr_via_coo(input, shape, padding, tocoo=False):
         if tocoo is True:
             return AvgPool2DLayer.pad_coo(input.tocoo(False), shape, padding)
         else:
             return AvgPool2DLayer.pad_coo(input.tocoo(False), shape, padding, tocsr=True)
     
-    def pad_csr2(input, shape, padding):
+    def pad_csr(input, shape, padding):
         if len(padding) == 4:
             pad = np.array(padding)
         elif len(padding) == 2:

@@ -148,11 +148,45 @@ class MaxPool2DLayer(object):
             output = sp.coo_array((input.data, (row, input.col)), shape = (mo*no*shape[2], input.shape[1]))
         return output, mo, no
 
-    def pad_csr(input, shape, padding, tocoo=False):
+    def pad_csr_via_coo(input, shape, padding, tocoo=False):
         if tocoo is True:
             return MaxPool2DLayer.pad_coo(input.tocoo(False), shape, padding)
         else:
             return MaxPool2DLayer.pad_coo(input.tocoo(False), shape, padding, tocsr=True)
+        
+    def pad_csr(input, shape, padding):
+        if len(padding) == 4:
+            pad = np.array(padding)
+        elif len(padding) == 2:
+            pad = np.array([padding[0], padding[0], padding[1], padding[1]])
+        elif len(padding) == 1:
+            pad = np.ones(4)*padding[0]
+        
+        t = shape[1]+pad[2]+pad[3]
+        bp = shape[2]*(t*pad[0]+pad[2])
+        ep = shape[2]*(t*pad[1]+pad[3])+1
+        
+        ptr = input.indptr
+        dtype = ptr.dtype
+        indptr = [np.zeros(bp, dtype=dtype)]
+        
+        k = shape[1]*shape[2]
+        r = np.ones((pad[2]+pad[3])*shape[2], dtype=dtype)
+        for i in range(shape[0]):
+            b = i*k
+            e = (i+1)*k
+            indptr.append(ptr[b:e])
+            if i < shape[0]-1:
+                indptr.append(ptr[e]*r)
+
+        indptr.append(ptr[-1]*np.ones(ep, dtype=dtype))
+        indptr = np.concatenate(indptr, dtype=dtype)
+        
+        mo = shape[0] + pad[0] + pad[1]
+        no = shape[1] + pad[2] + pad[3]
+        
+        output = sp.csr_array((input.data, input.indices, indptr), shape = (mo*no*shape[2], input.shape[1]))
+        return output, mo, no
         
     def get_output_size(in_height, in_width, kernel_size, stride, padding):
         h, w = in_height, in_width
