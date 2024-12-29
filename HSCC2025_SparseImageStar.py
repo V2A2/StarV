@@ -1,5 +1,5 @@
 """
-HSCC2025: Memory-Efficient Verification for 
+HSCC2025: Memory-Efficient Verification for
           Deep Convolutional Neural Networks using SparseImageStar
 Evaluation
 
@@ -67,7 +67,7 @@ def memory_usage_oval21():
     COO = SparseImageStar2DCOO(lb, ub)
     CSR = SparseImageStar2DCSR(lb, ub)
 
-    IM_time = []; COO_time = []; CSR_time = []; 
+    IM_time = []; COO_time = []; CSR_time = [];
     IM_nb = [IM.nbytes()]; COO_nb = [COO.nbytes()]; CSR_nb = [CSR.nbytes()]
     density = [CSR.density()]
 
@@ -85,7 +85,7 @@ def memory_usage_oval21():
         CSR_time.append(time.perf_counter() - start)
         CSR_nb.append(CSR.nbytes())
         density.append(CSR.density())
-        
+
     print('working on SparseImageStar COO')
     for i in range(starv_net.n_layers):
         start = time.perf_counter()
@@ -138,7 +138,7 @@ def memory_usage_oval21():
     plt.close()
 
 
-    
+
     x = np.arange(len(IM_nb))
     x_ticks_labels.insert(0, 'Input')
 
@@ -184,7 +184,7 @@ def memory_usage_vgg16(spec):
     print('=================================================================================\n')
 
     dtype = 'float64'
-    
+
     folder_dir = 'StarV/util/data/nets/vggnet16'
     net_dir = f"{folder_dir}/onnx/vgg16-7.onnx"
     num_inputs, num_outputs, inp_dtype = get_num_inputs_outputs(net_dir)
@@ -225,13 +225,13 @@ def memory_usage_vgg16(spec):
     IM = ImageStar(lb, ub)
     COO = SparseImageStar2DCOO(lb, ub)
     CSR = SparseImageStar2DCSR(lb, ub)
-    
-    IM_time = []; COO_time = []; CSR_time = []; 
+
+    IM_time = []; COO_time = []; CSR_time = [];
     IM_nb = [IM.nbytes()]; COO_nb = [COO.nbytes()]; CSR_nb = [CSR.nbytes()]
     IM_shape = [IM.V.shape]; COO_shape = [COO.shape + (COO.num_pred, )]; CSR_shape = [CSR.shape + (CSR.num_pred, )]
     nPred = [CSR.num_pred]
     density = [CSR.density()]
-    
+
     for i in range(starvNet.n_layers):
         start = time.perf_counter()
         IM = starvNet.layers[i].reach(IM, method='approx', show=False)
@@ -239,7 +239,7 @@ def memory_usage_vgg16(spec):
         IM_nb.append(IM.nbytes())
         IM_shape.append(IM.V.shape)
     del IM
-    
+
     for i in range(starvNet.n_layers):
         start = time.perf_counter()
         CSR = starvNet.layers[i].reach(CSR, method='approx', show=False)
@@ -249,7 +249,7 @@ def memory_usage_vgg16(spec):
         CSR_shape.append(CSR.shape)
         density.append(CSR.density())
     del CSR
-        
+
     for i in range(starvNet.n_layers):
         start = time.perf_counter()
         COO = starvNet.layers[i].reach(COO, method='approx', show=False)
@@ -285,7 +285,7 @@ def memory_usage_vgg16(spec):
 
     plt.rcParams["figure.figsize"] = [8.50, 5.50]
     plt.rcParams["figure.autolayout"] = True
-    fig, ax = plt.subplots(1,1) 
+    fig, ax = plt.subplots(1,1)
     plt.title("Computation Time", fontsize=14)
     plt.plot(x, IM_time, color='red', linewidth=2)
     plt.plot(x, COO_time, color='black', linewidth=2)
@@ -312,7 +312,7 @@ def memory_usage_vgg16(spec):
 
     plt.rcParams["figure.figsize"] = [8.50, 5.50]
     plt.rcParams["figure.autolayout"] = True
-    fig, ax = plt.subplots(1,1) 
+    fig, ax = plt.subplots(1,1)
     plt.title("Memory Usage", fontsize=14)
     plt.plot(x, IM_nb, color="red", linewidth=2)
     plt.plot(x, COO_nb, color='black', linewidth=2)
@@ -335,7 +335,7 @@ def memory_usage_vgg16(spec):
     ax2.legend(['density'], loc='upper center', fontsize=12)
     ax2.set_ylabel("Density", fontsize=12)
     ax2.yaxis.set_tick_params(labelsize=12)
-    
+
     plt.savefig(f'{path}/Figure_4a_memory_usage_vgg16_spec_{spec}.png')
     # plt.show()
     plt.close()
@@ -343,11 +343,11 @@ def memory_usage_vgg16(spec):
     save_file = path + f"/memory_usage_vgg16_results_spec_{spec}.pkl"
     pickle.dump([IM_time, COO_time, CSR_time, IM_nb, COO_nb, CSR_nb, \
                  IM_shape, COO_shape, CSR_nb, nPred, density], open(save_file, "wb"))
-    
+
     print('=====================================================')
     print('DONE!')
     print('=====================================================')
-    
+
 
 
 def memory_usage_vgg16_spec_cn(spec):
@@ -388,13 +388,13 @@ def memory_usage_vgg16_spec_cn(spec):
 
     COO = SparseImageStar2DCOO(lb, ub)
     CSR = SparseImageStar2DCSR(lb, ub)
-    
-    COO_time = []; CSR_time = []; 
+
+    COO_time = []; CSR_time = [];
     COO_nb = [COO.nbytes()]; CSR_nb = [CSR.nbytes()]
     COO_shape = [COO.shape + (COO.num_pred, )]; CSR_shape = [CSR.shape + (CSR.num_pred, )]
     nPred = [CSR.num_pred]
     density = [CSR.density()]
-    
+
     for i in range(starvNet.n_layers):
         start = time.perf_counter()
         CSR = starvNet.layers[i].reach(CSR, method='approx', show=False)
@@ -404,7 +404,7 @@ def memory_usage_vgg16_spec_cn(spec):
         CSR_shape.append(CSR.shape)
         density.append(CSR.density())
     del CSR
-        
+
     for i in range(starvNet.n_layers):
         start = time.perf_counter()
         COO = starvNet.layers[i].reach(COO, method='approx', show=False)
@@ -440,7 +440,7 @@ def memory_usage_vgg16_spec_cn(spec):
 
     plt.rcParams["figure.figsize"] = [8.50, 5.50]
     plt.rcParams["figure.autolayout"] = True
-    fig, ax = plt.subplots(1,1) 
+    fig, ax = plt.subplots(1,1)
     plt.title("Computation Time", fontsize=14)
     plt.plot(x, COO_time, color='black', linewidth=2)
     plt.plot(x, CSR_time, color="magenta", linewidth=2)
@@ -465,7 +465,7 @@ def memory_usage_vgg16_spec_cn(spec):
 
     plt.rcParams["figure.figsize"] = [8.50, 5.50]
     plt.rcParams["figure.autolayout"] = True
-    fig, ax = plt.subplots(1,1) 
+    fig, ax = plt.subplots(1,1)
     plt.title("Memory Usage", fontsize=14)
     plt.plot(x, COO_nb, color='black', linewidth=2)
     plt.plot(x, CSR_nb, color="magenta", linewidth=2)
@@ -502,7 +502,7 @@ def memory_usage_vgg16_spec_cn(spec):
 
 
 def verify_convnet_network(net_type='Small', dtype='float32'):
-    
+
     print('=================================================================================')
     print(f"Verification of CAV2020 {net_type} ConvNet Network against Brightnening Attack")
     print('=================================================================================\n')
@@ -529,17 +529,17 @@ def verify_convnet_network(net_type='Small', dtype='float32'):
     labelL = []
 
     for i, d_ in enumerate(d):
-        IM_j = [] 
-        CSR_j = [] 
-        COO_j = [] 
+        IM_j = []
+        CSR_j = []
+        COO_j = []
         label_j = []
-        
+
         for j, delta_ in enumerate(delta):
 
             count = 0
-            IM_k = [] 
-            CSR_k = [] 
-            COO_k = [] 
+            IM_k = []
+            CSR_k = []
+            COO_k = []
             label_k = []
             for k in range(2000):
                 lb, ub = brightening_attack(data[:, :, k], delta=delta_, d=d_, dtype=dtype)
@@ -548,15 +548,15 @@ def verify_convnet_network(net_type='Small', dtype='float32'):
                 COO_k.append(SparseImageStar2DCOO(lb, ub))
                 label_k.append(labels[k])
                 count += 1
-                    
+
                 if count == N:
                     break
-                
+
             IM_j.append(IM_k)
             CSR_j.append(CSR_k)
             COO_j.append(COO_k)
             label_j.append(label_k)
-            
+
         IML.append(IM_j)
         CSRL.append(CSR_j)
         COOL.append(COO_j)
@@ -581,7 +581,7 @@ def verify_convnet_network(net_type='Small', dtype='float32'):
             print(f"Verifying netowrk with d = {d[i]}, delta = {delta[j]}")
 
             rbIM[i, j, :], vtIM[i, j, :], _, _ = certifyRobustness(net=starvNet, inputs=IMs, labels=IDs,
-                veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
+                veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None,
                 RF=0.0, DR=0, return_output=False, show=False)
             rb_delta_table.append((rbIM[i, j, :]==1).sum())
             vt_delta_table.append((vtIM[i, j, :].sum() / N))
@@ -600,13 +600,13 @@ def verify_convnet_network(net_type='Small', dtype='float32'):
             print(f"Verifying netowrk with d = {d[i]}, delta = {delta[j]}")
 
             rbCSR[i, j, :], vtCSR[i, j, :], _, _ = certifyRobustness(net=starvNet, inputs=CSRs, labels=IDs,
-                    veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
+                    veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None,
                     RF=0.0, DR=0, return_output=True, show=False)
             rb_delta_table.append((rbCSR[i, j, :]==1).sum())
             vt_delta_table.append((vtCSR[i, j, :].sum() / N))
         rbCSR_table.append(rb_delta_table)
         vtCSR_table.append(vt_delta_table)
-            
+
     print(f"\nVerifying {net_type} ConvNet with Sparse Image Star in COO format")
     rbCOO_table = []
     vtCOO_table = []
@@ -619,7 +619,7 @@ def verify_convnet_network(net_type='Small', dtype='float32'):
             print(f"Verifying netowrk with d = {d[i]}, delta = {delta[j]}")
 
             rbCOO[i, j, :], vtCOO[i, j, :], _, _ = certifyRobustness(net=starvNet, inputs=COOs, labels=IDs,
-                    veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
+                    veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None,
                     RF=0.0, DR=0, return_output=True, show=False)
             rb_delta_table.append((rbCOO[i, j, :]==1).sum())
             vt_delta_table.append((vtCOO[i, j, :].sum() / N))
@@ -656,7 +656,7 @@ def verify_convnet_network(net_type='Small', dtype='float32'):
         Tlatex = tabulate(data, headers=headers, tablefmt='latex')
         with open(path+f"/{net_type}ConvNet_brightAttack_Table_d{d[i]}_vt.tex", "w") as f:
             print(Tlatex, file=f)
-        
+
     save_file = path + f"/{net_type}ConvNet_brightAttack_results.pkl"
     pickle.dump([rbIM, vtIM, rbIM_table, vtIM_table, rbCSR, vtCSR, rbCSR_table, vtCSR_table, rbCOO, vtCOO, rbCOO_table, vtCOO_table], open(save_file, "wb"))
 
@@ -673,11 +673,11 @@ def plot_table_covnet_network(net_type):
     mat_file = scipy.io.loadmat(mat_path + f"NNV_{net_type}_ConvNet_Results_brightAttack.mat")
     rbNNV = mat_file['r_star']
     vtNNV = mat_file['VT_star']
-    
+
     delta = [0.005, 0.01, 0.015]
     d = [250, 245, 240]
     N = 100
-    
+
     dir = f"artifacts/HSCC2025_SparseImageStar/results/"
     if net_type == 'Small':
         sdir = dir + f'Table_1__{net_type}_MNIST_ConvNet_brightAttack'
@@ -703,7 +703,7 @@ def plot_table_covnet_network(net_type):
     f"\\hline\n \n"
     ]
     file.writelines(L)
-    
+
     for i in range(len(d)):
         file.write(f"\\hline\n")
         line = f"$d = {d[i]}$"
@@ -728,7 +728,7 @@ def plot_table_covnet_network(net_type):
     ]
     file.writelines(L)
     file.close()
-    
+
     print('=====================================================')
     print('DONE!')
     print('=====================================================')
@@ -752,7 +752,7 @@ def verify_vgg16_network(dtype='float64'):
 
 
     shape = (3, 224, 224)
-    
+
     # VNNLIB_FILE = 'vnncomp2023_benchmarks/benchmarks/vggnet16/vnnlib/spec0_pretzel.vnnlib'
     vnnlib_dir = f"{folder_dir}/vnnlib"
     vnnlib_files = [f for f in os.listdir(vnnlib_dir) if f.endswith('.vnnlib')]
@@ -769,7 +769,7 @@ def verify_vgg16_network(dtype='float64'):
 
     rb_table = []
     vt_table = []
- 
+
     print(f"\n\nVerifying vggnet16 with ImageStar")
     for i, vnnlib_file in enumerate(vnnlib_files):
         vnnlib_file_dir = f"{vnnlib_dir}/{vnnlib_file}"
@@ -796,9 +796,9 @@ def verify_vgg16_network(dtype='float64'):
         else:
             IM = ImageStar(lb, ub)
             rbIM[i], vtIM[i], _, _ = certifyRobustness(net=starvNet, inputs=IM, labels=label,
-                veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
+                veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None,
                 RF=0.0, DR=0, return_output=False, show=False)
-            
+
             if rbIM[i] == 1:
                 print(f"ROBUSTNESS RESULT: ROBUST")
             elif rbIM[i] == 2:
@@ -832,17 +832,17 @@ def verify_vgg16_network(dtype='float64'):
         num_attack_pixel = (lb != ub).sum()
         print(f"\nVerifying {vnnlib_file} with {num_attack_pixel} attacked pixels")
 
-        if num_attack_pixel > 150:
+        if num_attack_pixel > 148406:
             print(f"Skipping {vnnlib_file} to avoid RAM issue")
             rbCSR[i] = np.nan
             vtCSR[i] = np.nan
         else:
             CSR = SparseImageStar2DCSR(lb, ub)
             rbCSR[i], vtCSR[i], _, Y = certifyRobustness(net=starvNet, inputs=CSR, labels=label,
-                veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
+                veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None,
                 RF=0.0, DR=0, return_output=False, show=False)
             numPred[i] = Y.num_pred
-        
+
             if rbCSR[i] == 1:
                 print(f"ROBUSTNESS RESULT: ROBUST")
             elif rbCSR[i] == 2:
@@ -877,16 +877,16 @@ def verify_vgg16_network(dtype='float64'):
         num_attack_pixel = (lb != ub).sum()
         print(f"\nVerifying {vnnlib_file} with {num_attack_pixel} attacked pixels")
 
-        if num_attack_pixel > 150:
+        if num_attack_pixel > 148406:
             print(f"Skipping {vnnlib_file} to avoid RAM issue")
             rbCOO[i] = np.nan
             vtCOO[i] = np.nan
         else:
             COO = SparseImageStar2DCOO(lb, ub)
             rbCOO[i], vtCOO[i], _, _ = certifyRobustness(net=starvNet, inputs=COO, labels=label,
-                veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
+                veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None,
                 RF=0.0, DR=0, return_output=False, show=False)
-            
+
             if rbCOO[i] == 1:
                 print(f"ROBUSTNESS RESULT: ROBUST")
             elif rbCOO[i] == 2:
@@ -954,7 +954,7 @@ def verify_vgg16_converted_network(dtype='float64'):
 
 
     shape = (3, 224, 224)
-    
+
     # VNNLIB_FILE = 'vnncomp2023_benchmarks/benchmarks/vggnet16/vnnlib/spec0_pretzel.vnnlib'
     vnnlib_dir = f"{folder_dir}/vnnlib"
     vnnlib_files = [f for f in os.listdir(vnnlib_dir) if f.endswith('.vnnlib')]
@@ -990,9 +990,9 @@ def verify_vgg16_converted_network(dtype='float64'):
         else:
             IM = ImageStar(lb, ub)
             rbIM[i], vtIM[i], _, _ = certifyRobustness(net=starvNet, inputs=IM, labels=label,
-                veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
+                veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None,
                 RF=0.0, DR=0, return_output=False, show=False)
-            
+
             if rbIM[i] == 1:
                 print(f"ROBUSTNESS RESULT: ROBUST")
             elif rbIM[i] == 2:
@@ -1058,7 +1058,7 @@ def verify_vgg16_network_spec_cn(dtype='float64'):
 
     shape = (3, 224, 224)
 
-    vnnlib_dir = f"{folder_dir}/vnnlib"
+    vnnlib_dir = f"{folder_dir}/vnnlib/spec_cn"
     vnnlib_files = [f for f in os.listdir(vnnlib_dir) if f.endswith('.vnnlib')]
     vnnlib_files.sort(key = natural_keys)
 
@@ -1077,7 +1077,7 @@ def verify_vgg16_network_spec_cn(dtype='float64'):
     numPred = np.zeros(N)
 
     show = True
- 
+
     print(f"\n\nVerifying vggnet16 with SparseImageStar in CSR format")
     for i, vnnlib_file in enumerate(vnnlib_files):
         vnnlib_file_dir = f"{vnnlib_dir}/{vnnlib_file}"
@@ -1102,10 +1102,10 @@ def verify_vgg16_network_spec_cn(dtype='float64'):
         del lb, ub, bounds
 
         rbCSR[i], vtCSR[i], _, Y = certifyRobustness(net=starvNet, inputs=CSR, labels=label,
-            veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
+            veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None,
             RF=0.0, DR=0, return_output=False, show=show)
         numPred[i] = Y.num_pred
-    
+
         if rbCSR[i] == 1:
             print(f"ROBUSTNESS RESULT: ROBUST")
         elif rbCSR[i] == 2:
@@ -1142,9 +1142,9 @@ def verify_vgg16_network_spec_cn(dtype='float64'):
         del lb, ub, bounds
 
         rbCOO[i], vtCOO[i], _, _ = certifyRobustness(net=starvNet, inputs=COO, labels=label,
-            veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, 
+            veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None,
             RF=0.0, DR=0, return_output=False, show=show)
-        
+
         if rbCOO[i] == 1:
             print(f"ROBUSTNESS RESULT: ROBUST")
         elif rbCOO[i] == 2:
@@ -1223,7 +1223,7 @@ def plot_table_vgg16_network():
         # transpose from [C, H, W] to [H, W, C]
         lb = bounds[:, 0].reshape(shape).transpose([1, 2, 0])
         ub = bounds[:, 1].reshape(shape).transpose([1, 2, 0])
-        num_attack_pixel.append(int((lb != ub).sum())) 
+        num_attack_pixel.append(int((lb != ub).sum()))
 
 
     N = 15
@@ -1237,14 +1237,14 @@ def plot_table_vgg16_network():
     headers = ['Specs', 'e', 'Result', 'm', 'IM', 'SIM_csr', 'SIM_coo', 'NNV', 'DeepPoly',  'Marabou', 'IM', 'NNV', 'NNENUM', 'ab-CROWN', 'b-CROWN']
 
     result = 'UNSAT'
-    
+
     data = []
     for i in range(N):
         vt_im = 'O/M' if np.isnan(vtIM[i]) else f"{vtIM[i]:0.1f}"
         vt_imc = 'O/M' if np.isnan(vtIMc[i]) else f"{vtIMc[i]:0.1f}"
         vt_nnv = 'O/M' if vtNNV[i] < 0 else f"{vtNNV[i]:0.1f}"
         vt_nnvc = 'O/M' if vtNNVc[i] < 0 else f"{vtNNVc[i]:0.1f}"
-        
+
         nPred = 'NA' if np.isnan(vtCSR[i]) else f"{num_pred[i]}"
         data.append([i, num_attack_pixel[i], result, nPred,  vt_im, f"{vtCSR[i]:0.1f}", f"{vtCOO[i]:0.1f}", vt_nnv, vt_DP, vt_marabou, vt_imc, vt_nnvc, vt_NNENUM[i], f"{vt_abcrown[i]:0.1f}", f"{vt_bcrown[i]:0.1f}"])
 
@@ -1254,7 +1254,7 @@ def plot_table_vgg16_network():
     vt_bcrown_cn = [26782.327130317688, 37052.68477010727, 'T/O', 'T/O', 'T/O', 'T/O', 'T/O']
     vt_abcrown_cn = 'T/O'
     for i in range(N_cn):
-        vt_im = 'O/M' 
+        vt_im = 'O/M'
         vt_imc = 'O/M'
         vt_nnv = 'O/M'
         vt_nnvc = 'O/M'
@@ -1288,20 +1288,20 @@ if __name__ == "__main__":
     verify_convnet_network(net_type='Large', dtype='float64')
     plot_table_covnet_network(net_type = 'Large')                       # Table 3
 
-    # Table 4: Verification results of VGG16 in seconds (vnncomp2023) 
+    # Table 4: Verification results of VGG16 in seconds (vnncomp2023)
     verify_vgg16_network(dtype='float64')
     verify_vgg16_converted_network(dtype='float64')
     verify_vgg16_network_spec_cn()
     plot_table_vgg16_network()                                          # Table 4
 
-    # Figure 4: Memory usage and computation time comparison between ImageStar and 
+    # Figure 4: Memory usage and computation time comparison between ImageStar and
     # SparseImageStar (SIM) in verifying the vggnet16 network (vnncomp2023) with spec 11 image
     memory_usage_vgg16(spec=11)                                         # Figure 4
 
-    # Figure 5: Memory usage and computation time comparison between ImageStar and 
+    # Figure 5: Memory usage and computation time comparison between ImageStar and
     # SparseImageStar (SIM) in verifying the oval21 network with 𝑙∞ norm attack on all pixels.
     memory_usage_oval21()                                               # Figure 5
 
-    # Figure 6: Memory usage and computation time comparison between ImageStar and 
+    # Figure 6: Memory usage and computation time comparison between ImageStar and
     # SparseImageStar (SIM) in verifying the vggnet16 network (vnncomp2023) with spec c4 image
     memory_usage_vgg16_spec_cn(spec=4)                                  # Figure 6
