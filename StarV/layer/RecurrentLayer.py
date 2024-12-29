@@ -153,16 +153,18 @@ class RecurrentLayer(object):
                     xi_affn = input.affineMap(self.Whx, self.bh)
                     hj_xi = hj_affn.minKowskiSum(xi_affn)
 
-                    if self.fh == "ReLU":
-                        hj_reach = ReLULayer.reach([hj_xi], method="exact", lp_solver=lp_solver)
-                    elif self.fh == "LeakyReLU":
-                        hj_reach = LeakyReLULayer.reach([hj_xi], method="exact", lp_solver=lp_solver)
-                    elif self.fh == "SatLin":
-                        hj_reach = SatLinLayer.reach([hj_xi], method="exact", lp_solver=lp_solver)
-                    elif self.fh == "Satlins":
-                        hj_reach = SatLinsLayer.reach([hj_xi], method="exact", lp_solver=lp_solver)
-                    elif self.fh == "fullyConnected":
-                        hj_reach = fullyConnectedLayer.reach([hj_xi], method="exact", lp_solver=lp_solver)
+                    # if self.fh == "ReLU":
+                    #     hj_reach = ReLULayer.reach([hj_xi], method="exact", lp_solver=lp_solver)
+                    # elif self.fh == "LeakyReLU":
+                    #     hj_reach = LeakyReLULayer.reach([hj_xi], method="exact", lp_solver=lp_solver)
+                    # elif self.fh == "SatLin":
+                    #     hj_reach = SatLinLayer.reach([hj_xi], method="exact", lp_solver=lp_solver)
+                    # elif self.fh == "Satlins":
+                    #     hj_reach = SatLinsLayer.reach([hj_xi], method="exact", lp_solver=lp_solver)
+                    # elif self.fh == "fullyConnected":
+                    #     hj_reach = fullyConnectedLayer.reach([hj_xi], method="exact", lp_solver=lp_solver)
+
+                    hj_reach = self.fh.reach([hj_xi], method="exact", lp_solver=lp_solver)
 
                     hidden_set_current.extend(hj_reach)
 

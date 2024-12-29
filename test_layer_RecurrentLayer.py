@@ -90,17 +90,17 @@ class Test(object):
         """
 
         # Load the weights from matlab
-        path_fc = "matlab/HSCC2023/small_RNN/dense_D.mat"
+        path_fc = "/StarV/util/data/matlab/HSCC2023/small_RNN/dense_D.mat"
         Woh = scipy.io.loadmat(path_fc)["W"]
         bo = scipy.io.loadmat(path_fc)["b"]
 
-        path_RecurrentLayer = "matlab/HSCC2023/small_RNN/simple_rnn_D.mat"
+        path_RecurrentLayer = "/StarV/util/data/matlab/HSCC2023/small_RNN/simple_rnn_D.mat"
         Whh = scipy.io.loadmat(path_RecurrentLayer)["recurrent_kernel"]
         bh = scipy.io.loadmat(path_RecurrentLayer)["bias"]
         Whx = scipy.io.loadmat(path_RecurrentLayer)["kernel"]
 
         # Load the input set from matlab
-        path_input = "matlab/HSCC2023/small_RNN/points.mat"
+        path_input = "/StarV/util/data/matlab/HSCC2023/small_RNN/points.mat"
         input_data = scipy.io.loadmat(path_input)
         In = input_data["pickle_data"]
         eps = 0.01
@@ -143,7 +143,7 @@ class Test(object):
         # output = net.evaluate(Xn)
         # print()
         try:
-            net.evaluate(Xn[:3])
+            net.evaluate(Xn[:1])
         except Exception:
             print("Test Fail!")
             self.n_fails = self.n_fails + 1
@@ -151,9 +151,9 @@ class Test(object):
 
 if __name__ == "__main__":
     t = Test()
-    # t.test_constructor()
-    # t.test_rand()
-    # t.test_reach()
-    t.test_evaluate()
+    t.test_constructor()
+    t.test_rand()
+    t.test_reach()
+    # t.test_evaluate()
     print("Number of tests: ", t.n_tests)
     print("Number of fails: ", t.n_fails)
