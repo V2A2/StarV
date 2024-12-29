@@ -832,7 +832,7 @@ def verify_vgg16_network(dtype='float64'):
         num_attack_pixel = (lb != ub).sum()
         print(f"\nVerifying {vnnlib_file} with {num_attack_pixel} attacked pixels")
 
-        if num_attack_pixel > 148406:
+        if num_attack_pixel >= 148406:
             print(f"Skipping {vnnlib_file} to avoid RAM issue")
             rbCSR[i] = np.nan
             vtCSR[i] = np.nan
@@ -877,7 +877,7 @@ def verify_vgg16_network(dtype='float64'):
         num_attack_pixel = (lb != ub).sum()
         print(f"\nVerifying {vnnlib_file} with {num_attack_pixel} attacked pixels")
 
-        if num_attack_pixel > 148406:
+        if num_attack_pixel >= 148406:
             print(f"Skipping {vnnlib_file} to avoid RAM issue")
             rbCOO[i] = np.nan
             vtCOO[i] = np.nan
