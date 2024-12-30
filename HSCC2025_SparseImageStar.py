@@ -1179,7 +1179,7 @@ def verify_vgg16_network_spec_cn(dtype='float64'):
 
 
 def plot_table_vgg16_network():
-    folder_dir = f"artifacts/HSCC2025_SparseImageStar/results"
+    folder_dir = f"artifacts/HSCC2025_SparseImageStar/results/"
     file_dir = folder_dir + 'vggnet16_vnncomp23_results.pkl'
     with open(file_dir, 'rb') as f:
         rbIM, vtIM, rbCSR, vtCSR, rbCOO, vtCOO, num_pred = pickle.load(f)
