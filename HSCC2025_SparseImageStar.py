@@ -901,11 +901,11 @@ def verify_vgg16_network(dtype='float64'):
     del COO
 
     # save verification results
-    path = f"artifacts/HSCC2025_SparseImageStar/results"
+    path = f"artifacts/HSCC2025_SparseImageStar/results/"
     if not os.path.exists(path):
         os.makedirs(path)
 
-    save_file = path + f"/vggnet16_vnncomp23_results.pkl"
+    save_file = path + f"vggnet16_vnncomp23_results.pkl"
     pickle.dump([rbIM, vtIM, rbCSR, vtCSR, rbCOO, vtCOO, numPred], open(save_file, "wb"))
 
     headers = [f"ImageStar", f"SIM_CSR", f"SIM_COO"]
@@ -1004,11 +1004,11 @@ def verify_vgg16_converted_network(dtype='float64'):
     del IM
 
     # save verification results
-    path = f"artifacts/HSCC2025_SparseImageStar/results"
+    path = f"artifacts/HSCC2025_SparseImageStar/results/"
     if not os.path.exists(path):
         os.makedirs(path)
 
-    save_file = path + f"/vggnet16_vnncomp23_converted_results.pkl"
+    save_file = path + f"vggnet16_vnncomp23_converted_results.pkl"
     pickle.dump([rbIM, vtIM], open(save_file, "wb"))
 
     headers = [f"ImageStar"]
