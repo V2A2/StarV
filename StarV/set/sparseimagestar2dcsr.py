@@ -56,16 +56,11 @@ class SparseImageStar2DCSR(object):
         len_ = len(args)
 
         if len_ == 7:
-            [c, V, C, d, pred_lb, pred_ub, shape] = args
-
+            
             if copy is True:
-                c = c.copy()
-                V = V.copy()
-                C = C.copy()
-                d = d.copy()
-                pred_lb = pred_lb.copy()
-                pred_ub = pred_ub.copy()            
-                shape = copy.deepcopy(shape)
+                [c, V, C, d, pred_lb, pred_ub, shape] = copy.deepcopy(args)
+            else:
+                [c, V, C, d, pred_lb, pred_ub, shape] = args
 
             # if len(shape) == 2:
             #     assert isinstance(V, sp.csr_array) or isinstance(V, sp.csr_matrix) or \
@@ -119,15 +114,11 @@ class SparseImageStar2DCSR(object):
             self.num_pred = V.shape[1]
 
         elif len_ == 6:
-            [V, C, d, pred_lb, pred_ub, shape] = args
 
             if copy is True:
-                V = V.copy()
-                C = C.copy()
-                d = d.copy()
-                pred_lb = pred_lb.copy()
-                pred_ub = pred_ub.copy()
-                shape = copy.deepcopy(shape)
+                [V, C, d, pred_lb, pred_ub, shape] = copy.deepcopy(args)
+            else:
+                [V, C, d, pred_lb, pred_ub, shape] = args
 
             assert isinstance(V, np.ndarray), \
             'error: basis matrix should be a numpy array'
@@ -169,11 +160,11 @@ class SparseImageStar2DCSR(object):
             self.num_pred = self.V.shape[-1] - 1
 
         elif len_ == 2:
-            [lb, ub] = args
-
+            
             if copy is True:
-                lb = lb.copy()
-                ub = ub.copy()
+                [lb, ub] = copy.deepcopy(args)
+            else:
+                [lb, ub] = args
 
             assert isinstance(lb, np.ndarray), \
             'error: lower bound image should be a numpy array'
@@ -350,10 +341,7 @@ class SparseImageStar2DCSR(object):
         return 1
     
     def clone(self):
-        if isinstance(self.V, np.ndarray):
-            return SparseImageStar2DCSR(self.V, self.C, self.d, self.pred_lb, self.pred_ub, self.shape)
-        else:
-            return SparseImageStar2DCSR(self.c, self.V, self.C, self.d, self.pred_lb, self.pred_ub, self.shape)
+        return copy.deepcopy(self)
 
     def nbytes_generator(self):
         if isinstance(self.V, np.ndarray):
@@ -383,11 +371,11 @@ class SparseImageStar2DCSR(object):
         '''Reset a row with index'''
         
         if isinstance(self.V, np.ndarray):
-            V = self.V.copy()
+            V = copy.deepcopy(self.V)
             V[index, :] = 0
             return SparseImageStar2DCSR(V, self.C, self.d, self.pred_lb, self.pred_ub, self.shape)
         else:
-            c = self.c.copy()
+            c = copy.deepcopy(self.c)
             c[index] = 0
             V = self.resetRow_V(index)
             return SparseImageStar2DCSR(c, V, self.C, self.d, self.pred_lb, self.pred_ub, self.shape)
@@ -395,17 +383,17 @@ class SparseImageStar2DCSR(object):
     def resetRows(self, map):
         '''Reset a row with map of indexes'''
         if isinstance(self.V, np.ndarray):
-            V = self.V.copy()
+            V = copy.deepcopy(self.V)
             V[map, :] = 0
             return SparseImageStar2DCSR(V, self.C, self.d, self.pred_lb, self.pred_ub, self.shape)
         else:
-            c = self.c.copy()
+            c = copy.deepcopy(self.c)
             c[map] = 0
             V = self.resetRows_V2(map)
             return SparseImageStar2DCSR(c, V, self.C, self.d, self.pred_lb, self.pred_ub, self.shape)
     
     def resetRow_V(self, index):
-        V = self.V.copy()
+        V = copy.deepcopy(self.V)        
         n = V.indptr[index+1] - V.indptr[index]
 
         if n > 0:
@@ -420,7 +408,7 @@ class SparseImageStar2DCSR(object):
         return V
     
     def resetRows_V_orig(self, map):
-        V = self.V.copy()
+        V = copy.deepcopy(self.V)
         
         n = (V.indptr[1:] - V.indptr[:-1]).astype(np.uint32)
         b = np.repeat(n[map][:, None], V.shape[0]+1, axis=1)
@@ -436,10 +424,10 @@ class SparseImageStar2DCSR(object):
         return V
 
     def resetRows_V(self, map):
-        V = self.V.copy()
+        V = copy.deepcopy(self.V)
         
         n = (V.indptr[1:] - V.indptr[:-1]).astype(np.int32)
-        new_indptr = V.indptr.copy()
+        new_indptr = copy.deepcopy(V.indptr)
         for e in map: 
             new_indptr[e+1:] -= n[e]
 
@@ -515,14 +503,14 @@ class SparseImageStar2DCSR(object):
         # # assert isinstance(self.V, np.ndarray), 'error: basis and anchor images of SparseImageStar is not np.ndarray'
         
         if W is None and b is None:
-            return self.clone()
+            return copy.deepcopy(self)
         
         if isinstance(self.V, np.ndarray):
             dense = True
         else:
             dense = False
 
-        V = self.V.copy()
+        V = copy.deepcopy(self.V)
         shape_prod = np.prod(self.shape)
 
         if W is not None:
@@ -563,7 +551,7 @@ class SparseImageStar2DCSR(object):
     def flatten_affineMap_sparse(self, W=None, b=None):
 
         if W is None and b is None:
-            return self.clone()
+            return copy.deepcopy(self)
 
         if W is not None:
             assert isinstance(W, np.ndarray), 'error: ' + \

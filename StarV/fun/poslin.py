@@ -105,8 +105,8 @@ class PosLin(object):
                     C = np.zeros(I.dim,)
                     C[index] = 1.0
                     d = np.zeros(1,)
-                    S1 = I.clone()
-                    S2 = I.clone()
+                    S1 = copy.deepcopy(I)
+                    S2 = copy.deepcopy(I)
                     S1.addConstraint(C, d)  # x <= 0
                     S1.resetRow(index)
                     S2.addConstraint(-C, d)  # x >= 0
@@ -351,7 +351,7 @@ class PosLin(object):
         m = len(map) # number of neurons invovled
         dtype = I.V.dtype
 
-        V1 = I.V.copy()
+        V1 = copy.deepcopy(I.V)
         V1[map, :] = 0
         V2 = np.zeros([N, m], dtype=dtype)
         for i in range(m):
@@ -394,7 +394,7 @@ class PosLin(object):
         m = len(map) # number of neurons invovled
         dtype = I.V.dtype
 
-        A1 = I.A.copy() #copy.deepcopy(I.A)
+        A1 = copy.deepcopy(I.A)
         A1[map, :] = 0
 
         A2 = np.zeros([N, m], dtype=dtype)
@@ -448,7 +448,7 @@ class PosLin(object):
 
         h_map, w_map, c_map = I.V.index_to3D(map)
         
-        new_c = I.c.copy() #copy.deepcopy(I.c)
+        new_c = copy.deepcopy(I.c)
         Ic = np.zeros(m, dtype=dtype)
         for i in range(m):
             Ic[i] = I.c[h_map[i], w_map[i], c_map[i]]
@@ -562,7 +562,7 @@ class PosLin(object):
         dtype = I.V.dtype
 
         if isinstance(I.V, np.ndarray):
-            V1 = I.V.copy()
+            V1 = copy.deepcopy(I.V)
             V1[map, :] = 0
             V2 = np.zeros([N, m], dtype=dtype)
             # V2[map, np.arange(m, dtype=np.int32)] = 1
@@ -614,7 +614,7 @@ class PosLin(object):
         else:
         
             Ic = I.c[map]
-            new_c = I.c.copy() #copy.deepcopy(I.c)
+            new_c = copy.deepcopy(I.c)
             new_c[map] = 0
             V = I.resetRows_V(map)
 
@@ -720,7 +720,7 @@ class PosLin(object):
         dtype = I.V.dtype
         
         if isinstance(I.V, np.ndarray):
-            V1 = I.V.copy()
+            V1 = copy.deepcopy(I.V)
             V1[map, :] = 0
             V2 = np.zeros([N, m], dtype=dtype)
             # V2[map, np.arange(m, dtype=np.int32)] = 1
@@ -771,7 +771,7 @@ class PosLin(object):
         
         else:
             Ic = I.c[map]
-            new_c = I.c.copy() #copy.deepcopy(I.c)
+            new_c = copy.deepcopy(I.c)
             new_c[map] = 0
             V = I.resetRows_V(map).tocoo(copy=False)
 
@@ -831,7 +831,7 @@ class PosLin(object):
         """
         toStar = None
 
-        I = In.clone() #copy.deepcopy(In)
+        I = copy.deepcopy(In)
 
         if show:
             print('Applying approximate reachability on \'poslin\' or \'relu\' activation function')
@@ -947,7 +947,7 @@ class PosLin(object):
         else:
             u = In.getMax(index=index, lp_solver=lp_solver)
             if u <= 0:
-                V = In.V.copy() #copy.deepcopy(In.V)
+                V = copy.deepcopy(In.V)
                 V[index, :] = 0
                 return Star(V, In.C, In.d, In.pred_lb, In.pred_ub)
             
@@ -1009,7 +1009,7 @@ class PosLin(object):
         l, u = In.estimateRanges()
 
         map = np.argwhere(u <= 0)
-        V = In.V.copy() #copy.deepcopy(In.V)
+        V = copy.deepcopy(In.V)
         V[map, :] = 0
         I = Star(V, In.C, In.d, In.pred_lb, In.pred_ub)
 

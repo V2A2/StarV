@@ -45,14 +45,11 @@ class SparseStar(object):
 
         len_ = len(args)
         if len_ == 6:
-            [A, C, d, pred_lb, pred_ub, pred_depth] = args
 
             if copy_ is True:
-                A = A.copy()
-                C = C.copy()
-                d = d.copy()
-                pred_lb = pred_lb.copy()
-                pred_ub = pred_ub.copy()
+                [A, C, d, pred_lb, pred_ub, pred_depth] = copy.deepcopy(args)
+            else:
+                [A, C, d, pred_lb, pred_ub, pred_depth] = args
                 
             assert isinstance(A, np.ndarray), \
             'error: basis matrix should be a 2D numpy array'
@@ -149,11 +146,11 @@ class SparseStar(object):
         #     self.nZVars = self.dim + 1 - self.A.shape[1]
 
         elif len_ == 2:
-            [lb, ub] = args
             
             if copy_ is True:
-                lb = lb.copy()
-                ub = ub.copy()
+                [lb, ub] = copy.deepcopy(args)
+            else:
+                [lb, ub] = args
                 
             assert isinstance(lb, np.ndarray), \
             'error: lower bound vector should be a 1D numpy array'
@@ -268,28 +265,28 @@ class SparseStar(object):
     def c(self, index=None):
         """Get center column vector of SparseStar"""
         if index is None:
-            return copy.deepcopy(self.A[:, 0].reshape(-1, 1))
+            return self.A[:, 0].reshape(-1, 1).copy()
         else:
-            return copy.deepcopy(self.A[index, 0].reshape(-1, 1))
+            return self.A[index, 0].reshape(-1, 1).copy()
 
     def X(self, row=None):
         """Get basis matrix of dependent predicate variables"""
         mA = self.A.shape[1]
         if row is None:
-            return copy.deepcopy(self.A[:, 1:mA])
+            return self.A[:, 1:mA].copy()
         else:
-            return copy.deepcopy(self.A[row, 1:mA])
+            return self.A[row, 1:mA].copy()
 
     def V(self, row=None):
         """Get basis matrix"""
         mA = self.A.shape[1]
         if row is None:
-            return copy.deepcopy(np.column_stack([np.zeros((self.dim, self.nZVars)), self.X()]))
+            return np.column_stack([np.zeros((self.dim, self.nZVars)), self.X()])
         else:
             if isinstance(row, int) or isinstance(row, np.integer):
-                return copy.deepcopy(np.hstack([np.zeros(self.nZVars), self.X(row)]))
+                return np.hstack([np.zeros(self.nZVars), self.X(row)])
             else:
-                return copy.deepcopy(np.column_stack([np.zeros((len(row), self.nZVars)), self.X(row)]))
+                return np.column_stack([np.zeros((len(row), self.nZVars)), self.X(row)])
 
     def translation(self, v=None):
         """Translation of a sparse star: S = self + v"""

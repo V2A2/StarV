@@ -13,7 +13,6 @@ from scipy.linalg import block_diag
 from StarV.fun.logsig import LogSig
 from StarV.fun.tansig import TanSig
 from StarV.fun.identityXidentity import IdentityXIdentity
-from StarV.fun.identityXidentityOLD import IdentityXIdentityOLD
 from StarV.set.sparsestar import SparseStar
 from StarV.set.star import Star
 
