@@ -840,10 +840,11 @@ def generate_exact_reachset_figs_AEBS():
         unsafe_vec = np.array([2.5, -0.5, v_ub[i], -0.2])
         
         print('Plot reachable set...')
+        plt.figure()
         plot_probstar_reachset_with_unsafeSpec(X, unsafe_mat, unsafe_vec, dir_mat=dir_mat1, dir_vec=dir_vec1, show_prob=False, \
                                label=('$d$','$v_{ego}$'), show=False, color='g')
         plt.savefig(path+"/Figure_6__d_vs_vego_init_{}.png".format(i), bbox_inches='tight')  # save figure
-        plt.show()
+        # plt.show()
 
 
 def verify_AEBS():
