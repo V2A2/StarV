@@ -207,9 +207,9 @@ def plot_rnns_results(type='lstm', hidden=15):
 
     legend = ['EST', 'LP', 'DR=1', 'DR=2', 'AutoLirpa']
     if type == 'lstm':
-        legend.append('$POPQORN^0$')
+        legend.append('$POPQORN$')
 
-    fig, ax = plt.subplots(figsize=(11*cm, 15*cm), tight_layout=True)
+    fig, ax = plt.subplots(figsize=(12*cm, 15*cm), tight_layout=True)
     plt.title(f"MNIST {type.upper()}{hidden} RB")
     
     plt.plot(eps, rb_est, "--gD", linewidth=lw)
@@ -231,7 +231,7 @@ def plot_rnns_results(type='lstm', hidden=15):
     plt.savefig(f_dir + f'Figure_{fig_num}__MNIST_{type.upper()}_{hidden}_net_RB.png')
     plt.show()
 
-    fig, ax = plt.subplots(figsize=(9*cm, 15*cm), tight_layout=True)
+    fig, ax = plt.subplots(figsize=(10.5*cm, 15*cm), tight_layout=True)
     plt.title(f"MNIST {type.upper()}{hidden} VT")
 
     plt.plot(eps, vt_est, "--gD", linewidth=lw)

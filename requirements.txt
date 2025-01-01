@@ -1,4 +1,4 @@
-gurobipy==11.0.2
+gurobipy==11.0.3
 glpk
 pycddlib<=2.1.8
 polytope
