@@ -69,8 +69,8 @@ class FullyConnectedLayer(object):
                 return np.matmul(W, x) + b[:, np.newaxis]
         
         elif W is not None:
-            # if x.ndim == self.W.ndim:
-            if x.shape[:2] == self.W.shape[:2]:
+			#if x.shape[:2] == self.W.shape[:2]:
+            if x.ndim == self.W.ndim:
                 return W * x 
         
             return np.matmul(W, x)
