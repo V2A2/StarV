@@ -1280,28 +1280,28 @@ if __name__ == "__main__":
     verify_convnet_network(net_type='Small', dtype='float64')
     plot_table_covnet_network(net_type = 'Small')                       # Table 1
 
-    # # Table 2: Verification results of the Medium MNIST CNN (CAV2020)
-    # verify_convnet_network(net_type='Medium', dtype='float64')
-    # plot_table_covnet_network(net_type = 'Medium')                      # Table 2
+    # Table 2: Verification results of the Medium MNIST CNN (CAV2020)
+    verify_convnet_network(net_type='Medium', dtype='float64')
+    plot_table_covnet_network(net_type = 'Medium')                      # Table 2
 
-    # # Table 3: Verification results of the Large MNIST CNN (CAV2020)
-    # verify_convnet_network(net_type='Large', dtype='float64')
-    # plot_table_covnet_network(net_type = 'Large')                       # Table 3
+    # Table 3: Verification results of the Large MNIST CNN (CAV2020)
+    verify_convnet_network(net_type='Large', dtype='float64')
+    plot_table_covnet_network(net_type = 'Large')                       # Table 3
 
-    # # Table 4: Verification results of VGG16 in seconds (vnncomp2023)
-    # verify_vgg16_network(dtype='float64')
-    # verify_vgg16_converted_network(dtype='float64')
-    # verify_vgg16_network_spec_cn()
-    # plot_table_vgg16_network()                                          # Table 4
+    # Table 4: Verification results of VGG16 in seconds (vnncomp2023)
+    verify_vgg16_network(dtype='float64')
+    verify_vgg16_converted_network(dtype='float64')
+    verify_vgg16_network_spec_cn()
+    plot_table_vgg16_network()                                          # Table 4
     
-    # # Figure 4: Memory usage and computation time comparison between ImageStar and
-    # # SparseImageStar (SIM) in verifying the vggnet16 network (vnncomp2023) with spec 11 image
-    # memory_usage_vgg16(spec=11)                                         # Figure 4
+    # Figure 4: Memory usage and computation time comparison between ImageStar and
+    # SparseImageStar (SIM) in verifying the vggnet16 network (vnncomp2023) with spec 11 image
+    memory_usage_vgg16(spec=11)                                         # Figure 4
     
-    # # Figure 5: Memory usage and computation time comparison between ImageStar and
-    # # SparseImageStar (SIM) in verifying the oval21 network with 𝑙∞ norm attack on all pixels.
-    # memory_usage_oval21()                                               # Figure 5
+    # Figure 5: Memory usage and computation time comparison between ImageStar and
+    # SparseImageStar (SIM) in verifying the oval21 network with 𝑙∞ norm attack on all pixels.
+    memory_usage_oval21()                                               # Figure 5
     
-    # # Figure 6: Memory usage and computation time comparison between ImageStar and
-    # # SparseImageStar (SIM) in verifying the vggnet16 network (vnncomp2023) with spec c4 image
-    # memory_usage_vgg16_spec_cn(spec=4)                                  # Figure 6
+    # Figure 6: Memory usage and computation time comparison between ImageStar and
+    # SparseImageStar (SIM) in verifying the vggnet16 network (vnncomp2023) with spec c4 image
+    memory_usage_vgg16_spec_cn(spec=4)                                  # Figure 6
