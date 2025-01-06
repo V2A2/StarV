@@ -147,6 +147,6 @@ if __name__ == "__main__":
     sim_coo_construct_via_bounds()
     sim_csr_construct_via_bounds()
     sim_coo_construct()
-    sim_csr_construct
+    sim_csr_construct()
     sim_coo_affineMap()
     sim_csr_affineMap()
