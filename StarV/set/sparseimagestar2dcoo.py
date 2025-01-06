@@ -275,7 +275,6 @@ class SparseImageStar2DCOO(object):
 
     def __str__(self, toDense=False):
         print('SparseImageStar2DCOO Set:')
-        print('c: {}'.format(self.c))
         if self.c is None:
             print('V: {}'.format(self.V))
         else:
