@@ -172,7 +172,7 @@ At StarV directory, `StarV`,
 
 ### Reproduce individual results:
 
-At StarV directory, `StarV`, run following functions to reproduce individual the evaluation result.
+At StarV directory, `StarV`, run following functions to reproduce the individual evaluation results.
 
 - Table 2: Verification results for Le-ACC with the network controller 𝑁5×20 (i.e., 5 layers, 20 neurons per layer)
 

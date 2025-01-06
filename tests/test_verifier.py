@@ -20,6 +20,8 @@ from tabulate import tabulate
 from StarV.spec.dProbStarTL import Formula, AtomicPredicate, _ALWAYS_, _AND_
 import os
 
+np.set_printoptions(precision=5, edgeitems=100, linewidth=100000)
+
 class Test(object):
     """
     Testing module net class and methods
@@ -583,42 +585,44 @@ if __name__ == "__main__":
     ================================\
     ================================\
     ===============================\n')
-    test_verifier.test_reachExactBFS()
-    # test_verifier.test_reach_2017_IEEE_TNNLS()
-    # test_verifier.test_reach_ACASXU(x=3,y=7,spec_id=3)
-    test_verifier.test_checkSafetyStar()
-    # test_verifier.test_quantiverify_ACASXU(x=3,y=7,spec_id=3,numCores=8)
-    # test_verifier.test_quantiverify_tiny_network(numCores=4)
+    test_verifier.test_quantiverifyProbStarTL_harmonic_oscillator()
+    
+    # test_verifier.test_reachExactBFS()
+    # # test_verifier.test_reach_2017_IEEE_TNNLS()
+    # # test_verifier.test_reach_ACASXU(x=3,y=7,spec_id=3)
+    # test_verifier.test_checkSafetyStar()
+    # # test_verifier.test_quantiverify_ACASXU(x=3,y=7,spec_id=3,numCores=8)
+    # # test_verifier.test_quantiverify_tiny_network(numCores=4)
 
-    # x[0] = COC (Clear-of-Conflict)
-    # x[1] = Weak-Left
-    # x[2] = Weak-Right
-    # x[3] = Strong-Left
-    # x[4] = Strong-Right
-    # Look at load_ACASXU
+    # # x[0] = COC (Clear-of-Conflict)
+    # # x[1] = Weak-Left
+    # # x[2] = Weak-Right
+    # # x[3] = Strong-Left
+    # # x[4] = Strong-Right
+    # # Look at load_ACASXU
 
-    x = [1]
-    y = [2]
-    s = [2]
-    # x = [1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 1, 1, 1, 1, 1, 1]
-    # y = [2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 2, 4, 5, 6, 7, 8, 9, 1, 3, 4, 5, 6, 7, 8, 9, 1, 2, 3, 4, 5, 6, 7, 8, 9, 7, 8, 9, 7, 8, 9] 
-    # s = [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 4, 4, 4] # property id
-    # test_verifier.test_quantiverify_ACASXU_all(x=x, y=y, spec_ids=s, \
-    #                                             numCores=8, unsafe_mat=None, unsafe_vec=None, p_filters=[0.0, 1e-5])
+    # x = [1]
+    # y = [2]
+    # s = [2]
+    # # x = [1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 1, 1, 1, 1, 1, 1]
+    # # y = [2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 2, 4, 5, 6, 7, 8, 9, 1, 3, 4, 5, 6, 7, 8, 9, 1, 2, 3, 4, 5, 6, 7, 8, 9, 7, 8, 9, 7, 8, 9] 
+    # # s = [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 4, 4, 4] # property id
+    # # test_verifier.test_quantiverify_ACASXU_all(x=x, y=y, spec_ids=s, \
+    # #                                             numCores=8, unsafe_mat=None, unsafe_vec=None, p_filters=[0.0, 1e-5])
 
-    # test_verifier.test_quantiverifyMC_ACASXU_all(x=x, y=y, spec_ids=s, N_samples=[1000, 10000, 100000, 1000000, 10000000], nTimes=1, numCores=[1, 4])
+    # # test_verifier.test_quantiverifyMC_ACASXU_all(x=x, y=y, spec_ids=s, N_samples=[1000, 10000, 100000, 1000000, 10000000], nTimes=1, numCores=[1, 4])
 
-    # test_verifier.test_quantiverify_ACASXU_all(x=[1], y=[7, 8, 9], spec_id=4, \
-    #                                             numCores=8, unsafe_mat=None, unsafe_vec=None, p_filter=0.0)
+    # # test_verifier.test_quantiverify_ACASXU_all(x=[1], y=[7, 8, 9], spec_id=4, \
+    # #                                             numCores=8, unsafe_mat=None, unsafe_vec=None, p_filter=0.0)
 
-    # test_verifier.test_quantiverify_RocketNet(numCores=8, net_ids=[0, 1], spec_ids=[1,2], p_filters=[0.0, 1e-8, 1e-5, 1e-3])
+    # # test_verifier.test_quantiverify_RocketNet(numCores=8, net_ids=[0, 1], spec_ids=[1,2], p_filters=[0.0, 1e-8, 1e-5, 1e-3])
 
-    # test_verifier.test_quantiverifyProbStarTL_harmonic_oscillator()
-    print('\n========================\
-    =================================\
-    =================================\
-    =================================\n')
-    print('Testing verifier: fails: {}, successfull: {}, \
-    total tests: {}'.format(test_verifier.n_fails,
-                            test_verifier.n_tests - test_verifier.n_fails,
-                            test_verifier.n_tests))
+    # # test_verifier.test_quantiverifyProbStarTL_harmonic_oscillator()
+    # print('\n========================\
+    # =================================\
+    # =================================\
+    # =================================\n')
+    # print('Testing verifier: fails: {}, successfull: {}, \
+    # total tests: {}'.format(test_verifier.n_fails,
+    #                         test_verifier.n_tests - test_verifier.n_fails,
+    #                         test_verifier.n_tests))

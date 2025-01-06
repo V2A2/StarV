@@ -23,7 +23,7 @@ import copy
 import multiprocessing
 from matplotlib.patches import Rectangle
 
-
+artifact = 'ProbStar_Algebra'
 
 def generate_exact_reachset_figs(net_id='5x20'):
     'generate 4 pictures and save in NEURIPS2024/pics/'
@@ -88,7 +88,7 @@ def generate_exact_reachset_figs(net_id='5x20'):
     dir_vec3 = np.array([0., 0.])
 
 
-    path = "artifacts/NEURIPS2024_Algebra/ACC/pics"
+    path = f"artifacts/{artifact}/ACC/pics"
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -162,7 +162,7 @@ def generate_exact_Q2_verification_results(net_id='5x20'):
 
     t = range(0, 1, numSteps)
     
-    path = "artifacts/NEURIPS2024_Algebra/ACC/pics"
+    path = f"artifacts/{artifact}/ACC/pics"
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -242,7 +242,7 @@ def generate_approx_Q2_verification_results(net_id='5x20', pf=0.001):
     
     t = range(0, 1, numSteps)
     
-    path = "artifacts/NEURIPS2024_Algebra/ACC/pics"
+    path = f"artifacts/{artifact}/ACC/pics"
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -347,7 +347,7 @@ def generate_VT_Conv_vs_pf_net():
             
     print(tabulate(data, headers=["p_filter", "network", "verification time", "number of output sets", "VT_improve (in %)", "Convativeness (in %)"]))   
     
-    path = "artifacts/NEURIPS2024_Algebra/table"
+    path = f"artifacts/{artifact}/table"
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -407,7 +407,7 @@ def generate_exact_reachset_figs_AEBS():
 
 
 
-        path = "artifacts/NEURIPS2024_Algebra/AEBS/pics"
+        path = f"artifacts/{artifact}/AEBS/pics"
         if not os.path.exists(path):
             os.makedirs(path)
 
@@ -458,7 +458,7 @@ def generate_AEBS_exact_Q2_verification_results(initSet_id=0):
 
     t = range(0, 1, numSteps)
     
-    path = "artifacts/NEURIPS2024_Algebra/AEBS/pics"
+    path = f"artifacts/{artifact}/AEBS/pics"
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -531,7 +531,7 @@ def generate_AEBS_approx_Q2_verification_results(initSet_id=0, pf=0.01):
 
     t = range(0, 1, numSteps)
     
-    path = "artifacts/NEURIPS2024_Algebra/AEBS/pics"
+    path = f"artifacts/{artifact}/AEBS/pics"
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -597,7 +597,7 @@ def generate_AEBS_Q2_verification_results(initSet_id=0, pf=0.005):
 
     t = range(0, 1, numSteps)
     
-    path = "artifacts/NEURIPS2024_Algebra/AEBS/pics"
+    path = f"artifacts/{artifact}/AEBS/pics"
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -698,7 +698,7 @@ def generate_AEBS_VT_Conv_vs_pf_initSets():
             
     print(tabulate(data, headers=["p_filter", "initSet", "verification time", "number of output sets", "VT_improve (in %)", "Convativeness (in %)"]))   
     
-    path = "artifacts/NEURIPS2024_Algebra/AEBS/table"
+    path = f"artifacts/{artifact}/AEBS/table"
     if not os.path.exists(path):
         os.makedirs(path)
 

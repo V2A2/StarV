@@ -10,6 +10,8 @@ import numpy as np
 import signal
 from contextlib import contextmanager
 
+artifact = 'Fairness'
+
 class TimeoutException(Exception):
     pass
 
@@ -184,7 +186,7 @@ def generate_latex_table(results: Dict[str, List[ModelResults]]) -> str:
     return "\n".join(latex)
 
 def save_results(results: Dict[str, List[ModelResults]], filename: str = "fairness_results"):
-    path = "artifacts/HSCC2024/exact/strict/"
+    path = f"artifacts/{artifact}/exact/strict/"
     if not os.path.exists(path):
         os.makedirs(path)
     
