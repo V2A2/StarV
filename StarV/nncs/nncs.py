@@ -45,7 +45,7 @@ class VerifyPRM_NNCS(object):
         self.computeProbMethod = 'approx' # compute probability of satisfaction (exact) or approx
         #  self.computeProbMethod = 'exact' return exact probability of satisfaction of a CDNF
         #  self.computeProbMethod = 'approx' return the estimation of lower-bound of probability of satisfaction of a CDNF
-        self.timeOut = np.Inf # timeout for verification process
+        self.timeOut = np.inf # timeout for verification process
         self.MaxLengthCDNF = 11    # maximum allowable length for computing probability of satisfaction of a CDNF
 
 class VerifyRes_NNCS(object):
@@ -373,8 +373,7 @@ def reachBFS_DLNNCS(ncs, reachPRM):
         RXi = []
         p_ign_i = p_ignored[i]
         for j in range(0, len(X0)):            
-            RXij, pij = stepReach_DLNNCS(ncs.controller, ncs.plant, X0[j], reachPRM.refInputs, \
-                                         reachPRM.filterProb, reachPRM.numCores, lp_solver='gurobi')
+            RXij, pij = stepReach_DLNNCS(ncs, X0[j], reachPRM)
             RXi.extend(RXij)
             p_ign_i = p_ign_i + pij
 

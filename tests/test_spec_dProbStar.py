@@ -59,27 +59,27 @@ class Test(object):
         else:
             print('Test Successfull!')
 
-    def test_AtomicPredicate_render(self):
+    # def test_AtomicPredicate_render(self):
 
-        self.n_tests = self.n_tests + 1
+    #     self.n_tests = self.n_tests + 1
 
-        try:
+    #     try:
             
-            A = np.array([3., 2.])
-            b = np.array([2.])
-            P = AtomicPredicate(A,b)
+    #         A = np.array([3., 2.])
+    #         b = np.array([2.])
+    #         P = AtomicPredicate(A,b)
             
-            R1 = ProbStar().rand(2, 3)
-            R2 = ProbStar().rand(2, 4)
-            R = [R1, R2]
-            S = P.render(R)
-            S.__str__()
-            S.printConstraints()
-        except Exception:
-            print('Test Fail!')
-            self.n_fails = self.n_fails + 1
-        else:
-            print('Test Successfull!')
+    #         R1 = ProbStar().rand(2, 3)
+    #         R2 = ProbStar().rand(2, 4)
+    #         R = [R1, R2]
+    #         S = P.render(R)
+    #         S.__str__()
+    #         S.printConstraints()
+    #     except Exception:
+    #         print('Test Fail!')
+    #         self.n_fails = self.n_fails + 1
+    #     else:
+    #         print('Test Successfull!')
 
     def test_AtomicPredicate_rand(self):
 
@@ -95,64 +95,64 @@ class Test(object):
             print('Test Successfull!')
 
 
-    def test_Always_render(self):
+    # def test_Always_render(self):
 
-        self.n_tests = self.n_tests + 1
+    #     self.n_tests = self.n_tests + 1
 
-        # example spec1: always_[0, 2](3x[0] + 2x[1] <= 2 )
-        A = np.array([3., 2.])
-        b = np.array([2.])
-        P1 = AtomicPredicate(A,b)
-        op2 = _AND_()
-        P2 = AtomicPredicate.rand(2)
-        op1 = _ALWAYS_(1, 2)
-        lb1 = _LeftBracket_()
-        rb1 = _RightBracket_()
+    #     # example spec1: always_[0, 2](3x[0] + 2x[1] <= 2 )
+    #     A = np.array([3., 2.])
+    #     b = np.array([2.])
+    #     P1 = AtomicPredicate(A,b)
+    #     op2 = _AND_()
+    #     P2 = AtomicPredicate.rand(2)
+    #     op1 = _ALWAYS_(1, 2)
+    #     lb1 = _LeftBracket_()
+    #     rb1 = _RightBracket_()
 
-        f = Formula([op1, lb1, P1, op2, P2, rb1])
-        f.print()
-        R1 = ProbStar().rand(2,3)
-        R2 = ProbStar().rand(2,4)
-        R3 = ProbStar().rand(2,5)
-        probstar_sig = [R1, R2, R3]
-        print('probstar_sig = {}'.format(probstar_sig))
-        # S = op1.render(preds, probstar_sig)
-        S = f.render(probstar_sig)
+    #     f = Formula([op1, lb1, P1, op2, P2, rb1])
+    #     f.print()
+    #     R1 = ProbStar().rand(2,3)
+    #     R2 = ProbStar().rand(2,4)
+    #     R3 = ProbStar().rand(2,5)
+    #     probstar_sig = [R1, R2, R3]
+    #     print('probstar_sig = {}'.format(probstar_sig))
+    #     # S = op1.render(preds, probstar_sig)
+    #     S = f.render(probstar_sig)
 
-        print('Satisfied ProbStar: ')
-        S.__str__()
+    #     print('Satisfied ProbStar: ')
+    #     S.__str__()
 
-        try:
+    #     try:
             
-            # example spec1: always_[0, 2](3x[0] + 2x[1] <= 2 )
-            A = np.array([3., 2.])
-            b = np.array([2.])
-            P1 = AtomicPredicate(A,b)
-            op2 = _AND_()
-            P2 = AtomicPredicate.rand(2)
-            op1 = _ALWAYS_(1, 2)
-            lb1 = _LeftBracket_()
-            rb1 = _RightBracket_()
+    #         # example spec1: always_[0, 2](3x[0] + 2x[1] <= 2 )
+    #         A = np.array([3., 2.])
+    #         b = np.array([2.])
+    #         P1 = AtomicPredicate(A,b)
+    #         op2 = _AND_()
+    #         P2 = AtomicPredicate.rand(2)
+    #         op1 = _ALWAYS_(1, 2)
+    #         lb1 = _LeftBracket_()
+    #         rb1 = _RightBracket_()
 
-            f = Formula([op1, lb1, P1, op2, P2, rb1])
-            f.print()
-            R1 = ProbStar().rand(2,3)
-            R2 = ProbStar().rand(2,4)
-            R3 = ProbStar().rand(2,5)
-            probstar_sig = [R1, R2, R3]
-            print('probstar_sig = {}'.format(probstar_sig))
-            # S = op1.render(preds, probstar_sig)
-            S = f.render(probstar_sig)
+    #         f = Formula([op1, lb1, P1, op2, P2, rb1])
+    #         f.print()
+    #         R1 = ProbStar().rand(2,3)
+    #         R2 = ProbStar().rand(2,4)
+    #         R3 = ProbStar().rand(2,5)
+    #         probstar_sig = [R1, R2, R3]
+    #         print('probstar_sig = {}'.format(probstar_sig))
+    #         # S = op1.render(preds, probstar_sig)
+    #         S = f.render(probstar_sig)
 
-            print('Satisfied ProbStar: ')
-            S.__str__()
+    #         print('Satisfied ProbStar: ')
+    #         S.__str__()
 
-        except Exception as e:
-            print('Test Fail!')
-            print(e)
-            self.n_fails = self.n_fails + 1
-        else:
-            print('Test Successfull!')
+    #     except Exception as e:
+    #         print('Test Fail!')
+    #         print(e)
+    #         self.n_fails = self.n_fails + 1
+    #     else:
+    #         print('Test Successfull!')
 
     def test_getDynamicFormula(self):
         'test automatic algorithm to generate dynamic formula for verification'
@@ -200,9 +200,14 @@ class Test(object):
         R3 = ProbStar().rand(2,2, pred_lb, pred_ub)
         R4 = ProbStar().rand(2,2, pred_lb, pred_ub)
         probstar_sig = [R1, R2, R3, R4]
-        print('probstar_sig = {}'.format(probstar_sig))
+        # print('probstar_sig = {}'.format(probstar_sig))
+        print('probstar_sig = [')
+        for ps in probstar_sig:
+            print('  {}'.format(ps))
+        print(']')
 
-        cdnf = F3.realization2(probstar_sig)
+        # cdnf = F3.realization2(probstar_sig)
+        cdnf = F3.realization(probstar_sig)
         cdnf.print()
 
         comb_ids = (0, 3)
@@ -278,8 +283,10 @@ class Test(object):
         probstar_sig = [X0, X1, X2, X3, X4, X5]
 
         res = F1.realization(probstar_sig)
-        print('res_length = {}'.format(len(res)))
-        print('res = {}'.format(res))
+        # print('res_length = {}'.format(len(res)))
+        print('res = ')
+        res.print()
+        # print('res = {}'.format(res))
 
         SAT, SAT_MIN, SAT_EXACT = F1.evaluate(probstar_sig)
         print('SAT = {}'.format(SAT))
@@ -372,13 +379,13 @@ if __name__ == "__main__":
     ================================\
     ================================\
     ===============================\n')
-    #test_dProbStar.test_Formula()
-    #test_dProbStar.test_AtomicPredicate_render()
-    #test_dProbStar.test_AtomicPredicate_rand()
-    #test_dProbStar.test_Always_render()
-    #test_dProbStar.test_DynamicFormula()
+    test_dProbStar.test_Formula()
+    # test_dProbStar.test_AtomicPredicate_render() # no longer used
+    test_dProbStar.test_AtomicPredicate_rand()
+    # test_dProbStar.test_Always_render() # no longer used
+    test_dProbStar.test_DynamicFormula()
     test_dProbStar.test_getDynamicFormula()
-    #test_dProbStar.test_DynamicFormula_evaluate()
+    test_dProbStar.test_DynamicFormula_evaluate()
     print('\n========================\
     =================================\
     =================================\
