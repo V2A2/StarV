@@ -6,7 +6,7 @@ def read_requirements(filename='requirements.txt'):
                 if line.strip() and not line.startswith('#')]
 
 setup(
-    name="starv_dev_test", 
+    name="starv", 
     version="0.1",
     packages=find_packages(),
     install_requires=read_requirements(),
