@@ -223,14 +223,21 @@ def plot_probstar(I, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$',
             if I2.dim > 2:
                 raise Exception('error: only 2D plot is supported')
             prob = I2.estimateProbability()
-            plot_2D_Star(I2, show=False)
+            if I2.isEmptySet(): # Can't plot empty set Fixed, Yuntao Li, 2/4/2024
+                continue
+            else:
+                plot_2D_Star(I2, show=False)
             l, u = I2.getRanges()
             if i==0:
                 L = l
                 U = u
             else:
-                L = np.vstack((L, l))
-                U = np.vstack([U, u])
+                if len(L) == 0: # L and U might be empty, Fixed, Yuntao Li, 2/4/2024
+                    L = l
+                    U = u
+                else:
+                    L = np.vstack((L, l))
+                    U = np.vstack([U, u])
             if show_prob:
                 ax = plt.gca()
                 ax.text(0.5*(l[0] + u[0]), 0.5*(l[1] + u[1]), str(prob))
@@ -566,14 +573,21 @@ def plot_star(I, dir_mat=None, dir_vec=None, label=('$y_1$', '$y_2$'), show=True
             I2 = I[i].affineMap(dir_mat, dir_vec)
             if I2.dim > 2:
                 raise Exception('error: only 2D plot is supported')
-            plot_2D_Star(I2, show=False, color=color)
+            if I2.isEmptySet(): # Can't plot empty set Fixed, Yuntao Li, 2/4/2024
+                continue
+            else:
+                plot_2D_Star(I2, show=False)
             l, u = I2.getRanges()
             if i==0:
                 L = l
                 U = u
             else:
-                L = np.vstack((L, l))
-                U = np.vstack([U, u])
+                if len(L) == 0: # L and U might be empty, Fixed, Yuntao Li, 2/4/2024
+                    L = l
+                    U = u
+                else:
+                    L = np.vstack((L, l))
+                    U = np.vstack([U, u])
             
         Lm = L.min(axis=0)
         Um = U.max(axis=0)

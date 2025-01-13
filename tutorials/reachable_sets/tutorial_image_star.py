@@ -65,7 +65,7 @@ def imagestar_affineMap():
     R = IM.affineMap(W, b)
     
     print(f'affine mapping matrix: \n{W}')
-    print(f'affine mappint bias: \n{b}\n')
+    print(f'affine mapping bias: \n{b}\n')
     
     print('affine mapped ImageStar:')
     print(R)

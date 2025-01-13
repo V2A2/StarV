@@ -743,7 +743,6 @@ class Star(object):
         assert isinstance(d, np.ndarray), 'error: constraint vector should be a numpy array'
         assert C.shape[0] == d.shape[0], 'error: inconsistency between \
         constraint matrix and constraint vector'
-        print(len(d.shape))
         assert len(d.shape) == 1, 'error: constraint vector should be a 1D numpy array'
         
         if C.shape[0] == 1:

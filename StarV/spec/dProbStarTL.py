@@ -128,56 +128,56 @@ class AtomicPredicate(object):
 
         print('{} * x[t={}] <= {}\n'.format(self.A, self.t, self.b))
 
-    def render(self, probstar_sig):
-        'obtain a concrete set of constraints for satisfaction of an atomic predicate on multiple reach set'
+    # def render(self, probstar_sig):
+    #     'obtain a concrete set of constraints for satisfaction of an atomic predicate on multiple reach set'
 
-        assert isinstance(probstar_sig, list), 'error: input should be a list of probstars'
-        C = None
-        d = None
-        nVarMax = 0
-        nVarMaxID = 0
-        for i in range(0, len(probstar_sig)):
-            R = copy.deepcopy(probstar_sig[i])
-            R.addConstraint(self.A, self.b)
-            C1 = R.C
-            d1 = R.d
-            if C is None:
-                C = copy.deepcopy(C1)
-                d = copy.deepcopy(d1)
-                nVarMax = R.nVars
-            else:
-                n, m = C.shape  # m is the number of predicate variables in the current constraint
-                n1, m1 = C1.shape # m1 is the number of predicate variables in the new constraint
+    #     assert isinstance(probstar_sig, list), 'error: input should be a list of probstars'
+    #     C = None
+    #     d = None
+    #     nVarMax = 0
+    #     nVarMaxID = 0
+    #     for i in range(0, len(probstar_sig)):
+    #         R = copy.deepcopy(probstar_sig[i])
+    #         R.addConstraint(self.A, self.b)
+    #         C1 = R.C
+    #         d1 = R.d
+    #         if C is None:
+    #             C = copy.deepcopy(C1)
+    #             d = copy.deepcopy(d1)
+    #             nVarMax = R.nVars
+    #         else:
+    #             n, m = C.shape  # m is the number of predicate variables in the current constraint
+    #             n1, m1 = C1.shape # m1 is the number of predicate variables in the new constraint
                 
-                if m < m1:  # usually happen
-                    dC = np.zeros((n, m1-m))
-                    C = np.append(C, dC, axis=1)
-                if m1 < m: # not usually happen
-                    dC = np.zeros((n, m-m1))
-                    C1 = np.append(C1, dC, axis=1)
+    #             if m < m1:  # usually happen
+    #                 dC = np.zeros((n, m1-m))
+    #                 C = np.append(C, dC, axis=1)
+    #             if m1 < m: # not usually happen
+    #                 dC = np.zeros((n, m-m1))
+    #                 C1 = np.append(C1, dC, axis=1)
                     
-                C = np.concatenate((C, C1), axis=0)
-                d = np.concatenate((d, d1))
+    #             C = np.concatenate((C, C1), axis=0)
+    #             d = np.concatenate((d, d1))
 
-                if R.nVars > nVarMax:
-                    nVarMax = R.nVars
-                    nVarMaxID = i
+    #             if R.nVars > nVarMax:
+    #                 nVarMax = R.nVars
+    #                 nVarMaxID = i
                 
 
-        # combine all constraints into a single set of constraints
-        P = pc.Polytope(C, d)
-        P1 = pc.reduce(P)
-        Cmin = P1.A
-        dmin = P1.b
-        _, m = Cmin.shape
-        V = np.eye(m,m)
-        center = np.zeros((m, 1))
-        V = np.append(center, V, axis=1)
-        S = ProbStar(V, Cmin, dmin, probstar_sig[nVarMaxID].mu, probstar_sig[nVarMaxID].Sig,\
-                     probstar_sig[nVarMaxID].pred_lb, probstar_sig[nVarMaxID].pred_ub)
-        # S is a probstar that contains all points for satisfaction
+    #     # combine all constraints into a single set of constraints
+    #     P = pc.Polytope(C, d)
+    #     P1 = pc.reduce(P)
+    #     Cmin = P1.A
+    #     dmin = P1.b
+    #     _, m = Cmin.shape
+    #     V = np.eye(m,m)
+    #     center = np.zeros((m, 1))
+    #     V = np.append(center, V, axis=1)
+    #     S = ProbStar(V, Cmin, dmin, probstar_sig[nVarMaxID].mu, probstar_sig[nVarMaxID].Sig,\
+    #                  probstar_sig[nVarMaxID].pred_lb, probstar_sig[nVarMaxID].pred_ub)
+    #     # S is a probstar that contains all points for satisfaction
         
-        return S
+    #     return S
 
     @staticmethod
     def rand(nVars, t=None):
@@ -696,61 +696,61 @@ class Formula(object):
         return lb_idxes, rb_idxes
         
 
-    def render(self, probstar_signal):
-        'render a formula on a probstar_signal, return a concrete probstar with constraints for statisfaction'
+    # def render(self, probstar_signal):
+    #     'render a formula on a probstar_signal, return a concrete probstar with constraints for statisfaction'
     
-        assert isinstance(probstar_signal, list), 'error: probstar_signal should be a list of probstars'
-        for probstar in probstar_signal:
-            assert isinstance(probstar, ProbStar), 'error: probstar_signal should contain ProbStar objects'
+    #     assert isinstance(probstar_signal, list), 'error: probstar_signal should be a list of probstars'
+    #     for probstar in probstar_signal:
+    #         assert isinstance(probstar, ProbStar), 'error: probstar_signal should contain ProbStar objects'
 
-        # a temporal formula should be started with a temporal operator (ALWAYS or EVENTUALLY), followed by a bracket
+    #     # a temporal formula should be started with a temporal operator (ALWAYS or EVENTUALLY), followed by a bracket
         
-        # BASIC FORMULA TYPES:
-        # 1) Always formula:
-        #        Conjunction: ALWAYS_[t1, t2 ] (AP1 AND AP2 AND ... APn)
-        #        Disjunction: ALWAYS_[t1, t2] (AP1 OR AP2)
-        #        Conditional: ALWAYS_[t1, t2] (AP1 IMPLY AP2)
-        # 
-        # 2) Eventually formula:
-        #        Conjunction: EVENTUALLY_[t1, t2] (AP1 AND AP2 AND ...APn)
-        #        Disjunction: EVENTUALLY_[t1, t2] (AP1 OR AP2 OR ...APn)
-        #        Conditional: EVENTUALLY_[t1, t2] (AP1 IMPLY AP2)
-        # 
-        # COMPOSITE FORMULA:
-        #
+    #     # BASIC FORMULA TYPES:
+    #     # 1) Always formula:
+    #     #        Conjunction: ALWAYS_[t1, t2 ] (AP1 AND AP2 AND ... APn)
+    #     #        Disjunction: ALWAYS_[t1, t2] (AP1 OR AP2)
+    #     #        Conditional: ALWAYS_[t1, t2] (AP1 IMPLY AP2)
+    #     # 
+    #     # 2) Eventually formula:
+    #     #        Conjunction: EVENTUALLY_[t1, t2] (AP1 AND AP2 AND ...APn)
+    #     #        Disjunction: EVENTUALLY_[t1, t2] (AP1 OR AP2 OR ...APn)
+    #     #        Conditional: EVENTUALLY_[t1, t2] (AP1 IMPLY AP2)
+    #     # 
+    #     # COMPOSITE FORMULA:
+    #     #
 
-        S = None
-        if self.formula_type == 'ConjunctiveAlways':
-            S = renderConjunctiveAlwaysFormula(self, probstar_signal)
-        else:
-            raise RuntimeError('Not support rendering {} formula yet'.format(self.formula_type))
+    #     S = None
+    #     if self.formula_type == 'ConjunctiveAlways':
+    #         S = renderConjunctiveAlwaysFormula(self, probstar_signal)
+    #     else:
+    #         raise RuntimeError('Not support rendering {} formula yet'.format(self.formula_type))
 
-        return S
+    #     return S
 
-def renderConjunctiveAlwaysFormula(f, probstar_signal):
-    'rendering conjective always formula on a reachable set signal'
+# def renderConjunctiveAlwaysFormula(f, probstar_signal):
+#     'rendering conjective always formula on a reachable set signal'
 
-    assert isinstance(f, Formula), 'error: f should be a Formula object'
-    assert f.formula_type == 'ConjunctiveAlways', 'error: formula is not a conjunctive always type'
+#     assert isinstance(f, Formula), 'error: f should be a Formula object'
+#     assert f.formula_type == 'ConjunctiveAlways', 'error: formula is not a conjunctive always type'
 
-    S = []
-    for item in f.formula[1: f.length]:
-        if isinstance(item, AtomicPredicate):
-            if f.formula[0].end_time is None:
-                S1 = item.render(probstar_signal)
-            else:
-                required_length = f.formula[0].end_time - f.formula[0].start_time + 1
-                if len(probstar_signal) < required_length:
-                    raise RuntimeError('probstar signal has insufficient length to evaluate the formula')
-                else:
-                    S1 = item.render(probstar_signal[f.formula[0].start_time:f.formula[0].end_time + 1])
+#     S = []
+#     for item in f.formula[1: f.length]:
+#         if isinstance(item, AtomicPredicate):
+#             if f.formula[0].end_time is None:
+#                 S1 = item.render(probstar_signal)
+#             else:
+#                 required_length = f.formula[0].end_time - f.formula[0].start_time + 1
+#                 if len(probstar_signal) < required_length:
+#                     raise RuntimeError('probstar signal has insufficient length to evaluate the formula')
+#                 else:
+#                     S1 = item.render(probstar_signal[f.formula[0].start_time:f.formula[0].end_time + 1])
 
-            S.append(S1)
+#             S.append(S1)
 
-    # combining all stars into a single star
-    S = combineProbStars(S)
+#     # combining all stars into a single star
+#     S = combineProbStars(S)
 
-    return S
+#     return S
 
 
 def combineProbStars(probstar_sig):
@@ -1161,7 +1161,7 @@ class DynamicFormula(object):
                 p_SAT_MIN = p_SAT_MAX 
 
 
-        return p_SAT_MAX, p_SAT_MIN
+        return SAT, p_SAT_MAX, p_SAT_MIN
 
 
     def evaluate2(self, probstar_sig, n_max):

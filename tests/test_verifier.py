@@ -5,7 +5,7 @@ Date: 8/10/2022
 """
 
 from StarV.net.network import NeuralNetwork
-from StarV.verifier.verifier import reachExactBFS, checkSafetyStar, quantiVerifyExactBFS, quantiVerifyBFS, quantiVerifyMC, quantiVerifyProbStarTL
+from StarV.verifier.verifier import reachExactBFS, checkSafetyStar, quantiVerifyExactBFS, quantiVerifyBFS, quantiVerifyMC
 from StarV.layer.fullyConnectedLayer import fullyConnectedLayer
 from StarV.layer.ReLULayer import ReLULayer
 from StarV.set.probstar import ProbStar
@@ -505,6 +505,8 @@ class Test(object):
 
         print('Quantitative Reachability Analysis of Harmonic Osscillator Model againts ProbStarTL property')
         print('Loading model, initial conditions and inputs...')
+
+        self.n_tests = self.n_tests + 1
         
         plant, lb, ub, input_lb, input_ub = load_harmonic_oscillator_model()
         
@@ -569,11 +571,27 @@ class Test(object):
         print('Specification: ')
         spec.print()
 
-        probSAT, Xt = quantiVerifyProbStarTL(plant, spec, X0=X0, U=U, timeStep=dt, numSteps = numsteps)
+        # timed-abstract dynamic formula
+        F1 = spec.getDynamicFormula()
+        print('Dynamic Formula: ')
+        F1.print()
 
-        print('Probability of satisfaction: {}'.format(probSAT))
-        print('Plot reachable set...')
-        plot_probstar(I=Xt, label=('$x$', '$y$'))
+        probstar_sig = [X0, U] # [X0]
+
+        res = F1.realization(probstar_sig)
+        print('res = ')
+        res.print()
+
+        SAT, SAT_MIN, SAT_EXACT = F1.evaluate(probstar_sig)
+        print('SAT = {}'.format(SAT))
+        print('SAT-MIN = {}'.format(SAT_MIN))
+        print('SAT-EXACT = {}'.format(SAT_EXACT))
+
+        # probSAT, Xt = quantiVerifyProbStarTL(plant, spec, X0=X0, U=U, timeStep=dt, numSteps = numsteps)
+
+        # print('Probability of satisfaction: {}'.format(probSAT))
+        # print('Plot reachable set...')
+        # plot_probstar(I=Xt, label=('$x$', '$y$'))
 
         
         
@@ -585,7 +603,6 @@ if __name__ == "__main__":
     ================================\
     ================================\
     ===============================\n')
-    test_verifier.test_quantiverifyProbStarTL_harmonic_oscillator()
     
     # test_verifier.test_reachExactBFS()
     # # test_verifier.test_reach_2017_IEEE_TNNLS()
@@ -617,12 +634,12 @@ if __name__ == "__main__":
 
     # # test_verifier.test_quantiverify_RocketNet(numCores=8, net_ids=[0, 1], spec_ids=[1,2], p_filters=[0.0, 1e-8, 1e-5, 1e-3])
 
-    # # test_verifier.test_quantiverifyProbStarTL_harmonic_oscillator()
-    # print('\n========================\
-    # =================================\
-    # =================================\
-    # =================================\n')
-    # print('Testing verifier: fails: {}, successfull: {}, \
-    # total tests: {}'.format(test_verifier.n_fails,
-    #                         test_verifier.n_tests - test_verifier.n_fails,
-    #                         test_verifier.n_tests))
+    test_verifier.test_quantiverifyProbStarTL_harmonic_oscillator()
+    print('\n========================\
+    =================================\
+    =================================\
+    =================================\n')
+    print('Testing verifier: fails: {}, successfull: {}, \
+    total tests: {}'.format(test_verifier.n_fails,
+                            test_verifier.n_tests - test_verifier.n_fails,
+                            test_verifier.n_tests))

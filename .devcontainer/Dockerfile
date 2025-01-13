@@ -73,9 +73,13 @@ ENV LD_LIBRARY_PATH $GUROBI_HOME/lib
 # by passing it in during runtime: -v gurobi.lic:/opt/gurobi/gurobi.lic
 COPY gurobi.lic /opt/gurobi/gurobi.lic
 
-COPY ../requirements.txt /tmp/
+# COPY ../requirements.txt /tmp/
 
-RUN python3 -m pip install --no-cache-dir -r /tmp/requirements.txt \
-    && rm /tmp/requirements.txt
+# RUN python3 -m pip install --no-cache-dir -r /tmp/requirements.txt \
+#     && rm /tmp/requirements.txt
+
+RUN pip install --upgrade pip
 
 WORKDIR /work
+
+ENTRYPOINT ["bash", "-c", "pip install -e . && bash"]
