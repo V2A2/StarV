@@ -475,9 +475,9 @@ if __name__ == "__main__":
     """
     Main function to run the star set tutorials.
     """
-    # star_construction()
-    # star_affine_map()
-    # star_estimate_ranges()
-    # star_get_ranges()
-    # star_constraint_operations()
+    star_construction()
+    star_affine_map()
+    star_estimate_ranges()
+    star_get_ranges()
+    star_constraint_operations()
     star_set_operations()
