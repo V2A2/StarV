@@ -69,23 +69,24 @@ def star_construction():
     print_util('h2')
     print("""1. Construction using basis matrix and constraints
     Example of 2D star set with:
-    - Center vector: c = [1, -1]ᵀ
+    - Center vector: c = [0, 0]ᵀ
     - Basis vectors: v₁ = [1, 0]ᵀ, v₂ = [0, 1]ᵀ
     - Constraints: α₁ + α₂ ≤ 1
-    - Bounds: -1 ≤ α₁ ≤ 1, 0 ≤ α₂ ≤ 1""")
+    - Bounds: -1 ≤ α₁ ≤ 1, -1 ≤ α₂ ≤ 1""")
     
-    c1 = np.array([[1], [-1]])        # center vector
+    c1 = np.array([[0], [0]])        # center vector
     v1 = np.array([[1], [0]])         # basis vector 1
     v2 = np.array([[0], [1]])         # basis vector 2
     V = np.hstack((c1, v1, v2))       # V = [c1 v1 v2]
     
-    pred_lb = np.array([-1, 0])       # -1 ≤ α₁, 0 ≤ α₂
+    pred_lb = np.array([-1, -1])       # -1 ≤ α₁, -1 ≤ α₂
     pred_ub = np.array([1, 1])        # α₁ ≤ 1, α₂ ≤ 1
     C = np.array([[1, 1]])            # α₁ + α₂ ≤ 1
     d = np.array([1])
     
     star1 = Star(V, C, d, pred_lb, pred_ub)
     print("\nCreated star set with basis matrix and constraints:")
+    repr(star1)
     print(star1)
     plot_star(star1)
     print_util('h2')
@@ -94,10 +95,10 @@ def star_construction():
     print_util('h2')
     print("""2. Construction using state bounds
     Example of 2D box-shaped star set with:
-    - State bounds: -2 ≤ x₁ ≤ 2, -1 ≤ x₂ ≤ 1""")
+    - State bounds: -1 ≤ x₁ ≤ 1, -1 ≤ x₂ ≤ 1""")
     
-    lb = np.array([-2, -1])           # lower bounds: x₁ ≥ -2, x₂ ≥ -1
-    ub = np.array([2, 1])            # upper bounds: x₁ ≤ 2, x₂ ≤ 1
+    lb = np.array([-1.0, -1.0])           # lower bounds: x₁ ≥ -1, x₂ ≥ -1
+    ub = np.array([1.0, 1.0])            # upper bounds: x₁ ≤ 1, x₂ ≤ 1
     
     star2 = Star(lb, ub)
     print("\nCreated box-shaped star set:")
@@ -126,7 +127,57 @@ def star_construction():
     print("\nTutorial completed!")
     print_util('h1')
 
+def star_affine_map():
+    """
+    Tutorial demonstrating affine mapping operations on Star sets.
 
+    ----------------------
+    Given a star set Θ = ⟨c, V, P, l, u⟩, an affine mapping defined by:
+    Θ̄ = {y | y = Wx + b, x ∈ Θ}
+
+    results in a new star set Θ̄ = ⟨c̄, V̄, P̄, l̄, ū⟩ where:
+    - c̄ = Wc + b (new center)
+    - V̄ = {Wv₁, Wv₂, ..., Wvₘ} (new basis vectors)
+    - P̄ ≡ P (predicates unchanged)
+    - l̄ ≡ l (lower bounds unchanged)
+    - ū ≡ u (upper bounds unchanged)
+    """
+    print_util('h1')
+    print("Starting Star Set Affine Mapping Tutorial...")
+
+    lb = np.array([-1.0, -1.0])           # lower bounds: x₁ ≥ -1, x₂ ≥ -1
+    ub = np.array([1.0, 1.0])            # upper bounds: x₁ ≤ 1, x₂ ≤ 1
+    star = Star(lb, ub)
+
+    print('\nOriginal star set:')
+    print(star)
+    plot_star(star)
+
+    print_util('h2')
+    print("""1. Affine mapping transformation
+    y = Wx + b, where:
+    - W: transformation matrix
+    - b: offset vector""")
+
+    # Define affine transformation
+    W = np.array([[0.5, 0.5],
+                    [0.5, -0.5]]) # Scaling + rotation
+    b = np.array([1, 0]) # Translation
+
+    print("\nAffine mapping parameters:")
+    print(f"Transformation matrix (W):\n{W}")
+    print(f"Offset vector (b):\n{b}")
+
+    # Apply affine transformation
+    star_mapped = star.affineMap(W, b)
+
+    print('\nAffine mapped star set:')
+    print(star_mapped)
+    plot_star(star_mapped)
+    print_util('h2')
+
+    print("\nTutorial completed!")
+    print_util('h1')
 
 def star_estimate_ranges():
     """
@@ -153,13 +204,13 @@ def star_estimate_ranges():
     print("Starting Star Set Range Estimation Tutorial...")
 
     # Create random star set for demonstration
-    lb = -np.random.rand(3)           # Random lower bounds in [-1,0]
-    ub = np.random.rand(3)            # Random upper bounds in [0,1]
-    star = Star(lb, ub)               # Random 3D star set
+    lb = -np.random.rand(2)           # Random lower bounds in [-1,0]
+    ub = np.random.rand(2)            # Random upper bounds in [0,1]
+    star = Star(lb, ub)               # Random 2D star set
 
     print("\nCreated random star set with bounds:")
-    print(f"Lower bounds (l): {lb}")
-    print(f"Upper bounds (u): {ub}")
+    print(f"Lower bounds (lb): {lb}")
+    print(f"Upper bounds (ub): {ub}")
 
     print_util('h2')
     print("""1. Estimate range for single dimension i
@@ -180,136 +231,80 @@ def star_estimate_ranges():
     
     est_mins, est_maxs = star.estimateRanges()
     print('\nEstimated ranges for all dimensions:')
-    for i in range(len(est_mins)):
-        print(f'Dimension {i}:')
-        print(f'Estimated min (l_est[{i}]) = {est_mins[i]:.6f}')
-        print(f'Estimated max (u_est[{i}]) = {est_maxs[i]:.6f}')
+    print(f'Estimated mins (l_est) = {est_mins}')
+    print(f'Estimated maxs (u_est) = {est_maxs}')
     print_util('h2')
 
     print("\nTutorial completed!")
     print_util('h1')
 
 def star_get_ranges():
-   """
-   Tutorial demonstrating how to compute exact ranges of Star sets.
-
-   ----------------------
-   Given a star set Θ = ⟨c, V, P, l, u⟩, the exact range of the iᵗʰ state x[i] 
-   can be computed by solving linear programming optimization problems:
-
-   x[i]_min = min(c[i] + Σⱼ(vⱼ[i]αⱼ))
-   x[i]_max = max(c[i] + Σⱼ(vⱼ[i]αⱼ))
-   subject to:
-       - P(α) ≡ Cα ≤ d
-       - l ≤ α ≤ u
-
-   The problem is solved using linear programming (LP) with available solvers:
-   - Gurobi (default): Commercial solver, most efficient
-   - GLPK: Open-source alternative
-   - linprog: SciPy's built-in solver
-   """
-   print_util('h1')
-   print("Starting Star Set Exact Range Computation Tutorial...")
-
-   # Create a random star set
-   lb = -np.random.rand(3)
-   ub = np.random.rand(3)
-   star = Star(lb, ub)
-
-   print("\nCreated random star set with bounds:")
-   print(f"Lower bounds (l): {lb}")
-   print(f"Upper bounds (u): {ub}")
-
-   print_util('h2')
-   print("""1. Computing exact min/max for single dimension i
-   min/max x[i] = c[i] + Σⱼ(vⱼ[i]αⱼ)
-   subject to star set constraints""")
-   
-   dim = 0  # Compute range for first dimension
-   exact_min = star.getMin(dim, 'gurobi')
-   exact_max = star.getMax(dim, 'gurobi')
-   print(f'\nExact range for dimension {dim}:')
-   print(f'Minimum (x[{dim}]_min) = {exact_min:.6f}')
-   print(f'Maximum (x[{dim}]_max) = {exact_max:.6f}')
-   print_util('h2')
-
-   print_util('h2')
-   print("""2. Computing exact min/max for multiple dimensions
-   For each dimension i in the selected map:
-   min/max x[i] = c[i] + Σⱼ(vⱼ[i]αⱼ)""")
-   
-   map = [0, 1]  # Compute ranges for first two dimensions
-   exact_mins = star.getMins(map, 'gurobi')
-   exact_maxs = star.getMaxs(map, 'gurobi')
-   print('\nExact ranges for selected dimensions:')
-   for i, dim in enumerate(map):
-       print(f'Dimension {dim}:')
-       print(f'Minimum (x[{dim}]_min) = {exact_mins[i]:.6f}')
-       print(f'Maximum (x[{dim}]_max) = {exact_maxs[i]:.6f}')
-   print_util('h2')
-
-   print_util('h2')
-   print("""3. Computing exact ranges for all dimensions
-   Solves optimization problems for all state variables""")
-   exact_mins, exact_maxs = star.getRanges('gurobi')
-   print('\nExact ranges for all dimensions:')
-   for i in range(len(exact_mins)):
-       print(f'Dimension {i}:')
-       print(f'Minimum (x[{i}]_min) = {exact_mins[i]:.6f}')
-       print(f'Maximum (x[{i}]_max) = {exact_maxs[i]:.6f}')
-   print_util('h2')
-
-   print("\nTutorial completed!")
-   print_util('h1')
-
-def star_affine_map():
     """
-    Tutorial demonstrating affine mapping operations on Star sets.
+    Tutorial demonstrating how to compute exact ranges of Star sets.
 
     ----------------------
-    Given a star set Θ = ⟨c, V, P, l, u⟩, an affine mapping defined by:
-    Θ̄ = {y | y = Wx + b, x ∈ Θ}
+    Given a star set Θ = ⟨c, V, P, l, u⟩, the exact range of the iᵗʰ state x[i] 
+    can be computed by solving linear programming optimization problems:
 
-    results in a new star set Θ̄ = ⟨c̄, V̄, P̄, l̄, ū⟩ where:
-    - c̄ = Wc + b (new center)
-    - V̄ = {Wv₁, Wv₂, ..., Wvₘ} (new basis vectors)
-    - P̄ ≡ P (predicates unchanged)
-    - l̄ ≡ l (lower bounds unchanged)
-    - ū ≡ u (upper bounds unchanged)
+    x[i]_min = min(c[i] + Σⱼ(vⱼ[i]αⱼ))
+    x[i]_max = max(c[i] + Σⱼ(vⱼ[i]αⱼ))
+    subject to:
+        - P(α) ≡ Cα ≤ d
+        - l ≤ α ≤ u
+
+    The problem is solved using linear programming (LP) with available solvers:
+    - Gurobi (default): Commercial solver, most efficient
+    - GLPK: Open-source alternative
+    - linprog: SciPy's built-in solver
     """
     print_util('h1')
-    print("Starting Star Set Affine Mapping Tutorial...")
+    print("Starting Star Set Exact Range Computation Tutorial...")
+    np.set_printoptions(precision=6, suppress=True)
 
     # Create a random star set
-    lb = -np.random.rand(2)  # Random lower bounds
-    ub = np.random.rand(2)   # Random upper bounds
-    star = Star(lb, ub)      # Random 2D star set
+    lb = -np.random.rand(2)
+    ub = np.random.rand(2)
+    star = Star(lb, ub)
 
-    print('\nOriginal star set:')
-    print(star)
-    plot_star(star)
+    print("\nCreated random star set with bounds:")
+    print(f"Lower bounds (l): {lb}")
+    print(f"Upper bounds (u): {ub}")
 
     print_util('h2')
-    print("""1. Affine mapping transformation
-    y = Wx + b, where:
-    - W: transformation matrix
-    - b: offset vector""")
+    print("""1. Computing exact min/max for single dimension
+    min/max x[i] = c[i] + Σⱼ(vⱼ[i]αⱼ)
+    subject to star set constraints""")
 
-    # Define affine transformation
-    W = np.array([[2, -1],
-                    [1, 1]]) # Scaling + rotation
-    b = np.array([1, 0]) # Translation
+    dim = 0  # Compute range for first dimension
+    exact_min = star.getMin(dim, 'gurobi')
+    exact_max = star.getMax(dim, 'gurobi')
+    print(f'\nExact range for dimension {dim}:')
+    print(f'Minimum (x[{dim}]_min) = {exact_min:.6f}')
+    print(f'Maximum (x[{dim}]_max) = {exact_max:.6f}')
+    print_util('h2')
 
-    print("\nAffine mapping parameters:")
-    print(f"Transformation matrix (W):\n{W}")
-    print(f"Offset vector (b):\n{b}")
+    print_util('h2')
+    print("""2. Computing exact min/max for multiple dimensions
+    For each dimension i in the selected map:
+    min/max x[i] = c[i] + Σⱼ(vⱼ[i]αⱼ)""")
 
-    # Apply affine transformation
-    star_mapped = star.affineMap(W, b)
+    map = [0, 1]  # Compute ranges for first two dimensions
+    exact_mins = star.getMins(map, 'gurobi')
+    exact_maxs = star.getMaxs(map, 'gurobi')
+    print('\nExact ranges for selected dimensions:')
+    for i, dim in enumerate(map):
+        print(f'Dimension {dim}:')
+        print(f'Minimum (x[{dim}]_min) = {exact_mins[i]:.6f}')
+        print(f'Maximum (x[{dim}]_max) = {exact_maxs[i]:.6f}')
+    print_util('h2')
 
-    print('\nAffine mapped star set:')
-    print(star_mapped)
-    plot_star(star_mapped)
+    print_util('h2')
+    print("""3. Computing exact ranges for all dimensions
+    Solves optimization problems for all state variables""")
+    exact_mins, exact_maxs = star.getRanges('gurobi')
+    print('\nExact ranges for all dimensions:')
+    print(f'Exact mins (x_min) = {exact_mins}')
+    print(f'Exact maxs (x_max) = {exact_maxs}')
     print_util('h2')
 
     print("\nTutorial completed!")
@@ -337,8 +332,8 @@ def star_constraint_operations():
     print("Starting Star Set Constraint Operations Tutorial...")
 
     # Create initial star set
-    lb = np.array([-1.0, -1.0])
-    ub = np.array([1.0, 1.0])
+    lb = np.array([-1.0, -1.0])           # lower bounds: x₁ ≥ -1, x₂ ≥ -1
+    ub = np.array([1.0, 1.0])            # upper bounds: x₁ ≤ 1, x₂ ≤ 1
     star = Star(lb, ub)
 
     print("\nOriginal star set Θ:")
@@ -424,8 +419,8 @@ def star_set_operations():
     print_util('h2')
     print("1. Emptiness checking\n")
     # Create non-empty star set
-    lb = np.array([-1.0, -1.0])
-    ub = np.array([1.0, 1.0])
+    lb = np.array([-1.0, -1.0])           # lower bounds: x₁ ≥ -1, x₂ ≥ -1
+    ub = np.array([1.0, 1.0])            # upper bounds: x₁ ≤ 1, x₂ ≤ 1
     star = Star(lb, ub)
     print('Original star set:')
     print(star)
@@ -454,18 +449,23 @@ def star_set_operations():
     - Bounds: l = [l₁ l₂]ᵀ, u = [u₁ u₂]ᵀ""")
 
     # Create two random star sets
-    star1 = Star.rand(3)
+    # star1 = Star.rand(2)
+    star1 = Star.rand_polytope(2, 3)
     print("\nStar set 1 (Θ₁):")
     print(star1)
+    plot_star(star1)
 
-    star2 = Star.rand(3)
+    # star2 = Star.rand(2)
+    star2 = Star.rand_polytope(2, 3)
     print("\nStar set 2 (Θ₂):")
     print(star2)
+    plot_star(star2)
 
     # Compute Minkowski sum
     star_sum = star1.minKowskiSum(star2)
     print("\nMinkowski sum (Θ₁ ⊕ Θ₂):")
     print(star_sum)
+    plot_star(star_sum)
     print_util('h2')
 
     print("\nTutorial completed!")
@@ -475,9 +475,9 @@ if __name__ == "__main__":
     """
     Main function to run the star set tutorials.
     """
-    star_construction()
-    star_estimate_ranges()
-    star_get_ranges()
-    star_affine_map()
-    star_constraint_operations()
+    # star_construction()
+    # star_affine_map()
+    # star_estimate_ranges()
+    # star_get_ranges()
+    # star_constraint_operations()
     star_set_operations()
