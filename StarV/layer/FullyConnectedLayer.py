@@ -93,7 +93,7 @@ class FullyConnectedLayer(object):
         W = np.random.rand(out_dim, in_dim)
         b = np.random.rand(out_dim)
 
-        return FullyConnectedLayer(layer=[W, b], module='default')
+        return FullyConnectedLayer(layer=[W, b])
 
     def reachExactSingleInput(self, In):
         return In.affineMap(self.W, self.b)
