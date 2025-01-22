@@ -721,6 +721,7 @@ def plot_probstar_distribution(I, dir_mat=None, dir_vec=None, show_prob=True, la
     ylabel=label[1]
 
     # get meshgrid from predicate domain
+    # TO DO: neet to get actual predicate bound considering C a <= d
     lb, ub = I1.pred_lb, I1.pred_ub
     X = np.linspace(lb[0], ub[0], numMeshPoints)
     Y = np.linspace(lb[1], ub[1], numMeshPoints)
@@ -768,7 +769,9 @@ def plot_probstar_contour(I, dir_mat=None, dir_vec=None, show_prob=True, label=(
     ylabel=label[1]
 
     # get meshgrid from predicate domain
+    # TO DO: neet to get actual predicate bound considering C a <= d
     lb, ub = I1.pred_lb, I1.pred_ub
+    # lb, ub = I1.getRanges()
     X = np.linspace(lb[0], ub[0], numMeshPoints)
     Y = np.linspace(lb[1], ub[1], numMeshPoints)
     X, Y = np.meshgrid(X, Y)
@@ -788,6 +791,7 @@ def plot_probstar_contour(I, dir_mat=None, dir_vec=None, show_prob=True, label=(
     Y = pos[:, :, 1]
 
     prob = I1.estimateProbability()
+    lb, ub = I1.getRanges()
     # Plot
     plt.rcParams["figure.figsize"] = [5, 5]
     plt.rcParams["figure.autolayout"] = True
