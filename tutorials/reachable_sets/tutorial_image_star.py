@@ -1,11 +1,12 @@
 """
 Tutorial: Image Star (ImageStar)
 
-ImageStar set is defied as
-x = Va,
-
-whre V = [c, v[1], ..., v[m]]
-    
+ImageStar set = <c, V, P> is defied as
+x = c + v[:,:,:,0]*a[0] + ... v[:,:,:,m-1]*a[m-1]
+  = V * b,
+where V = [c, v[:,:,:,0], ..., v[:,:,:,m-1]],
+      b = [1, a[0], ..., a[m-1]]^T,
+P(a) \triangleq C a <= d \wedge pred_lb <= a <= pred_ub.
 """
 
 import numpy as np
@@ -65,7 +66,7 @@ def imagestar_affineMap():
     R = IM.affineMap(W, b)
     
     print(f'affine mapping matrix: \n{W}')
-    print(f'affine mapping bias: \n{b}\n')
+    print(f'affine mappint bias: \n{b}\n')
     
     print('affine mapped ImageStar:')
     print(R)
@@ -73,7 +74,32 @@ def imagestar_affineMap():
     print('=============== DONE:  affine mapping of image star set ==============')
     print('======================================================================\n\n')
     
+def imagestar_getRanges():
+    print('======================================================================')
+    print('=========== EXAMPLE: getting state ranges of image star set ==========')
+    
+    H, W, C = 2, 2, 3
+    IM = ImageStar.rand_bounds(H, W, C)
+    print('random ImageStar: \n')
+    print(IM)
+    
+    l, u = IM.getRanges()
+    print('getRanges with LP solver')
+    print('lower bounds:\n', l.reshape(H, W, C))
+    print('upper bounds:\n', u.reshape(H, W, C))
+    print()
+    
+    l, u = IM.getRanges('estimate')
+    print('getRanges with estimation')
+    print('lower bounds:\n', l.reshape(H, W, C))
+    print('upper bounds:\n', u.reshape(H, W, C))
+    print()
+    
+    print('============ DONE:  getting state ranges of image star set ===========')
+    print('======================================================================\n\n')
+    
 if __name__ == "__main__":
     imagestar_construct_via_bounds()
     imagestar_construct()
     imagestar_affineMap()
+    imagestar_getRanges()

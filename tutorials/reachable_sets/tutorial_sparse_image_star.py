@@ -4,12 +4,12 @@ Formats:
     - coordiante format (SIM_coo)
     - compressed row format (SIM_csr)
 
-SIM set = < c, V, P > is defied as
-x = c + v[1]a[1] + v[2]a[2] + ... + v[m]a[m]
+SIM set = <c, V, P> is defied as
+x = c + v[:,0]a[1] + v[:,1]a[2] + ... + v[:,m]a[m]
   = c + Va,
-where V = [v[1], v[2], ..., v[m]],
-      a = [a[1], a[2], ..., a[m]].
-P(a) \triangleq C a <= d \wedge l <= a <= u.
+where V = [v[0], v[1], ..., v[m]],
+      a = [a[0], a[1], ..., a[m]].
+P(a) \triangleq C a <= d \wedge pred_lb <= a <= pred_ub.
 """
 
 

@@ -20,8 +20,6 @@ from tabulate import tabulate
 from StarV.spec.dProbStarTL import Formula, AtomicPredicate, _ALWAYS_, _AND_
 import os
 
-np.set_printoptions(precision=5, edgeitems=100, linewidth=100000)
-
 class Test(object):
     """
     Testing module net class and methods

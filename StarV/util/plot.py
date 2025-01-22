@@ -634,7 +634,7 @@ def plot_multivariate_normal_distribution(mu, Sig, lb, ub, numMeshPoints=40, xla
         plt.show()
 
 
-def plot_probstar_distribution(I, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g', numMeshPoints=40, zlabel='Probability Density'):
+def plot_probstar_distribution_error(I, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g', numMeshPoints=40, zlabel='Probability Density'):
     'plot a probstar distribution on a specific direction'
 
     # references: for distribution transformation
@@ -704,7 +704,104 @@ def plot_probstar_distribution(I, dir_mat=None, dir_vec=None, show_prob=True, la
         raise RuntimeError('The input I is not a probstar')
 
 
+def plot_probstar_distribution(I, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g', numMeshPoints=40, zlabel='Probability Density', cmap='viridis'):
+    'plot a probstar distribution on a specific direction'
 
+    # references: for distribution transformation
+    # https://peterroelants.github.io/posts/multivariate-normal-primer/
+    # Dung Tran: 10/22/2024
+    # Updated:
+    #   - Sung Woo Choi: 01/16/2025
+    
+    I1 = I.affineMap(dir_mat, dir_vec)
+    if I1.dim > 2:
+        raise Exception(f'error: only 1D and 2D plots are supported; received ProbStar has {ndim} dimension')
+    
+    xlabel=label[0]
+    ylabel=label[1]
+
+    # get meshgrid from predicate domain
+    lb, ub = I1.pred_lb, I1.pred_ub
+    X = np.linspace(lb[0], ub[0], numMeshPoints)
+    Y = np.linspace(lb[1], ub[1], numMeshPoints)
+    X, Y = np.meshgrid(X, Y)
+
+    # get transformed distribution: I = c + V*alpha, alpha ~ N(mu, Sig)
+    c = I1.V[:, 0]
+    V = I1.V[:, 1:]
+    pos = np.concatenate([X[:,:,None], Y[:,:,None]], axis=2)
+    pos = np.einsum('pk,ijk->ijp', V, pos) + c[None,None,:]
+    
+    new_mu = np.matmul(V, I1.mu) + c
+    new_Sig = np.matmul(np.matmul(V, I1.Sig), np.transpose(V))
+
+    F = multivariate_normal(new_mu, new_Sig)
+    Z = F.pdf(pos)
+    X = pos[:, :, 0]
+    Y = pos[:, :, 1]
+
+    # Plot
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.plot_surface(X, Y, Z, cmap=cmap, linewidth=0)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_zlabel(zlabel)
+    if show:
+        plt.show()
+        
+
+def plot_probstar_contour(I, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g', numMeshPoints=40, zlabel='Probability Density', cmap='viridis'):
+    'plot a probstar distribution on a specific direction'
+
+    # references: for distribution transformation
+    # https://peterroelants.github.io/posts/multivariate-normal-primer/
+    # Dung Tran: 10/22/2024
+    # Updated:
+    #   - Sung Woo Choi: 01/16/2025
+    
+    I1 = I.affineMap(dir_mat, dir_vec)
+    if I1.dim > 2:
+        raise Exception('error: only 2D plot is supported')
+    
+    xlabel=label[0]
+    ylabel=label[1]
+
+    # get meshgrid from predicate domain
+    lb, ub = I1.pred_lb, I1.pred_ub
+    X = np.linspace(lb[0], ub[0], numMeshPoints)
+    Y = np.linspace(lb[1], ub[1], numMeshPoints)
+    X, Y = np.meshgrid(X, Y)
+
+    # get transformed distribution: I = c + V*alpha, alpha ~ N(mu, Sig)
+    c = I1.V[:, 0]
+    V = I1.V[:, 1:]
+    pos = np.concatenate([X[:,:,None], Y[:,:,None]], axis=2)
+    pos = np.einsum('pk,ijk->ijp', V, pos) + c[None,None,:]
+    
+    new_mu = np.matmul(V, I1.mu) + c
+    new_Sig = np.matmul(np.matmul(V, I1.Sig), np.transpose(V))
+
+    F = multivariate_normal(new_mu, new_Sig)
+    Z = F.pdf(pos)
+    X = pos[:, :, 0]
+    Y = pos[:, :, 1]
+
+    prob = I1.estimateProbability()
+    # Plot
+    plt.rcParams["figure.figsize"] = [5, 5]
+    plt.rcParams["figure.autolayout"] = True
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.contourf(X, Y, Z, cmap=cmap)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    # ax.set_zlabel(zlabel)
+    ax.text(0.5*(lb[0] + ub[0]), 0.5*(lb[1] + ub[1]), str(prob), color='red')
+    if show:
+        plt.show()
+
+    
 def plot_3D_Star(I, ax, color='r',alpha=1.0, edgecolor='k', linewidth=1.0, show=True):
     """
     From https://github.com/Shaddadi/veritex/blob/master/veritex/utils/plot_poly.py
