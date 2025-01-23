@@ -292,6 +292,10 @@ class ImageStar(object):
         print('')
         return ''
     
+    @property
+    def shape(self):
+        return self.height, self.width, self.num_channel
+    
     def __len__(self):
         return 1
     
@@ -342,10 +346,7 @@ class ImageStar(object):
             return self.V[h, 1:].copy()
         
         else:
-            raise Exception('Basis image dimension issue')
-        
-    def shape(self):
-        return self.height, self.width, self.num_channel     
+            raise Exception('Basis image dimension issue')    
         
     def clone(self):
         return copy.deepcopy(self)

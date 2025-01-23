@@ -1,9 +1,7 @@
 import copy
 import numpy as np
 from StarV.set.probstar import ProbStar
-# from StarV.util.plot import plot_probstar, plot_probstar_distribution, plot_probstar_contour
-from StarV.util.plot import *
-from StarV.util.print_util import print_util
+from StarV.util.plot import plot_probstar, plot_probstar_distribution, plot_probstar_contour
 
 
 def probstar_construct_with_bounded_gaussian_distribution():
@@ -173,9 +171,9 @@ def probstar_get_ranges():
     print(f'Optimized upper state bounds (x_maxs) = {x_maxs}')
 
 if __name__ == "__main__":
-    # probstar_construct_with_bounded_gaussian_distribution()
-    # probstar_construct()
-    # probstar_affine_map()
+    probstar_construct_with_bounded_gaussian_distribution()
+    probstar_construct()
+    probstar_affine_map()
     probstar_estimate_range()
     probstar_estimate_ranges()
     probstar_get_ranges()
