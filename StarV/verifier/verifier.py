@@ -5,6 +5,7 @@ Dung Tran, 9/10/2022
 
 from StarV.net.network import NeuralNetwork, reachExactBFS
 from StarV.set.probstar import ProbStar
+from StarV.set.star import Star
 from StarV.spec.dProbStarTL import Formula
 from StarV.plant.dlode import DLODE
 from StarV.plant.lode import LODE
@@ -358,24 +359,24 @@ def quantiVerifyMC(net, inputSet, unsafe_mat, unsafe_vec, numSamples=100000, nTi
     return probSAT
 
 
-def quantiVerifyProbStarTL(model, spec, timeStep, numSteps, X0=None, U=None):
-    'quantitative verification of probstar temporal logic specification'
+# def quantiVerifyProbStarTL(model, spec, timeStep, numSteps, X0=None, U=None):
+#     'quantitative verification of probstar temporal logic specification'
 
     
-    assert isinstance(model, DLODE) or isinstance(model, LODE), 'error: model should be a linear ode or discrete linear ode object'
-    assert timeStep > 0, 'error: invalid timeStep'
-    assert numSteps >=1, 'error: invalid number of time steps'
-    assert isinstance(spec, Formula), 'error: specification should be a Formula object'
+#     assert isinstance(model, DLODE) or isinstance(model, LODE), 'error: model should be a linear ode or discrete linear ode object'
+#     assert timeStep > 0, 'error: invalid timeStep'
+#     assert numSteps >=1, 'error: invalid number of time steps'
+#     assert isinstance(spec, Formula), 'error: specification should be a Formula object'
 
 
-    Xt = model.multiStepReach(timeStep, X0=X0, U=U, k=numSteps)
-    S  = spec.render(Xt)
+#     Xt = model.multiStepReach(timeStep, X0=X0, U=U, k=numSteps)
+#     S  = spec.render(Xt)
 
-    probSAT = None
-    if spec.formula_type == 'ConjunctiveAlways':
-        probSAT = S.estimateProbability()
-    else:
-        raise RuntimeError('currently support only conjunctive always formula_type')
+#     probSAT = None
+#     if spec.formula_type == 'ConjunctiveAlways':
+#         probSAT = S.estimateProbability()
+#     else:
+#         raise RuntimeError('currently support only conjunctive always formula_type')
     
 
-    return probSAT, Xt
+#     return probSAT, Xt

@@ -1,12 +1,36 @@
 """
 load module, to load existing networks for testing/evaluation
 Dung Tran, 9/12/2022
+
+Update: 12/20/2024 (Sung Woo Choi, merging)
 """
 import os
+import numpy as np
+import torch
+import math
+import copy
+import onnx
+import onnx2pytorch
+import csv
+
 from scipy.io import loadmat
+from scipy.sparse import csc_matrix
 from StarV.layer.fullyConnectedLayer import fullyConnectedLayer
+from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
+from StarV.layer.LogSigLayer import LogSigLayer
+from StarV.layer.TanSigLayer import TanSigLayer
 from StarV.layer.ReLULayer import ReLULayer
 from StarV.layer.SatLinLayer import SatLinLayer
+from StarV.layer.LSTMLayer import LSTMLayer
+from StarV.layer.GRULayer import GRULayer
+from StarV.layer.Conv2DLayer import Conv2DLayer
+from StarV.layer.ConvTranspose2DLayer import ConvTranspose2DLayer       
+from StarV.layer.AvgPool2DLayer import AvgPool2DLayer
+from StarV.layer.BatchNorm2DLayer import BatchNorm2DLayer
+from StarV.layer.MaxPool2DLayer import MaxPool2DLayer
+from StarV.layer.FlattenLayer import FlattenLayer
+from StarV.layer.PixelClassificationLayer import PixelClassificationLayer
+from StarV.layer.MixedActivationLayer import MixedActivationLayer
 from StarV.net.network import NeuralNetwork
 from StarV.nncs.nncs import NNCS
 from StarV.plant.lode import LODE, DLODE
@@ -14,9 +38,14 @@ from StarV.set.star import Star
 from StarV.set.probstar import ProbStar
 from StarV.spec.dProbStarTL import _ALWAYS_, _EVENTUALLY_, AtomicPredicate, Formula, _LeftBracket_, _RightBracket_, _AND_, _OR_
 from StarV.spec.dProbStarTL import DynamicFormula
-import numpy as np
-import torch
-import math
+
+def convert_to_numpy(matrix):
+    if matrix is None:
+        return None
+    elif isinstance(matrix, csc_matrix):
+        return matrix.toarray()
+    else:
+        return matrix
 
 def load_2017_IEEE_TNNLS():
     """Load network from the IEEE TNNLS 2017 paper
@@ -507,6 +536,290 @@ def load_acc_model(netname='controller_5_20', plant='linear', spec_ids=None, ini
         return sys, phi_v, initSets[initSet_id], refInputs
 
 
+def load_acc_trapezius(t=10):
+    # load_Trapezius_network
+
+    net_name = f'phi3_acc_network_t{t}'
+    cur_path = os.path.dirname(__file__)
+    cur_path = cur_path + f'/data/nets/ACC/Trapezius/{net_name}.mat'
+    mat_file = loadmat(cur_path)
+    Net = mat_file['Net']
+    W = Net[0][0][0].ravel()
+    b = Net[0][0][1].ravel()
+    act_fun = Net[0][0][2].ravel() # containts activation list of each neurons
+    
+    n_weight = len(W)
+    n_act_fun = len(act_fun)
+    
+    
+    layers = []
+    for i in range(n_weight):
+        layers.append(fullyConnectedLayer(W[i].toarray(), b[i].toarray().ravel()))
+        if i < n_act_fun:
+            layers.append(MixedActivationLayer(act_fun[i]))
+
+    return NeuralNetwork(layers, net_type=net_name)
+
+
+
+def load_acc_trapezius_model(netname='controller_3_20', plant='linear', spec_ids=None, T=None, t=None, a_lead=-2):
+    'load advanced neural network-controlled adaptive cruise control system'
+
+    # This is from the paper:
+    # NNV: A Verification Tool for Deep Neural Networks and Learning-enabled Cyber-Physical Systems,
+    # Tran et al, CAV 2020
+
+    # System model
+    # a_lead = -5 (m^2/s)
+    # x1 = lead_car position
+    # x2 = lead_car velocity
+    # x3 = lead_car internal state
+    # x4 = ego_car position
+    # x5 = ego_car velocity
+    # x6 = ego_car internal state
+
+    # lead car dynamics
+    # dx1 = x2
+    # dx2 = x3
+    # dx3 = -2x3 + 2*a_lead - mu*x2^2 (mu = 0 for linear case)
+    
+    # ego car dynamics
+    # dx4 = x5
+    # dx5 = x6
+    # dx6 = -2x6 + 2*a_ego - mu*x5^2 (mu = 0 for linear case)
+
+    # let x7 = -2x3 + 2*a_lead -> x7(0) = -2x3(0) + 2*a_lead (initial condition consistency)
+    # dx7 = -2dx3
+    # dx3 = x7 and dx7 = -2dx3 = -2x7 (There may be a mistake in the code for CAV2020???)
+
+    # controller net option:
+    # 1) controller_3_20, 2) controller_5_20, 3) controller_7_20, 4) controller_10_20
+
+    cur_path = os.path.dirname(__file__)
+    cur_path = cur_path + '/data/nets/ACC/' + netname
+    mat_contents = loadmat(cur_path)
+    W = mat_contents['W']
+    b = mat_contents['b']
+
+    n = W.shape[1]
+    layers = []
+    for i in range(0,n-1):
+        Wi = W[0,i]
+        bi = b[i,0]
+        bi = bi.reshape(bi.shape[0],)
+        L1 = fullyConnectedLayer(Wi, bi)
+        L2 = ReLULayer()
+        layers.append(L1)
+        layers.append(L2)
+
+
+    bi = b[n-1,0]
+    bi = bi.reshape(bi.shape[0],)
+    L1 = fullyConnectedLayer(W[0,n-1], bi)
+    layers.append(L1)
+    
+    net = NeuralNetwork(layers, netname)
+    net.info()
+
+    if plant=='linear':
+
+        A = np.array([[0., 1., 0., 0., 0., 0., 0.],
+                      [0., 0., 1., 0., 0., 0., 0.],
+                      [0., 0.,-2., 0., 0., 0., 1.],
+                      [0., 0., 0., 0., 1., 0., 0.],
+                      [0., 0., 0., 0., 0., 1., 0.],
+                      [0., 0., 0., 0., 0., -2, 0.],
+                      [0., 0., 0., 0., 0., 0., -2.]])
+        B = np.array([[0.], [0.], [0.], [0.], [0.], [2.], [0.]])
+        C = np.array([[1., 0., 0., -1., 0., 0., 0.],
+                      [0., 1., 0., 0., -1., 0., 0.],
+                      [0., 0., 0., 0., 1., 0., 0.]])
+        
+        # feedbacks:
+        # 1) relative distance: x1 - x4
+        # 2) relative velocity: x2 - x5
+        # 3) longtitudinal velocity: x5 
+
+        D = np.array([[0.], [0.], [0.]])
+
+        plant_model = LODE(A, B, C, D)
+        dplant = plant_model.toDLODE(0.1)  # dt = 0.1
+        
+    else:
+        raise RuntimeError("Unknown option: only have linear model for ACC for now")
+
+
+    sys = NNCS(net, dplant, type='DLNNCS')
+    sys.info()
+
+    # reference inputs
+    refInputs = np.array([30., 1.4])
+
+    # input sets (multiple input set - 6 individual depending on v_lead_0)
+    x_lead_0 = [90., 110.]
+    v_lead_0 = [32.0, 32.2]
+    acc_lead_0 = [0., 0.]
+
+    x_ego_0 = [10., 11.]
+    v_ego_0 = [30., 30.2]
+    acc_ego_0 = [0., 0.]
+    x7_0 = [2*a_lead, 2*a_lead]
+
+    # initSets = []
+    # for i in range(0, 6):
+    #     v_lead_0_i = v_lead_0[i]
+    #     lb = np.array([x_lead_0[0], v_lead_0_i[0], acc_lead_0[0], x_ego_0[0], v_ego_0[0], acc_ego_0[0], x7_0[0]])
+    #     ub = np.array([x_lead_0[1], v_lead_0_i[1], acc_lead_0[1], x_ego_0[1], v_ego_0[1], acc_ego_0[1], x7_0[1]])
+    #     S = Star(lb, ub)
+    #     mu = 0.5*(S.pred_lb + S.pred_ub)
+    #     a = 2.5 # coefficience to adjust the distribution
+    #     sig = (mu - S.pred_lb)/a
+    #     Sig = np.diag(np.square(sig))
+    #     I1 = ProbStar(S.V, S.C, S.d, mu, Sig, S.pred_lb, S.pred_ub)
+    #     initSets.append(I1)
+
+
+    lb = np.array([x_lead_0[0], v_lead_0[0], acc_lead_0[0], x_ego_0[0], v_ego_0[0], acc_ego_0[0], x7_0[0]])
+    ub = np.array([x_lead_0[1], v_lead_0[1], acc_lead_0[1], x_ego_0[1], v_ego_0[1], acc_ego_0[1], x7_0[1]])
+    S = Star(lb, ub)
+    mu = 0.5*(S.pred_lb + S.pred_ub)
+    a = 2.5 # coefficience to adjust the distribution
+    sig = (mu - S.pred_lb)/a
+    Sig = np.diag(np.square(sig))
+    initSet = ProbStar(S.V, S.C, S.d, mu, Sig, S.pred_lb, S.pred_ub)
+
+    # unsafe constraints
+    # safety property: actual distance > alpha * safe distance <=> d = (x1 - x4) > alpha * d_safe = alpha * (1.4 * v_ego + 10)
+    # unsafe region: x1 - x4 <= alpha * (1.4 * v_ego + 10)
+
+    alpha = 1.0
+    unsafe_mat = np.array([[1.0, 0., 0., -1., -alpha*1.4, 0., 0.]])
+    unsafe_vec = np.array([alpha*10.0])
+
+    if spec_ids is None: # return systems with unsafe properties
+        
+        return sys, initSet, refInputs, unsafe_mat, unsafe_vec
+
+    else: # return system with temporal specifications
+
+        # Temporal Specifications
+
+        assert T is not None, 'error: T should be > 0'
+        assert t is not None, 'error: t should be > 0'
+
+        EV0T = _EVENTUALLY_(0,T)
+        EV0t = _EVENTUALLY_(0,t)
+        AND = _AND_()
+        OR = _OR_()
+        lb = _LeftBracket_()
+        rb = _RightBracket_()
+        AW0T = _ALWAYS_(0,T)
+        AW0t = _ALWAYS_(0,t)
+
+        # phi1 : eventually_[0, T](x_lead - x_ego <= D_safe = 10 + 1.4 v_ego) : A2x <= b2
+        A1 = np.array([1., 0., 0., -1., -1.4, 0., 0.])
+        b1 = np.array([10.])
+        P1 = AtomicPredicate(A1,b1)
+        phi1 = Formula([EV0T, lb, P1, rb])
+
+        #phi1c always_[0, T] (x_lead - x_ego >= D_safe = 10 + 1.4 v_ego): A1x <= b1
+        P1c = AtomicPredicate(-A1,-b1)
+        phi1c = Formula([AW0T, lb, P1c, rb])
+
+        # phi2 : eventually_[0, T](v_lead <= v_lead(0)_min - 0.1 OR v_ego <= v_ego(0)_min - 0.1): A3 <= b3
+
+        # phi2 IS DIFFERENT FOR DIFFERENT INITIAL CONDITION
+
+        A21 = np.array([0., 1., 0., 0., 0, 0., 0.])
+        b21 = np.array([min(v_lead_0) - 0.1])
+        P21 = AtomicPredicate(A21,b21)
+
+        A22 = np.array([0., 0., 0., 0., 1., 0., 0.])
+        b22 = np.array([min(v_ego_0) - 0.1])
+        P22 = AtomicPredicate(A22,b22)
+
+        phi2= Formula([EV0T, lb, P21, OR, P22, rb]) #
+
+        P21c = AtomicPredicate(-A21, -b21)
+        P22c = AtomicPredicate(-A22, -b22)
+
+        # complement properties
+        phi2c = Formula([AW0T, lb, P21c, AND, P22c, rb])
+
+        # phi3 : eventually_[0, T](v_lead <= v_lead(0)_min - 0.1  AND eventually_[0, 10](v_ego <= v_ego(0)_min - 0.1))
+
+        # phi3 is different for different initial condition
+
+
+        A31 = np.array([0., 1., 0., 0., 0, 0., 0.])
+        b31 = np.array([min(v_lead_0) - 0.1])
+        P31 = AtomicPredicate(A31,b31)
+
+        A32 = np.array([0., 0., 0., 0., 1., 0., 0.])
+        b32 = np.array([min(v_ego_0) - 0.1])
+        P32 = AtomicPredicate(A32,b32)
+
+        phi3 = Formula([EV0T, lb, P31, AND, lb, EV0t, P32, rb, rb])
+
+
+        # phi4 : always_[0, T](x_lead - x_ego <= D_safe -> eventually_[0,10](x_lead - x_ego >= D_safe))
+        # equivalent to : always_[0, T](x_lead - x_ego >= D_safe OR eventually_[0,t](x_lead - x_ego >= D_safe))
+        # P(phi4) = 1 - P(phi4')
+        # P(always(A or B)) = 1 - P(eventually (not A AND not B))
+        # not B = not eventually C = always not C
+
+        # phi4' = eventually_[0,T](x_lead-x_ego <= D_safe AND always_[0,t](x_lead - x_ego <= D_safe))
+
+        A41 = np.array([1., 0., 0., -1., -1.4, 0., 0.])
+        b41 = np.array([10.])
+        P41 = AtomicPredicate(A41,b41)
+        P42 = AtomicPredicate(-A41,-b41)
+
+        phi4 = Formula([AW0T, lb, P41, OR, lb, EV0t, P42 , rb, rb])
+
+        phi4c = Formula([EV0T, lb, P41, AND, lb, AW0t, P41, rb, rb])
+
+
+        # phi5 : always_[0, T](x_lead - x_ego <= D_safe -> eventually_[0,10](x_lead - x_ego >= D*_safe))
+        # equivalent to : always_[0, T](x_lead - x_ego >= D_safe OR eventually_[0,t](x_lead - x_ego >= D*_safe))
+        # P(phi5) = 1 - P(phi5')
+        # P(always(A or B)) = 1 - P(eventually (not A AND not B))
+        # not B = not eventually C = always not C
+
+
+        # ICCPS: 
+        # phi5: G_[0,50](x_lead - x_ego < D_safe -> F_[0, 3](x_lead - x_eg > D*_safe))
+
+        # phi5': eventually_[0,T](x_lead-x_ego <= D_safe AND always_[0,t](x_lead - x_ego <= D*_safe))
+
+        A51 = np.array([1., 0., 0., -1., -1.4, 0., 0.])
+        b51 = np.array([10.])
+        P51 = AtomicPredicate(A51,b51)
+
+        A52 = np.array([1., 0., 0., -1., -1.4, 0., 0.])
+        b52 = np.array([12.])
+        P52 = AtomicPredicate(-A52,-b52)
+
+        phi5 = Formula([AW0T, lb, P51, OR, lb, EV0t, P52 , rb, rb])
+
+        phi5c = Formula([EV0T, lb, P51, AND, lb, AW0t, P51, rb, rb])
+
+        phi = [phi1, phi1c, phi2, phi2c, phi3, phi4, phi4c, phi5, phi5c]
+
+        assert isinstance(spec_ids, list), 'Error: spec_ids should be a list'
+        id_max = max(spec_ids)
+        id_min = min(spec_ids)
+
+        if id_min < 0 or id_max > 8:
+            raise RuntimeError('Invalid spec_ids, id should be between 0 and 8')
+
+        phi_v = []
+        for id in spec_ids:
+            phi_v.append(phi[id])
+        
+        return sys, phi_v, initSet, refInputs
+    
+
 def load_AEBS_model():
     """load avanced emergency braking system
     
@@ -630,24 +943,798 @@ def load_AEBS_temporal_specs():
     specs = [phi1]
 
     return specs
+
+
+def load_scherlock_acc():
+    #modelNN_controllerNN
+
+    cur_path = os.path.dirname(__file__)
+    cur_path = cur_path + '/data/nets/Scherlock_ACC_Trapezius/networks.mat'
+
+    mat_file = loadmat(cur_path)
+    controller_nn = mat_file['controller_nn']
+    model_nn = mat_file['Model_nn']
+
+    Wc = controller_nn[0][0][0].ravel()
+    bc = controller_nn[0][0][1].ravel()
+    
+    n_weight = len(Wc)
+
+    controller_layers = []
+    for i in range(n_weight):
+        controller_layers.append(fullyConnectedLayer(Wc[i], bc[i].ravel()))
+        controller_layers.append(ReLULayer())
+            
+    controller_net = NeuralNetwork(controller_layers, net_type='controller_scherlock_acc')
+
+    Wm = model_nn[0][0][0].ravel()
+    bm = model_nn[0][0][1].ravel()
+    
+    n_weight = len(Wm)
+
+    model_layers = []
+    for i in range(n_weight):
+        model_layers.append(fullyConnectedLayer(Wm[i], bm[i].ravel()))
+        model_layers.append(ReLULayer())
+            
+    model_net = NeuralNetwork(controller_layers, net_type='model_scherlock_acc')
+
+    return model_net, controller_net
+
+
+def load_sherlock_acc_trapezius():
+    # load_Trapezius_network
+
+    net_name = 'trapezius'
+    cur_path = os.path.dirname(__file__)
+    cur_path = cur_path + f'/data/nets/Scherlock_ACC_Trapezius/{net_name}.mat'
+    mat_file = loadmat(cur_path)
+    Net = mat_file['Net']
+    W = Net[0][0][0].ravel()
+    b = Net[0][0][1].ravel()
+    act_fun = Net[0][0][2].ravel() # containts activation list of each neurons
+    
+    n_weight = len(W)
+    n_act_fun = len(act_fun)
+    
+    
+    layers = []
+    for i in range(n_weight):
+        layers.append(fullyConnectedLayer(W[i].toarray(), b[i].toarray().ravel()))
+        if i < n_act_fun:
+            layers.append(MixedActivationLayer(act_fun[i]))
+            
+    return NeuralNetwork(layers, net_type=net_name)
     
 
 def load_building_model():
     """Load LODE building model"""
 
-    pass
+    cur_path = os.path.dirname(__file__)
+    cur_path = cur_path + '/data/lodes/build.mat' 
+    mat_contents = loadmat(cur_path)
+    A = mat_contents['A']
+    A = convert_to_numpy(A)
+    B = mat_contents['B']
+    B = convert_to_numpy(B)
+    C = mat_contents['C']
+    C = convert_to_numpy(C)
+
+    plant = LODE(A, B,C)
+    return plant
+
 
 def load_iss_model():
     """Load LODE International State Space Model"""
+    cur_path = os.path.dirname(__file__)
+    cur_path = cur_path + '/data/lodes/iss.mat' 
+    mat_contents = loadmat(cur_path)
+    A = mat_contents['A']
+    A = convert_to_numpy(A)
+    B = mat_contents['B']
+    B = convert_to_numpy(B)
+    C = mat_contents['C']
+    C = convert_to_numpy(C)
+    plant = LODE(A, B, C)
+    return plant
 
-    pass
 
 def load_helicopter_model():
     """Load LODE helicopter model"""
+    cur_path = os.path.dirname(__file__)
+    cur_path = cur_path + '/data/lodes/heli28.mat' 
+    mat_contents = loadmat(cur_path)
+    A = mat_contents['A']
+    A = convert_to_numpy(A)
+    plant = LODE(A)
+    return plant
 
-    pass
 
 def load_MNA5_model():
     """Load LODE MNA5 model"""
+    cur_path = os.path.dirname(__file__)
+    cur_path = cur_path + '/data/lodes/MNA_5.mat' 
+    mat_contents = loadmat(cur_path)
+    A = mat_contents['A']
+    B = mat_contents['B']
+    A = convert_to_numpy(A)
+    B = convert_to_numpy(B)
+    plant = LODE(A,B)
+    return plant
 
-    pass
+
+def load_MNA1_model():
+    """Load LODE MNA1 model"""
+    cur_path = os.path.dirname(__file__)
+    cur_path = cur_path + '/data/lodes/MNA_1.mat' 
+    mat_contents = loadmat(cur_path)
+    A = mat_contents['A']
+    B = mat_contents['B']
+    A = convert_to_numpy(A)
+    B = convert_to_numpy(B)
+    plant = LODE(A, B)
+    return plant
+
+
+def load_mcs_model():
+    """Load LODE MCS model"""
+    cur_path = os.path.dirname(__file__)
+    cur_path = cur_path + '/data/lodes/mcs.mat' 
+    mat_contents = loadmat(cur_path)
+    A = mat_contents['A']
+    mat_contents = loadmat(cur_path)
+    A = mat_contents['A']
+    B = mat_contents['B']
+    A = convert_to_numpy(A)
+    B = convert_to_numpy(B)
+    plant = LODE(A, B)
+    return plant
+
+
+def load_heat_model():
+    """Load LODE HEAT model"""
+    cur_path = os.path.dirname(__file__)
+    cur_path = cur_path + '/data/lodes/heat.mat' 
+    mat_contents = loadmat(cur_path)
+    A = mat_contents['A']
+    B = mat_contents['B']
+    A = convert_to_numpy(A)
+    B = convert_to_numpy(B)
+    C = mat_contents['C']
+    C = convert_to_numpy(C)
+    plant = LODE(A, B, C)
+    return plant
+
+def load_beam_model():
+    """Load LODE BEAM model"""
+    cur_path = os.path.dirname(__file__)
+    cur_path = cur_path + '/data/lodes/beam.mat' 
+    mat_contents = loadmat(cur_path)
+    A = mat_contents['A']
+    B = mat_contents['B']
+    A = convert_to_numpy(A)
+    B = convert_to_numpy(B)
+    C = mat_contents['C']
+    C = convert_to_numpy(C)
+
+    plant = LODE(A, B, C)
+    return plant
+
+    # C = mat_contents['C']
+    # C = convert_to_numpy(C)
+    # plant = LODE(A, B, C)
+    # return plant
+
+
+def load_pde_model():
+    """Load LODE PDE model"""
+    cur_path = os.path.dirname(__file__)
+    cur_path = cur_path + '/data/lodes/pde.mat' 
+    mat_contents = loadmat(cur_path)
+    A = mat_contents['A']
+    B = mat_contents['B']
+    A = convert_to_numpy(A)
+    B = convert_to_numpy(B)
+    C = mat_contents['C']
+    C = convert_to_numpy(C)
+    plant = LODE(A, B, C)
+    return plant
+
+
+def load_fom_model():
+    """Load LODE FOM model"""
+    cur_path = os.path.dirname(__file__)
+    cur_path = cur_path + '/data/lodes/fom.mat' 
+    mat_contents = loadmat(cur_path)
+    A = mat_contents['A']
+    B = mat_contents['B']
+    A = convert_to_numpy(A)
+    B = convert_to_numpy(B)
+    C = mat_contents['C']
+    C = convert_to_numpy(C)
+    plant = LODE(A, B, C)
+    return plant
+
+
+def load_GRU_network(net_dir, net_name='GRU', dtype='float32'):
+    model = onnx.load(net_dir)
+    model_initializer = model.graph.initializer
+    Weights = []
+    for init in model_initializer:
+        Weights.append(onnx.numpy_helper.to_array(init))
+
+    GRU_W = Weights[0][0, :, :]
+    GRU_R = Weights[1][0, :, :]
+    GRU_b = Weights[2][0, :].reshape(-1)
+    L1 = GRULayer(layer=[[GRU_W, GRU_R, GRU_b]], output_mode='one', module='default', dtype=dtype)
+    FC_W = Weights[4].T
+    FC_b = Weights[5]
+    L2 = FullyConnectedLayer(layer=[FC_W, FC_b], dtype=dtype)
+
+    net_name = 'GRU'
+    return NeuralNetwork(layers=[L1, L2], net_type=net_name)
+
+
+def load_LSTM_network(net_dir, net_name='LSTM', dtype='float32'):
+    model = onnx.load(net_dir)
+    model_initializer = model.graph.initializer
+    Weights = []
+    for init in model_initializer:
+        Weights.append(onnx.numpy_helper.to_array(init))
+
+    LSTM_W = Weights[0][0, :, :]
+    LSTM_R = Weights[1][0, :, :]
+    LSTM_b = Weights[2][0, :].reshape(-1)
+    L1 = LSTMLayer(layer=[[LSTM_W, LSTM_R, LSTM_b]], output_mode='one', module='default', dtype=dtype)
+    FC_W = Weights[5].T
+    FC_b = Weights[6]
+    L2 = FullyConnectedLayer(layer=[FC_W, FC_b], dtype=dtype)
+
+    net_name = 'LSTM'
+    return NeuralNetwork(layers=[L1, L2], net_type=net_name)
+
+
+def load_sigmoidal_networks(data_type='mnist', net_size='small', func='tanh', opt=False, delta=0.98):
+
+    data_type = data_type.upper()
+    assert data_type in ['MNIST', 'CIFAR10'], "Unsupported data type ('data_type'). Only 'mnist' and 'cifar10' datasets are supported."
+    assert net_size in ['small', 'med', 'big'], "Unsupported network size ('net_size'). Only 'small', 'med', 'big' network sizes are supported."
+    assert func in ['tanh', 'sigmoid'], "Unsupported layer function type ('func'). Only 'tanh' and 'sigmoid' layers are supported."
+    
+    # import neural network from ONNX
+    net_name = data_type + '_FNN' + net_size + '_' + func
+    net_dir = 'StarV/util/SigmoidalNetworks/' + data_type + '/nets/FNN' + net_size + '/' + net_name + '.onnx'
+
+    Weights = []
+    model = onnx.load(net_dir)
+    model_initializer = model.graph.initializer
+    for init in model_initializer:
+        Weights.append(onnx.numpy_helper.to_array(init).T)
+
+    num_layers = len(model_initializer) // 2
+    layers = []
+    for i in range(num_layers):
+        L1 = FullyConnectedLayer(layer=[Weights[2*i], Weights[2*i+1]])
+        if func == 'tanh':
+            L2 = TanSigLayer(opt=opt, delta=delta)
+        else:
+            L2 = LogSigLayer(opt=opt, delta=delta)
+        layers.append(L1)
+        layers.append(L2)
+
+    net = NeuralNetwork(layers=layers, net_type=net_name)
+
+    # import flattened image dataset from CSV
+    data_name = data_type + '_FNN' + net_size + '_' + func + '.csv'
+    data_dir = 'StarV/util/SigmoidalNetworks/' + data_type + '/data/' + data_name
+
+    with open(data_dir, 'r') as x:
+        read_csv = list(csv.reader(x, delimiter=","))
+
+    read_csv = np.array(read_csv, dtype=np.float32)
+    data = read_csv[:, 1:] / 255.0
+    label = read_csv[:, 0]
+
+    return net, data, label
+
+
+def load_convnet(net_dir, net_type, dtype='float32'):
+
+    assert net_type in ['Small', 'Medium', 'Large'], \
+    f"There are 3 types of ConvNet networks: /'Small/', /'Medium/', and /'Large/'"
+
+     # loading DNNs into StarV network
+    if net_type == 'Small':
+        network = load_CAV2020_MNIST_Small_ConvNet(net_dir=net_dir, dtype=dtype)
+    elif net_type == 'Medium':
+        network = load_CAV2020_MNIST_Medium_ConvNet(net_dir=net_dir, dtype=dtype)
+    elif net_type == 'Large':
+        network = load_CAV2020_MNIST_Large_ConvNet(net_dir=net_dir, dtype=dtype)
+    else:
+        raise Exception('Unknown network type for ConvNet')
+    return network
+
+
+def load_CAV2020_MNIST_Small_ConvNet(net_dir, dtype='float32'):
+    b = np.array([-22.511615753173828125]).astype(dtype)
+    layers = [FullyConnectedLayer(layer=[None, b], dtype=dtype)]
+
+    return load_neural_network_file(net_dir, layer=layers, net_type='smallConvNetMNIST_CAV2020', 
+                                    dtype=dtype, channel_last=True, in_shape=None, sparse=False, show=False)
+
+def load_CAV2020_MNIST_Medium_ConvNet(net_dir, dtype='float32'):
+    b = np.array([-22.4925937652587890625]).astype(dtype)
+    layers = [FullyConnectedLayer(layer=[None, b], dtype=dtype)]
+
+    return load_neural_network_file(net_dir, layer=layers, net_type='mediumConvNetMNIST_CAV2020', 
+                                    dtype=dtype, channel_last=True, in_shape=None, sparse=False, show=False)
+
+def load_CAV2020_MNIST_Large_ConvNet(net_dir, dtype='float32'):
+    mean_dir = '/'.join(net_dir.split('/')[:-1]) + "/Large_ConvNet_input_layer_mean.mat"
+    mat_file = loadmat(mean_dir)
+    b = mat_file['mean'].astype(dtype)
+    layers = [FullyConnectedLayer(layer=[None, -b], dtype=dtype)]
+
+    return load_neural_network_file(net_dir, layer=layers, net_type='largeConvNetMNIST_CAV2020', 
+                                    dtype=dtype, channel_last=True, in_shape=None, sparse=False, show=False)
+
+def load_neural_network_file(file_path, layer=None, net_type=None, dtype='float64', channel_last=True, in_shape=None, sparse=False, show=False):
+    
+    assert isinstance(file_path, str), 'error: file_path should be a string'
+
+    file_path = file_path
+
+    if file_path.endswith('.onnx'):
+        if show: print('loading onnx module')
+        model = onnx.load(file_path)
+        model = onnx2pytorch.ConvertModel(model)
+        # model = convert(model)
+        model.eval()
+
+    elif file_path.endswith('.pt') or file_path.endswith('.pth'):
+        if show: print('loading pytorch module')
+        model = torch.load(file_path)
+        model.eval()
+    
+    else:
+        raise Exception('error: unsupported file format {} (supports .onnx, .pt, .pth)'.format(os.path.splitext(file_path)[1]))
+    
+    return load_neural_network(model, layer=layer, net_type=net_type, dtype=dtype, channel_last=channel_last, in_shape=in_shape, sparse=sparse, show=show)
+
+
+def load_neural_network(model, layer=None, net_type=None, dtype='float64', channel_last=True, in_shape=None, sparse=False, show=False):
+    if sparse is True and in_shape is not None:
+        assert len(in_shape) == 3, \
+        f"To unroll weight matrix, the input shape (in_shape) must be provided in a  3-tuple containing (H, W, C). Given in_shape = {in_shape}"
+        
+        if channel_last is False:
+            c, h, w = in_shape
+            in_shape = (h, w, c)
+    
+    if isinstance(model, torch.nn.Module):
+        if show: print('converting to StarV module')
+
+        if layer is None:
+            layers = []
+            cnt = 0
+        else: 
+            layers = copy.deepcopy(layer)
+            cnt = len(layers)
+            if show:
+                for i, layer in layers:
+                    print(f"Pre-given layer {i}: {layer}")
+
+        var = None
+        for idx, layer in enumerate(model.modules(), cnt):
+            if not isinstance(layer, model.__class__):
+                DONE = True
+                if show:
+                    print(f"Parsing layer {idx}: {layer}")
+
+                if type(layer).__name__ == 'Constant':
+                    # remove batch by squeeze
+                    var = layer.constant.numpy().squeeze(0).astype(dtype)
+                    if var.ndim == 3 and not channel_last:
+                        var = var.transpose([1, 2, 0])
+
+                elif type(layer).__name__ in ['sub', 'Sub']:
+                    if var is None:
+                        print(f"{layer} layer is neglected in the analysis because 'Constant' variable is not previously provided")
+                        DONE = False
+                    else:
+                        layers.append(FullyConnectedLayer(layer=[None, -var], dtype=dtype))
+                        var = None
+
+                elif type(layer).__name__ in ['add', 'Add']:
+                    if var is None:
+                        print(f"{layer} layer is neglected in the analysis because 'Constant' variable is not previously provided")
+                        DONE = False
+                    else:
+                        layers.append(FullyConnectedLayer(layer=[None, var], dtype=dtype))
+                        var = None
+
+                elif type(layer).__name__ in ['div', 'Div']:
+                    if var is None:
+                        print(f"{layer} layer is neglected in the analysis because 'Constant' variable is not previously provided")
+                        DONE = False
+                    else:
+                        layers.append(FullyConnectedLayer(layer=[1/var, None], dtype=dtype))
+                        var = None
+
+                elif isinstance(layer, torch.nn.Linear):
+                    layers.append(FullyConnectedLayer(layer=layer, dtype=dtype))
+
+                elif isinstance(layer, torch.nn.LSTM):
+                    layers.append(LSTMLayer(layer=layer, output_mode='many'))
+
+                elif isinstance(layer, torch.nn.GRU):
+                    layers.append(GRULayer(layer=layer, output_mode='many'))
+
+                elif isinstance(layer, torch.nn.Sigmoid):
+                    layers.append(LogSigLayer())
+
+                elif isinstance(layer, torch.nn.Tanh):
+                    layers.append(TanSigLayer())
+
+                elif isinstance(layer, torch.nn.ReLU):
+                    layers.append(ReLULayer())
+
+                elif isinstance(layer, torch.nn.Conv2d):
+                    layer_ = Conv2DLayer(layer=layer, dtype=dtype, sparse=sparse, in_shape=in_shape)
+                    layers.append(layer_)
+                    if sparse:
+                        in_shape = layer_.out_shape
+
+                elif isinstance(layer, torch.nn.AvgPool2d):
+                    layers.append(AvgPool2DLayer(kernel_size=layer.kernel_size, stride=layer.stride, padding=layer.padding, dtype=dtype))
+
+                elif isinstance(layer, torch.nn.AdaptiveAvgPool2d):
+                    layers.append(FlattenLayer(channel_last))
+                    print(f"{layer} layer is considered as FalttenLayer in the analysis")
+
+                elif isinstance(layer, torch.nn.BatchNorm2d):
+                    layers.append(BatchNorm2DLayer(layer=layer, dtype=dtype))
+
+                elif type(layer).__name__ == 'BatchNormUnsafe':
+                    gamma = layer.weight.detach().numpy().copy()
+                    beta = layer.bias.detach().numpy().copy()
+                    num_features = layer.num_features
+                    eps = np.array(layer.eps)
+                    var = layer.running_var.numpy()
+                    mean = layer.running_mean.numpy()
+                    layers.append(BatchNorm2DLayer(layer=[gamma, beta, mean, var], num_features = num_features, eps = eps, dtype=dtype))
+                    
+                elif isinstance(layer, torch.nn.MaxPool2d):
+                    layer_ = MaxPool2DLayer(kernel_size=layer.kernel_size, stride=layer.stride, padding=layer.padding, in_shape=in_shape, dtype=dtype)
+                    layers.append(layer_)
+                    if sparse:
+                        in_shape = layer_.out_shape
+
+                elif isinstance(layer, torch.nn.Flatten) or type(layer).__name__ == 'Flatten':
+                    layers.append(FlattenLayer(channel_last))
+
+                elif isinstance(layer, torch.nn.Dropout):
+                    print(f"{layer} layer is neglected in the analysis")
+                    DONE = False
+
+                elif isinstance(layer, torch.nn.Softmax):
+                    print(f"{layer} layer is neglected in the analysis")
+                    DONE = False
+
+                elif isinstance(layer, torch.nn.modules.container.Sequential):
+                    print(f"torch.nn.modules.container.Sequential layer is neglected in the analysis")
+                    DONE = False
+
+                else:
+                    print(f"{layer} layer is unsupported and neglected in the analysis \n {type(layer)} type \n {type(layer).__name__} name")
+
+                    DONE = False
+                    # raise Exception('error: unsupported neural network layer {}'.format(type(layer)))
+                
+                if show and DONE:
+                    print(f"Parsing layer {idx}: {layer} is done successfully")
+                
+                prev_layer = layer
+
+        return NeuralNetwork(layers, net_type=net_type)
+    
+    elif isinstance(model, onnx.onnx_ml_pb2.ModelProtolProto):
+        pytorch_model = onnx2pytorch.ConvertModel(model)
+        return load_neural_network(pytorch_model, net_type, show)
+    
+    else:
+        raise Exception('error: unsupported neural network module {}'.format(type(model)))
+    
+
+def find_node_with_input(graph, input_name):
+    'find the unique onnx node with the given input, can return None'
+
+    rv = None
+
+    for n in graph.node:
+        for i in n.input:
+            if i == input_name:
+                assert rv is None, f"multiple onnx nodes accept network input {input_name}"
+                rv = n
+
+    return rv
+
+
+def find_node_with_input(graph, input_name):
+    'find the unique onnx node with the given input, can return None'
+
+    rv = None
+
+    for n in graph.node:
+        for i in n.input:
+            if i == input_name:
+                assert rv is None, f"multiple onnx nodes accept network input {input_name}"
+                rv = n
+
+    return rv
+
+def load_onnx_network(filename, net_type=None, channel_last=True, num_pixel_classes=None, dtype='float64', show=False):
+    model = onnx.load(filename)
+    onnx.checker.check_model(model)
+
+    graph = model.graph
+
+    #print(graph)
+
+    # find the node with input "input"
+    all_input_names = sum([[str(i) for i in n.input] for n in graph.node], [])
+
+    #print(f"all input names: {all_input_names}")
+
+    all_initializer_names = [i.name for i in graph.initializer]
+    all_output_names = sum([[str(o) for o in n.output] for n in graph.node], [])
+
+    # the input to the network is the one not in all_inputs_list and not in all_outputs_list
+    network_input = None
+    
+    for i in all_input_names:
+        if i not in all_initializer_names and i not in all_output_names:
+            assert network_input is None, f"multiple onnx network inputs {network_input} and {i}"        
+            network_input = i
+
+    assert network_input, "did not find onnx network input"
+
+    assert len(graph.output) == 1, "onnx network defined multiple outputs"
+    network_output = graph.output[0].name
+
+    #print(f"input: '{network_input}', output: '{network_output}'")
+    
+    #assert network_input == graph.input[0].name, \
+    #    f"network_input ({network_input}) != graph.input[0].name ({graph.input[0].name})"
+    ##########
+
+    # map names -> structs
+    # input_map = {i.name: i for i in graph.input}
+    init_map = {i.name: i for i in graph.initializer}
+
+    # i = input_map[network_input]
+
+    # find the node which takes the input (probably node 0)
+    cur_node = find_node_with_input(graph, network_input)
+    cur_input_name = network_input
+    # ok! now proceed recusively
+    layers = []
+
+    # data types
+    onnx_type_float = 1
+    onnx_type_int = 2
+
+    cnt = 0
+    while cur_node is not None:
+        assert cur_node.input[0] == cur_input_name, \
+            f"cur_node.input[0] ({cur_node.input[0]}) should be previous output ({cur_input_name}) in " + \
+            f"node:\n{cur_node.name}"
+        
+        op = cur_node.op_type
+        layer = None
+        neglect = False
+
+#         if layers:
+#             prev_shape = layers[-1].get_output_shape()
+#         else:
+#             s_node = graph.input[0].type.tensor_type.shape
+#             prev_shape = tuple(d.dim_value if d.dim_value != 0 else 1 for d in s_node.dim)
+
+        if show:
+            print(f"Parsing layer {cnt}: {op}")
+        
+        if op in ['Add', 'Sub']:
+            assert len(cur_node.input) == 2
+            init = init_map[cur_node.input[1]]
+            assert init.data_type == onnx_type_float
+            
+            var = np.frombuffer(init.raw_data, dtype='<f4') # little endian float32
+            if op == 'Sub':
+                var = -var
+            
+            layer = FullyConnectedLayer(layer=[None, var], dtype=dtype)
+        
+        elif op == 'Flatten':
+            layer = FlattenLayer(channel_last)
+            
+        elif op == 'MatMul':
+            assert len(cur_node.input) == 2
+            weight_init = init_map[cur_node.input[1]]
+            assert weight_init.data_type == onnx_type_float
+
+            shape = weight_init.dims[::-1]
+            weight = np.frombuffer(weight_init.raw_data, dtype='<f4') # little endian float32
+            weight = weight.reshape(shape, order='F').transpose([1, 0])
+
+            layer = FullyConnectedLayer(layer=[weight, None], dtype=dtype)
+            
+        
+#         elif op == 'Gemm':
+#             assert len(cur_node.input) == 3
+            
+#             weight_init = init_map[cur_node.input[1]]
+#             bias_init = init_map[cur_node.input[2]]
+
+#             # weight
+#             assert weight_init.data_type == onnx_type_float
+#             b = np.frombuffer(weight_init.raw_data, dtype='<f4') # little endian float32
+#             shape = tuple(d for d in reversed(weight_init.dims)) # note dims reversed, acasxu has 5, 50 but want 5 cols
+#             weight_mat = nn_unflatten(b, shape, order='F')
+
+#             # bias
+#             assert bias_init.data_type == onnx_type_float
+#             b = np.frombuffer(bias_init.raw_data, dtype='<f4') # little endian float32
+#             shape = tuple(d for d in reversed(bias_init.dims)) # note dims reversed, acasxu has 5, 50 but want 5 cols
+#             bias_vec = nn_unflatten(b, shape, order='F')
+
+#             for a in cur_node.attribute:
+#                 assert a.name in ['alpha', 'beta', 'transB'], "general Gemm node unsupported"
+
+#                 if a.name in ['alpha', 'beta']:
+#                     assert a.f == 1.0
+#                     assert a.type == onnx_type_float
+#                 elif a.name == 'transB':
+#                     assert a.type == onnx_type_int
+#                     assert a.i == 1
+#                     weight_mat = weight_mat.transpose().copy()
+
+#             layer = FullyConnectedLayer([weight_mat, bias_vec], dtype=dtype)
+
+        elif op == 'Conv':
+            assert len(cur_node.input) == 3
+            weight_init = init_map[cur_node.input[1]]
+            bias_init = init_map[cur_node.input[2]]
+
+            assert weight_init.data_type == onnx_type_float
+            shape = weight_init.dims[::-1]
+            weight = np.frombuffer(weight_init.raw_data, dtype='<f4') # little endian float32
+            weight = weight.reshape(shape, order='F').transpose([1, 0, 2, 3])
+
+            if not channel_last:
+                weight.transpose([2, 3, 1, 0])
+
+            assert bias_init.data_type == onnx_type_float
+            shape = bias_init.dims[::-1]
+            bias = np.frombuffer(bias_init.raw_data, dtype='<f4') # little endian float32
+            bias = bias.reshape(shape, order='F')
+            
+            dilation = np.array(cur_node.attribute[1].ints, dtype='b')
+            padding = np.array(cur_node.attribute[3].ints, dtype='b')
+            padding = np.array([padding[0], padding[2], padding[1], padding[3]])
+            stride = np.array(cur_node.attribute[4].ints, dtype='b')
+
+            layer = Conv2DLayer([weight, bias], stride, padding, dilation, dtype=dtype)
+        
+        elif op == 'BatchNormalization':
+            assert len(cur_node.input) == 5
+            gamma_init = init_map[cur_node.input[1]]
+            beta_init = init_map[cur_node.input[2]]
+            mean_init = init_map[cur_node.input[3]]
+            var_init = init_map[cur_node.input[4]]
+            
+            assert gamma_init.data_type == onnx_type_float
+            shape = gamma_init.dims[::-1]
+            gamma = np.frombuffer(gamma_init.raw_data, dtype='<f4').reshape(shape) # little endian float32
+            
+            assert beta_init.data_type == onnx_type_float
+            shape = beta_init.dims[::-1]
+            beta = np.frombuffer(beta_init.raw_data, dtype='<f4').reshape(shape) # little endian float32
+           
+            assert mean_init.data_type == onnx_type_float
+            shape = mean_init.dims[::-1]
+            mean = np.frombuffer(mean_init.raw_data, dtype='<f4').reshape(shape) # little endian float32
+
+            assert var_init.data_type == onnx_type_float
+            shape = var_init.dims[::-1]
+            var = np.frombuffer(var_init.raw_data, dtype='<f4').reshape(shape) # little endian float32
+            
+            eps = np.array(cur_node.attribute[0].f, dtype='<f4')
+            layer = BatchNorm2DLayer(layer=[gamma, beta, mean, var], num_features = shape[0], eps = eps, dtype=dtype)
+        
+        elif op == 'AveragePool':
+            assert len(cur_node.input) == 1
+            kernel_size = np.array(cur_node.attribute[0].ints, dtype='b')
+            padding = np.array(cur_node.attribute[1].ints, dtype='b')
+            padding = np.array([padding[0], padding[2], padding[1], padding[3]])
+            stride = np.array(cur_node.attribute[2].ints, dtype='b')
+            # count_include_pad = np.array(cur_node.attribute[3].ints, dtype='b')
+            layer = AvgPool2DLayer(kernel_size=kernel_size, stride=stride, padding=padding, dtype=dtype)
+
+        elif op == 'MaxPool':
+            assert len(cur_node.input) == 1
+            kernel_size = np.array(cur_node.attribute[0].ints, dtype='b')
+            padding = np.array(cur_node.attribute[1].ints, dtype='b')
+            padding = np.array([padding[0], padding[2], padding[1], padding[3]])
+            stride = np.array(cur_node.attribute[2].ints, dtype='b')
+            layer = MaxPool2DLayer(kernel_size=kernel_size, stride=stride, padding=padding, dtype=dtype)
+                        
+        elif op == 'ConvTranspose':
+            assert len(cur_node.input) == 3
+            weight_init = init_map[cur_node.input[1]]
+            bias_init = init_map[cur_node.input[2]]
+
+            assert weight_init.data_type == onnx_type_float
+            shape = weight_init.dims[::-1]
+            weight = np.frombuffer(weight_init.raw_data, dtype='<f4') # little endian float32
+            weight = weight.reshape(shape, order='F').transpose([1, 0, 2, 3])
+
+            if not channel_last:
+                weight.transpose([2, 3, 1, 0])
+
+            assert bias_init.data_type == onnx_type_float
+            shape = bias_init.dims[::-1]
+            bias = np.frombuffer(bias_init.raw_data, dtype='<f4') # little endian float32
+            bias = bias.reshape(shape, order='F')
+            
+            for attr in cur_node.attribute:
+                name = attr.name
+                if name == 'dilations':
+                    dilation = np.array(attr.ints, dtype='b')
+                elif name == 'pads':
+                    padding = np.array(attr.ints, dtype='b')
+                    padding = np.array([padding[0], padding[2], padding[1], padding[3]])
+                elif name == 'strides':
+                    stride = np.array(attr.ints, dtype='b')
+                elif name == 'output_padding ':
+                    output_padding = np.array(attr.ints, dtype='b')
+
+            layer = ConvTranspose2DLayer([weight, bias], stride, padding, dilation, dtype=dtype)
+            
+        elif op == 'Relu':
+            layer = ReLULayer()
+            
+        elif op == 'Transpose':
+            neglect = True
+        
+        elif op == 'Softmax':
+            neglect = True
+            
+        else:
+            assert False, f"unsupported onnx op_type {op} in node {cur_node.name}"
+
+        if neglect:
+            if show:
+                print(f"onnx op_type {op} is neglected in the analysis")
+        else:
+            assert layer is not None
+            layers.append(layer)
+
+        assert len(cur_node.output) == 1, f"multiple output at onnx node {cur_node.name}"
+        cur_input_name = cur_node.output[0]
+
+        #print(f"{cur_node.name} -> {cur_input_name}")
+        cur_node = find_node_with_input(graph, cur_input_name)
+
+        cnt += 1
+        
+
+    assert cur_input_name == network_output, \
+        f"output witout node {cur_input_name} is not network output {network_output}"
+
+    if num_pixel_classes != None:
+        assert isinstance(num_pixel_classes, int), f"num_pixel_classes should be integer, but received {type(num_pixel_classes)}"
+        assert num_pixel_classes > 0, f"num_pixel_classes should be a positive integer"
+        
+        layers.append(PixelClassificationLayer(num_pixel_classes))
+
+    return NeuralNetwork(layers, net_type=net_type)

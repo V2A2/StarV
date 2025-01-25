@@ -3,7 +3,6 @@ Satlin Class
 Yuntao Li, 1/18/2024
 """
 
-# !/usr/bin/python3
 from StarV.set.probstar import ProbStar
 from StarV.set.star import Star
 import numpy as np
@@ -85,7 +84,7 @@ class SatLin(object):
             return S
 
         # ------------- case 2) -------------
-        if xmin >= 0 and xmax > 1:
+        if 0 <= xmin < 1 < xmax:
             C = np.zeros(I.dim,)
             C[index] = 1.0
             d = np.zeros(1,)
@@ -107,7 +106,7 @@ class SatLin(object):
             return S
 
         # ------------- case 3) -------------
-        if xmin < 0 and xmax > 0 and xmax <= 1:
+        if xmin < 0 < xmax <= 1:
             C = np.zeros(I.dim,)
             C[index] = 1.0
             d = np.zeros(1,)
@@ -125,7 +124,7 @@ class SatLin(object):
             return S
 
         # ------------- case 4) -------------
-        if xmin < 0 and xmax > 1:
+        if xmin < 0 < 1 < xmax:
             C = np.zeros(I.dim,)
             C[index] = 1.0
             d = np.zeros(1,)
@@ -138,7 +137,7 @@ class SatLin(object):
             S1.resetRow(index)
 
             # 0 <= x <= 1
-            S2.addConstraint(-C, -d) # x >= 0 -> -x <= 0
+            S2.addConstraint(-C, d) # x >= 0 -> -x <= 0
             S2.addConstraint(C, d1) # x <= 1
 
             S3.addConstraint(-C, -d1) # x >= 1 -> -x <= -1

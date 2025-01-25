@@ -1,7 +1,8 @@
 """
-Probabilistics Star Class
+Star Class
 Dung Tran, 9/13/2022
-
+Update: 11/22/2024 (Sung Woo Choi)
+Update: 12/20/2024 (Sung Woo Choi, merging)
 """
 
 # !/usr/bin/python3
@@ -13,10 +14,7 @@ from scipy.optimize import linprog
 from scipy.linalg import block_diag
 import glpk
 import polytope as pc
-
-
 import copy
-
 
 class Star(object):
     """
@@ -35,7 +33,7 @@ class Star(object):
         ==========================================================================
     """
 
-    def __init__(self, *args):
+    def __init__(self, *args, copy_=True):
         """
            Key Attributes:
            V = []; % basis matrix
@@ -47,7 +45,12 @@ class Star(object):
            pred_ub = []; % upper bound of predicate variables
         """
         if len(args) == 5:
-            [V, C, d, pred_lb, pred_ub] = copy.deepcopy(args)
+            
+            if copy_ is True:
+                [V, C, d, pred_lb, pred_ub] = copy.deepcopy(args)
+            else:
+                [V, C, d, pred_lb, pred_ub] = args
+
             assert isinstance(V, np.ndarray), 'error: \
             basis matrix should be a 2D numpy array'
             assert isinstance(pred_lb, np.ndarray), 'error: \
@@ -83,8 +86,43 @@ class Star(object):
             self.pred_lb = pred_lb
             self.pred_ub = pred_ub
 
+        elif len(args) == 3:
+            
+            if copy_ is True:
+                [V, C, d] = copy.deepcopy(args)
+            else:
+                [V, C, d] = args
+
+            assert isinstance(V, np.ndarray), 'error: \
+            basis matrix should be a 2D numpy array'
+            assert len(V.shape) == 2, 'error: \
+            basis matrix should be a 2D numpy array'
+            if len(C) != 0:
+                assert len(C.shape) == 2, 'error: \
+                constraint matrix should be a 2D numpy array'
+                assert len(d.shape) == 1, 'error: \
+                constraint vector should be a 1D numpy array'
+                assert V.shape[1] == C.shape[1] + 1, 'error: \
+                Inconsistency between basic matrix and constraint matrix'
+                assert C.shape[0] == d.shape[0], 'error: \
+                Inconsistency between constraint matrix and constraint vector'
+                
+            self.V = V
+            self.C = C
+            self.d = d
+            self.dim = V.shape[0]
+            self.nVars = V.shape[1] - 1
+
+            self.pred_lb = np.array([])
+            self.pred_ub = np.array([])
+
+        
         elif len(args) == 2:  # the most common use
-            [lb, ub] = copy.deepcopy(args)
+            
+            if copy_ is True:
+                [lb, ub] = copy.deepcopy(args)
+            else:
+                [lb, ub] = args
 
             assert isinstance(lb, np.ndarray), 'error: \
             lower bound vector should be a 1D numpy array'
@@ -117,8 +155,6 @@ class Star(object):
             self.pred_ub = np.ones(nVars,)
             self.nVars = nVars
             
-            
-            
         elif len(args) == 0:  # create an empty ProStar
             self.dim = 0
             self.nVars = 0
@@ -142,9 +178,28 @@ class Star(object):
         print('pred_lb: {}'.format(self.pred_lb))
         print('pred_ub: {}'.format(self.pred_ub))
         return '\n'
+    
+    def __repr__(self):
+        print('Star Set:')
+        print('V: {}'.format(self.V.shape))
+        print('Predicate Constraints:')
+        print('C: {}'.format(self.C.shape))
+        print('d: {}'.format(self.d.shape))
+        print('dim: {}'.format(self.dim))
+        print('nVars: {}'.format(self.nVars))
+        print('pred_lb: {}'.format(self.pred_lb.shape))
+        print('pred_ub: {}'.format(self.pred_ub.shape))
+        print('')
+        return '\n'
+    
+    def __len__(self):
+        return 1
+    
+    def clone(self):
+        return copy.deepcopy(self)
 
     def getMinimizedConstraints(self):
-        """minimize constraints of a probstar"""
+        """minimize constraints of a star"""
 
         if len(self.C) == 0:
             Cmin = self.C
@@ -412,56 +467,140 @@ class Star(object):
                 raise Exception('error: \
                 unknown lp solver, should be gurobi or linprog or glpk')
         return xmax
+    
+    def getMins(self, map, lp_solver='gurobi'):
+        n = len(map)
+        xmin = np.zeros(n)
+        for i in range(n):
+            xmin[i] = self.getMin(index=map[i], lp_solver=lp_solver)
+        return xmin
+
+    def getMaxs(self, map, lp_solver='gurobi'):
+        n = len(map)
+        xmax = np.zeros(n)
+        for i in range(n):
+            xmax[i] = self.getMax(index=map[i], lp_solver=lp_solver)
+        return xmax
 
     def getRanges(self, lp_solver='gurobi'):
         """get lower bound and upper bound by solving LP"""
 
-        l = np.zeros(self.dim)
-        u = np.zeros(self.dim)
-        for i in range(0, self.dim):
-            l[i] = self.getMin(i, lp_solver)
-            u[i] = self.getMax(i, lp_solver)
+        if lp_solver == 'estimate':
+            return self.estimateRanges()
 
-        return l, u
-
+        else:
+            l = np.zeros(self.dim)
+            u = np.zeros(self.dim)
+            for i in range(0, self.dim):
+                l[i] = self.getMin(i, lp_solver)
+                u[i] = self.getMax(i, lp_solver)
+            return l, u
+    
         
     def affineMap(self, A=None, b=None):
-        """Affine mapping of a star: S = A*self + b"""
+        """
+        Affine mapping of a star: S = A*self + b
 
+        Args:
+            A (np.ndarray): Mapping matrix (optional)
+            b (np.ndarray): Offset vector (optional)
+
+        Returns:
+            Star: New Star set after affine mapping
+        """
         if A is not None:
-            assert isinstance(A, np.ndarray), 'error: \
-        mapping matrix should be an 2D numpy array'
-            assert A.shape[1] == self.dim, 'error: \
-        inconsistency between mapping matrix and ProbStar dimension'
+            assert isinstance(A, np.ndarray), \
+            'error: mapping matrix should be an 2D numpy array'
+            assert A.shape[1] == self.dim, \
+            'error: inconsistency between mapping matrix and Star dimension'
 
         if b is not None:
-            assert isinstance(b, np.ndarray), 'error: \
-        offset vector should be an 1D numpy array'
+            assert isinstance(b, np.ndarray), \
+            'error: offset vector should be an 1D numpy array'
             if A is not None:
-                assert A.shape[0] == b.shape[0], 'error: \
-        inconsistency between mapping matrix and offset vector'
-            assert len(b.shape) == 1, 'error: \
-        offset vector should be a 1D numpy array '
+                assert A.shape[0] == b.shape[0], \
+                'error: inconsistency between mapping matrix and offset vector'
+            assert len(b.shape) == 1, \
+            'error: offset vector should be a 1D numpy array '
 
+        V = copy.deepcopy(self.V)
+        if A is not None:
+            V = np.matmul(A, V)
+        if b is not None:
+            V[:, 0] += b
+        return Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
+    
+    
+    # intersection with another Star set
+    def intersectStar(self, S):
+        """ Intersection of two star sets
+            x1 = c1 + V1 a1 in S1 (self) with P(a1) := C1 a1 <= d1
+            x2 = c2 + V2 a2 in S2 (S)    with P(a2) := C2 a2 <= d2
 
-        if A is None and b is None:
-            new_set = copy.deepcopy(self)
+            x = x1 \cap x2
+              = c1 + V1 a1 + 0 a2        with P'(a) = P'([a1, a2])
+              = c2 + V2 a2 + 0 a1        with P'(a) = P'([a1, a2]),
+            where
+            P'(a) = P1(a1) \wedge P2(a2) \wedge P_eq([a1, a2])
+            P_eq([a1, a2]) := c1 + V1 a1 = c2 + V2 a2
+                           := c1 - c2 + V1 a1 - V2 a2 = 0
+            C_eq = [V1 - V2]
+            d_eq = [c1 - c2]
+        """
+        assert self.dim == S.dim, \
+        f"error: inconsistent dimension between two Star sets; self.dim = {self.dim}, S.dim = {S.dim}"
 
-        if A is None and b is not None:
-            V = copy.deepcopy(self.V)
-            V[:, 0] = V[:, 0] + b
-            new_set = Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
+        dim = self.dim
+        # P_eq
+        d_eq = self.V[:, 0] - S.V[:, 0]
+        C_eq = np.hstack([self.V[:, 1:], -S.V[:, 1:]])
+        # c1 + V1 a1 + 0 a2
+        new_V = np.hstack([self.V, np.zeros([dim, dim])])
+        # P'(a)
+        C1 = block_diag(self.C, S.C)
+        C2 = np.vstack([C_eq, -C_eq])
+        d1 = np.hstack([self.d, S.d])
+        d2 = np.hstack([-d_eq, d_eq])
+        new_C = np.vstack([C1, C2])
+        new_d = np.hstack([d1, d2])
 
-        if A is not None and b is None:
-            V = np.matmul(A, self.V)
-            new_set = Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
+        new_pred_lb = np.hstack([self.pred_lb, S.pred_lb])
+        new_pred_ub = np.hstack([self.pred_ub, S.pred_ub])
+        new_S = Star(new_V, new_C, new_d, new_pred_lb, new_pred_ub, copy_=False)
+        if new_S.isEmptySet():
+            return []
+        else:
+            return new_S
+        
 
-        if A is not None and b is not None:
-            V = np.matmul(A, self.V)
-            V[:, 0] = V[:, 0] + b
+    # intersection with a half space: H(x) := Hx <= g
+    def intersectHalfSpace(self, H, g):
+        # @H: HalfSpace matrix
+        # @g: HalfSpace vector
+        # return a new star set with more constraints
 
-            new_set = Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
-        return new_set
+        assert isinstance(H, np.ndarray) and H.ndim == 2, 'error: halfspace constraints matrix is not a 2D numpy ndarray'
+        assert isinstance(g, np.ndarray) and g.ndim == 1, 'error: halfspace constraints vector is not a 1D numpy ndarray'
+        assert H.shape[0] == g.shape[0], 'inconsistent dimension between halfspace constraints matrix and halfspace vector'
+        assert H.shape[1] == self.dim, 'inconsistent dimension between halfspace and probstar set'
+
+        C1 = np.matmul(H, self.V[:, 1:])
+        d1 = g - np.matmul(H, self.V[:, 0])
+
+        if len(self.d) > 0 and len(d1) > 0:
+            new_C = np.vstack([self.C, C1])
+            new_d = np.hstack([self.d, d1])
+        elif len(self.d) > 0:
+            new_C = self.C
+            new_d = self.d
+        elif len(d1) > 0:
+            new_C = C1
+            new_d = d1
+        else:
+            new_C = []
+            new_d = []
+
+        return Star(self.V, new_C, new_d, self.pred_lb, self.pred_ub)
 
     def minKowskiSum(self, Y):
         """MinKowskiSum of two stars"""
@@ -604,7 +743,6 @@ class Star(object):
         assert isinstance(d, np.ndarray), 'error: constraint vector should be a numpy array'
         assert C.shape[0] == d.shape[0], 'error: inconsistency between \
         constraint matrix and constraint vector'
-        print(len(d.shape))
         assert len(d.shape) == 1, 'error: constraint vector should be a 1D numpy array'
         
         if C.shape[0] == 1:
@@ -626,6 +764,141 @@ class Star(object):
         S = Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
 
         return S
+    
+    def resetRows(self, map):
+        """Reset a row with a map of indexes"""
+
+        V = self.V
+        V[map, :] = 0.0
+        return Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
+    
+    def sample(self, N):
+        """
+        Sample N points in the feasible Star set.
+
+        Args:
+            N (int): Number of samples to generate.
+
+        Returns:
+            np.ndarray: Matrix of sampled points (dim x N).
+        """
+        if N < 1:
+            raise ValueError("Number of samples must be at least 1")
+
+        lb, ub = self.getRanges(lp_solver='gurobi')
+        
+        # Generate 2N samples initially
+        V1 = np.random.uniform(lb[:, np.newaxis], ub[:, np.newaxis], (self.dim, 2*N))
+        
+        # Filter valid samples
+        V = V1[:, [self.contains(v) for v in V1.T]]
+        
+        # Return N samples (or all if less than N are valid)
+        return V[:, :N]
+		
+    def contains(self, s):
+        """ Check if a Star set contains a point.
+            s : a star point (1D numpy array)
+
+            return :
+                1 -> a star set contains a point, s 
+                0 -> a star set does not contain a point, s
+                else -> error code from Gurobi LP solver
+        """
+        assert len(
+            s.shape) == 1, 'error: invalid point. It should be 1D numpy array'
+        assert s.shape[0] == self.dim, 'error: Dimension mismatch'
+
+        f = np.zeros(self.nVars)
+        m = gp.Model()
+        # prevent optimization information
+        m.Params.LogToConsole = 0
+        m.Params.OptimalityTol = 1e-6
+        if self.pred_lb.size and self.pred_ub.size:
+            x = m.addMVar(shape=self.nVars, lb=self.pred_lb, ub=self.pred_ub)
+        else:
+            x = m.addMVar(shape=self.nVars)
+        m.setObjective(f @ x, GRB.MINIMIZE)
+        if len(self.d) > 0:
+            C = self.C
+            d = self.d
+        else:
+            C = sp.csr_matrix(np.zeros((1, self.nVars)))
+            d = 0
+        m.addConstr(C @ x <= d)
+        Ae = sp.csr_matrix(self.V[:, 1:])
+        be = s - self.V[:, 0, None]
+        m.addConstr(Ae @ x == be)
+        m.optimize()
+
+        if m.status == 2:
+            return True
+        elif m.status == 3:
+            return False
+        else:
+            raise Exception('error: exitflat = %d' % (m.status))
+        
+    def get_max_point_cadidates(self):
+        """ Quickly estimate max-point candidates """
+
+        lb, ub = self.getRanges('estimate')
+        max_id = np.argmax(lb)
+        a = (ub > lb[max_id])
+        if sum(a) == 1:
+            return [max_id]
+        else:
+            return np.where(a)[0]
+        
+    def is_p1_larger_than_p2(self, p1_indx, p2_indx):
+        """
+            Check if an index is larger than the other
+
+            Arg:
+                @p1_indx: an index of point 1
+                @p2_indx: an index of point 2
+
+            return:
+                @bool = 1 if there exists the case that p1 >= p2
+                        2 if there is no case that p1 >= p2; p1 < p2
+        """
+
+        assert p1_indx >= 0 and p1_indx < self.dim, 'error: invalid index for point 1'
+        assert p2_indx >= 0 and p2_indx < self.dim, 'error: invalid index for point 2'
+
+        d1 = self.V[p1_indx, 0] - self.V[p2_indx, 0]
+        C1 = self.V[p2_indx, 1:self.nVars+1] - self.V[p1_indx, 1:self.nVars+1]
+
+        new_d = np.hstack((self.d, d1))
+        new_C = np.vstack((self.C, C1))
+        S = Star(self.V, new_C, new_d, self.pred_lb, self.pred_ub, copy_=False)
+        
+        if S.isEmptySet():
+            return False
+        else:
+            return True
+
+    @staticmethod
+    def inf_attack(data, epsilon=0.01, data_type='default', dtype='float64'):
+        """Generate a SparseStar set by infinity norm attack on input dataset"""
+
+        assert isinstance(data, np.ndarray), \
+        'error: the data should be a 1D numpy array'
+        assert len(data.shape) == 1, \
+        'error: the data should be a 1D numpy array'
+
+        if dtype =='float64':
+            data = data.astype(np.float64)
+        else:
+            data = data.astype(np.float32)
+
+        lb = data - epsilon
+        ub = data + epsilon
+
+        if data_type == 'image':
+            lb[lb < 0] = 0
+            ub[ub > 1] = 1
+
+        return Star(lb, ub)
 
     @staticmethod
     def rand(dim):
@@ -636,7 +909,25 @@ class Star(object):
         ub = np.random.rand(dim,)
         
         return Star(lb, ub)
+    
+    @staticmethod
+    def rand_polytope(dim, N):
+        """ Generate a random Star with constraints"""
 
+        assert dim > 0, 'error: invalid dimension'
+        assert N > dim, 'error: number constraints should be greater than dimension'
+
+        A = np.random.rand(N, dim)
+
+        # compute the convex hull
+        P = pc.qhull(A)
+
+        c = np.zeros([P.dim, 1])
+        I = np.eye(P.dim)
+
+        V = np.hstack([c, I])
+        pred_lb, pred_ub = P.bounding_box
+        return Star(V, P.A, P.b, pred_lb.reshape(-1), pred_ub.reshape(-1))
 
     def toPolytope(self):
         """

@@ -3,7 +3,7 @@ Probabilistics Star Class
 Dung Tran, 8/10/2022
 
 Update: 8/13/2023
-
+Update: 12/20/2024 (Sung Woo Choi, merging)
 """
 
 # !/usr/bin/python3
@@ -39,7 +39,7 @@ class ProbStar(object):
         ==========================================================================
     """
 
-    def __init__(self, *args):
+    def __init__(self, *args, copy_=True):
         """
            Key Attributes:
            V = []; % basis matrix
@@ -54,7 +54,12 @@ class ProbStar(object):
            predicate_ub = []; % upper bound of predicate variables
         """
         if len(args) == 7:
-            [V, C, d, mu, Sig, pred_lb, pred_ub] = copy.deepcopy(args)
+            
+            if copy_ is True:
+                [V, C, d, mu, Sig, pred_lb, pred_ub] = copy.deepcopy(args)
+            else:
+                [V, C, d, mu, Sig, pred_lb, pred_ub] = args
+
             assert isinstance(V, np.ndarray), 'error: \
             basis matrix should be a 2D numpy array'
             assert isinstance(mu, np.ndarray), 'error: \
@@ -107,7 +112,11 @@ class ProbStar(object):
             self.pred_ub = pred_ub
 
         elif len(args) == 4:  # the most common use
-            [mu, Sig, pred_lb, pred_ub] = copy.deepcopy(args)
+            
+            if copy_ is True:
+                [mu, Sig, pred_lb, pred_ub] = copy.deepcopy(args)
+            else:
+                [mu, Sig, pred_lb, pred_ub] = args
 
             assert isinstance(mu, np.ndarray), 'error: \
             median vector should be a 1D numpy array'
@@ -173,6 +182,21 @@ class ProbStar(object):
         print('mu: {}'.format(self.mu))
         print('Sig: {}'.format(self.Sig))
         return '\n'
+    
+    def __repr__(self):
+        print('ProbStar Set:')
+        print('V: {}'.format(self.V.shape))
+        print('Predicate Constraints:')
+        print('C: {}'.format(self.C.shape))
+        print('d: {}'.format(self.d.shape))
+        print('dim: {}'.format(self.dim))
+        print('nVars: {}'.format(self.nVars))
+        print('pred_lb: {}'.format(self.pred_lb.shape))
+        print('pred_ub: {}'.format(self.pred_ub.shape))
+        print('mu: {}'.format(self.mu.shape))
+        print('Sig: {}'.format(self.Sig.shape))
+        print('')
+        return '\n'	
 
     def printConstraints(self):
         'Print constraints of probstar'
@@ -233,6 +257,12 @@ class ProbStar(object):
 
         return prob
 
+    def __len__(self):
+        return 1
+    
+    def clone(self):
+        return copy.deepcopy(self)
+    
     def getMinimizedConstraints(self):
         """minimize constraints of a probstar"""
 
@@ -538,43 +568,38 @@ class ProbStar(object):
 
         
     def affineMap(self, A=None, b=None):
-        """Affine mapping of a probstar: S = A*self + b"""
+        """
+        Affine mapping of a ProbStar: S = A*self + b
+
+        Args:
+            A (np.ndarray): Mapping matrix (optional)
+            b (np.ndarray): Offset vector (optional)
+
+        Returns:
+            ProbStar: ProbStar Star set after affine mapping
+        """
 
         if A is not None:
-            assert isinstance(A, np.ndarray), 'error: \
-        mapping matrix should be an 2D numpy array'
-            assert A.shape[1] == self.dim, 'error: \
-        inconsistency between mapping matrix and ProbStar dimension'
+            assert isinstance(A, np.ndarray), \
+            'error: mapping matrix should be an 2D numpy array'
+            assert A.shape[1] == self.dim, \
+            'error: inconsistency between mapping matrix and ProbStar dimension'
 
         if b is not None:
-            assert isinstance(b, np.ndarray), 'error: \
-        offset vector should be an 1D numpy array'
+            assert isinstance(b, np.ndarray), \
+            'error: offset vector should be an 1D numpy array'
             if A is not None:
-                assert A.shape[0] == b.shape[0], 'error: \
-        inconsistency between mapping matrix and offset vector'
-            assert len(b.shape) == 1, 'error: \
-        offset vector should be a 1D numpy array '
+                assert A.shape[0] == b.shape[0], \
+                'error: inconsistency between mapping matrix and offset vector'
+            assert len(b.shape) == 1, \
+            'error: offset vector should be a 1D numpy array '
 
-
-        if A is None and b is None:
-            new_set = copy.deepcopy(self)
-
-        if A is None and b is not None:
-            V = copy.deepcopy(self.V)
-            V[:, 0] = V[:, 0] + b
-            new_set = ProbStar(V, self.C, self.d, self.mu, self.Sig, self.pred_lb, self.pred_ub)
-
-        if A is not None and b is None:
-            V = np.matmul(A, self.V)
-            new_set = ProbStar(V, self.C, self.d, self.mu, self.Sig, self.pred_lb, self.pred_ub)
-
-        if A is not None and b is not None:
-            V = np.matmul(A, self.V)
-            V[:, 0] = V[:, 0] + b
-
-            new_set = ProbStar(V, self.C, self.d, self.mu,
-                               self.Sig, self.pred_lb, self.pred_ub)
-        return new_set
+        V = copy.deepcopy(self.V)
+        if A is not None:
+            V = np.matmul(A, V)
+        if b is not None:
+            V[:, 0] += b
+        return ProbStar(V, self.C, self.d, self.mu, self.Sig, self.pred_lb, self.pred_ub)
 
     def minKowskiSum(self, Y):
         """MinKowskiSum of two probstars"""
@@ -619,21 +644,21 @@ class ProbStar(object):
         when one new constraint is added"""
 
         assert isinstance(newC, np.ndarray) and \
-            len(newC.shape) == 1, 'error: \
-            new constraint matrix should be 1D numpy array'
+            len(newC.shape) == 1, \
+        'error: new constraint matrix should be 1D numpy array'
         assert isinstance(newd, np.ndarray) and \
-            len(newd.shape) == 1 and newd.shape[0] == 1, 'error: \
-            new constraint vector should be 1D numpy array'
+            len(newd.shape) == 1 and newd.shape[0] == 1, \
+        'error: new constraint vector should be 1D numpy array'
         assert isinstance(pred_lb, np.ndarray) and \
-            len(pred_lb.shape) == 1, 'error: \
-            lower bound vector should be 1D numpy array'
+            len(pred_lb.shape) == 1, \
+        'error: lower bound vector should be 1D numpy array'
         assert isinstance(pred_ub, np.ndarray) and \
-            len(pred_ub.shape) == 1, 'error: \
-            upper bound vector should be 1D numpy array'
-        assert pred_lb.shape[0] == pred_ub.shape[0], 'error: \
-        inconsistency between the lower bound and upper bound vectors'
-        assert newC.shape[0] == pred_lb.shape[0], 'error: \
-        inconsistency between the lower bound vector and the constraint matrix'
+            len(pred_ub.shape) == 1, \
+        'error: upper bound vector should be 1D numpy array'
+        assert pred_lb.shape[0] == pred_ub.shape[0], \
+        'error: inconsistency between the lower bound and upper bound vectors'
+        assert newC.shape[0] == pred_lb.shape[0], \
+        'error: inconsistency between the lower bound vector and the constraint matrix'
 
         new_pred_lb = copy.deepcopy(pred_lb)
         new_pred_ub = copy.deepcopy(pred_ub)

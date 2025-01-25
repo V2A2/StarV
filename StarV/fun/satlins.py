@@ -3,7 +3,6 @@ SatLins Class
 Yuntao Li, 1/18/2024
 """
 
-# !/usr/bin/python3
 from StarV.set.probstar import ProbStar
 from StarV.set.star import Star
 import numpy as np
@@ -72,18 +71,18 @@ class SatLins(object):
             raise Exception('error: input is not a Star or ProbStar set, \
             type of input = {}'.format(type(I)))
 
-        xmin, xmax = I.estimateRange(index)
-        # xmin = I.getMin(index, lp_solver)
-        # xmax = I.getMax(index, lp_solver)
+        # xmin, xmax = I.estimateRange(index)
+        xmin = I.getMin(index, lp_solver)
+        xmax = I.getMax(index, lp_solver)
 
         # ------------- case 1) only single set -------------
-        if xmin >= -1 and xmax <= 1:
+        if -1 <= xmin and xmax <= 1:
             S = []
             S.append(I) # -1 <= x <= 1
             return S
 
         # ------------- case 2) -------------
-        if xmin >= -1 and xmax > 1:
+        if -1 <= xmin < 1 < xmax:
             C = np.zeros(I.dim,)
             C[index] = 1.0
             d = np.ones(1,)
@@ -103,7 +102,7 @@ class SatLins(object):
             return S
 
         # ------------- case 3) -------------
-        if xmin < -1 and xmax > -1 and xmax <= 1:
+        if xmin < -1 < xmax <= 1:
             C = np.zeros(I.dim,)
             C[index] = 1.0
             d = np.ones(1,)

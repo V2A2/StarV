@@ -1,17 +1,23 @@
 """
 Plot module, contains methods for plotting
 Dung Tran, 9/11/2022
+Update: 12/24/2024 (Sung Woo Choi, merging)
 """
 
 from StarV.set.probstar import ProbStar
 from StarV.set.star import Star
-import numpy as np
-import matplotlib.pyplot as plt
 from matplotlib import cm
 from mpl_toolkits.mplot3d import Axes3D
+from scipy.spatial import ConvexHull
 from scipy.stats import multivariate_normal
+
 import pypoman
 import warnings
+import itertools
+import numpy as np
+import matplotlib.pyplot as plt
+import mpl_toolkits.mplot3d as a3
+import plotly.graph_objects as go
 
 
 def getVertices(I):
@@ -25,8 +31,11 @@ def getVertices(I):
         C = np.vstack((A, -A))
         d = np.concatenate([ub, -lb])
     else:
-        lb = I.pred_lb
-        ub = I.pred_ub
+        if len(I.pred_lb) == 0:
+            [lb, ub] = I.estimateRanges()
+        else:
+            lb = I.pred_lb
+            ub = I.pred_ub
         A = np.eye(I.nVars)
         C1 = np.vstack((A, -A))
         d1 = np.concatenate([ub, -lb])
@@ -61,6 +70,100 @@ def get_bounding_box(A, b):
         ub[i] = max_sol[i]
         
     return lb, ub
+
+def plot_1D_Star(I, show=True, color='g'):
+    """Plot a 1D star set
+    Yuntao Li"""
+
+    if isinstance(I, ProbStar) or isinstance(I, Star):
+        if I.dim != 1:
+            raise Exception('error: input set is not 1D star')
+        [lb, ub] = I.getRanges()
+        if lb == ub:
+            plt.plot(lb, 0, 'o', color=color)  # Plot point if lb == ub
+        else:
+            plt.plot([lb, ub], [0, 0], color=color)  # Plot line otherwise
+        if show:
+            plt.show()
+    elif isinstance(I, list) and len(I) > 1:
+        for i in range(0, len(I)):
+            if I[i].dim != 1:
+                raise Exception('error: input set is not 1D star')
+            [lb, ub] = I[i].getRanges()
+            if lb == ub:
+                plt.plot(lb, 0, 'o', color=color)  # Plot point if lb == ub
+            else:
+                plt.plot([lb, ub], [0, 0], color=color)  # Plot line otherwise
+        if show:
+            plt.show()
+    elif isinstance(I, list) and len(I) == 1:
+        if I[0].dim != 1:
+            raise Exception('error: input set is not 1D star')
+        [lb, ub] = I[0].getRanges()
+        if lb == ub:
+            plt.plot(lb, 0, 'o', color=color)  # Plot point if lb == ub
+        else:
+            plt.plot([lb, ub], [0, 0], color=color)  # Plot line otherwise
+        if show:
+            plt.show()
+
+
+def plot_1D_Star_time(I, time_bound,step_size,safety_value=None,show=True, color='g'):
+   
+    """Plot series 1D star set over time"""
+
+    times = np.arange(0, time_bound + 2*step_size, step_size)
+    
+    if isinstance(I, list) and len(I) > 1:
+        for i in range(0, len(I)):
+            if I[i].dim != 1:
+                raise Exception('error: input set is not 1D star')
+            [lb, ub] = I[i].getRanges()
+            plt.plot([times[i], times[i]],[lb, ub], color=color)
+            plt.xlabel("Time")
+            plt.ylabel("y1")
+           
+        if show:
+            if safety_value is not None:
+                plt.axhline(y = safety_value, color = 'r', linestyle = '--',linewidth=1) 
+                # plt.text(4, plt.gca().get_ylim()[1] * 0.9, 'unsafe condition', color='r', fontsize=12, verticalalignment='center')
+
+            plt.show()
+
+
+def plot_2D_Star_with_sampling(I, sample_points=None, show=True, color='g', marker='o'):
+    """
+    Plot a 2D Star set along with optional sampled points.
+
+    Parameters:
+    I (StarSet): The 2D Star set object.
+    sample_points (np.ndarray, optional): Array of sampled points to plot, with each column as a point.
+    show (bool, optional): Whether to show the plot immediately. Defaults to True.
+    color (str, optional): Color for the plot elements. Defaults to 'g' (green).
+    marker (str, optional): Marker style for the sampled points. Defaults to 'o' (circle).
+    """
+
+    if I.dim != 2:
+        raise Exception('Input set is not 2D star')
+
+    # Plot the polygon representing the Star set
+    verts = getVertices(I)  # Assuming getVertices is a function to extract vertices
+    try:
+        pypoman.plot_polygon(verts, color=color)  # Plotting the vertices as a polygon
+    except Exception:
+        warnings.warn('Potential floating-point error during plotting')
+
+    # If sample points are provided, plot them after transposing if necessary
+    if sample_points is not None:
+        sample_points = np.array(sample_points)
+        if sample_points.shape[0] != 2:
+            # Assuming points are stored in columns, transpose them
+            sample_points = sample_points.T
+        plt.scatter(sample_points.T[:, 0], sample_points.T[:, 1], color=color, marker=marker, label='Sampled Points')
+
+    if show:
+        plt.legend()
+        plt.show()
         
 def plot_2D_UnsafeSpec(unsafe_mat, unsafe_vec, show=True, color='r'):
     'plot unsafe spec'
@@ -120,14 +223,21 @@ def plot_probstar(I, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$',
             if I2.dim > 2:
                 raise Exception('error: only 2D plot is supported')
             prob = I2.estimateProbability()
-            plot_2D_Star(I2, show=False)
+            if I2.isEmptySet(): # Can't plot empty set Fixed, Yuntao Li, 2/4/2024
+                continue
+            else:
+                plot_2D_Star(I2, show=False)
             l, u = I2.getRanges()
             if i==0:
                 L = l
                 U = u
             else:
-                L = np.vstack((L, l))
-                U = np.vstack([U, u])
+                if len(L) == 0: # L and U might be empty, Fixed, Yuntao Li, 2/4/2024
+                    L = l
+                    U = u
+                else:
+                    L = np.vstack((L, l))
+                    U = np.vstack([U, u])
             if show_prob:
                 ax = plt.gca()
                 ax.text(0.5*(l[0] + u[0]), 0.5*(l[1] + u[1]), str(prob))
@@ -441,8 +551,6 @@ def plot_probstar_reachset_with_unsafeSpec(rs, unsafe_mat, unsafe_vec, dir_mat=N
 
        
     
-
-
 def plot_star(I, dir_mat=None, dir_vec=None, label=('$y_1$', '$y_2$'), show=True, color='g'):
     """Plot a star set in a specific direction
        y = dir_mat*x + dir_vec, x in I
@@ -452,8 +560,11 @@ def plot_star(I, dir_mat=None, dir_vec=None, label=('$y_1$', '$y_2$'), show=True
         I1 = I.affineMap(dir_mat, dir_vec)
         if I1.dim > 2:
             raise Exception('error: only 2D plot is supported')
-        plot_2D_Star(I, show=False, color=color)
+        plot_2D_Star(I1, show=False, color=color)
         l, u = I1.getRanges()
+        ax = plt.gca()
+        ax.set_xlim(l[0], u[0])
+        ax.set_ylim(l[1], u[1])
         
     elif isinstance(I, list):
         L = []
@@ -462,14 +573,21 @@ def plot_star(I, dir_mat=None, dir_vec=None, label=('$y_1$', '$y_2$'), show=True
             I2 = I[i].affineMap(dir_mat, dir_vec)
             if I2.dim > 2:
                 raise Exception('error: only 2D plot is supported')
-            plot_2D_Star(I2, show=False)
+            if I2.isEmptySet(): # Can't plot empty set Fixed, Yuntao Li, 2/4/2024
+                continue
+            else:
+                plot_2D_Star(I2, show=False)
             l, u = I2.getRanges()
             if i==0:
                 L = l
                 U = u
             else:
-                L = np.vstack((L, l))
-                U = np.vstack([U, u])
+                if len(L) == 0: # L and U might be empty, Fixed, Yuntao Li, 2/4/2024
+                    L = l
+                    U = u
+                else:
+                    L = np.vstack((L, l))
+                    U = np.vstack([U, u])
             
         Lm = L.min(axis=0)
         Um = U.max(axis=0)
@@ -516,7 +634,7 @@ def plot_multivariate_normal_distribution(mu, Sig, lb, ub, numMeshPoints=40, xla
         plt.show()
 
 
-def plot_probstar_distribution(I, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g', numMeshPoints=40, zlabel='Probability Density'):
+def plot_probstar_distribution_error(I, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g', numMeshPoints=40, zlabel='Probability Density'):
     'plot a probstar distribution on a specific direction'
 
     # references: for distribution transformation
@@ -584,3 +702,215 @@ def plot_probstar_distribution(I, dir_mat=None, dir_vec=None, show_prob=True, la
 
     else:
         raise RuntimeError('The input I is not a probstar')
+
+
+def plot_probstar_distribution(I, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g', numMeshPoints=40, zlabel='Probability Density', cmap='viridis'):
+    'plot a probstar distribution on a specific direction'
+
+    # references: for distribution transformation
+    # https://peterroelants.github.io/posts/multivariate-normal-primer/
+    # Dung Tran: 10/22/2024
+    # Updated:
+    #   - Sung Woo Choi: 01/16/2025
+    
+    I1 = I.affineMap(dir_mat, dir_vec)
+    if I1.dim > 2:
+        raise Exception(f'error: only 1D and 2D plots are supported; received ProbStar has {ndim} dimension')
+    
+    xlabel=label[0]
+    ylabel=label[1]
+
+    # get meshgrid from predicate domain
+    # TO DO: neet to get actual predicate bound considering C a <= d
+    lb, ub = I1.pred_lb, I1.pred_ub
+    X = np.linspace(lb[0], ub[0], numMeshPoints)
+    Y = np.linspace(lb[1], ub[1], numMeshPoints)
+    X, Y = np.meshgrid(X, Y)
+
+    # get transformed distribution: I = c + V*alpha, alpha ~ N(mu, Sig)
+    c = I1.V[:, 0]
+    V = I1.V[:, 1:]
+    pos = np.concatenate([X[:,:,None], Y[:,:,None]], axis=2)
+    pos = np.einsum('pk,ijk->ijp', V, pos) + c[None,None,:]
+    
+    new_mu = np.matmul(V, I1.mu) + c
+    new_Sig = np.matmul(np.matmul(V, I1.Sig), np.transpose(V))
+
+    F = multivariate_normal(new_mu, new_Sig)
+    Z = F.pdf(pos)
+    X = pos[:, :, 0]
+    Y = pos[:, :, 1]
+
+    # Plot
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.plot_surface(X, Y, Z, cmap=cmap, linewidth=0)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_zlabel(zlabel)
+    if show:
+        plt.show()
+        
+
+def plot_probstar_contour(I, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g', numMeshPoints=40, zlabel='Probability Density', cmap='viridis'):
+    'plot a probstar distribution on a specific direction'
+
+    # references: for distribution transformation
+    # https://peterroelants.github.io/posts/multivariate-normal-primer/
+    # Dung Tran: 10/22/2024
+    # Updated:
+    #   - Sung Woo Choi: 01/16/2025
+    
+    I1 = I.affineMap(dir_mat, dir_vec)
+    if I1.dim > 2:
+        raise Exception('error: only 2D plot is supported')
+    
+    xlabel=label[0]
+    ylabel=label[1]
+
+    # get meshgrid from predicate domain
+    # TO DO: neet to get actual predicate bound considering C a <= d
+    lb, ub = I1.pred_lb, I1.pred_ub
+    # lb, ub = I1.getRanges()
+    X = np.linspace(lb[0], ub[0], numMeshPoints)
+    Y = np.linspace(lb[1], ub[1], numMeshPoints)
+    X, Y = np.meshgrid(X, Y)
+
+    # get transformed distribution: I = c + V*alpha, alpha ~ N(mu, Sig)
+    c = I1.V[:, 0]
+    V = I1.V[:, 1:]
+    pos = np.concatenate([X[:,:,None], Y[:,:,None]], axis=2)
+    pos = np.einsum('pk,ijk->ijp', V, pos) + c[None,None,:]
+    
+    new_mu = np.matmul(V, I1.mu) + c
+    new_Sig = np.matmul(np.matmul(V, I1.Sig), np.transpose(V))
+
+    F = multivariate_normal(new_mu, new_Sig)
+    Z = F.pdf(pos)
+    X = pos[:, :, 0]
+    Y = pos[:, :, 1]
+
+    prob = I1.estimateProbability()
+    lb, ub = I1.getRanges()
+    # Plot
+    plt.rcParams["figure.figsize"] = [5, 5]
+    plt.rcParams["figure.autolayout"] = True
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.contourf(X, Y, Z, cmap=cmap)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    # ax.set_zlabel(zlabel)
+    ax.text(0.5*(lb[0] + ub[0]), 0.5*(lb[1] + ub[1]), str(prob), color='red')
+    if show:
+        plt.show()
+
+    
+def plot_3D_Star(I, ax, color='r',alpha=1.0, edgecolor='k', linewidth=1.0, show=True):
+    """
+    From https://github.com/Shaddadi/veritex/blob/master/veritex/utils/plot_poly.py
+    eritex/veritex/utils/plot_poly.py 
+
+    Function to plot 3-dimensional polytope
+    Parameters:
+        set_vs (np.ndarray): Vertices of the set
+        ax (AxesSubplot): AxesSubplot
+        color (str): Face color
+        alpha (float): Color transparency
+        edgecolor (str): Edge color
+        Linewidth (float): Line width of edges
+    """
+    set_vs = np.array(getVertices(I))
+
+    hull = ConvexHull(set_vs)
+    faces = hull.simplices
+    for s in faces:
+        sq = [
+            [set_vs[s[0], 0], set_vs[s[0], 1], set_vs[s[0], 2]],
+            [set_vs[s[1], 0], set_vs[s[1], 1], set_vs[s[1], 2]],
+            [set_vs[s[2], 0], set_vs[s[2], 1], set_vs[s[2], 2]]
+        ]
+        f = a3.art3d.Poly3DCollection([sq])
+        f.set_color(color)
+        f.set_edgecolor(edgecolor)
+        f.set_alpha(alpha)
+        f.set_linewidth(linewidth)
+        ax.add_collection3d(f)
+        ax.set_xlabel('X-axis')
+        ax.set_ylabel('Y-axis')
+        ax.set_zlabel('Z-axis')
+    if show:
+        plt.show()
+
+
+def plot_Mesh3D_Star(I, opacity=1.0,show=True):
+    vs = np.array(getVertices(I))
+    hull = ConvexHull(vs)
+    faces = hull.simplices
+    data=go.Mesh3d(
+        x = vs[:, 0],
+        y = vs[:, 1],
+        z = vs[:, 2],
+        colorbar_title='z',
+        colorscale=[[0, 'gold'],
+                    [0.5, 'mediumturquoise'],
+                    [1, 'magenta']],
+        # Intensity of each vertex, which will be interpolated and color-coded
+        intensity = np.linspace(0, 1, faces.shape[0], endpoint=True),
+        intensitymode='cell',
+        # i, j and k give the vertices of triangles
+        i = faces[:, 0],
+        j = faces[:, 1],
+        k = faces[:, 2],
+        opacity=opacity,
+        name='y',
+        showscale=True
+    )
+    if show:
+        fig = go.Figure(data=data)
+        fig.show()
+    else:
+        return data
+
+
+def plot_Mesh3D_Box(lb, ub, opacity=1.0, show=True):
+    assert isinstance(lb, np.ndarray), 'error: \
+    lower bound vector should be a 1D numpy array'
+    assert isinstance(ub, np.ndarray), 'error: \
+    upper bound vector should be a 1D numpy array'
+    assert len(lb.shape) == 1, 'error: \
+    lower bound vector should be a 1D numpy array'
+    assert len(ub.shape) == 1, 'error: \
+    upper bound vector should be a 1D numpy array'
+
+    lb = lb.reshape(lb.shape[0], 1)
+    ub = ub.reshape(ub.shape[0], 1)
+    V = []
+    for i in range(len(lb)):
+        V.append([lb[i], ub[i]])
+
+    vs = np.array(list(itertools.product(*V))).reshape(8,3)
+    data = go.Mesh3d(
+        # 8 vertices of a cube
+        x=vs[:, 0],
+        y=vs[:, 1],
+        z=vs[:, 2],
+        colorbar_title='z',
+        colorscale=[[0, 'gold'],
+                    [0.5, 'mediumturquoise'],
+                    [1, 'magenta']],
+        # Intensity of each vertex, which will be interpolated and color-coded
+        intensity = np.linspace(0, 1, 8, endpoint=True),
+        # i, j and k give the vertices of triangles
+        i=[0,0,0,0,0,0,7,7,7,7,7,7],
+        j=[1,1,2,2,4,4,1,1,2,2,4,4],
+        k=[3,5,3,6,5,6,3,5,3,6,5,6],
+        opacity=opacity,
+        name='y',
+        showscale=True
+    )
+    if show:
+        fig = go.Figure(data=data)
+        fig.show()
+    else:
+        return data
