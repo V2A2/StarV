@@ -360,11 +360,11 @@ class Conv2DLayer(object):
             output = sp.coo_array((input.data, (row, input.col)), shape = (mo*no*shape[2], input.shape[1]))
         return output, mo, no
 
-    def pad_csr(input, shape, padding, tocsc=False):
+    def pad_csr_via_coo(input, shape, padding, tocsc=False):
         output, mo, no = Conv2DLayer.pad_coo(input.tocoo(False), shape, padding, tocsc=False)
         return output.tocsr(False), mo, no
         
-    def pad_csr2(input, shape, padding):
+    def pad_csr(input, shape, padding):
         if len(padding) == 4:
             pad = np.array(padding)
         elif len(padding) == 2:
