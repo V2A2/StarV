@@ -587,7 +587,7 @@ class ProbStar(object):
 
         if b is not None:
             assert isinstance(b, np.ndarray), \
-            'error: \offset vector should be an 1D numpy array'
+            'error: offset vector should be an 1D numpy array'
             if A is not None:
                 assert A.shape[0] == b.shape[0], \
                 'error: inconsistency between mapping matrix and offset vector'

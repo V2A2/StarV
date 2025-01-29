@@ -41,3 +41,11 @@ class SatLinsLayer(object):
             raise Exception('error: under development')
         else:
             raise Exception('error: unknown reachability method')
+
+    def __str__(self):
+        print('Layer type: {}'.format(self.__class__.__name__))
+        print('')
+        return '\n'
+
+    def info(self):
+        print(self)

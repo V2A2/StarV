@@ -772,6 +772,33 @@ class Star(object):
         V[map, :] = 0.0
         return Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
     
+    def resetRowWithFactor(self, index, factor):
+        """Reset a row with index and factor
+        Author: Yuntao, Date: 6/22/2024
+        """
+
+        if index < 0 or index > self.dim - 1:
+            raise Exception('error: invalid index, \
+            should be between {} and {}'.format(0, self.dim - 1))
+        V = self.V
+        V[index, :] *= factor
+
+        return Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
+    
+    def resetRowWithUpdatedCenter(self, index, new_c):
+        """Reset a row with index, and with new center
+        Author: Yuntao, Date: 6/22/2024
+        """
+
+        if index < 0 or index > self.dim - 1:
+            raise Exception('error: invalid index, \
+            should be between {} and {}'.format(0, self.dim - 1))
+        V = self.V
+        V[index, :] = 0.0
+        V[index, 0] = new_c
+
+        return Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
+    
     def sample(self, N):
         """
         Sample N points in the feasible Star set.

@@ -52,6 +52,18 @@ class FullyConnectedLayer(object):
             self.in_dim = b.shape[0]
             self.out_dim = b.shape[0]
 
+    def __str__(self):
+        print('Layer type: {}'.format(self.__class__.__name__))
+        print('Weight matrix: {}'.format(self.W))
+        print('Bias vector: {}'.format(self.b))
+        print('Input dimension: {}'.format(self.in_dim))
+        print('Output dimension: {}'.format(self.out_dim))
+        print('')
+        return '\n'
+
+    def info(self):
+        print(self)
+
     def evaluate(self, x):
         """evaluation on an input vector/array x"""
 
@@ -112,8 +124,6 @@ class FullyConnectedLayer(object):
 
         """
 
-        pool = None
-        
         if isinstance(inputSet, list):
             S = []
             if pool is None:
