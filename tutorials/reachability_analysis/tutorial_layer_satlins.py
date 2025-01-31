@@ -99,7 +99,8 @@ def satlins_reachability_exact_parallel_star():
     plot_star(inputs)
 
     # Reachability analysis
-    pool = multiprocessing.Pool(2)
+    numCores = 2
+    pool = multiprocessing.Pool(numCores)
     outputs = L_sts.reach(inputs, method='exact', pool=pool)
     print('\nOutput sets (num of sets = {}):'.format(len(outputs)))
     for output in outputs:
@@ -167,7 +168,8 @@ def satlins_reachability_exact_parallel_probstar():
     plot_probstar(inputs)
 
     # Reachability analysis
-    pool = multiprocessing.Pool(2)
+    numCores = 2
+    pool = multiprocessing.Pool(numCores)
     outputs = L_sts.reach(inputs, method='exact', pool=pool)
     print('\nOutput sets (num of sets = {}):'.format(len(outputs)))
     for output in outputs:
@@ -182,9 +184,9 @@ if __name__ == "__main__":
     """
     Main function to run the SatLins layer tutorials
     """
-    # satlins_construct()
-    # satlins_evaluate_input_vector()
-    # satlins_reachability_exact_star()
+    satlins_construct()
+    satlins_evaluate_input_vector()
+    satlins_reachability_exact_star()
     # satlins_reachability_exact_parallel_star()
     satlins_reachability_exact_probstar()
     # satlins_reachability_exact_parallel_probstar()

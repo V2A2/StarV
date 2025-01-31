@@ -236,11 +236,11 @@ if __name__ == "__main__":
     """
     Main function to run the ReLU layer tutorials
     """
-    # relu_construct()
-    # relu_evaluate_input_vector()
-    # relu_reachability_exact_star()
-    # relu_reachability_exact_parallel_star()
-    # relu_reachability_approx_star()
-    # relu_reachability_relaxed_star()
-    # relu_reachability_exact_probstar()
+    relu_construct()
+    relu_evaluate_input_vector()
+    relu_reachability_exact_star()
+    relu_reachability_exact_parallel_star()
+    relu_reachability_approx_star()
+    relu_reachability_relaxed_star()
+    relu_reachability_exact_probstar()
     relu_reachability_exact_parallel_probstar()

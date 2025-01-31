@@ -182,9 +182,9 @@ if __name__ == "__main__":
     """
     Main function to run the SatLin layer tutorials
     """
-    # satlin_construct()
-    # satlin_evaluate_input_vector()
-    # satlin_reachability_exact_star()
+    satlin_construct()
+    satlin_evaluate_input_vector()
+    satlin_reachability_exact_star()
     # satlin_reachability_exact_parallel_star()
     satlin_reachability_exact_probstar()
     # satlin_reachability_exact_parallel_probstar()

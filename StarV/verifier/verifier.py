@@ -3,7 +3,7 @@ Main Verifier Class
 Dung Tran, 9/10/2022
 """
 
-from StarV.net.network import NeuralNetwork, reachExactBFS
+from StarV.net.network import NeuralNetwork, reachExactBFS, reachApproxBFS
 from StarV.set.probstar import ProbStar
 from StarV.set.star import Star
 from StarV.spec.dProbStarTL import Formula
@@ -357,6 +357,42 @@ def quantiVerifyMC(net, inputSet, unsafe_mat, unsafe_vec, numSamples=100000, nTi
         probSAT = probSAT/nTimes
 
     return probSAT
+
+
+def qualiVerifyExactBFS(net, inputSet, unsafe_mat, unsafe_vec, lp_solver='gurobi', numCores=1, show=True):
+    """Qualitative Verification of FFNN Networks using exact bread-first-search"""
+
+    if numCores > 1:
+        pool = multiprocessing.Pool(numCores)
+    else:
+        pool = None
+    S = reachExactBFS(net, inputSet, lp_solver, pool, show)  # output set
+    P = []  # unsafe output set
+
+    if pool is None:
+        for S1 in S:
+            P1 = checkSafetyStar(unsafe_mat, unsafe_vec, S1)
+            if isinstance(P1, Star):
+                P.append(P1)
+    else:
+        S1 = pool.map(checkSafetyStar, zip([unsafe_mat]*len(S), [unsafe_vec]*len(S), S))
+        pool.close()
+        for S2 in S1:
+            if isinstance(S2, Star):
+                P.append(S2)
+
+    return S, P
+
+def qualiVerifyApproxBFS(net, inputSet, unsafe_mat, unsafe_vec, lp_solver='gurobi', show=True):
+    """ Overapproximate qualitative verification of ReLU network"""
+
+    S = reachApproxBFS(net, inputSet, lp_solver, show)  # output set
+
+    P = checkSafetyStar(unsafe_mat, unsafe_vec, S)
+    if not isinstance(P, Star):
+        P = []
+
+    return S, P
 
 
 # def quantiVerifyProbStarTL(model, spec, timeStep, numSteps, X0=None, U=None):

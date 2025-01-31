@@ -30,6 +30,7 @@ import multiprocessing
 import itertools
 from collections import Counter
 
+
 class NeuralNetwork(object):
     """Generic serial Neural Network class
 
@@ -179,6 +180,7 @@ def reachExactBFS(net, inputSet, lp_solver='gurobi', pool=None, show=True):
     for i in range(0, net.n_layers):
         if show:
             print('Computing layer {} {} reachable set...'.format(i, net.layers[i].__class__.__name__))
+            # print('Computing layer {} reachable set...'.format(i))
         S = net.layers[i].reach(S, method='exact', lp_solver=lp_solver, pool=pool)
         if show:
             print('Number of stars/probstars: {}'.format(len(S)))
@@ -231,7 +233,7 @@ def reachApproxBFS(net, inputSet, p_filter=0.0, lp_solver='gurobi', pool=None, s
         for i in range(0, net.n_layers):
             if show:
                 print('Computing layer {} {} reachable set...'.format(i, net.layers[i].__class__.__name__))
-            print(net.layers[i])
+                # print('Computing layer {} reachable set...'.format(i))
             S = net.layers[i].reach(I, method='approx', lp_solver=lp_solver, pool=pool)
             I = S
             if show:

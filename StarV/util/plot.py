@@ -197,7 +197,7 @@ def plot_2D_Star(I, show=True, color='g'):
         plt.show()
     
 
-def plot_probstar(I, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g'):
+def plot_probstar(I, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g', font_size = 15):
     """Plot a star set in a specific direction
        y = dir_mat*x + dir_vec, x in I
     """
@@ -266,15 +266,15 @@ def plot_probstar(I, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$',
     else:
         raise Exception('error: first input should be a ProbStar or a list of ProbStar')
 
-    plt.xlabel(label[0], fontsize=13)
-    plt.ylabel(label[1], fontsize=13)
-    plt.xticks(fontsize=13)
-    plt.yticks(fontsize=13)
+    plt.xlabel(label[0], fontsize=font_size)
+    plt.ylabel(label[1], fontsize=font_size)
+    plt.xticks(fontsize=font_size)
+    plt.yticks(fontsize=font_size)
     if show:
         plt.show()
 
 
-def plot_probstar_signals(traces, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g'):
+def plot_probstar_signals(traces, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g', font_size = 13):
     """
     plot multiple probstar traces: traces = [T1, T2, T3, ..., Tn], Ti = k-steps trace [R1, R2, ..., Rk]
 
@@ -323,17 +323,17 @@ def plot_probstar_signals(traces, dir_mat=None, dir_vec=None, show_prob=True, la
     ax.set_xlim(Lm[0], Um[0])
     ax.set_ylim(Lm[1], Um[1])
 
-    plt.xlabel(label[0], fontsize=13)
-    plt.ylabel(label[1], fontsize=13)
-    plt.xticks(fontsize=13)
-    plt.yticks(fontsize=13)
+    plt.xlabel(label[0], fontsize=font_size)
+    plt.ylabel(label[1], fontsize=font_size)
+    plt.xticks(fontsize=font_size)
+    plt.yticks(fontsize=font_size)
     if show:
         plt.show()
 
    
 
 
-def plot_probstar_signal(trace,  dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g'):
+def plot_probstar_signal(trace,  dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g', font_size = 13):
     """
     plot a single probstar trace T = [R1, R2, ..., Rk]
 
@@ -378,10 +378,10 @@ def plot_probstar_signal(trace,  dir_mat=None, dir_vec=None, show_prob=True, lab
     ax.set_xlim(Lm[0], Um[0])
     ax.set_ylim(Lm[1], Um[1])
 
-    plt.xlabel(label[0], fontsize=13)
-    plt.ylabel(label[1], fontsize=13)
-    plt.xticks(fontsize=13)
-    plt.yticks(fontsize=13)
+    plt.xlabel(label[0], fontsize=font_size)
+    plt.ylabel(label[1], fontsize=font_size)
+    plt.xticks(fontsize=font_size)
+    plt.yticks(fontsize=font_size)
     if show:
         plt.show()
 
@@ -397,7 +397,7 @@ def plot_SAT_trace(sat_trace, dir_mat=None, dir_vec=None, show_prob=True, label=
 
     plot_probstar_signals(traces, dir_mat, dir_vec, show_prob, label, show, color)
 
-def plot_probstar_reachset(rs, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g'):
+def plot_probstar_reachset(rs, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g', font_size = 13):
     """
     plot reachable set rs = [R1, R2, ...,Rk], R1 = [R11, R12, ...]
     
@@ -435,15 +435,15 @@ def plot_probstar_reachset(rs, dir_mat=None, dir_vec=None, show_prob=True, label
     ax.set_xlim(Lm[0], Um[0])
     ax.set_ylim(Lm[1], Um[1])
 
-    plt.xlabel(label[0], fontsize=13)
-    plt.ylabel(label[1], fontsize=13)
-    plt.xticks(fontsize=13)
-    plt.yticks(fontsize=13)
+    plt.xlabel(label[0], fontsize=font_size)
+    plt.ylabel(label[1], fontsize=font_size)
+    plt.xticks(fontsize=font_size)
+    plt.yticks(fontsize=font_size)
     if show:
         plt.show()
 
 
-def plot_probstar_reachset_with_unsafeSpec(rs, unsafe_mat, unsafe_vec, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g'):
+def plot_probstar_reachset_with_unsafeSpec(rs, unsafe_mat, unsafe_vec, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g', font_size = 13):
 
     """
     plot reachable set rs = [R1, R2, ...,Rk], R1 = [R11, R12, ...] and Unsafe region U
@@ -543,16 +543,16 @@ def plot_probstar_reachset_with_unsafeSpec(rs, unsafe_mat, unsafe_vec, dir_mat=N
     ax.set_xlim(Lm[0], Um[0])
     ax.set_ylim(Lm[1], Um[1])
 
-    plt.xlabel(label[0], fontsize=13)
-    plt.ylabel(label[1], fontsize=13)
-    plt.xticks(fontsize=13)
-    plt.yticks(fontsize=13)
+    plt.xlabel(label[0], fontsize=font_size)
+    plt.ylabel(label[1], fontsize=font_size)
+    plt.xticks(fontsize=font_size)
+    plt.yticks(fontsize=font_size)
     if show:
         plt.show()
 
        
     
-def plot_star(I, dir_mat=None, dir_vec=None, label=('$y_1$', '$y_2$'), show=True, color='g'):
+def plot_star(I, dir_mat=None, dir_vec=None, label=('$y_1$', '$y_2$'), show=True, color='g', font_size = 15):
     """Plot a star set in a specific direction
        y = dir_mat*x + dir_vec, x in I
     """
@@ -608,10 +608,10 @@ def plot_star(I, dir_mat=None, dir_vec=None, label=('$y_1$', '$y_2$'), show=True
     else:
         raise Exception('error: first input should be a ProbStar or a list of ProbStar')
 
-    plt.xlabel(label[0], fontsize=13)
-    plt.ylabel(label[1], fontsize=13)
-    plt.xticks(fontsize=13)
-    plt.yticks(fontsize=13)
+    plt.xlabel(label[0], fontsize=font_size)
+    plt.ylabel(label[1], fontsize=font_size)
+    plt.xticks(fontsize=font_size)
+    plt.yticks(fontsize=font_size)
     if show:
         plt.show()
 
@@ -890,7 +890,7 @@ def plot_3D_Star_single(I, color='r',alpha=1.0, edgecolor='k', linewidth=1.0, sh
         plt.show()
 
 
-def plot_3D_Star(I, alpha=0.3, edgecolor='k', linewidth=1.0, show=True, qhull_option='Qt'):
+def plot_3D_Star(I, alpha=0.3, edgecolor='k', linewidth=1.0, show=True, qhull_option='Qt', font_size=15):
     """
     From https://github.com/Shaddadi/veritex/blob/master/veritex/utils/plot_poly.py
     eritex/veritex/utils/plot_poly.py 
@@ -903,8 +903,6 @@ def plot_3D_Star(I, alpha=0.3, edgecolor='k', linewidth=1.0, show=True, qhull_op
         edgecolor (str): Edge color
         Linewidth (float): Line width of edges
         qhull_option (str): Qhull options
-
-    - Yuntao Li: 1/16/2025
     """
     fig = plt.figure(figsize=(10, 5))
     ax = fig.add_subplot(111, projection='3d')
@@ -956,13 +954,14 @@ def plot_3D_Star(I, alpha=0.3, edgecolor='k', linewidth=1.0, show=True, qhull_op
             f.set_linewidth(linewidth)
             ax.add_collection3d(f)
     
-    ax.set_xlabel('$y_1$')
-    ax.set_ylabel('$y_2$')
-    ax.set_zlabel('$y_3$')
+    ax.set_xlabel('$y_1$', fontsize=font_size)
+    ax.set_ylabel('$y_2$', fontsize=font_size)
+    ax.set_zlabel('$y_3$', fontsize=font_size)
     ax.set_xlim(x_min, x_max)
     ax.set_ylim(y_min, y_max)
     ax.set_zlim(z_min, z_max)
-    
+    ax.tick_params(labelsize=font_size)
+
     if show:
         plt.show()
 
@@ -1037,3 +1036,344 @@ def plot_Mesh3D_Box(lb, ub, opacity=1.0, show=True):
         fig.show()
     else:
         return data
+
+
+def plot_probstar_distribution_test(I, dir_mat=None, dir_vec=None, show_prob=True, 
+                             label=('$y_1$', '$y_2$'), show=True, color='g', 
+                             numMeshPoints=100, zlabel='Probability Density', 
+                             cmap='viridis', font_size=15):
+    'plot a probstar distribution on a specific direction'
+
+    # references: for distribution transformation
+    # https://peterroelants.github.io/posts/multivariate-normal-primer/
+    # Dung Tran: 10/22/2024
+    # Updated:
+    #   - Sung Woo Choi: 01/16/2025
+    #   - Yuntao Li: 01/30/2025
+
+    # TO DO: neet to double check more cases
+
+    # Apply affine transformation if provided
+    I1 = I.affineMap(dir_mat, dir_vec) if (dir_mat is not None or dir_vec is not None) else I
+    
+    # Check dimensionality
+    if I1.dim > 2:
+        raise ValueError(f'Only 1D and 2D plots are supported; received ProbStar has {I1.dim} dimensions')
+    
+    # Create mesh grid from predicate domain
+    lb, ub = I1.pred_lb, I1.pred_ub
+    X = np.linspace(lb[0], ub[0], numMeshPoints)
+    Y = np.linspace(lb[1], ub[1], numMeshPoints)
+    X, Y = np.meshgrid(X, Y)
+    
+    # Create 3D array of points preserving grid structure
+    # pos = np.concatenate([X[:,:,None], Y[:,:,None]], axis=2)
+    pos = np.stack([X, Y], axis=2)
+    
+    # Check predicate constraints
+    if len(I1.C) > 0 and len(I1.d) > 0:
+        points_2d = pos.reshape(-1, 2)
+        constraints = np.matmul(I1.C, points_2d.T)
+        valid_mask = np.all(constraints <= I1.d[:, None], axis=0).reshape(X.shape)
+        pos = np.where(valid_mask[:,:,None], pos, np.nan)
+
+    # Transform points according to ProbStar definition
+    c = I1.V[:, 0]  # center
+    V = I1.V[:, 1:] # basis vectors
+    transformed_pos = np.einsum('pk,ijk->ijp', V, pos) + c[None,None,:]
+    
+    # Compute distribution parameters
+    new_mu = np.matmul(V, I1.mu) + c
+    new_Sig = np.matmul(np.matmul(V, I1.Sig), np.transpose(V))
+    
+    # Create and evaluate distribution
+    F = multivariate_normal(new_mu, new_Sig)
+    Z = F.pdf(transformed_pos)
+    
+    # Create plot
+    fig = plt.figure(figsize=(10, 5))
+    ax = fig.add_subplot(111, projection='3d')
+    
+    # Plot surface
+    surf = ax.plot_surface(transformed_pos[:,:,0], 
+                          transformed_pos[:,:,1], 
+                          Z, 
+                          cmap=cmap, 
+                          linewidth=0, 
+                          antialiased=True)
+    
+    # Set labels and title
+    ax.set_xlabel(label[0], fontsize=font_size)
+    ax.set_ylabel(label[1], fontsize=font_size)
+    ax.set_zlabel(zlabel, fontsize=font_size)
+    ax.tick_params(labelsize=font_size)
+
+    if show:
+        plt.show()
+
+
+def plot_probstar_contour_test(I, dir_mat=None, dir_vec=None, show_prob=True, 
+                         label=('$y_1$', '$y_2$'), show=True, color='g', 
+                         numMeshPoints=100, levels=10, cmap='viridis', font_size=15):
+    """
+    Plot a ProbStar contour using triangulation for irregular grid
+    """
+
+    # references: for distribution transformation
+    # https://peterroelants.github.io/posts/multivariate-normal-primer/
+    # Dung Tran: 10/22/2024
+    # Updated:
+    #   - Sung Woo Choi: 01/16/2025
+    #   - Yuntao Li: 01/30/2025
+
+    # TO DO: neet to double check more cases
+
+    # Apply affine transformation if provided
+    I1 = I.affineMap(dir_mat, dir_vec) if (dir_mat is not None or dir_vec is not None) else I
+    
+    # Check dimensionality
+    if I1.dim > 2:
+        raise ValueError(f'Only 1D and 2D plots are supported; received ProbStar has {I1.dim} dimensions')
+    
+    # Create mesh grid from predicate domain
+    lb, ub = I1.pred_lb, I1.pred_ub
+    X = np.linspace(lb[0], ub[0], numMeshPoints)
+    Y = np.linspace(lb[1], ub[1], numMeshPoints)
+    
+    X, Y = np.meshgrid(X, Y)
+    
+    pos = np.stack([X.ravel(), Y.ravel()], axis=1)
+
+    # Check predicate constraints
+    if len(I1.C) > 0 and len(I1.d) > 0:
+        constraints = np.matmul(I1.C, pos.T)
+        valid_mask = np.all(constraints <= I1.d[:, None], axis=0)
+        pos = pos[valid_mask]
+
+    # Transform points
+    c = I1.V[:, 0]  # center
+    V = I1.V[:, 1:] # basis vectors
+    transformed_pos = np.matmul(pos, V.T) + c
+    
+    # Compute distribution
+    new_mu = np.matmul(V, I1.mu) + c
+    new_Sig = np.matmul(np.matmul(V, I1.Sig), np.transpose(V))
+    
+    # Create and evaluate distribution
+    F = multivariate_normal(new_mu, new_Sig)
+    Z = F.pdf(transformed_pos)
+    
+    triang = Triangulation(transformed_pos[:,0], transformed_pos[:,1])
+    
+    fig, ax = plt.subplots()
+
+    # Plot filled contours using trangulation
+    contour = ax.tricontourf(triang, Z,
+                            levels=levels,
+                            cmap=cmap)
+    
+    # Add contour lines
+    ax.tricontour(triang, Z,
+                  levels=levels,
+                  colors='black',
+                  alpha=0.3,
+                  linewidths=0.5)
+    
+    # Set labels and title
+    ax.set_xlabel(label[0], fontsize=font_size)
+    ax.set_ylabel(label[1], fontsize=font_size)
+    ax.tick_params(labelsize=font_size)
+    # ax.set_title('ProbStar Contour')
+
+
+    prob = I1.estimateProbability()
+    lb, ub = I1.getRanges()
+    ax.text(0.5*(lb[0] + ub[0]), 0.5*(lb[1] + ub[1]), str(prob), color='red')
+    
+    if show:
+        plt.show()
+
+def plot_probstar_contour_general(I, dir_mat=None, dir_vec=None, show_prob=True, 
+                                label=('$y_1$', '$y_2$'), show=True, 
+                                numMeshPoints=100, levels=10, cmap='viridis', font_size=15):
+    """
+    Plot a ProbStar or list of ProbStars using contours in one figure
+
+    - Yuntao Li: 1/16/2025
+    """
+    fig, ax = plt.subplots()
+    
+    def plot_single_probstar(I1):
+        """Helper function to plot a single ProbStar contour"""
+        if I1.dim > 2:
+            raise ValueError('error: only 2D plot is supported')
+        if I1.isEmptySet():
+            return None, None
+            
+        # Create mesh grid from predicate domain
+        lb, ub = I1.pred_lb, I1.pred_ub
+        X = np.linspace(lb[0], ub[0], numMeshPoints)
+        Y = np.linspace(lb[1], ub[1], numMeshPoints)
+        X, Y = np.meshgrid(X, Y)
+        pos = np.stack([X.ravel(), Y.ravel()], axis=1)
+        
+        # Check predicate constraints
+        if I1.C.size > 0 and I1.d.size > 0:
+            constraints = np.matmul(I1.C, pos.T)
+            valid_mask = np.all(constraints <= I1.d[:, None], axis=0)
+            pos = pos[valid_mask]
+            
+        # Transform points
+        c = I1.V[:, 0]
+        V = I1.V[:, 1:]
+        transformed_pos = np.matmul(pos, V.T) + c
+        
+        # Compute distribution
+        new_mu = np.matmul(V, I1.mu) + c
+        new_Sig = np.matmul(np.matmul(V, I1.Sig), np.transpose(V))
+        F = multivariate_normal(new_mu, new_Sig)
+        Z = F.pdf(transformed_pos)
+        
+        # Plot contour
+        triang = Triangulation(transformed_pos[:,0], transformed_pos[:,1])
+        ax.tricontourf(triang, Z, levels=levels, cmap=cmap)
+        ax.tricontour(triang, Z, levels=levels, colors='black', alpha=0.3, linewidths=0.5)
+        
+        return I1.getRanges()
+    
+    # Handle different input types
+    if isinstance(I, ProbStar):
+        I1 = I.affineMap(dir_mat, dir_vec)
+        l, u = plot_single_probstar(I1)
+        if show_prob and l is not None:
+            prob = I1.estimateProbability()
+            ax.text(0.5*(l[0] + u[0]), 0.5*(l[1] + u[1]), str(prob), color='red')
+            ax.set_xlim(l[0], u[0])
+            ax.set_ylim(l[1], u[1])
+            
+    elif isinstance(I, list):
+        L = []
+        U = []
+        for i, probstar in enumerate(I):
+            I1 = probstar.affineMap(dir_mat, dir_vec)
+            l, u = plot_single_probstar(I1)
+            if l is not None:  # Not an empty set
+                if len(L) == 0:
+                    L = l
+                    U = u
+                else:
+                    L = np.vstack((L, l))
+                    U = np.vstack([U, u])
+                if show_prob:
+                    prob = I1.estimateProbability()
+                    ax.text(0.5*(l[0] + u[0]), 0.5*(l[1] + u[1]), str(prob), color='red')
+        
+        if len(L) > 0:  # If we have any valid sets
+            Lm = L.min(axis=0)
+            Um = U.max(axis=0)
+            ax.set_xlim(Lm[0], Um[0])
+            ax.set_ylim(Lm[1], Um[1])
+    
+    else:
+        raise ValueError('error: first input should be a ProbStar or a list of ProbStar')
+        
+    ax.set_xlabel(label[0], fontsize=font_size)
+    ax.set_ylabel(label[1], fontsize=font_size)
+    ax.tick_params(labelsize=font_size)
+
+    # # Add vertical line at y1 = 4
+    # ax.axvline(x=4, color='red', linestyle='--', linewidth=2)
+
+    # # Add 'unsafe condition' text
+    # ax.text(4.1, ax.get_ylim()[0] + 0.5*(ax.get_ylim()[1] - ax.get_ylim()[0]), 
+    #         'unsafe condition', 
+    #         rotation=90, 
+    #         color='red',
+    #         verticalalignment='center')
+    
+    if show:
+        plt.show()
+
+def plot_probstar_signal_contour(trace, dir_mat=None, dir_vec=None, show_prob=True, 
+                                label=('$y_1$', '$y_2$'), show=True, color='g',
+                                numMeshPoints=100, levels=10, cmap='viridis', font_size=15):
+    """
+    Plot a probstar trace as multiple contours in one figure
+
+    - Yuntao Li: 1/16/2025
+    """
+    assert isinstance(trace, list), 'error: reachable set should be a list'
+    
+    # Create figure once
+    fig, ax = plt.subplots()
+    L = []
+    U = []
+    cpx = []
+    cpy = []
+    
+    # Plot contour for each set in trace
+    for i, rs in enumerate(trace):
+        I = rs.affineMap(dir_mat, dir_vec) if (dir_mat is not None or dir_vec is not None) else rs
+        
+        if I.dim > 2:
+            raise ValueError('error: only 2D plot is supported')
+            
+        # Create mesh grid from predicate domain
+        lb, ub = I.pred_lb, I.pred_ub
+        X = np.linspace(lb[0], ub[0], numMeshPoints)
+        Y = np.linspace(lb[1], ub[1], numMeshPoints)
+        X, Y = np.meshgrid(X, Y)
+        pos = np.stack([X.ravel(), Y.ravel()], axis=1)
+        
+        # Check predicate constraints
+        if I.C.size > 0 and I.d.size > 0:
+            constraints = np.matmul(I.C, pos.T)
+            valid_mask = np.all(constraints <= I.d[:, None], axis=0)
+            pos = pos[valid_mask]
+            
+        # Transform points
+        c = I.V[:, 0]
+        V = I.V[:, 1:]
+        transformed_pos = np.matmul(pos, V.T) + c
+        
+        # Compute distribution
+        new_mu = np.matmul(V, I.mu) + c
+        new_Sig = np.matmul(np.matmul(V, I.Sig), np.transpose(V))
+        F = multivariate_normal(new_mu, new_Sig)
+        Z = F.pdf(transformed_pos)
+        
+        # Plot contour
+        triang = Triangulation(transformed_pos[:,0], transformed_pos[:,1])
+        contour = ax.tricontourf(triang, Z, levels=levels, cmap=cmap)
+        ax.tricontour(triang, Z, levels=levels, colors='black', alpha=0.3, linewidths=0.5)
+        
+        # Store ranges for plot limits
+        l, u = I.getRanges()
+        cpx.append(0.5*(l[0] + u[0]))
+        cpy.append(0.5*(l[1] + u[1]))
+        if i == 0:
+            L = l
+            U = u
+        else:
+            L = np.vstack((L, l))
+            U = np.vstack([U, u])
+            
+        # Add probability text if requested
+        if show_prob:
+            prob = I.estimateProbability()
+            ax.text(0.5*(l[0] + u[0]), 0.5*(l[1] + u[1]), str(prob), color='red', fontsize=15)
+    
+    # Plot center line
+    ax.plot(cpx, cpy, linewidth=1.5)
+    
+    # Set plot limits and labels
+    Lm = L.min(axis=0)
+    Um = U.max(axis=0)
+    ax.set_xlim(Lm[0], Um[0])
+    ax.set_ylim(Lm[1], Um[1])
+    ax.set_xlabel(label[0], fontsize=font_size)
+    ax.set_ylabel(label[1], fontsize=font_size)
+    ax.tick_params(labelsize=font_size)
+    
+    if show:
+        plt.show()

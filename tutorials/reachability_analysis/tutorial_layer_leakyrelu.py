@@ -137,7 +137,7 @@ def leakyrelu_reachability_exact_probstar():
     print('\nOutput sets (num of sets = {}):'.format(len(outputs)))
     for output in outputs:
         print(output)
-    plot_star(outputs)
+    plot_probstar(outputs)
     
     print('=============== DONE: Exact Reachability Analysis on LeakyReLU Layer using ProbStar =================')
     print('==========================================================================================\n\n')
@@ -184,7 +184,7 @@ if __name__ == "__main__":
     """
     leakyrelu_construct()
     leakyrelu_evaluate_input_vector()
-    leakyrelu_reachability_exact_star()
-    leakyrelu_reachability_exact_parallel_star()
+    # leakyrelu_reachability_exact_star()
+    # leakyrelu_reachability_exact_parallel_star()
     leakyrelu_reachability_exact_probstar()
-    leakyrelu_reachability_exact_parallel_probstar()
+    # leakyrelu_reachability_exact_parallel_probstar()

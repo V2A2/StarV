@@ -109,18 +109,18 @@ def fullyconnected_reachability_star():
     lb = np.array([-1.0, -1.0])
     ub = np.array([1.0, 1.0])
     S = Star(lb, ub)
-    inputs = [S]
-    print('\nInput sets (num of sets = {}):'.format(len(inputs)))
-    for input in inputs:
-        print(input)
-    plot_star(inputs)
+    I = [S]
+    print('\nInput (num of sets = {}):'.format(len(I)))
+    for I_i in I:
+        print(I_i)
+    plot_star(I)
 
     # Reachability analysis
-    outputs = L_fc.reach(inputs)
-    print('\nOutput sets (num of sets = {}):'.format(len(outputs)))
-    for output in outputs:
-        print(output)
-    plot_3D_Star(outputs, qhull_option='QJ')
+    R = L_fc.reach(I)
+    print('\nOutput (num of sets = {}):'.format(len(R)))
+    for R_i in R:
+        print(R_i)
+    plot_3D_Star(R, qhull_option='QJ')
 
     print('=============== DONE: Reachability Analysis on Fully Connected Layer using Star ==========')
     print('==========================================================================================\n\n')
@@ -144,19 +144,20 @@ def fullyconnected_reachability_parallel_star():
     S1 = Star(lb, ub)
     S2 = Star(lb+2, ub+2)
 
-    inputs = [S1, S2]
-    print('\nInput sets (num of sets = {}):'.format(len(inputs)))
-    for input in inputs:
-        print(input)
-    plot_star(inputs)
+    I = [S1, S2]
+    print('\nInput (num of sets = {}):'.format(len(I)))
+    for I_i in I:
+        print(I_i)
+    plot_star(I)
 
     # Reachability analysis
-    pool = multiprocessing.Pool(2)
-    outputs = L_fc.reach(inputs, pool=pool)
-    print('\nOutput sets (num of sets = {}):'.format(len(outputs)))
-    for output in outputs:
-        print(output)
-    plot_3D_Star(outputs, qhull_option='QJ')
+    numCores = 2
+    pool = multiprocessing.Pool(numCores)
+    R = L_fc.reach(I, pool=pool)
+    print('\nOutput (num of sets = {}):'.format(len(R)))
+    for R_i in R:
+        print(R_i)
+    plot_3D_Star(R, qhull_option='QJ')
 
     print('=============== DONE: Reachability Analysis on Fully Connected Layer with Parallel Computing using Star ==========')
     print('==========================================================================================\n\n')
@@ -182,20 +183,18 @@ def fullyconnected_reachability_probstar():
     pred_ub = np.ones(dim)
     P = ProbStar(mu, Sig, pred_lb, pred_ub) 
 
-    inputs = [P]
-    print('\nInput sets (num of sets = {}):'.format(len(inputs)))
-    for input in inputs:
-        print(input)
-    plot_probstar(inputs)
-    # plot_probstar_distribution(input)
-    # plot_probstar_contour(input)
+    I = [P]
+    print('\nInput (num of sets = {}):'.format(len(I)))
+    for I_i in I:
+        print(I_i)
+    # plot_probstar(I)
 
     # Reachability analysis
-    outputs = L_fc.reach(input)
-    print('\nOutput sets (num of sets = {}):'.format(len(outputs)))
-    for output in outputs:
-        print(output)
-    # plot_3D_Star(output, qhull_option='QJ')
+    R = L_fc.reach(I)
+    print('\nOutput (num of sets = {}):'.format(len(R)))
+    for R_i in R:
+        print(R_i)
+    # plot_3D_Star(R, qhull_option='QJ')
 
     print('=============== DONE: Reachability Analysis on Fully Connected Layer using ProbStar ==========')
     print('==========================================================================================\n\n')
@@ -222,21 +221,19 @@ def fullyconnected_reachability_parallel_probstar():
     P1 = ProbStar(mu, Sig, pred_lb, pred_ub)
     P2 = ProbStar(mu, Sig * 0.5, pred_lb * 2, pred_ub * 2)
 
-    inputs = [P1, P2]
-    print('\nInput sets (num of sets = {}):'.format(len(inputs)))
-    for input in inputs:
-        print(input)
-        # plot_probstar(input)
-        # plot_probstar_distribution(input)
-        # plot_probstar_contour(input)
-    plot_probstar(inputs)
+    I = [P1, P2]
+    print('\nInput (num of sets = {}):'.format(len(I)))
+    for I_i in I:
+        print(I_i)
+    # plot_probstar(I)
 
     # Reachability analysis
-    pool = multiprocessing.Pool(2)
-    outputs = L_fc.reach(inputs, pool=pool)
-    print('\nOutput sets (num of sets = {}):'.format(len(outputs)))
-    for output in outputs:
-        print(output)
+    numCores = 2
+    pool = multiprocessing.Pool(numCores)
+    R = L_fc.reach(I, pool=pool)
+    print('\nOutput (num of sets = {}):'.format(len(R)))
+    for R_i in R:
+        print(R_i)
         # plot_3D_Star(output, qhull_option='QJ')
 
     print('=============== DONE: Reachability Analysis on Fully Connected Layer with Parallel Computing using ProbStar ==========')
@@ -248,12 +245,12 @@ if __name__ == "__main__":
     Main function to run the fully connected layer tutorials.
     """
     fullyconnected_construct_with_weight_and_bias()
-    # fullyconnected_construct_with_random_weight_and_bias()
-    # fullyconnected_construct_with_torch_layer()
-    # # fullyconnected_evaluate_input_vector()
+    fullyconnected_construct_with_random_weight_and_bias()
+    fullyconnected_construct_with_torch_layer()
+    fullyconnected_evaluate_input_vector()
 
-    # fullyconnected_reachability_star()
+    fullyconnected_reachability_star()
     fullyconnected_reachability_parallel_star()
 
-    # fullyconnected_reachability_probstar()
-    # fullyconnected_reachability_parallel_probstar()
+    fullyconnected_reachability_probstar()
+    fullyconnected_reachability_parallel_probstar()
