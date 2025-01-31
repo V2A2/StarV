@@ -273,29 +273,33 @@ class SparseImageStar2DCOO(object):
                 'error: invalid number of input arguments (should be 0, 1, 2, 6)')
         
 
-    def __str__(self, toDense=False):
+    def __str__(self, to_dense=False, to_coo=False):
         print('SparseImageStar2DCOO Set:')
         if self.c is None:
-            print('V: {}'.format(self.V))
+            print(f'V_{self.V.getformat()}: {self.V}')
         else:
-            print('c: {}'.format(self.c))
-            if toDense:
-                print('V_{}: \n{}'.format(self.V.getformat(), self.V.todense()))
+            print(f'c: {self.c}')
+            if to_dense:
+                print(f'V_{self.V.getformat()}: \n{self.V.todense()}')
+            elif to_coo:
+                print(f'V_{self.V.getformat()}:\ndata: {self.V.data}\n row: {self.V.row}\n col: {self.V.col}')
             else:
-                print('V: \n{}'.format(self.V))
-        if toDense:
-            print('C_{}: \n{}'.format(self.C.getformat(), self.C.todense()))
+                print(f'V_{self.V.getformat()}: \n{self.V}')
+        if to_dense:
+            print(f'C_{self.C.getformat()}: \n{self.C.todense()}')
+        elif to_coo:
+            print(f'C_{self.C.getformat()}: \n{self.C}')
         else:
-            print('C: \n{}'.format(self.C))
-        print('d: {}'.format(self.d))
-        print('pred_lb: {}'.format(self.pred_lb))
-        print('pred_ub: {}'.format(self.pred_ub))
-        print('shape: {}'.format(self.shape))
-        print('num_pred: {}'.format(self.num_pred))
-        print('density: {}'.format(self.density()))
+            print(f'C_{self.C.getformat()}:\n   data: {self.C.data}\nindices: {self.C.indices}\n indptr: {self.C.indptr}')
+        print(f'd: {self.d}')
+        print(f'pred_lb: {self.pred_lb}')
+        print(f'pred_ub: {self.pred_ub}')
+        print(f'shape: {self.shape}')
+        print(f'num_pred: {self.num_pred}')
+        print(f'density: {self.density()}')
         if not isinstance(self.V, np.ndarray):
-            print('nnz: {}'.format(self.V.nnz))
-        print('')
+            print(f'nnz: {self.V.nnz}')
+        print()
         return ''
     
     def __repr__(self):
