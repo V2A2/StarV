@@ -45,9 +45,48 @@ class Verifier(object):
         pass
 
 
-def checkSafetyStar(unsafe_mat, unsafe_vec, S):
+def checkSafetyStar_error(unsafe_mat, unsafe_vec, S):
     """Intersect with unsafe region, can work in parallel"""
 
+    C = unsafe_mat
+    d = unsafe_vec
+    assert isinstance(C, np.ndarray), 'error: constraint matrix should be a numpy array'
+    assert isinstance(d, np.ndarray) and len(d.shape) == 1, 'error: constraint vector \
+    should be a 1D numpy array'
+    assert C.shape[0] == d.shape[0], 'error: inconsistency between constraint matrix and \
+    constraint vector'
+
+    P = copy.deepcopy(S)
+    v = np.matmul(C, P.V)
+    newC = v[:, 1:P.nVars+1]
+    newd = d - v[:,0]
+
+    if len(P.C) != 0:
+        P.C = np.vstack((newC, P.C))
+        P.d = np.concatenate([newd, P.d])
+    else:
+        if len(newC.shape) == 1:
+            P.C = newC.reshape(1, P.nVars)
+        else:
+            P.C = newC
+        P.d = newd
+
+    if P.isEmptySet():
+        P = []
+    return P
+
+
+def checkSafetyStar(*args):
+    """Intersect with unsafe region, can work in parallel"""
+
+    if isinstance(args[0], tuple):
+        args1 = args[0]
+    else:
+        args1 = args
+
+    unsafe_mat = args1[0]
+    unsafe_vec = args1[1]
+    S = args1[2]
     C = unsafe_mat
     d = unsafe_vec
     assert isinstance(C, np.ndarray), 'error: constraint matrix should be a numpy array'
@@ -368,31 +407,48 @@ def qualiVerifyExactBFS(net, inputSet, unsafe_mat, unsafe_vec, lp_solver='gurobi
         pool = None
     S = reachExactBFS(net, inputSet, lp_solver, pool, show)  # output set
     P = []  # unsafe output set
+    Res = [] # Verification result
 
     if pool is None:
         for S1 in S:
             P1 = checkSafetyStar(unsafe_mat, unsafe_vec, S1)
             if isinstance(P1, Star):
                 P.append(P1)
+                Res.append('SAT')
+            else:
+                Res.append('UNSAT')
     else:
         S1 = pool.map(checkSafetyStar, zip([unsafe_mat]*len(S), [unsafe_vec]*len(S), S))
         pool.close()
         for S2 in S1:
             if isinstance(S2, Star):
                 P.append(S2)
+                Res.append('SAT')
+            else:
+                Res.append('UNSAT')
 
-    return S, P
+    # obtain counterexample sets
+    C = []
+    if len(P) > 0:
+        for P1 in P:
+            C1 = Star(inputSet[0].V, P1.C, P1.d, P1.pred_lb, P1.pred_ub)
+            C.append(C1)
+
+    return S, P, C, Res
 
 def qualiVerifyApproxBFS(net, inputSet, unsafe_mat, unsafe_vec, lp_solver='gurobi', show=True):
     """ Overapproximate qualitative verification of ReLU network"""
 
-    S = reachApproxBFS(net, inputSet, lp_solver, show)  # output set
+    S = reachApproxBFS(net, inputSet, lp_solver=lp_solver, show=show)  # output set
 
     P = checkSafetyStar(unsafe_mat, unsafe_vec, S)
     if not isinstance(P, Star):
         P = []
+        Res = 'UNSAT'
+    else:
+        Res = 'UNKNOWN'
 
-    return S, P
+    return S, P, Res
 
 
 # def quantiVerifyProbStarTL(model, spec, timeStep, numSteps, X0=None, U=None):

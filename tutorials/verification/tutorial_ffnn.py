@@ -20,6 +20,7 @@ from StarV.layer.SatLinsLayer import SatLinsLayer
 from StarV.net.network import NeuralNetwork
 from StarV.net.network import reachExactBFS, reachApproxBFS
 from StarV.verifier.verifier import checkSafetyStar, checkSafetyProbStar
+from StarV.verifier.verifier import qualiVerifyExactBFS, qualiVerifyApproxBFS, quantiVerifyBFS
 from StarV.util.plot import plot_star, plot_probstar, plot_Mesh3D_Star, plot_3D_Star
 from StarV.util.plot import plot_probstar_distribution, plot_probstar_contour
 
@@ -209,7 +210,7 @@ def ffnn_manual_quali_verification_star():
     if isinstance(U_approx, Star):
         Res_approx = 'SAT'
     else:
-        Res_approx = 'UNSAT'
+        Res_approx = 'UNKOWN'
     print('Verification result: ', Res_approx)
 
 
@@ -222,8 +223,7 @@ def ffnn_auto_quali_verification_star():
     Perform qualitative verification on a feedforward neural network using Star sets automatically
     """
     print('==========================================================================================')
-    print('=============== EXAMPLE: Automatic Qualitative Verification on FFNN using Star ============')
-    # Construct a feedforward neural network
+    print('=============== EXAMPLE: Automatic Qualitative Verification on FFNN using Star ===========')
     # Construct a feedforward neural network
     layers = []
     W1 = np.array([[1.0, -2.0], [-1., 0.5], [1., 1.5]])
@@ -245,7 +245,35 @@ def ffnn_auto_quali_verification_star():
     S = Star(lb, ub)
     plot_star(S)
 
-    print('=============== DONE: Automatic Qualitative Verification on FFNN using Star ================')
+    # Specifying a property of an FFNN
+    # y1 <= -2
+    unsafe_mat = np.array([[1.0, 0]])
+    unsafe_vec = np.array([-2.0])
+
+    # Exact Verification
+    numCores = 2
+    I = [S]
+    R_exact, U_exact, C_exact, Res_exact = qualiVerifyExactBFS(F, I, unsafe_mat, unsafe_vec, numCores=numCores)
+    print('Number of Exact Reachable sets: ', len(R_exact))
+    print('Number of Exact Unsafe sets: ', len(U_exact))
+    print('Number of Counter Input sets: ', len(C_exact))
+    print('Verification result: ', Res_exact)
+    plot_star(R_exact)
+    plot_star(U_exact)
+    plot_star(C_exact)
+
+
+    # Over-approximate Verification
+    I = S
+    R_approx, U_approx, Res_approx = qualiVerifyApproxBFS(F, I, unsafe_mat, unsafe_vec)
+    print('Number of Over-approximate Reachable sets: ', len(R_approx))
+    print('Number of Over-approximate Unsafe sets: ', len(U_approx))
+    print('Verification result: ', Res_approx)
+    plot_star(R_approx)
+    plot_star(U_approx)
+
+
+    print('=============== DONE: Automatic Qualitative Verification on FFNN using Star ==============')
     print('==========================================================================================\n\n')
 
 
@@ -282,14 +310,15 @@ def ffnn_quanti_reachability_probstar():
     P = ProbStar(S.V, S.C, S.d, mu, Sig, S.pred_lb, S.pred_ub)
     plot_probstar(P)
 
-    # Exact Reachability analysis
     # ----- Parallelized version -----
     numCores = 2
     pool = multiprocessing.Pool(numCores)
     # ----- Single-core version -----
     # pool = None
+
+    # Exact Reachability analysis
     I = [P]
-    R_exact = reachExactBFS(F, I, lp_solver='gurobi', pool=pool, show=True)
+    R_exact = reachExactBFS(F, I, lp_solver='gurobi', pool=pool, show=False)
     print('Number of Exact Reachable sets: ', len(R_exact))
     plot_probstar(R_exact)
 
@@ -303,19 +332,82 @@ def ffnn_quanti_reachability_probstar():
     print('==========================================================================================\n\n')
 
 
+def ffnn_auto_quanti_verification_probstar():
+    """
+    Perform quantitative verification on a feedforward neural network using ProbStar sets automatically
+    """
+    print('==========================================================================================')
+    print('=============== EXAMPLE: Automatic Quantitative Verification on FFNN using ProbStar =======')
+    
+    # Construct a feedforward neural network
+    layers = []
+    W1 = np.array([[1.0, -2.0], [-1., 0.5], [1., 1.5]])
+    b1 = np.array([0.5, 1.0, -0.5])
+    layer1 = [W1, b1]
+    L1 = FullyConnectedLayer(layer1)
+    L2 = ReLULayer()
+    W2 = np.array([[-1.0, -1.0, 1.0], [2.0, 1.0, -0.5]])
+    b2 = np.array([-0.2, -1.0])
+    layer2 = [W2, b2]
+    L3 = FullyConnectedLayer(layer2)
+    
+    layers = [L1, L2, L3]
+    F = NeuralNetwork(layers, 'ffnn_tiny_network')
 
+    # Construct input set
+    lb = np.array([-2.0, -1.0])
+    ub = np.array([2.0, 1.0])
+    S = Star(lb, ub)
+    mu = 0.5*(S.pred_lb + S.pred_ub)
+    a = 2.5 # coefficience to adjust the distribution
+    sig = (mu - S.pred_lb)/a
+    Sig = np.diag(np.square(sig))
+    P = ProbStar(S.V, S.C, S.d, mu, Sig, S.pred_lb, S.pred_ub)
+    plot_probstar(P)
 
+    # Specifying a property of an FFNN
+    # y1 <= -2
+    unsafe_mat = np.array([[1.0, 0]])
+    unsafe_vec = np.array([-2.0])
+
+    # number of cores
+    numCores = 2
+
+    I = [P]
+
+    # Exact Verification
+    R_exact, U_exact, C_exact, _, _, _, _ = quantiVerifyBFS(F, I, unsafe_mat, unsafe_vec, p_filter=0.0, numCores=numCores, show=False)
+    print('Number of Exact Reachable sets: ', len(R_exact))
+    print('Number of Exact Unsafe sets: ', len(U_exact))
+    print('Number of Counter Input sets: ', len(C_exact))
+    plot_probstar(R_exact)
+    plot_probstar(U_exact)
+    plot_probstar(C_exact)
+
+    # Over-approximate Verification
+    R_approx, U_approx, C_approx, _, _, _, _ = quantiVerifyBFS(F, I, unsafe_mat, unsafe_vec, p_filter=0.1, numCores=numCores, show=True)
+    print('Number of Over-approximate Reachable sets: ', len(R_approx))
+    print('Number of Over-approximate Unsafe sets: ', len(U_approx))
+    print('Number of Counter Input sets: ', len(C_approx))
+    plot_probstar(R_approx)
+    plot_probstar(U_approx)
+    plot_probstar(C_approx)
+
+    print('=============== DONE: Automatic Quantitative Verification on FFNN using ProbStar ==========')
+    print('==========================================================================================\n\n')
 
 if __name__ == '__main__':
     """
     Main function to run the FFNN tutorials
     """
-    # ffnn_construct_manually()
+    ffnn_construct_manually()
 
-    # ffnn_evaluate_input_vector()
-    # ffnn_quali_reachability_star()
-    # ffnn_quali_verification_star()
+    ffnn_evaluate_input_vector()
     
-
+    ffnn_quali_reachability_star()
+    ffnn_manual_quali_verification_star()
+    ffnn_auto_quali_verification_star()
+    
     ffnn_quanti_reachability_probstar()
+    ffnn_auto_quanti_verification_probstar()
 
