@@ -1,5 +1,5 @@
 """
-IdentityXIdentity Class (x * y, where x \in X, y \in Y, X and Y are star sets)
+IdentityXIdentity Class (x * y, where x in X, y in Y, X and Y are star sets)
 Sung Woo Choi, 06/18/2023
 
 """

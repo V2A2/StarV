@@ -169,7 +169,41 @@ def probstar_get_ranges():
     print('Optimized ranges for all dimensions:')
     print(f'Optimized lower state bounds (x_mins) = {x_mins}')
     print(f'Optimized upper state bounds (x_maxs) = {x_maxs}')
+    
 
+def probstar_minkowski_sum():
+    dim = 2
+    
+    mu = np.zeros(dim)
+    Sig = np.diag([0.1, 0.08])
+    pred_lb = -np.ones(dim)
+    pred_ub = np.ones(dim)
+    
+    # Create first ProbStar set
+    P1 = ProbStar(mu, Sig, pred_lb, pred_ub) 
+    
+    center = np.zeros([dim, 1])
+    basis_matrix = np.array([[0.5, 0.5], [-0.5, 0.5]])
+    V = np.concatenate([center, basis_matrix], axis=1)
+    
+    C = []
+    d = []
+    
+    mu = np.zeros(dim)
+    Sig = np.diag([0.05, 0.1])
+    pred_lb = -np.ones(dim)
+    pred_ub = 2*np.ones(dim)
+
+    # Create second ProbStar set
+    P2 = ProbStar(V, C, d, mu, Sig, pred_lb, pred_ub)
+    
+    # Minkowski sum of two ProbStar sets
+    P = P1.minKowskiSum(P2)
+    
+    plot_probstar(P1)
+    plot_probstar(P2)
+    plot_probstar(P)
+    
 if __name__ == "__main__":
     probstar_construct_with_bounded_gaussian_distribution()
     probstar_construct()
@@ -177,3 +211,4 @@ if __name__ == "__main__":
     probstar_estimate_range()
     probstar_estimate_ranges()
     probstar_get_ranges()
+    probstar_minkowski_sum()

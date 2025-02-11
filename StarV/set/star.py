@@ -537,7 +537,7 @@ class Star(object):
             x1 = c1 + V1 a1 in S1 (self) with P(a1) := C1 a1 <= d1
             x2 = c2 + V2 a2 in S2 (S)    with P(a2) := C2 a2 <= d2
 
-            x = x1 \cap x2
+            x = x1 \\cap x2
               = c1 + V1 a1 + 0 a2        with P'(a) = P'([a1, a2])
               = c2 + V2 a2 + 0 a1        with P'(a) = P'([a1, a2]),
             where

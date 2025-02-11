@@ -180,7 +180,6 @@ def reachExactBFS(net, inputSet, lp_solver='gurobi', pool=None, show=True):
     for i in range(0, net.n_layers):
         if show:
             print('Computing layer {} {} reachable set...'.format(i, net.layers[i].__class__.__name__))
-            # print('Computing layer {} reachable set...'.format(i))
         S = net.layers[i].reach(S, method='exact', lp_solver=lp_solver, pool=pool)
         if show:
             print('Number of stars/probstars: {}'.format(len(S)))
@@ -240,17 +239,3 @@ def reachApproxBFS(net, inputSet, p_filter=0.0, lp_solver='gurobi', pool=None, s
                 print('Number of stars: {}'.format(len(S)))
         return S
 
-
-# def reach_exact_bfs_star_relu(net: NeuralNetwork, inputSet: List[Star], method = 'exact',
-#                   lp_solver: str = 'gurobi', pool: Optional[multiprocessing.Pool] = None, 
-#                   show: bool = True) -> List[Union[Star, ProbStar]]:
-#     """Compute Reachable Set layer-by-layer"""
-#     # S = [star.clone() for star in inputSet]
-#     S = copy.deepcopy(inputSet)
-#     for i, layer in enumerate(net.layers):
-#         if show:
-#             print(f'Computing layer {i} reachable set...')
-#         S = layer.reach(S, method, lp_solver=lp_solver, pool=pool)
-#         if show:
-#             print(f'Number of stars: {len(S)}\n')
-#     return S

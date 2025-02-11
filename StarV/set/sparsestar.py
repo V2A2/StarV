@@ -619,7 +619,7 @@ class SparseStar(object):
         """Get the lower and upper bound vectors of the state
             Args:
                 lp_solver: linear programming solver. e.g.: 'gurobi', 'estimate', 'linprog'
-                RF: relaxation factor \in [0.0, 1.0]
+                RF: relaxation factor in [0.0, 1.0]
         """
         
         if RF == 1.0:

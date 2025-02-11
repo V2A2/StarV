@@ -1,5 +1,5 @@
 """
-logsigXidentity Class (logsig(x) * y, where x \in X, y \in Y, X and Y are star sets)
+logsigXidentity Class (logsig(x) * y, where x in X, y in Y, X and Y are star sets)
 Sung Woo Choi, 08/02/2023
 
 """
