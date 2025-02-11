@@ -13,8 +13,8 @@ class LeakyReLULayer(object):
     """
 
     @staticmethod
-    def evaluate(x):
-        return LeakyReLU.evaluate(x)
+    def evaluate(x, gamma = 0.1):
+        return LeakyReLU.evaluate(x, gamma)
     
     
     @staticmethod
@@ -42,3 +42,11 @@ class LeakyReLULayer(object):
             raise Exception('error: under development')
         else:
             raise Exception('error: unknown reachability method')
+
+    def __str__(self):
+        print('Layer type: {}'.format(self.__class__.__name__))
+        print('')
+        return '\n'
+
+    def info(self):
+        print(self)

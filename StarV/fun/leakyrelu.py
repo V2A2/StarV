@@ -59,7 +59,7 @@ class LeakyReLU:
             raise Exception('error: \
             Invalid number of input arguments, should be 3 or 4')
 
-        if not isinstance(I, ProbStar) and not isinstance(In, Star):
+        if not isinstance(I, ProbStar) and not isinstance(I, Star):
             raise Exception('error: input is not a Star or ProbStar set, \
             type of input = {}'.format(type(I)))
 

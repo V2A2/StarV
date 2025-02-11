@@ -348,6 +348,9 @@ class ImageStar(object):
         else:
             raise Exception('Basis image dimension issue')    
         
+    def shape(self):
+        return self.height, self.width, self.num_channel     
+        
     def clone(self):
         return copy.deepcopy(self)
                 

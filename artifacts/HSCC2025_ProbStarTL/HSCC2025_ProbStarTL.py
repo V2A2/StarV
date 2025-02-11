@@ -450,7 +450,7 @@ def analyze_conservativeness():
     plt.legend(fontsize=13)
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     plt.savefig(path+"/Figure_2a__conservertiveness_vs_numSteps.png", bbox_inches='tight')  # save figure
-    plt.show()
+    # plt.show()
 
     plt.figure()
     ax = plt.figure().gca()
@@ -464,7 +464,7 @@ def analyze_conservativeness():
     plt.legend(fontsize=13)
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     plt.savefig(path+"/Figure_2b__constitution_vs_numSteps.png", bbox_inches='tight')  # save figure
-    plt.show()
+    # plt.show()
 
 def analyze_verification_complexity():
     'analyze verification complexity, figures are generated and stored in artifacts/HSCC2025_ProbStarTL/pics'
@@ -607,7 +607,7 @@ def analyze_verification_complexity_2():
     ax.legend()
     ax.yaxis.set_major_locator(MaxNLocator(integer=True))
     plt.savefig(path+"/Figure_4b__ncdnfs_vs_T.png", bbox_inches='tight')  # save figure
-    plt.show()
+    # plt.show()
 
     
 def analyze_verification_complexity_3():
