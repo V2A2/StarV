@@ -843,7 +843,7 @@ def generate_exact_reachset_figs_AEBS():
         plt.figure()
         plot_probstar_reachset_with_unsafeSpec(X, unsafe_mat, unsafe_vec, dir_mat=dir_mat1, dir_vec=dir_vec1, show_prob=False, \
                                label=('$d$','$v_{ego}$'), show=False, color='g')
-        plt.savefig(path+"/Figure_6__d_vs_vego_init_{}.png".format(i), bbox_inches='tight')  # save figure
+        plt.savefig(path+"/Figure_6_{}__d_vs_vego_init_{}.png".format(chr(i+97), i), bbox_inches='tight')  # save figure
         # plt.show()
 
 
