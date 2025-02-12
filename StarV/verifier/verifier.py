@@ -45,37 +45,6 @@ class Verifier(object):
         pass
 
 
-def checkSafetyStar_error(unsafe_mat, unsafe_vec, S):
-    """Intersect with unsafe region, can work in parallel"""
-
-    C = unsafe_mat
-    d = unsafe_vec
-    assert isinstance(C, np.ndarray), 'error: constraint matrix should be a numpy array'
-    assert isinstance(d, np.ndarray) and len(d.shape) == 1, 'error: constraint vector \
-    should be a 1D numpy array'
-    assert C.shape[0] == d.shape[0], 'error: inconsistency between constraint matrix and \
-    constraint vector'
-
-    P = copy.deepcopy(S)
-    v = np.matmul(C, P.V)
-    newC = v[:, 1:P.nVars+1]
-    newd = d - v[:,0]
-
-    if len(P.C) != 0:
-        P.C = np.vstack((newC, P.C))
-        P.d = np.concatenate([newd, P.d])
-    else:
-        if len(newC.shape) == 1:
-            P.C = newC.reshape(1, P.nVars)
-        else:
-            P.C = newC
-        P.d = newd
-
-    if P.isEmptySet():
-        P = []
-    return P
-
-
 def checkSafetyStar(*args):
     """Intersect with unsafe region, can work in parallel"""
 
