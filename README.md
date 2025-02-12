@@ -2,7 +2,7 @@
 
 Event-driven Monitoring and Verification Codesign for Distributed Learning-enabled Cyber-Physical Systems with Star Reachability
 
-* Operating System: Ubuntu 20, 22. `<!-- - RAM: at least 64 GB -->`
+* Operating System: Ubuntu 20, 22. <!-- - RAM: at least 64 GB -->
 * Python version: 3.8+
 * Dependencies: gurobipy, glpk, polytope, pypoman, tabulate, mathplotlib, numpy, scipy, ipyparallel, torchvision, plotly, onnx, onnx2pytorch, onnxruntime, scikit-learn
 * Key features:
