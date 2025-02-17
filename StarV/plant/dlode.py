@@ -69,7 +69,7 @@ class DLODE(object):
         else:
             self.plant = dlti(A, B1, self.C, D)
 
-    def info(self):
+    def __str__(self):
         """Print information of the system"""
 
         print('\n========= DLODE ==========\n')
@@ -81,6 +81,13 @@ class DLODE(object):
 
         print('\n Number of inputs: {}'.format(self.nI))
         print('\n Number of outputs: {}'.format(self.nO))
+        print('')
+        return '\n'
+
+
+    def info(self):
+        print(self)
+
 
     def stepResponse(self, x0=None, t=None, n=None):
 
