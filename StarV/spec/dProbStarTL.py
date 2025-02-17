@@ -1161,7 +1161,7 @@ class DynamicFormula(object):
                 p_SAT_MIN = p_SAT_MAX 
 
 
-        return SAT, p_SAT_MAX, p_SAT_MIN
+        return SAT, p_SAT_MAX, p_SAT_MIN, cdnf.length
 
 
     def evaluate2(self, probstar_sig, n_max):

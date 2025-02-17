@@ -1082,12 +1082,12 @@ def load_mcs_model():
     cur_path = cur_path + '/data/lodes/mcs.mat' 
     mat_contents = loadmat(cur_path)
     A = mat_contents['A']
-    mat_contents = loadmat(cur_path)
-    A = mat_contents['A']
     B = mat_contents['B']
+    C = mat_contents['C']
     A = convert_to_numpy(A)
     B = convert_to_numpy(B)
-    plant = LODE(A, B)
+    C = convert_to_numpy(C)
+    plant = LODE(A, B,C)
     return plant
 
 
@@ -1119,11 +1119,6 @@ def load_beam_model():
 
     plant = LODE(A, B, C)
     return plant
-
-    # C = mat_contents['C']
-    # C = convert_to_numpy(C)
-    # plant = LODE(A, B, C)
-    # return plant
 
 
 def load_pde_model():
