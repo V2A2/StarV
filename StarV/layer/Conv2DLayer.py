@@ -110,8 +110,8 @@ class Conv2DLayer(object):
                 raise Exception('error: kernel weight should be a 2D, 3D, or 4D numpy array')
 
             # kernel weight in shape (kernel_height, kernel_width, ch_in, ch_out)
-            self.in_channel = kernel_weight.shape[1]
-            self.out_channel = kernel_weight.shape[0]
+            self.in_channel = kernel_weight.shape[-2]
+            self.out_channel = kernel_weight.shape[-1]
 
             if kernel_bias is not None:
                 assert isinstance(kernel_bias, np.ndarray) and kernel_bias.ndim == 1, \
@@ -209,8 +209,8 @@ class Conv2DLayer(object):
         elif isinstance(layer, torch.nn.Conv2d):
 
             # kernel weight in shape (ch_out, ch_in, kernel_height, kernel_width)
-            self.in_channel = layer.weight.shape[0]
-            self.out_channel = layer.weight.shape[1]
+            self.in_channel = layer.weight.shape[-2]
+            self.out_channel = layer.weight.shape[-1]
             
             self.stride = np.array(layer.stride)
             padding = np.array(layer.padding)
@@ -338,6 +338,18 @@ class Conv2DLayer(object):
         else:
             print('bias: {}'.format(self.bias))
         return ''
+    
+    def info(self):
+        print(self)
+        
+    @staticmethod
+    def rand(height, width, in_channels,  out_channels):
+        """ Random generate a FullyConnectedLayer"""
+
+        W = np.random.rand(height, width, in_channels,  out_channels)
+        b = np.random.rand(out_channels)
+
+        return Conv2DLayer(layer=[W, b])
 
     def pad_coo(input, shape, padding, tocsc=False):
         if len(padding) == 4:

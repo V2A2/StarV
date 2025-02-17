@@ -124,8 +124,11 @@ class MaxPool2DLayer(object):
             mo, no = MaxPool2DLayer.get_output_size(m, n, self.kernel_size, stride, padding)
             self.in_shape = in_shape
             self.out_shape = (mo, no, c)
+            
+        else:
+            self.in_shape = None
 
-    def info(self):
+    def __str__(self):
         print('Max Pooling 2D Layer')
         print('module: {}'.format(self.module))
         print('kernel size: {}'.format(self.kernel_size))
@@ -135,6 +138,9 @@ class MaxPool2DLayer(object):
             print('in_shape: ', self.in_shape)
             print('out_shape: ', self.out_shape)
         return '\n'
+    
+    def info(self):
+        print(self)
     
     def pad_coo(input, shape, padding, tocsr=False):
         row = input.row + (input.row // (shape[1]*shape[2])) * 2 * padding[1] * shape[2]
@@ -570,9 +576,6 @@ class MaxPool2DLayer(object):
 
         # get local maximum points in the feature maps
         # max_indexes = MaxPool2DLayer.get_localMax_multi_index(I, state_lb[ind], state_ub[ind], ind, lp_solver)
-
-
-
 
 
         for i in range(mo):

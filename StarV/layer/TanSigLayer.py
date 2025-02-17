@@ -39,3 +39,11 @@ class TanSigLayer(object):
         elif method == 'approx':
             return TanSig.reach(I=In, opt=self.opt, delta=self.delta, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
         raise Exception('error: unknown reachability method')
+
+    def __str__(self):
+        print('Layer type: {}'.format(self.__class__.__name__))
+        print('')
+        return '\n'
+
+    def info(self):
+        print(self)

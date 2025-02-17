@@ -61,7 +61,7 @@ class SparseStar(object):
             'error: basis matrix should be a 2D numpy array'
 
             if len(d) > 0:
-                assert isinstance(C, sp.csc_matrix), \
+                assert isinstance(C, sp.csc_array) or isinstance(C, sp.csc_matrix), \
                 'error: constraint matrix should be a 2D scipy sparse csc matrix'
                 assert isinstance(d, np.ndarray), \
                 'error: constraint vector should be a 1D numpy array'
@@ -248,7 +248,7 @@ class SparseStar(object):
     def __repr__(self):
         print('SparseStar Set:')
         print('A: {}'.format(self.A.shape))
-        print('C: {}'.format(self.C.shape))
+        print('C_{}: {}'.format(self.C.getformat(), self.C.shape))
         print('d: {}'.format(self.d.shape))
         print('pred_lb: {}'.format(self.pred_lb.shape))
         print('pred_ub: {}'.format(self.pred_ub.shape))
@@ -859,9 +859,9 @@ class SparseStar(object):
     def toStar(self):
         """Converts sparse star set into star set"""
         if len(self.d) > 0:
-            return Star(np.column_stack((self.c(), self.V())), self.C.todense(), self.d, self.pred_lb, self.pred_ub)
+            return Star(np.column_stack((self.c(), self.V())), self.C.toarray(), self.d, self.pred_lb, self.pred_ub)
         else:
-            return Star(np.column_stack((self.c(), self.V())), np.array([]), self.d, self.pred_lb, self.pred_ub)
+            return Star(np.column_stack((self.c(), self.V())), np.empty([0, self.nVars]), self.d, self.pred_lb, self.pred_ub)
 
     def contains(self, s):
         """ Check if a Star set contains a point.

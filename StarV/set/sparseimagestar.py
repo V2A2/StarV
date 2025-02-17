@@ -4,7 +4,6 @@ Sung Woo Choi, 11/28/2023
 
 """
 
-# !/usr/bin/python3
 import copy
 import torch
 import numpy as np

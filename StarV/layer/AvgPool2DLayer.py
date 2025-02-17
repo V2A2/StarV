@@ -116,6 +116,9 @@ class AvgPool2DLayer(object):
         print('stride: {}'.format(self.stride))
         print('padding: {}'.format(self.padding))
         return '\n'
+    
+    def info(self):
+        print(self)
 
     def pad_coo(input, shape, padding, tocsr=False):
         row = input.row + (input.row // (shape[1]*shape[2])) * 2 * padding[1] * shape[2]
