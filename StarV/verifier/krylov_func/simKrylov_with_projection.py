@@ -33,6 +33,7 @@ def simKrylov(A,x0,m,h, N, V, H):
     X = []
     
     # Compute expm(H0) which is the initial step 0.
+
     H0 = 0 * -h * H # the initial step
     expm_H0 = expm(H0)
     e1 = expm_H0[:, 0]  # e{At} * e1
@@ -48,7 +49,7 @@ def simKrylov(A,x0,m,h, N, V, H):
     X.append(a)
     
     # Start simulation from step 2 to N
-    print("==========Start simKrylov===========")
+    # print("==========Start simKrylov===========")
     for i in range(2, N + 1):
         e1 = np.dot(expm_H1, e1)  # Update state
         X.append(np.dot(V, e1)) 
@@ -82,10 +83,10 @@ def sim_with_error(A,x0,h,N,m,samples,tolerance,error_limit=None,projection_mat 
     if H.shape[0] <= m: # handle early ternimation situation, run without error limit
         error = 0
         m = H.shape[0]-1
-        print ("The Hm_norm calculate in iteration is ever less than tolerance, iteration terminated early (after {} iterations), approximation is exact without error limit.".format(m))
+        # print ("The Hm_norm calculate in iteration is ever less than tolerance, iteration terminated early (after {} iterations), approximation is exact without error limit.".format(m))
     elif error_limit is not None:
         error = compute_posteriori_error(A,H_square,h,N,samples,compute_error = True,use_arnoldi=use_arnoldi)
-        print("compute_posterio_error is:",error)
+        # print("compute_posterio_error is:",error)
 
     if error_limit is None or error < error_limit:
         if error_limit is not None:
@@ -94,8 +95,8 @@ def sim_with_error(A,x0,h,N,m,samples,tolerance,error_limit=None,projection_mat 
             print ("error limit is None: (1) ternimate early (2) m >= n, run whole  iterations with {} iterations".format(m,m))
         X = simKrylov(A,x0,m,h,N,V_square,H_square)
     else:
-        print("error_limit is : {}".format(error_limit))
-        print("error_limit is not None, compute_posteriori_error({}) >= error_limit({}), X return None, need to increase current arnoldi iterations  {}".format(error,error_limit,m))
+        # print("error_limit is : {}".format(error_limit))
+        # print("error_limit is not None, compute_posteriori_error({}) >= error_limit({}), X return None, need to increase current arnoldi iterations  {}".format(error,error_limit,m))
         X = None
 
     return X, m, krylov_time_duration
@@ -113,14 +114,14 @@ def sim_autotune(krylov_time,A,x0,h,N,m,samples,tolerance,target_error=None,proj
         error_limit = target_error if m < n else None
 
         X, m, krylov_time_duration = sim_with_error(A,x0,h,N,m,samples,tolerance,error_limit = error_limit,projection_mat = projection_mat,use_arnoldi = use_arnoldi)
-        print("current iterations is {}".format(m))
+        # print("current iterations is {}".format(m))
         krylov_time += krylov_time_duration
 
         if X is None:
-            print("increase iterations from {} to {} by multiplying 1.5 ".format(m,int(np.ceil(1.5 * m))))
+            # print("increase iterations from {} to {} by multiplying 1.5 ".format(m,int(np.ceil(1.5 * m))))
             m = int(np.ceil(1.5 * m))
             if m >= n:
-                print("increased interation m >= n, set m = n")
+                # print("increased interation m >= n, set m = n")
                 m = n
          
         else:
@@ -147,11 +148,11 @@ def simReachKrylov(A, X0_star, h, N,m,samples,tolerance,target_error=None, initi
     """
 
     if use_init_space == True:
-        print("---------------using init sapce as basic vectors, use output space as projection mat ----------------")
+        # print("---------------using init sapce as basic vectors, use output space as projection mat ----------------")
         basis_vec = initial_space
         projection_mat= output_space
     else: 
-        print("----------------using output sapce as basic vectors, use initial sapce as projection mat --------------") # transpose dynamics property
+        # print("----------------using output sapce as basic vectors, use initial sapce as projection mat --------------") # transpose dynamics property
         basis_vec = output_space.T # using O.T
         projection_mat = initial_space.T # using I.T
         A = A.T # using A.T

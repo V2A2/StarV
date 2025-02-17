@@ -127,7 +127,7 @@ conda activate starv
 conda deactivate
 ```
 
-**Install StarV as a local Python package:** while installing StarV package, it will install all Python dependency packages listed in the requirement.txt.
+**Install StarV as a local Python package:** while installing StarV package, it will install all Python dependency packages listed in the requirement.txt. Run the following command at the ``/StarV`` **root repository**:
 
 ```bash
 # activate the environment
@@ -159,8 +159,8 @@ scikit-learn
 
 ### Option 2: Running with Docker
 
-Acquire Gurobi Web License Service (WLS) license from https://www.gurobi.com/features/web-license-service/ for Docker container
-Place ``gurobi.lic`` at ``/StarV`` root repository
+Acquire Gurobi Web License Service (WLS) license from https://www.gurobi.com/features/web-license-service/ for Docker container. 
+Place ``gurobi.lic`` at ``/StarV`` root directory.
 
 ```
 StarV (root directory)
@@ -178,7 +178,7 @@ StarV (root directory)
 └─── ...
 ```
 
-At the ``/StarV`` **root repository**, build the docker:
+At the ``/StarV`` **root directory**, build the docker:
 
 ```bash
 sh .devcontainer/build_docker.sh
@@ -224,7 +224,7 @@ StarV (root directory)
 └───tutorials
 │   └───reachable_sets
 │       │    tutorial scripts
-│   └───layers
+│   └───reachability_analysis
 │       │    tutorial scripts
 │   └───...
 ```
