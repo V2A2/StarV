@@ -4,8 +4,10 @@ Neural Network Control System (NNCS) Tutorial
 This tutorial demonstrates how to verify the Neural Network Control System (NNCS) class in StarV.
 """
 
-import numpy as np
 import copy
+import os
+import numpy as np
+import StarV
 from scipy.io import loadmat
 from matplotlib import pyplot as plt
 from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
@@ -27,7 +29,9 @@ def nncs_acc_construct():
     print('=============== EXAMPLE: ACC system Construction =========================================')
 
     # Load the neural network controller
-    mat_contents = loadmat('controller_5_20')
+    starv_root_path = os.path.dirname(StarV.__file__)
+    net_path = starv_root_path + '/util/data/nets/ACC/controller_5_20.mat'
+    mat_contents = loadmat(net_path)
     W = mat_contents['W']
     b = mat_contents['b']
 
@@ -306,7 +310,7 @@ if __name__ == '__main__':
     Main function to run the NNCS tutorials
     """
 
-    # nncs_acc_construct()
-    # nncs_acc_initial_states()
+    nncs_acc_construct()
+    nncs_acc_initial_states()
     nncs_acc_unsafe_property()
-    # nncs_acc_verifying()
+    nncs_acc_verifying()
