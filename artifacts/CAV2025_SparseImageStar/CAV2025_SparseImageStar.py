@@ -1,10 +1,10 @@
 """
-HSCC2025: Memory-Efficient Verification for
+CAV2025: Memory-Efficient Verification for
           Deep Convolutional Neural Networks using SparseImageStar
 Evaluation
 
 Author: Anomynous
-Date: 12/25/2024
+Date: 02/16/2025
 """
 
 import time
@@ -25,6 +25,7 @@ from StarV.set.imagestar import ImageStar
 from StarV.set.sparseimagestar2dcoo import SparseImageStar2DCOO
 from StarV.set.sparseimagestar2dcsr import SparseImageStar2DCSR
 
+artifact = 'CAV2025'
 
 # normalizer for oval21
 normalizer = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.225, 0.225, 0.225])
@@ -94,7 +95,7 @@ def memory_usage_oval21():
         COO_nb.append(COO.nbytes())
 
     # save verification results
-    path = f"artifacts/HSCC2025_SparseImageStar/results"
+    path = f"artifacts/{artifact}_SparseImageStar/results"
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -260,7 +261,7 @@ def memory_usage_vgg16(spec):
 
 
     # save verification results
-    path = f"artifacts/HSCC2025_SparseImageStar/results"
+    path = f"artifacts/{artifact}_SparseImageStar/results"
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -302,7 +303,7 @@ def memory_usage_vgg16(spec):
     # set legend
     ax.legend(['ImageStar', 'SIM COO', 'SIM CSR', 'NNV'], fontsize=12)
 
-    plt.savefig(f'{path}/Figure_4b_computation_time_vgg16_spec_{spec}.png')
+    plt.savefig(f'{path}/computation_time_vgg16_spec_{spec}.png')
     # plt.show()
     plt.close()
 
@@ -336,7 +337,7 @@ def memory_usage_vgg16(spec):
     ax2.set_ylabel("Density", fontsize=12)
     ax2.yaxis.set_tick_params(labelsize=12)
 
-    plt.savefig(f'{path}/Figure_4a_memory_usage_vgg16_spec_{spec}.png')
+    plt.savefig(f'{path}/Figure_4_memory_usage_vgg16_spec_{spec}.png')
     # plt.show()
     plt.close()
 
@@ -415,7 +416,7 @@ def memory_usage_vgg16_spec_cn(spec):
 
 
     # save verification results
-    path = f"artifacts/HSCC2025_SparseImageStar/results"
+    path = f"artifacts/{artifact}_SparseImageStar/results"
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -455,7 +456,7 @@ def memory_usage_vgg16_spec_cn(spec):
     # set legend
     ax.legend(['SIM COO', 'SIM CSR'], fontsize=12)
 
-    plt.savefig(f'{path}/Figure_6b_computation_time_vgg16_spec_{spec}.png')
+    plt.savefig(f'{path}/Figure_7b_computation_time_vgg16_spec_{spec}.png')
     # plt.show()
     plt.close()
 
@@ -487,7 +488,7 @@ def memory_usage_vgg16_spec_cn(spec):
     ax2.set_ylabel("Density", fontsize=12)
     ax2.yaxis.set_tick_params(labelsize=12)
 
-    plt.savefig(f'{path}/Figure_6a_memory_usage_vgg16_spec_c{spec}.png')
+    plt.savefig(f'{path}/Figure_7a_memory_usage_vgg16_spec_c{spec}.png')
     # plt.show()
     plt.close()
 
@@ -627,7 +628,7 @@ def verify_convnet_network(net_type='Small', dtype='float32'):
         vtCOO_table.append(vt_delta_table)
 
     # save verification results
-    path = f"artifacts/HSCC2025_SparseImageStar/results"
+    path = f"artifacts/{artifact}_SparseImageStar/results"
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -678,7 +679,7 @@ def plot_table_covnet_network(net_type):
     d = [250, 245, 240]
     N = 100
 
-    dir = f"artifacts/HSCC2025_SparseImageStar/results/"
+    dir = f"artifacts/{artifact}_SparseImageStar/results/"
     if net_type == 'Small':
         sdir = dir + f'Table_1__{net_type}_MNIST_ConvNet_brightAttack'
     elif net_type == 'Medium':
@@ -733,7 +734,105 @@ def plot_table_covnet_network(net_type):
     print('DONE!')
     print('=====================================================')
 
+def plot_table_covnet_network_all():
+    net_types = ['Small', 'Medium', 'Large']
+    dir = f"artifacts/{artifact}_SparseImageStar/results/"
+    save_dir = dir + f'Table_1__MNIST_ConvNet_brightAttack.tex'
+    
+    rbIM, vtIM, rbCSR, vtCSR, rbCOO, vtCOO = [], [], [], [], [], []
+    for net_type in net_types:
+        result_dir = dir + f'{net_type}ConvNet_brightAttack_results.pkl'
+        
+        with open(result_dir, 'rb') as f:
+            [_, _, rbim, vtim, _, _, rbcsr, vtcsr, _, _, rbcoo, vtcoo] = pickle.load(f)
+        rbIM.append(rbim)
+        vtIM.append(vtim)
+        rbCSR.append(rbcsr)
+        vtCSR.append(vtcsr)
+        rbCOO.append(rbcoo)
+        vtCOO.append(vtcoo)
+    
+    rbNNV, vtNNV = [], []
+    mat_path = f"StarV/util/data/nets/CAV2020_MNIST_ConvNet/nnv/"
+    for net_type in net_types:
+        mat_file = scipy.io.loadmat(mat_path + f"NNV_{net_type}_ConvNet_Results_brightAttack.mat")
+        rbNNV.append(mat_file['r_star'])
+        vtNNV.append(mat_file['VT_star'])        
 
+    delta = [0.005, 0.01, 0.015]
+    d = [250, 245, 240]
+    N = 100
+    
+    file = open(save_dir, "w")
+    L = [
+        r"\begin{table}[]" + '\n',
+        r"\centering" + '\n',
+        r"\resizebox{\columnwidth}{!}{" + '\n',
+        r"\footnotesize" + '\n',
+        r"\begin{tabular}{r||c||c:c:c||c:c:c||c:c:c ||c:c:c||c:c:c||c:c:c}" + '\n',
+        r"      & & \multicolumn{9}{c||}{Robustness results ($\%$)}  & \multicolumn{9}{c}{Verification time (sec)} \\" + '\n',
+        r"\hline" + '\n',
+        r"      & & \multicolumn{3}{c||}{Small} & \multicolumn{3}{c||}{Medium} & \multicolumn{3}{c||}{Large} & " +
+        r"\multicolumn{3}{c||}{Small} & \multicolumn{3}{c||}{Medium} & \multicolumn{3}{c}{Large} \\"  + '\n',
+        r"      & & $\delta = 0.005$ & $\delta = 0.01$ & $\delta = 0.015$ & $\delta = 0.005$ & $\delta = 0.01$ & $\delta = 0.015$ & " +
+        r"$\delta = 0.005$ & $\delta = 0.01$ & $\delta = 0.015$ & $\delta = 0.005$ & $\delta = 0.01$ & $\delta = 0.015$ & " +
+        r"$\delta = 0.005$ & $\delta = 0.01$ & $\delta = 0.015$ & $\delta = 0.005$ & $\delta = 0.01$ & $\delta = 0.015$ \\" + '\n',
+        r"\hline" + '\n',
+    ]
+    file.writelines(L)
+    
+    for i in range(len(d)):
+        file.write(r"\hline" + '\n')
+        line = r"\multirow{4}{*}{\rotatebox{90}{$d=" + f"{d[i]}" + r"$}}" + '\n'
+        file.write(line)
+        
+        line = f'& IM'
+        for j in range(len(net_types)):
+            line += f' & {rbIM[j][i][1]} & {rbIM[j][i][2]} &  {rbIM[j][i][3]}'
+        for j in range(len(net_types)):
+            line += f' & {vtIM[j][i][1] :.3f} & {vtIM[j][i][2] :.3f} &  {vtIM[j][i][3] :.3f}'
+        file.write(line + ' \\\\\n')
+        
+        line = f'& SIM\\_csr'
+        for j in range(len(net_types)):
+            line += f' & {rbCSR[j][i][1]} & {rbCSR[j][i][2]} &  {rbCSR[j][i][3]}'
+        for j in range(len(net_types)):
+            line += f' & {vtCSR[j][i][1] :.3f} & {vtCSR[j][i][2] :.3f} &  {vtCSR[j][i][3] :.3f}'
+        file.write(line + ' \\\\\n')
+        
+        line = f'& SIM\\_coo'
+        for j in range(len(net_types)):
+            line += f' & {rbCOO[j][i][1]} & {rbCOO[j][i][2]} &  {rbCOO[j][i][3]}'
+        for j in range(len(net_types)):
+            line += f' & {vtCOO[j][i][1] :.3f} & {vtCOO[j][i][2] :.3f} &  {vtCOO[j][i][3] :.3f}'
+        file.write(line + ' \\\\\n')
+        
+        line = f'& NNV'
+        for j in range(len(net_types)):
+            line += f' & {int(rbNNV[j][i, 0]*100)} & {int(rbNNV[j][i, 1]*100)} &  {int(rbNNV[j][i, 2]*100)}'
+        for j in range(len(net_types)):
+            line += f' & {vtNNV[j][i, 0]/100 :.3f} & {vtNNV[j][i, 1]/100 :.3f} &  {vtNNV[j][i, 2]/100 :.3f}'
+        file.write(line + ' \\\\\n')
+        
+        file.write(r"\hline" + '\n')
+            
+    L = [
+        r"\end{tabular}" + '\n',
+        r"}" + '\n',
+        r"\caption{Verification results of the MNIST CNN (CAV2020)." + '\n',
+        r"\textit{Our methods $\text{SIM}_{CSR}$ and $\text{SIM}_{COO}$ are up to 3.07 $\bf{\times}$, 8.45 $\bf{\times}$, 4.60 $\bf{\times}$" +
+        r"faster than NNV in Small, Medium, and Large networks, respectively.}}" + '\n',
+        r"\label{tab:CAV2020_mnist_convnet} + '\n'"
+        r"\end{table} + '\n'"
+    ]
+    file.writelines(L)
+    file.close()
+
+    print('=====================================================')
+    print('DONE!')
+    print('=====================================================')
+    
+    
 
 def verify_vgg16_network(dtype='float64'):
 
@@ -901,7 +1000,7 @@ def verify_vgg16_network(dtype='float64'):
     del COO
 
     # save verification results
-    path = f"artifacts/HSCC2025_SparseImageStar/results/"
+    path = f"artifacts/{artifact}_SparseImageStar/results/"
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -1004,7 +1103,7 @@ def verify_vgg16_converted_network(dtype='float64'):
     del IM
 
     # save verification results
-    path = f"artifacts/HSCC2025_SparseImageStar/results/"
+    path = f"artifacts/{artifact}_SparseImageStar/results/"
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -1063,7 +1162,7 @@ def verify_vgg16_network_spec_cn(dtype='float64'):
     vnnlib_files.sort(key = natural_keys)
 
     # save verification results
-    path = f"artifacts/HSCC2025_SparseImageStar/results"
+    path = f"artifacts/{artifact}_SparseImageStar/results"
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -1179,7 +1278,7 @@ def verify_vgg16_network_spec_cn(dtype='float64'):
 
 
 def plot_table_vgg16_network():
-    folder_dir = f"artifacts/HSCC2025_SparseImageStar/results/"
+    folder_dir = f"artifacts/{artifact}_SparseImageStar/results/"
     file_dir = folder_dir + 'vggnet16_vnncomp23_results.pkl'
     with open(file_dir, 'rb') as f:
         rbIM, vtIM, rbCSR, vtCSR, rbCOO, vtCOO, num_pred = pickle.load(f)
@@ -1266,7 +1365,7 @@ def plot_table_vgg16_network():
     print(tabulate(data, headers=headers))
 
     Tlatex = tabulate(data, headers=headers, tablefmt='latex')
-    with open(folder_dir+f"Table_4_vggnet16_vnncomp23_results.tex", "w") as f:
+    with open(folder_dir+f"Table_2_vggnet16_vnncomp23_results.tex", "w") as f:
         print(Tlatex, file=f)
 
     print('=====================================================')
@@ -1276,23 +1375,17 @@ def plot_table_vgg16_network():
 
 if __name__ == "__main__":
 
-    # Table 1: Verification results of the Small MNIST CNN (CAV2020)
+    # Table 1: Verification results of the MNIST CNN (CAV2020)
     verify_convnet_network(net_type='Small', dtype='float64')
-    plot_table_covnet_network(net_type = 'Small')                       # Table 1
-
-    # Table 2: Verification results of the Medium MNIST CNN (CAV2020)
     verify_convnet_network(net_type='Medium', dtype='float64')
-    plot_table_covnet_network(net_type = 'Medium')                      # Table 2
-
-    # Table 3: Verification results of the Large MNIST CNN (CAV2020)
     verify_convnet_network(net_type='Large', dtype='float64')
-    plot_table_covnet_network(net_type = 'Large')                       # Table 3
+    plot_table_covnet_network_all()                                     # Table 1
 
     # Table 4: Verification results of VGG16 in seconds (vnncomp2023)
     verify_vgg16_network(dtype='float64')
     verify_vgg16_converted_network(dtype='float64')
     verify_vgg16_network_spec_cn()
-    plot_table_vgg16_network()                                          # Table 4
+    plot_table_vgg16_network()                                          # Table 2
     
     # Figure 4: Memory usage and computation time comparison between ImageStar and
     # SparseImageStar (SIM) in verifying the vggnet16 network (vnncomp2023) with spec 11 image
@@ -1304,4 +1397,4 @@ if __name__ == "__main__":
     
     # Figure 6: Memory usage and computation time comparison between ImageStar and
     # SparseImageStar (SIM) in verifying the vggnet16 network (vnncomp2023) with spec c4 image
-    memory_usage_vgg16_spec_cn(spec=4)                                  # Figure 6
+    memory_usage_vgg16_spec_cn(spec=4)                                  # Figure 7

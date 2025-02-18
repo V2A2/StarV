@@ -26,12 +26,12 @@ Event-driven Monitoring and Verification Codesign for Distributed Learning-enabl
 
   - Download the HSCC 2025 artifact package
 
-  - Go inside StarV and run tests or HSCC2025_SparseImageStar artifacts following instructions in the Artifact section
+  - Go inside StarV and run tests or CAV2025_SparseImageStar artifacts following instructions in the Artifact section
 
         StarV
         │   README.md
         |   requirements.txt
-        |   HSCC2025_SpraseImageStar.py
+        |   CAV2025_SpraseImageStar.py
         |   gurobi.lic
         │   Test scripts
         │   ...    
@@ -42,7 +42,7 @@ Event-driven Monitoring and Verification Codesign for Distributed Learning-enabl
         │   │   All main algorithm scripts
         │   
         └───artifacts
-            └───HSCC2025_SparseImageStar
+            └───CAV2025_SparseImageStar
             └───...
   
 
@@ -127,67 +127,59 @@ Event-driven Monitoring and Verification Codesign for Distributed Learning-enabl
 
 - Install Ubuntu packages:
 
-        sudo apt-get install python3-dev python3-pip libgmp-dev libglpk-dev libgmp3-dev
+      sudo apt-get install python3-dev python3-pip libgmp-dev libglpk-dev libgmp3-dev
 
 - Install Python dependencies:
 
-        pip3 install -r requirements.txt
+      pip3 install -r requirements.txt
 
-  The requirement.txt contains the following packages:
+- The requirement.txt contains the following packages:
 
-        gurobipy==11.0.2
-        glpk
-        pycddlib<=2.1.8
-        polytope
-        pypoman
-        tabulate
-        matplotlib
-        numpy<=1.26.4
-        scipy
-        ipyparallel
-        torchvision
-        plotly==5.14.1
-        onnx
-        onnx2pytorch
-        onnxruntime
-        scikit-learn
+      gurobipy==11.0.2
+      glpk
+      pycddlib<=2.1.8
+      polytope
+      pypoman
+      tabulate
+      matplotlib
+      numpy<=1.26.4
+      scipy
+      ipyparallel
+      torchvision
+      plotly==5.14.1
+      onnx
+      onnx2pytorch
+      onnxruntime
+      scikit-learn
 
         
 # Artifacts 
 
-## HSCC2025 SparseImageStar: 
+## CAV2025 SparseImageStar: 
 
 - Paper: Memory-Efficient Verification for Deep Convolutional Neural Networks using SparseImageStar [https://www.dropbox.com/s/fd6fpydoy5rx3w3/hscc23probstar.pdf?dl=0]
 
--  Our experiment is done on a computer with the following configuration: Intel Core i7-6940X CPU @ 3.0GHz x 20 Processors, 125.7 GiB Memory, 64-bit Ubuntu 20.04.6 LTS OS.
+- Our experiment is done on a computer with the following configuration: Intel Core i7-6940X CPU @ 3.0GHz x 20 Processors, 125.7 GiB Memory, 64-bit Ubuntu 20.04.6 LTS OS.
 
-- Run following commands, a new folder named `StarV/artifacts/HSCC2025_SparseImageStar/results`  will be generated to store all the results (figures and tables). 
+- Run following commands, a new folder named `StarV/artifacts/CAV2025_SparseImageStar/results`  will be generated to store all the results (figures and tables). 
 
 
 ### Reproduce all evaluation results:
 
 At StarV directory, `StarV`,
 
-    python3 HSCC2025_SparseImageStar.py
+    python3 CAV2025_SparseImageStar.py
 
 ### Reproduce individual results:
 
 At StarV directory, `StarV`, run following functions to reproduce individual the evaluation result.
 
-- Table 1: Verification results of the Small MNIST CNN (CAV2020)
+- Table 1: Table 1: Verification results of the MNIST CNN (CAV2020)
 
       verify_convnet_network(net_type='Small', dtype='float64')
-      plot_table_covnet_network(net_type = 'Small')
-
-- Table 2: Verification results of the Medium MNIST CNN (CAV2020)
-
       verify_convnet_network(net_type='Medium', dtype='float64')
-      plot_table_covnet_network(net_type = 'Medium')
-
-- Table 3: Verification results of the Large MNIST CNN (CAV2020)
-   
       verify_convnet_network(net_type='Large', dtype='float64')
-      plot_table_covnet_network(net_type = 'Large')
+      plot_table_covnet_network_all()
 
 - Table 4: Verification results of VGG16 in seconds (vnncomp2023)
 
