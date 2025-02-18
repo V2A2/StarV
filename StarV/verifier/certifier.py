@@ -252,9 +252,9 @@ def certifyRobustness_sequence(net, inputs, epsilon=0.01, veriMethod='BFS', reac
     # Create input reachable sets for rechability analysis
     X = []
     for i in range(in_seq):
-        # X.append(SparseStar(x[:, i] - epsilon, x[:, i] + epsilon))
-        X.append(SparseStar(np.clip(x[:, i] - epsilon, 0, 1),
-                            np.clip(x[:, i] + epsilon, 0, 1)))
+        X.append(SparseStar(x[:, i] - epsilon, x[:, i] + epsilon))
+        # X.append(SparseStar(np.clip(x[:, i] - epsilon, 0, 1),
+        #                     np.clip(x[:, i] + epsilon, 0, 1)))
 
     # Compute output reachable sets
     if veriMethod == 'BFS':
