@@ -149,7 +149,9 @@ def nncs_acc_verifying():
     print('=============== EXAMPLE: ACC system Verification =========================================')
 
     # Load the neural network controller
-    mat_contents = loadmat('controller_5_20')
+    starv_root_path = os.path.dirname(StarV.__file__)
+    net_path = starv_root_path + '/util/data/nets/ACC/controller_5_20.mat'
+    mat_contents = loadmat(net_path)
     W = mat_contents['W']
     b = mat_contents['b']
 
