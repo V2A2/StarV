@@ -1183,6 +1183,17 @@ def generate_table_3_AcasXu_ReLU_quanti_verify_vs_other_tools():
     return table_content
 
 
+def comparison_ACASXu():
+    x = [1, 1, 1]
+    y = [6, 7, 9] 
+    s = [2, 3, 4] # property id
+    quantiverify_ACASXU_ReLU_table_3(x=x, y=y, spec_ids=s, numCores=16, unsafe_mat=None, unsafe_vec=None, p_filters=[0.0, 1e-5]) # AcasXu ReLU networks, ProbStar
+    numSamplesList = [10000000]
+    quantiverify_ACASXU_ReLU_MC_table_3(x=x, y=y, spec_ids=s, unsafe_mat=None, unsafe_vec=None, numSamples=numSamplesList, nTimes=10, numCore=16) # AcasXu ReLU networks, Monte Carlo
+    qualiverify_ACASXU_ReLU_other_tools_table_3() # AcasXu ReLU networks, other tools
+    generate_table_3_AcasXu_ReLU_quanti_verify_vs_other_tools() 
+    
+    
 def verify_temporal_specs_ACC_trapezius(net='controller_3_20'):
     'verify temporal properties of Le-ACC, tables are generated and stored in artifacts/HSCC2025_ProbStarTL/table'
 
@@ -3037,16 +3048,9 @@ if __name__ == "__main__":
     
     
     # Table 4: Combined AcasXu ReLU networks, ProbStar vs MC vs other tools
-    x = [1, 1, 1]
-    y = [6, 7, 9] 
-    s = [2, 3, 4] # property id
-    quantiverify_ACASXU_ReLU_table_3(x=x, y=y, spec_ids=s, numCores=16, unsafe_mat=None, unsafe_vec=None, p_filters=[0.0, 1e-5]) # AcasXu ReLU networks, ProbStar
-    numSamplesList = [10000000]
-    quantiverify_ACASXU_ReLU_MC_table_3(x=x, y=y, spec_ids=s, unsafe_mat=None, unsafe_vec=None, numSamples=numSamplesList, nTimes=10, numCore=16) # AcasXu ReLU networks, Monte Carlo
-    qualiverify_ACASXU_ReLU_other_tools_table_3() # AcasXu ReLU networks, other tools
-    generate_table_3_AcasXu_ReLU_quanti_verify_vs_other_tools() 
-    
-    
+    comparison_ACASXu()
+
+
     # Table 5: Verification results (robustness intervals) of NeuroSymbolic  
     verify_temporal_specs_ACC_trapeziu_full()
 
