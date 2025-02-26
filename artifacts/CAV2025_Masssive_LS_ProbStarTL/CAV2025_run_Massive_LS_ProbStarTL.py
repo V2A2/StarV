@@ -1,31 +1,30 @@
-
-from StarV.set.probstar import ProbStar
-import numpy as np
-from StarV.util.load import load_building_model,load_beam_model,load_pde_model,load_MNA5_model,load_MNA1_model,load_iss_model,load_mcs_model,load_fom_model
-import time
-from StarV.set.probstar import ProbStar
-from StarV.set.star import Star
-import numpy as np
 import os
 import math
 import pickle
 import pandas as pd
+import time
+import tabulate
+import numpy as np
+from StarV.set.probstar import ProbStar
+from StarV.util.load import load_building_model,load_beam_model,load_pde_model,load_MNA5_model,load_MNA1_model,load_iss_model,load_mcs_model,load_fom_model
+from StarV.set.probstar import ProbStar
+from StarV.set.star import Star
 from StarV.verifier.krylov_func.simKrylov_with_projection import combine_mats
 from StarV.util.plot import plot_probstar_signal,plot_probstar
 from StarV.verifier.krylov_func.simKrylov_with_projection import simReachKrylov as sim3
 from StarV.verifier.krylov_func.simKrylov_with_projection import random_two_dims_mapping
-from tabulate import tabulate
 from StarV.verifier.krylov_func.LCS_verifier import quantiVerifier_LCS
 from StarV.spec.dProbStarTL import _ALWAYS_, _EVENTUALLY_, AtomicPredicate, Formula, _LeftBracket_, _RightBracket_, _AND_,_OR_
 
 def harmonic(use_arnoldi =None,use_init_space=None):
+    # system dynamics
     A = np.array([[0,1,1,0],[-1,0,1,0],[0,0,0,0],[0,0,0,0]])
-    h = math.pi/4
-    N = int((math.pi)/h)
-    m = 2
-    target_error = 1e-9
-    tolerance = 1e-9
-    samples = 51
+    # h = math.pi/4
+    # N = int((math.pi)/h)
+    # m = 2
+    # target_error = 1e-9
+    # tolerance = 1e-9
+    # samples = 51
     init_state_bounds_list = []
     dims = A.shape[0]
     for dim in range(dims):
@@ -50,22 +49,15 @@ def harmonic(use_arnoldi =None,use_init_space=None):
 
     init_state_lb = init_state_bounds_array[:, 0]
     init_state_ub = init_state_bounds_array[:, 1]
-    # print("init_state_bounds_list_shape:",len(init_state_bounds_list))
-    # print("init_sate_bounds_list:",init_state_bounds_list)
-    # print("init_state_lb:",init_state_lb)
-
+    # construct input star set
     X0 = Star(init_state_lb,init_state_ub)
-
-
+    # construct input probstar set
     mu_U = 0.5*(X0.pred_lb + X0.pred_ub) 
     a  = 3
     sig_U = (X0.pred_ub-mu_U )/a
     epsilon = 1e-10
     sig_U = np.maximum(sig_U, epsilon)
     Sig_U = np.diag(np.square(sig_U))
-
-
-
     X0_probstar = ProbStar(X0.V, X0.C, X0.d,mu_U, Sig_U,X0.pred_lb,X0.pred_ub)
 
     h = math.pi/4
@@ -124,6 +116,8 @@ def harmonic(use_arnoldi =None,use_init_space=None):
 
     AWOT = _ALWAYS_(0,4)
     AWOT1 = _ALWAYS_(1,2)
+
+    input_prob = X0_probstar.estimateProbability()
 
     spec = Formula([EVOT,P1])
     spec1 = Formula([AWOT1,lb,P4,OR,lb,EVOT1,P1,rb,rb])
@@ -301,7 +295,6 @@ def run_mcs_model(use_arnoldi = None,use_init_space=None):
 
     return datas
 
-
 def run_building_model(use_arnoldi =None,use_init_space=None):
     
     print('\n\n=====================================================')
@@ -474,7 +467,6 @@ def run_building_model(use_arnoldi =None,use_init_space=None):
 
 
     return datas
-
 
 def run_pde_model(use_arnoldi = None,use_init_space=None):
 
@@ -979,8 +971,6 @@ def run_MNA1_model(use_arnoldi = None,use_init_space=None):
 
     return datas
 
-
-
 def run_fom_model(use_arnoldi = None,use_init_space=None):
        
     print('\n\n=====================================================')
@@ -1442,11 +1432,9 @@ def run_heat3D_model(use_arnoldi=None,use_init_space=None):
     return datas
      
 
-
-
 def full_evaluation_results():
-    results = []
 
+    results = []
 
     results.extend(run_mcs_model(use_arnoldi=True, use_init_space=False))
     results.extend(run_building_model(use_arnoldi=True, use_init_space=False))
@@ -1457,7 +1445,7 @@ def full_evaluation_results():
     results.extend(run_fom_model(use_arnoldi=True, use_init_space=False))
     results.extend(run_MNA5_model(use_arnoldi=True, use_init_space=False))
 
-    # Heat#d model using Lanczos iteration due to symmetric dynamics
+    # Heat3d model using Lanczos iteration due to symmetric dynamics
     results.extend(run_heat3D_model(use_arnoldi=False, use_init_space=False))
 
 
@@ -1476,7 +1464,6 @@ def full_evaluation_results():
 def verification_Hylaa_tool():
     """
     Verify all benchamrks with using Hylaa verification tool
-    (NNV, Marabou, NNenum)
     """
     data = [
     {"Model": 'MCS', "Spec": 0, "SAT": 'YES', "t_v": 0.005317},
@@ -1627,3 +1614,4 @@ if __name__ == '__main__':
     full_evaluation_results()
     verification_Hylaa_tool()
     generate_table_3_vs_Hylaa_tool()
+

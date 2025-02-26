@@ -734,7 +734,7 @@ def check_sat_on_trace(*args):
     print('Transform spec to abstract dijunctive normal form (DNF)...')
     DNF_spec = spec.getDynamicFormula()
     print('Length of abstract DNF_spec = {}'.format(DNF_spec.length))
-    sat, p_max, p_min = DNF_spec.evaluate(trace)
+    sat, p_max, p_min, _ = DNF_spec.evaluate(trace)
     
     return p_max, p_min
 

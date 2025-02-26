@@ -589,18 +589,21 @@ class Formula(object):
 
     def print(self):
         'Print the formula'
+        print(self)
+
+    def __str__(self):
+        'Print the formula'
 
         str = ''
         for obj in self.formula:
             str = str + '\n' + obj.print()
 
-
         print('Formula: ')
         print('Formula type: {}'.format(self.formula_type))
         print('Formula length: {}'.format(self.length))
         print(str)
-        
-        return str
+
+        return '\n'
 
     def getDynamicFormula(self):
         'automatically generate dynamic formula: a abstract disjunctive normal form for verification'
