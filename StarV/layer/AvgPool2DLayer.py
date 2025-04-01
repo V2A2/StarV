@@ -73,19 +73,21 @@ class AvgPool2DLayer(object):
  
             if isinstance(padding, int):
                 assert padding >= 0, 'error: padding should non-negative integers'
-                self.padding = np.ones(2, dtype=np.int16)*padding
+                self.padding = np.ones(4, dtype=np.int16)*padding
             else:
                 padding = np.array(padding)
                 assert (padding >= 0).any(), 'error: padding should non-negative integers'
 
                 if len(padding) == 1:
-                    self.padding = np.ones(2, dtype=np.int16)*padding[0]
+                    self.padding = np.ones(4, dtype=np.int16)*padding[0]
                 else:
-                    if len(padding) == 4:
-                        if padding[0] == padding[1] and padding[2] == padding[3]:
-                            padding = np.array([padding[0], padding[2]])
-                    self.padding = np.array(padding)
-            assert (self.padding <= self.kernel_size // 2).any(), 'error: padding should be at most half of kernel size'
+                    if len(padding) == 2:
+                        padding = np.array([padding[0], padding[0], padding[1], padding[1]])
+                    elif len(padding) == 4:
+                        self.padding = padding
+                    else:
+                        raise Exception('error: padding should contain 1, 2, 4 elements')
+            # assert (self.padding <= self.kernel_size // 2).any(), 'error: padding should be at most half of kernel size'
             
             if isinstance(stride, int):
                 assert stride > 0, 'error: stride should positive integer'
