@@ -1693,7 +1693,7 @@ def load_onnx_network(filename, net_type=None, channel_last=True, num_pixel_clas
                 elif name == 'output_padding ':
                     output_padding = np.array(attr.ints, dtype='b')
 
-            layer = ConvTranspose2DLayer([weight, bias], stride, padding, dilation, dtype=dtype)
+            layer = ConvTranspose2DLayer([weight, bias], stride, padding, dilation, output_padding, dtype=dtype)
             
         elif op == 'Relu':
             layer = ReLULayer()

@@ -1121,11 +1121,19 @@ class ConvTranspose2DLayer(object):
                 )
             
             elif self.module == 'default':
+                if In.c is None:
+                    new_V = self.convtrans2d(In.V, bias=False)
+                    if self.bias is not None:
+                        new_V[:, :, :, 0] += self.bias
+                    return SparseImageStar2DCSR(new_V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
+                
                 new_c = self.convtrans2d(In.c.reshape(In.shape), bias=True).reshape(-1)
-                new_V, out_shape = self.fconvtrans2d_coo_co_loop2(In.V, In.shape)
-                # new_V, out_shape = self.fconvtrans2d_coo(In.V, In.shape)
-
-            return SparseImageStar2DCOO(new_c, new_V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
+                # new_V, out_shape = self.fconvtrans2d_coo2(In.V, In.shape)
+                # new_V, out_shape = self.fconvtrans2d_coo_co_loop2(In.V, In.shape)
+                new_V, out_shape = self.fconvtrans2d_coo(In.V, In.shape)
+                return SparseImageStar2DCOO(new_c, new_V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
+            
+            raise Exception(f'error: ConvTranspose2DLayer unsupported module: {self.module}')
         
         elif isinstance(In, SparseImageStar2DCSR):
             if self.module == 'pytorch':
@@ -1134,11 +1142,19 @@ class ConvTranspose2DLayer(object):
                 )
             
             elif self.module == 'default':
+                if In.c is None:
+                    new_V = self.convtrans2d(In.V, bias=False)
+                    if self.bias is not None:
+                        new_V[:, :, :, 0] += self.bias
+                    return SparseImageStar2DCSR(new_V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
+                
                 new_c = self.convtrans2d(In.c.reshape(In.shape), bias=True).reshape(-1)
-                new_V, out_shape = self.fconvtrans2d_csr_co_loop2(In.V, In.shape)
-                # new_V, out_shape = self.fconvtrans2d_csr(In.V, In.shape)
+                # new_V, out_shape = self.fconvtrans2d_csr2(In.V, In.shape)
+                # new_V, out_shape = self.fconvtrans2d_csr_co_loop2(In.V, In.shape)
+                new_V, out_shape = self.fconvtrans2d_csr(In.V, In.shape)
+                return SparseImageStar2DCSR(new_c, new_V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
 
-            return SparseImageStar2DCSR(new_c, new_V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
+            raise Exception(f'error: ConvTranspose2DLayer unsupported module: {self.module}')
         
         else:
             raise Exception('error: Conv2DLayer supports ImageStar and SparseImageStar')
