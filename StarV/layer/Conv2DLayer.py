@@ -257,8 +257,8 @@ class Conv2DLayer(object):
             p, q, ci, co = self.weight.shape
             
             mo, no = self.get_output_size_sparse(in_height=in_shape[0], in_width=in_shape[1])
-            m += 2*self.padding[0]
-            n += 2*self.padding[1]
+            m += self.padding[0] + self.padding[1]
+            n += self.padding[2] + self.padding[3]
             
             i_shift = n * self.stride[0] * ci
             j_shift = self.stride[1] * ci
@@ -422,16 +422,16 @@ class Conv2DLayer(object):
         assert isinstance(input, np.ndarray), \
         'error: input should be numpy ndarray'
 
-        if padding[0] == 0 and padding[1] == 0:
+        if (pad == 0).all():
             return input
         
         in_dim = input.ndim
         if in_dim == 4:
-            return np.pad(input, ((padding[0], padding[1]), (padding[2], padding[3]), (0, 0), (0,0)), mode='constant')
+            return np.pad(input, ((pad[0], pad[1]), (pad[2], pad[3]), (0, 0), (0,0)), mode='constant')
         elif in_dim == 3:
-            return np.pad(input, ((padding[0], padding[1]), (padding[2], padding[3]), (0, 0)), mode='constant')
+            return np.pad(input, ((pad[0], pad[1]), (pad[2], pad[3]), (0, 0)), mode='constant')
         elif in_dim == 2:
-            return np.pad(input, ((padding[0], padding[1]), (padding[2], padding[3])), mode='constant')
+            return np.pad(input, ((pad[0], pad[1]), (pad[2], pad[3])), mode='constant')
         else:
             raise Exception(
                 'Invalid number of input dimensions; it should be between 2D and 4D'
