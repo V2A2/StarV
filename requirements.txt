@@ -14,3 +14,4 @@ onnx
 onnx2pytorch
 onnxruntime
 scikit-learn
+pandas
