@@ -60,7 +60,7 @@ def star_construct_with_basis_and_constraints():
     
     # Create star set
     S = Star(V, C, d, pred_lb, pred_ub)
-    
+        
     print("\nCreated star set with basis matrix and constraints:")
     repr(S)
     print(S)

@@ -6,10 +6,13 @@ This tutorial demonstrates how to construct a feedforward neural network and per
 """
 
 import copy
+import os
 import torch
 import multiprocessing
 import numpy as np
 import matplotlib.pyplot as plt
+import StarV
+from scipy.io import loadmat
 from StarV.set.star import Star
 from StarV.set.probstar import ProbStar
 from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
@@ -51,8 +54,43 @@ def ffnn_construct_manually():
     F = NeuralNetwork(layers, 'ffnn_tiny_network')
     print(F)
 
-
     print('=============== DONE: FFNN Construction (Manually) =======================================')
+    print('==========================================================================================\n\n')
+
+
+def ffnn_construct_from_mat_file():
+    """
+    Construct a feedforward neural network from a .mat file
+    """
+    print('==========================================================================================')
+    print('=============== EXAMPLE: FFNN Construction (From .mat file) ==============================')
+
+    # Construct a feedforward neural network from a .mat file
+    starv_root_path = os.path.dirname(StarV.__file__)
+    net_path = starv_root_path + '/util/data/nets/ACASXU/ACASXU_run2a_1_1_batch_2000.mat'
+    mat_contents = loadmat(net_path)
+    W = mat_contents['W']
+    b = mat_contents['b']
+    
+    layers = []
+    for i in range(0, b.shape[1]-1):
+        Wi = W[0, i]
+        bi = b[0, i]
+        bi = bi.reshape(bi.shape[0],)
+        L1 = FullyConnectedLayer([Wi, bi])
+        layers.append(L1)
+        L2 = ReLULayer()
+        layers.append(L2)
+
+    Wi = W[0, b.shape[1]-1]
+    bi = b[0, b.shape[1]-1]
+    bi = bi.reshape(bi.shape[0],)
+    L1 = FullyConnectedLayer([Wi, bi])
+    layers.append(L1)
+    F = NeuralNetwork(layers, net_type='ffnn_ACASXU_1_1')
+    print(F)
+
+    print('=============== DONE: FFNN Construction (From .mat file) =================================')
     print('==========================================================================================\n\n')
 
 
@@ -401,6 +439,7 @@ if __name__ == '__main__':
     Main function to run the FFNN tutorials
     """
     ffnn_construct_manually()
+    ffnn_construct_from_mat_file()
 
     ffnn_evaluate_input_vector()
     

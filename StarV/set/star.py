@@ -482,18 +482,50 @@ class Star(object):
             xmax[i] = self.getMax(index=map[i], lp_solver=lp_solver)
         return xmax
 
-    def getRanges(self, lp_solver='gurobi'):
-        """get lower bound and upper bound by solving LP"""
-
-        if lp_solver == 'estimate':
+    def getRanges(self, lp_solver='gurobi', RF=0.0, layer=None, delta=0.98):
+        """Get the lower and upper bound vectors of the state
+            Args:
+                lp_solver: linear programming solver. e.g.: 'gurobi', 'estimate', 'linprog'
+                RF: relaxation factor in [0.0, 1.0]
+        """
+        
+        if RF == 1.0:
             return self.estimateRanges()
+        
+        elif RF == 0.0:
+            if lp_solver == 'estimate':
+                return self.estimateRanges()
+            else:
+                l = self.getMins(np.arange(self.dim), lp_solver=lp_solver)
+                u = self.getMaxs(np.arange(self.dim), lp_solver=lp_solver)
+                return l, u
 
         else:
-            l = np.zeros(self.dim)
-            u = np.zeros(self.dim)
-            for i in range(0, self.dim):
-                l[i] = self.getMin(i, lp_solver)
-                u[i] = self.getMax(i, lp_solver)
+            assert RF > 0.0 and RF <= 1.0, \
+            'error: relaxation factor should be greater than 0.0 but less than or equal to 1.0'
+            l, u = self.estimateRanges()
+            n1 = round((1 - RF) * self.dim)
+            if layer in ['logsig', 'tansig']:
+                midx = np.argsort((u - l))[::-1]
+                midb = np.argwhere((l[midx] >= -delta) & (u[midx] <= delta))
+                
+                n2 = n1
+                check = midb.flatten().shape[0]
+                if n2 > check:
+                    n2 = check
+
+                mid = midx[midb[0:n2]]
+                l1 = self.getMins(mid)
+                u1 = self.getMaxs(mid)
+                l[mid] = l1
+                u[mid] = u1
+            else:
+                midx = np.argsort((u - l))[::-1]
+                mid = midx[0:n1]
+                l1 = self.getMins(mid)
+                u1 = self.getMaxs(mid)
+                l[mid] = l1
+                u[mid] = u1
             return l, u
     
         

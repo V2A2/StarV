@@ -76,7 +76,7 @@ class NNCS(object):
        %              --->| plant ---> x(k+1)--------------->y(k+1) 
        %             |                                       |
        %             |                                       |
-       %             u(k) <---- controller |<------ y(k)-----|--- (output feedback) 
+       %             u(k) <---- controller |<------ y(k)-----|--- (output feedback)
        %                                   |<--------------------- ref_inputs
        %                                                           
         
@@ -157,8 +157,8 @@ class NNCS(object):
         self.RX = None     # state reachable set
         self.RY = None     # output reachable set
         self.RU = None     # control set
-        
-    def info(self):
+
+    def __str__(self):
         """print information of the neural network control system"""
 
         print('\n=================NEURAL NETWORK CONTROL SYSTEM=================')
@@ -168,8 +168,13 @@ class NNCS(object):
         print('\n number of feeback inputs: {}'.format(self.nI_fb))
         print('\n numher of reference inputs: {}'.format(self.nI_ref))
         print('\n network controller & plant model information:')
-        self.controller.info()
-        self.plant.info()
+        print(self.controller)
+        print(self.plant)
+        print('')
+        return '\n'
+        
+    def info(self):
+        print(self)
 
     def reach(self, reachPRM):
         'reachability analysis'
@@ -729,7 +734,7 @@ def check_sat_on_trace(*args):
     print('Transform spec to abstract dijunctive normal form (DNF)...')
     DNF_spec = spec.getDynamicFormula()
     print('Length of abstract DNF_spec = {}'.format(DNF_spec.length))
-    sat, p_max, p_min = DNF_spec.evaluate(trace)
+    sat, p_max, p_min, _ = DNF_spec.evaluate(trace)
     
     return p_max, p_min
 

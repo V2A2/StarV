@@ -24,14 +24,14 @@ Event-driven Monitoring and Verification Codesign for Distributed Learning-enabl
 
 # StarV Installation
 
-  - Download the HSCC 2025 artifact package
+  - Download the CAV 2025 artifact package
 
-  - Go inside StarV and run tests or HSCC2025_SparseImageStar artifacts following instructions in the Artifact section
+  - Go inside StarV and run tests or CAV2025_SparseImageStar artifacts following instructions in the Artifact section
 
         StarV
         │   README.md
         |   requirements.txt
-        |   HSCC2025_SpraseImageStar.py
+        |   CAV2025_SpraseImageStar.py
         |   gurobi.lic
         │   Test scripts
         │   ...    
@@ -42,7 +42,7 @@ Event-driven Monitoring and Verification Codesign for Distributed Learning-enabl
         │   │   All main algorithm scripts
         │   
         └───artifacts
-            └───HSCC2025_SparseImageStar
+            └───CAV2025_SparseImageStar
             └───...
   
 
@@ -74,7 +74,7 @@ Event-driven Monitoring and Verification Codesign for Distributed Learning-enabl
 
         sh .devcontainer/launch_docker.sh
 
-  - Follow the HSCC 2025 SparseImageStar Artifact instructions below to reproduce the evaluation results
+  - Follow the CAV 2025 StarV Tool Artifact instructions below to reproduce the evaluation results
 
 
 # Running with Local Machine
@@ -127,113 +127,86 @@ Event-driven Monitoring and Verification Codesign for Distributed Learning-enabl
 
 - Install Ubuntu packages:
 
-        sudo apt-get install python3-dev python3-pip libgmp-dev libglpk-dev libgmp3-dev
+      sudo apt-get install python3-dev python3-pip libgmp-dev libglpk-dev libgmp3-dev
 
 - Install Python dependencies:
 
-        pip3 install -r requirements.txt
+      pip3 install -r requirements.txt
 
-  The requirement.txt contains the following packages:
+- The requirement.txt contains the following packages:
 
-        gurobipy==11.0.2
-        glpk
-        pycddlib<=2.1.8
-        polytope
-        pypoman
-        tabulate
-        matplotlib
-        numpy<=1.26.4
-        scipy
-        ipyparallel
-        torchvision
-        plotly==5.14.1
-        onnx
-        onnx2pytorch
-        onnxruntime
-        scikit-learn
+      gurobipy==11.0.2
+      glpk
+      pycddlib<=2.1.8
+      polytope
+      pypoman
+      tabulate
+      matplotlib
+      numpy<=1.26.4
+      scipy
+      ipyparallel
+      torchvision
+      plotly==5.14.1
+      onnx
+      onnx2pytorch
+      onnxruntime
+      scikit-learn
 
         
 # Artifacts 
 
-## HSCC2025 SparseImageStar: 
+## CAV2025 StarV Tool: 
 
-- Paper: Memory-Efficient Verification for Deep Convolutional Neural Networks using SparseImageStar [https://www.dropbox.com/s/fd6fpydoy5rx3w3/hscc23probstar.pdf?dl=0]
+- Paper: Memory-Efficient Verification for Deep Convolutional Neural Networks using StarV Tool [https://www.dropbox.com/s/fd6fpydoy5rx3w3/CAV23probstar.pdf?dl=0]
 
--  Our experiment is done on a computer with the following configuration: Intel Core i7-6940X CPU @ 3.0GHz x 20 Processors, 125.7 GiB Memory, 64-bit Ubuntu 20.04.6 LTS OS.
+- Our experiment is done on a computer with the following configuration: Intel Core i7-6940X CPU @ 3.0GHz x 20 Processors, 125.7 GiB Memory, 64-bit Ubuntu 20.04.6 LTS OS.
 
-- Run following commands, a new folder named `StarV/artifacts/HSCC2025_SparseImageStar/results`  will be generated to store all the results (figures and tables). 
+- Run following commands, a new folder named `StarV/artifacts/CAV2025_StarV_Tool/results`  will be generated to store all the results (figures and tables). 
 
 
 ### Reproduce all evaluation results:
 
 At StarV directory, `StarV`,
 
-    python3 HSCC2025_SparseImageStar.py
+    python3 CAV2025_StarV_Tool.py
 
 ### Reproduce individual results:
 
 At StarV directory, `StarV`, run following functions to reproduce individual the evaluation result.
 
-- Table 1: Verification results of the Small MNIST CNN (CAV2020)
+- Figure 2: L15 and G15 verification results 
+
+      verify_MNIST_LSTM_GRU(type='gru', hidden=15)
+      plot_rnns_results(type='gru', hidden=15)
+      verify_MNIST_LSTM_GRU(type='lstm', hidden=15)
+      plot_rnns_results(type='lstm', hidden=15)
+
+- Table 2: Verification results of the MNIST CNN
 
       verify_convnet_network(net_type='Small', dtype='float64')
-      plot_table_covnet_network(net_type = 'Small')
-
-- Table 2: Verification results of the Medium MNIST CNN (CAV2020)
-
       verify_convnet_network(net_type='Medium', dtype='float64')
-      plot_table_covnet_network(net_type = 'Medium')
-
-- Table 3: Verification results of the Large MNIST CNN (CAV2020)
-   
       verify_convnet_network(net_type='Large', dtype='float64')
-      plot_table_covnet_network(net_type = 'Large')
+      plot_table_covnet_network_all()
 
-- Table 4: Verification results of VGG16 in seconds (vnncomp2023)
-
-      verify_vgg16_network(dtype='float64')
-      verify_vgg16_converted_network(dtype='float64')
+- Table 3: Verification results of VGG16
+        
       verify_vgg16_network_spec_cn()
       plot_table_vgg16_network()
 
-- Figure 4: Memory usage and computation time comparison between ImageStar and SparseImageStar (SIM) in verifying the vggnet16 network (vnncomp2023) with spec 11 image
+- Figure 3: Memory usage and computation time comparison between ImageStar and SparseImageStar (SIM) in verifying the vggnet16 network (vnncomp2023) with spec 11 image
         
-      memory_usage_vgg16(spec=11)
+      memory_usage_vgg16(spec=11)  
 
-- Figure 5: Memory usage and computation time comparison between ImageStar and SparseImageStar (SIM) in verifying the oval21 network with 𝑙∞ norm attack on all pixels.
-        
-      memory_usage_oval21()
+- Table 4: Combined AcasXu ReLU networks, ProbStar vs MC vs other tools
 
-- Figure 6: Memory usage and computation time comparison between ImageStar and SparseImageStar (SIM) in verifying the vggnet16 network (vnncomp2023) with spec c4 image
+      comparison_ACASXu()
 
-      memory_usage_vgg16_spec_cn(spec=4)
+- Table 5: Verification results (robustness intervals) of NeuroSymbolic  
 
-### Reproduce NNV results:
+      verify_temporal_specs_ACC_trapeziu_full()
 
-### Reproduce NNENUM results:
+- Table 6: Verification results of all models for Quantitative verification of Massive linear system
 
-### Reproduce $\alpha, \beta$-CROWN (VNNCOMP2024) results:
-
-Github link: https://github.com/Verified-Intelligence/alpha-beta-CROWN_vnncomp2024
-
-Clone $\alpha, \beta$-CROWN (VNNCOMP2024) verifier
-
-    git clone --recursive https://github.com/Verified-Intelligence/alpha-beta-CROWN_vnncomp2024.git
-
-Setup the conda environment:
-
-- Remove the old environment, if necessary.
-
-      conda deactivate; conda env remove --name alpha-beta-crown
-
-- install all dependents into the alpha-beta-crown environment
-
-      conda env create -f complete_verifier/environment.yaml --name alpha-beta-crown
-
-- activate the environment
-
-      conda activate alpha-beta-crown
-
-### Reproduce ERAN (DeepPoly) results:
-
-### Reproduce Marabou results:
+      full_evaluation_results()
+      verification_Hylaa_tool()
+      generate_table_3_vs_Hylaa_tool()

@@ -5,6 +5,7 @@ Update: 12/24/2024 (Sung Woo Choi, merging)
 """
 
 from StarV.set.probstar import ProbStar
+from StarV.set.sparsestar import SparseStar
 from StarV.set.star import Star
 from matplotlib import cm
 from mpl_toolkits.mplot3d import Axes3D
@@ -557,7 +558,9 @@ def plot_star(I, dir_mat=None, dir_vec=None, label=('$y_1$', '$y_2$'), show=True
        y = dir_mat*x + dir_vec, x in I
     """
 
-    if isinstance(I, Star):
+    if isinstance(I, Star) or isinstance(I, SparseStar):
+        if isinstance(I, SparseStar):
+            I = I.toStar()
         I1 = I.affineMap(dir_mat, dir_vec)
         if I1.dim > 2:
             raise Exception('error: only 2D plot is supported')

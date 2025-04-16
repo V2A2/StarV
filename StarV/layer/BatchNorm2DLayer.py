@@ -57,6 +57,10 @@ class BatchNorm2DLayer(object):
             'error: \'layer\' should be a list containing gamma and beta weights, mean, and variance'
 
             gamma, beta, mean, var = copy.deepcopy(layer)
+            
+            if num_features is None:
+                num_features = len(gamma)
+            
             assert isinstance(gamma, np.ndarray), 'error: gamma should be a 1D numpy array or None'
             assert isinstance(beta, np.ndarray), 'error: beta should be a 1D numpy array'
             assert isinstance(mean, np.ndarray), 'error: mean should be a 1D numpy array'
@@ -70,7 +74,7 @@ class BatchNorm2DLayer(object):
                 self.gamma = gamma.astype(self.numpy_dtype)
                 self.beta = beta.astype(self.numpy_dtype)
                 self.num_features = num_features
-                self.eps = eps.astype(self.numpy_dtype)
+                self.eps = eps
                 self.mean = mean.astype(self.numpy_dtype)
                 self.var = var.astype(self.numpy_dtype)
 
@@ -142,6 +146,9 @@ class BatchNorm2DLayer(object):
         print(f"mean: {self.mean}")
         print(f"variance: {self.var}")
         return ''
+    
+    def info(self):
+        print(self)
 
     def evaluate(self, input):
         """
