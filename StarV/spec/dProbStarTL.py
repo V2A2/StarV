@@ -1087,9 +1087,10 @@ class DynamicFormula(object):
             d = None
             for Pi in P:
                 if Pi.t >= T:
+                    C =None
+                    d = None
                     break
-                else:
-                    
+                else:  
                     if C is None:
                         d = Pi.b - np.matmul(Pi.A, probstar_sig[Pi.t].V[:,0])
                         C = np.matmul(Pi.A, probstar_sig[Pi.t].V[:, 1:nVars+1])
@@ -1099,7 +1100,7 @@ class DynamicFormula(object):
 
                         C = np.vstack((C, C1))
                         d = np.concatenate((d, d1))
-                    
+
             if C is not None:
                 if len(base_probstar.C) != 0:
                     C1 = np.vstack((C, base_probstar.C))
@@ -1117,7 +1118,7 @@ class DynamicFormula(object):
                 if not S1.isEmptySet():
                     H = [C, d]
                     constraints.append(H)
-                
+
         cdnf = CDNF(constraints, base_probstar)
 
         return cdnf
