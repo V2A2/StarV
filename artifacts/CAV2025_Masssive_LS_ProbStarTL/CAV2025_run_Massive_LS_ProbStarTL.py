@@ -17,6 +17,122 @@ from StarV.verifier.krylov_func.simKrylov_with_projection import random_two_dims
 from tabulate import tabulate
 from StarV.verifier.krylov_func.LCS_verifier import quantiVerifier_LCS
 from StarV.spec.dProbStarTL import _ALWAYS_, _EVENTUALLY_, AtomicPredicate, Formula, _LeftBracket_, _RightBracket_, _AND_,_OR_
+import copy
+
+     
+def generate_table_3_vs_Hylaa_tool():
+    """
+    Generate LaTeX table combining verification results for massive linear system:
+    1. Quantitative Verification (ProbStar)
+    2. Hylaa tool verification results
+    """
+    def format_number(value):
+        """Preserve scientific notation for very small numbers and original format"""
+        if pd.isna(value) or value is None:
+            return ''
+        elif isinstance(value, int):
+            return f'{value}'
+        elif isinstance(value, float):
+            if abs(value) == 0: 
+                return f'{0}'
+            if abs(value) < 1e-5:  # Use scientific notation for very small numbers
+                return f'{value:.6e}'
+            elif abs(value) >= 1:  # Use fixed notation with reasonable precision
+                return f'{value:.6f}'.rstrip('0').rstrip('.')
+            else:  # For numbers between 0 and 1
+                return f'{value:.6f}'.rstrip('0').rstrip('.')
+        return str(value)
+
+    def load_pickle_file(filename):
+        """Load data from pickle file with error handling"""
+        try:
+            with open(filename, 'rb') as f:
+                return pickle.load(f)
+        except FileNotFoundError:
+            print(f"Warning: {filename} not found")
+            return []
+        except Exception as e:
+            print(f"Error loading {filename}: {e}")
+            return []
+        
+    cur_path = os.path.dirname(__file__)
+    path = cur_path + 'results' 
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+    # Load all data sources
+    probstarTL_data = load_pickle_file(path + '/full_results.pkl')
+
+    Hylaa_data = load_pickle_file(path + '/Hylaa_results.pkl')
+
+
+    # Create lookup dictionaries for MC and other tools data
+    Hylaa_dict = {(d['Model'], d['Spec']): d for d in Hylaa_data}
+
+    # Generate LaTeX table
+    table_lines = [
+        r"\begin{table*}[h]",
+        r"\centering",
+        r"\resizebox{\textwidth}{!}{%",
+        r"\begin{tabular}{lllllll|ll}",
+        r"\hline",
+        r"    \multicolumn{7}{c}{\textbf{ProbStarTL}}  & " + 
+        r"\multicolumn{2}{c}{\textbf{Hylaa}} \\",
+        r"\hline",
+        r"\text{model} & \textbf{$\varphi$} & \textbf{$p_{min}$} & " +
+        r"\textbf{$p_{max}$} & \textbf{$t_r$} & " +
+        r"\textbf{$t_c$} & \textbf{$t_v$} & \text{SAT} & \textbf{$t_v$} \\",
+        r"\hline"
+    ]
+
+    # Add data rows
+    for entry in probstarTL_data:
+        model = entry['Model']
+        spec = entry['Spec']
+        
+        # Base row with Quantitative Verification data
+        row = [
+            str(model),
+            spec,
+            format_number(entry['p_min']),
+            format_number(entry['p_max']),
+            format_number(entry['t_r']),
+            format_number(entry['t_c']),
+            format_number(entry['t_v']),
+        ]
+
+        # Add Monte Carlo and Other Tools data only if p_f = 0
+        if spec==0:
+            Hylaa_entry = Hylaa_dict.get((model, spec), {})
+            
+            row.extend([
+                format_number(Hylaa_entry.get('SAT', '')),
+                format_number(Hylaa_entry.get('t_v', ''))
+
+            ])
+        else:
+            # Add empty cells for Monte Carlo and Other Tools columns
+            row.extend([''] * 2)
+
+        table_lines.append(' & '.join(map(str,row)) + r' \\')
+
+    # Add table footer
+    table_lines.extend([
+        r"\hline",
+        r"\end{tabular}%",
+        r"}",
+        r"\end{table*}"
+    ])
+
+
+    # Join all lines with newlines and save to file
+    table_content = '\n'.join(table_lines)
+    
+    with open(path + '/Table_6__vs_Hylaa.tex', 'w') as f:
+        f.write(table_content)
+
+    print("Table has been generated and saved to 'Table_6__vs_Hylaa.tex'")
+    return table_content
 
 def harmonic(use_arnoldi =None,use_init_space=None):
     A = np.array([[0,1,1,0],[-1,0,1,0],[0,0,0,0],[0,0,0,0]])
@@ -50,9 +166,6 @@ def harmonic(use_arnoldi =None,use_init_space=None):
 
     init_state_lb = init_state_bounds_array[:, 0]
     init_state_ub = init_state_bounds_array[:, 1]
-    # print("init_state_bounds_list_shape:",len(init_state_bounds_list))
-    # print("init_sate_bounds_list:",init_state_bounds_list)
-    # print("init_state_lb:",init_state_lb)
 
     X0 = Star(init_state_lb,init_state_ub)
 
@@ -79,25 +192,11 @@ def harmonic(use_arnoldi =None,use_init_space=None):
     output_space= random_two_dims_mapping(X0_probstar,1,2)
     initial_space = X0_probstar.V 
 
-    unsafe_mat = np.array([[-1,0]])
-    unsafe_vec = np.array([-4])
-
-
-    unsafe_mat_list =[unsafe_mat]
-    unsafe_vec_list = [unsafe_vec]
-
 
     reach_start_time = time.time()
     R,krylov_time = sim3(A,X0_probstar,h, N, m,samples,tolerance,target_error=target_error,initial_space=initial_space,output_space=output_space,use_arnoldi = use_arnoldi,use_init_space=use_init_space)
     reach_time_duration = time.time() - reach_start_time
 
-    p_min,smallest_prob_time_step, p_max, largest_prob_time_step,unsafeOutputSet, counterInputSet= quantiVerifier_LCS(R = R, inputSet=X0_probstar, unsafe_mat=unsafe_mat_list, \
-                                                                                    unsafe_vec=unsafe_vec_list,time_step=h)
-
-    # plot_probstar(unsafeOutputSet) 
-
-            
-# #============================ Temproal logic test =====================
     AND = _AND_()
     OR = _OR_()                                        
     lb = _LeftBracket_()
@@ -106,10 +205,6 @@ def harmonic(use_arnoldi =None,use_init_space=None):
     A1 = np.array([-1., 0.])
     b1 = np.array([-4])
     P1 = AtomicPredicate(A1,b1)
-
-    A2 = np.array([0., -1])
-    b2 = np.array([-4])
-    P2 = AtomicPredicate(A2,b2)
 
     EVOT =_EVENTUALLY_(0,4)
     EVOT1 =_EVENTUALLY_(2,3)
@@ -122,13 +217,12 @@ def harmonic(use_arnoldi =None,use_init_space=None):
     b4 = np.array([4])
     P4 = AtomicPredicate(A4,b4)
 
-    AWOT = _ALWAYS_(0,4)
+    # AWOT = _ALWAYS_(0,4)
     AWOT1 = _ALWAYS_(1,2)
 
     spec = Formula([EVOT,P1])
     spec1 = Formula([AWOT1,lb,P4,OR,lb,EVOT1,P1,rb,rb])
     specs =[spec,spec1]
-    # plot_probstar_signal(R)
     checking_time = []
     data=[]
 
@@ -138,7 +232,7 @@ def harmonic(use_arnoldi =None,use_init_space=None):
         print('\n==================Specification{}====================: '.format(i))
         spec.print()
         DNF_spec = spec.getDynamicFormula()
-        DNF_spec.print()
+        # DNF_spec.print()
         print('Length of abstract DNF_spec = {}'.format(DNF_spec.length))
 
         _,p_max, p_min,Ncdnf, = DNF_spec.evaluate(R)
@@ -152,7 +246,10 @@ def harmonic(use_arnoldi =None,use_init_space=None):
 
         data.append(["Harmonic",i,p_min,p_max, reach_time_duration,checking_time,verify_time])
 
-    return R,unsafeOutputSet,data
+
+    print(tabulate(data,headers=[ "Model","spec","prob-Min","prob-Max", "tr","tc","tv"],tablefmt='latex'))
+
+    return R,data
      
 def run_mcs_model(use_arnoldi = None,use_init_space=None):
     
@@ -286,10 +383,10 @@ def run_mcs_model(use_arnoldi = None,use_init_space=None):
 
             # data.append(["MCS",hi,spec_id,Nadnf,Ncdnf,p_min,p_max, reach_time_duration,checking_time,verify_time])
             data = {
-                    'Model': 'MCS',
+                    'Model': 'Motor',
                     'Spec': spec_id,
-                    # 'Nadnf': Nadnf,
-                    # 'Ncdnf': Ncdnf,
+                    'Nadnf': Nadnf,
+                    'Ncdnf': Ncdnf,
                     'p_min':p_min,
                     'p_max':p_max,
                     't_r':reach_time_duration,
@@ -300,7 +397,6 @@ def run_mcs_model(use_arnoldi = None,use_init_space=None):
 
 
     return datas
-
 
 def run_building_model(use_arnoldi =None,use_init_space=None):
     
@@ -355,67 +451,35 @@ def run_building_model(use_arnoldi =None,use_init_space=None):
     output_space = np.hstack((output_space,expand_mat))
     initial_space = X0_probstar.V 
 
-
     inputProb = X0_probstar.estimateProbability()
 
-    datas = []
     h = [0.1]
     time_bound = 20
     m = 4
     target_error = 1e-6
     samples = 51
-    tolerance = 1e-9
-    
-    for hi in h:
+    tolerance = 1e-9    
 
-        AND = _AND_()
-        OR = _OR_()                                        
-        lb = _LeftBracket_()
-        rb = _RightBracket_()
+    # added
+    AND = _AND_()
+    OR = _OR_()                                        
+    lb = _LeftBracket_()
+    rb = _RightBracket_()
 
-        A1 = np.array([-1])
-        b1 = np.array([-0.004])
-        P = AtomicPredicate(A1,b1)
+    A1 = np.array([-1])
+    b1 = np.array([-0.004])
+    P = AtomicPredicate(A1,b1)
 
-        P1 = AtomicPredicate(-A1,-b1)
-
-        N = int (time_bound/ hi)
-        reach_start_time = time.time()
-
-        R, krylov_time = sim3(combined_mat,X0_probstar,hi, N, m,samples,tolerance,target_error=target_error,initial_space=initial_space,output_space=output_space,use_arnoldi = use_arnoldi,use_init_space=use_init_space)
-        reach_time_duration = time.time() - reach_start_time
-
-        EVOT =_EVENTUALLY_(0,N)
-        EVOT1 =_EVENTUALLY_(0,10)
-        AWOT=_ALWAYS_(0,N)
-        AWOT1=_ALWAYS_(0,10)
-
-        spec = Formula([EVOT,P]) # be unsafe at some step 0 to N
-        spec1 = Formula([AWOT,P1]) # alwyas safe between 0 to N
-        spec2 = Formula([EVOT1,lb,P1,OR,lb,AWOT1,P,rb,rb])
-        specs=[spec,spec1]
-    
-
-    inputProb = X0_probstar.estimateProbability()
-
+    P1 = AtomicPredicate(-A1,-b1)
     datas = []
+
     for hi in h:
-
-        AND = _AND_()
-        OR = _OR_()                                        
-        lb = _LeftBracket_()
-        rb = _RightBracket_()
-
-        A1 = np.array([-1])
-        b1 = np.array([-0.004])
-        P = AtomicPredicate(A1,b1)
-
-        P1 = AtomicPredicate(-A1,-b1)
 
         N = int (time_bound/ hi)
         reach_start_time = time.time()
 
         R, krylov_time = sim3(combined_mat,X0_probstar,hi, N, m,samples,tolerance,target_error=target_error,initial_space=initial_space,output_space=output_space,use_arnoldi = use_arnoldi,use_init_space=use_init_space)
+
         reach_time_duration = time.time() - reach_start_time
 
         EVOT =_EVENTUALLY_(0,N)
@@ -423,11 +487,39 @@ def run_building_model(use_arnoldi =None,use_init_space=None):
         AWOT=_ALWAYS_(0,N)
         AWOT1=_ALWAYS_(0,10)
 
-        spec = Formula([EVOT,P]) # be unsafe at some step 0 to N
+        spec0 = Formula([EVOT,P]) # be unsafe at some step 0 to N
         spec1 = Formula([AWOT,P1]) # alwyas safe between 0 to N
         spec2 = Formula([EVOT1,lb,P1,OR,lb,AWOT1,P,rb,rb])
-        specs=[spec2,spec,spec1]
 
+        check_start = time.time()
+        spec = spec2
+        print("\n===================Specification{}: =====================".format(2))
+        spec.print()
+        # S  = spec.render(R)
+        DNF_spec = spec.getDynamicFormula()
+        Nadnf = DNF_spec.length
+        print('Length of abstract DNF_spec = {}'.format(DNF_spec.length))
+        _,p_max, p_min, Ncdnf = DNF_spec.evaluate(R)
+        end = time.time()
+        checking_time = end - check_start 
+        print("p_min:",p_min)
+        print("p_max:",p_max)
+        verify_time = checking_time + reach_time_duration    
+        
+        data_spec2 = {
+            'Model': 'Building',
+            'Spec': 2,
+            'Nadnf': Nadnf,
+            'Ncdnf': Ncdnf,
+            'p_min':p_min,
+            'p_max':p_max,
+            't_r':reach_time_duration,
+            't_c':checking_time,
+            't_v': verify_time
+        }
+        
+        specs=[spec0, spec1]
+        # Using for loop
         for spec_id in range(0,len(specs)):
             check_start = time.time()
             spec = specs[spec_id]
@@ -437,44 +529,30 @@ def run_building_model(use_arnoldi =None,use_init_space=None):
             DNF_spec = spec.getDynamicFormula()
             Nadnf = DNF_spec.length
             print('Length of abstract DNF_spec = {}'.format(DNF_spec.length))
-            _,p_max, p_min, Ncdnf = DNF_spec.evaluate(R)
+            print(DNF_spec)
+            _, p_max, p_min, Ncdnf = DNF_spec.evaluate(R)
             end = time.time()
-            checking_time = end -check_start 
+            checking_time = end - check_start 
             print("p_min:",p_min)
             print("p_max:",p_max)
             verify_time = checking_time + reach_time_duration    
-
-            if spec_id == 0:
-                spec_id = 2
-                data2 = {
-                    'Model': 'Building',
-                    'Spec': spec_id,
-                    # 'Nadnf': Nadnf,
-                    # 'Ncdnf': Ncdnf,
-                    'p_min':p_min,
-                    'p_max':p_max,
-                    't_r':reach_time_duration,
-                    't_c':checking_time,
-                    't_v': verify_time
-                }
-            else:
-                data = {
-                    'Model': 'Building',
-                    'Spec': spec_id,
-                    # 'Nadnf': Nadnf,
-                    # 'Ncdnf': Ncdnf,
-                    'p_min':p_min,
-                    'p_max':p_max,
-                    't_r':reach_time_duration,
-                    't_c':checking_time,
-                    't_v': verify_time
-                }
-                datas.append(data)
-        datas.append(data2)
-
+         
+            data = {
+                'Model': 'Building',
+                'Spec': spec_id,
+                'Nadnf': Nadnf,
+                'Ncdnf': Ncdnf,
+                'p_min':p_min,
+                'p_max':p_max,
+                't_r':reach_time_duration,
+                't_c':checking_time,
+                't_v': verify_time
+            }
+            
+            datas.append(data)
+        datas.append(data_spec2)
 
     return datas
-
 
 def run_pde_model(use_arnoldi = None,use_init_space=None):
 
@@ -587,8 +665,8 @@ def run_pde_model(use_arnoldi = None,use_init_space=None):
             data = {
                     'Model': 'PDE',
                     'Spec': spec_id,
-                    # 'Nadnf': Nadnf,
-                    # 'Ncdnf': Ncdnf,
+                    'Nadnf': Nadnf,
+                    'Ncdnf': Ncdnf,
                     'p_min':p_min,
                     'p_max':p_max,
                     't_r':reach_time_duration,
@@ -709,7 +787,7 @@ def run_iss_model(use_arnoldi=None,use_init_space=None):
             spec.print()
             DNF_spec = spec.getDynamicFormula()
             Nadnf = DNF_spec.length
-
+            # DNF_spec.print()
             print('Length of abstract DNF_spec = {}'.format(DNF_spec.length))
             _,p_max, p_min,Ncdnf=DNF_spec.evaluate(R)
             end = time.time()
@@ -720,10 +798,10 @@ def run_iss_model(use_arnoldi=None,use_init_space=None):
 
             # data.append(["ISS",hi,spec_id,Nadnf,Ncdnf,p_min,p_max, reach_time_duration,checking_time,verify_time])
             data = {
-                    'Model': 'MCS',
+                    'Model': 'ISS',
                     'Spec': spec_id,
-                    # 'Nadnf': Nadnf,
-                    # 'Ncdnf': Ncdnf,
+                    'Nadnf': Nadnf,
+                    'Ncdnf': Ncdnf,
                     'p_min':p_min,
                     'p_max':p_max,
                     't_r':reach_time_duration,
@@ -842,8 +920,8 @@ def run_beam_model(use_arnoldi = None,use_init_space=None):
             data = {
                     'Model': 'Beam',
                     'Spec': spec_id,
-                    # 'Nadnf': Nadnf,
-                    # 'Ncdnf': Ncdnf,
+                    'Nadnf': Nadnf,
+                    'Ncdnf': Ncdnf,
                     'p_min':p_min,
                     'p_max':p_max,
                     't_r':reach_time_duration,
@@ -902,6 +980,7 @@ def run_MNA1_model(use_arnoldi = None,use_init_space=None):
     Sig_U = np.diag(np.square(sig))
     X0_probstar = ProbStar(X0.V, X0.C, X0.d,mu_U, Sig_U,X0.pred_lb,X0.pred_ub)
 
+    # inputProb = X0_probstar.estimateProbability()
 
     h = [0.1]
     time_bound = 20
@@ -956,6 +1035,7 @@ def run_MNA1_model(use_arnoldi = None,use_init_space=None):
             spec.print()
             DNF_spec = spec.getDynamicFormula()
             Nadnf = DNF_spec.length
+            # DNF_spec.print()
             print('Length of abstract DNF_spec = {}'.format(DNF_spec.length))
             _,p_max, p_min, Ncdnf= DNF_spec.evaluate(R)
             end = time.time()
@@ -967,8 +1047,8 @@ def run_MNA1_model(use_arnoldi = None,use_init_space=None):
             data = {
                     'Model': 'MNA1',
                     'Spec': spec_id,
-                    # 'Nadnf': Nadnf,
-                    # 'Ncdnf': Ncdnf,
+                    'Nadnf': Nadnf,
+                    'Ncdnf': Ncdnf,
                     'p_min':p_min,
                     'p_max':p_max,
                     't_r':reach_time_duration,
@@ -978,8 +1058,6 @@ def run_MNA1_model(use_arnoldi = None,use_init_space=None):
             datas.append(data)
 
     return datas
-
-
 
 def run_fom_model(use_arnoldi = None,use_init_space=None):
        
@@ -1080,7 +1158,6 @@ def run_fom_model(use_arnoldi = None,use_init_space=None):
             spec.print()
             DNF_spec = spec.getDynamicFormula()
             Nadnf = DNF_spec.length
-
             print('Length of abstract DNF_spec = {}'.format(DNF_spec.length))
             _,p_max, p_min,Ncdnf = DNF_spec.evaluate(R)
             end = time.time()
@@ -1092,8 +1169,8 @@ def run_fom_model(use_arnoldi = None,use_init_space=None):
             data = {
                     'Model': 'FOM',
                     'Spec': spec_id,
-                    # 'Nadnf': Nadnf,
-                    # 'Ncdnf': Ncdnf,
+                    'Nadnf': Nadnf,
+                    'Ncdnf': Ncdnf,
                     'p_min':p_min,
                     'p_max':p_max,
                     't_r':reach_time_duration,
@@ -1211,7 +1288,7 @@ def run_MNA5_model(use_arnoldi=None,use_init_space=None):
             # S  = spec.render(R)
             DNF_spec = spec.getDynamicFormula()
             Nadnf = DNF_spec.length
-
+            # DNF_spec.print()
             print('Length of abstract DNF_spec = {}'.format(DNF_spec.length))
             _,p_max, p_min,Ncdnf = DNF_spec.evaluate(R)
             end = time.time()
@@ -1226,8 +1303,8 @@ def run_MNA5_model(use_arnoldi=None,use_init_space=None):
             data = {
                     'Model': 'MNA5',
                     'Spec': spec_id,
-                    # 'Nadnf': Nadnf,
-                    # 'Ncdnf': Ncdnf,
+                    'Nadnf': Nadnf,
+                    'Ncdnf': Ncdnf,
                     'p_min':p_min,
                     'p_max':p_max,
                     't_r':reach_time_duration,
@@ -1429,8 +1506,8 @@ def run_heat3D_model(use_arnoldi=None,use_init_space=None):
             data = {
                     'Model': 'Heat3D',
                     'Spec': spec_id,
-                    # 'Nadnf': Nadnf,
-                    # 'Ncdnf': Ncdnf,
+                    'Nadnf': Nadnf,
+                    'Ncdnf': Ncdnf,
                     'p_min':p_min,
                     'p_max':p_max,
                     't_r':reach_time_duration,
@@ -1441,33 +1518,34 @@ def run_heat3D_model(use_arnoldi=None,use_init_space=None):
 
     return datas
      
-
-
-
 def full_evaluation_results():
+
+    # harmonic(use_arnoldi=True,use_init_space=False)
     results = []
 
-
-    results.extend(run_mcs_model(use_arnoldi=True, use_init_space=False))
-    results.extend(run_building_model(use_arnoldi=True, use_init_space=False))
-    results.extend(run_pde_model(use_arnoldi=True, use_init_space=False))
-    results.extend(run_iss_model(use_arnoldi=True, use_init_space=False))
-    results.extend(run_beam_model(use_arnoldi=True, use_init_space=False))
-    results.extend(run_MNA1_model(use_arnoldi=True, use_init_space=False))
-    results.extend(run_fom_model(use_arnoldi=True, use_init_space=False))
-    results.extend(run_MNA5_model(use_arnoldi=True, use_init_space=False))
+    building_result = run_building_model(use_arnoldi=True, use_init_space=False)
+    mcs_result = run_mcs_model(use_arnoldi=True, use_init_space=False)
+    pde_result = run_pde_model(use_arnoldi=True, use_init_space=False)
+    iss_result = run_iss_model(use_arnoldi=True, use_init_space=False)
+    beam_result = run_beam_model(use_arnoldi=True, use_init_space=False)
+    fom_result = run_fom_model(use_arnoldi=True, use_init_space=False)
+    mna1_result = run_MNA1_model(use_arnoldi=True, use_init_space=False)
+    mna5_result = run_MNA5_model(use_arnoldi=True, use_init_space=False)
 
     # Heat#d model using Lanczos iteration due to symmetric dynamics
-    results.extend(run_heat3D_model(use_arnoldi=False, use_init_space=False))
+    heat3D_result = run_heat3D_model(use_arnoldi=False, use_init_space=False)
 
-
-    print(tabulate([[r['Model'], r['Spec'], r['p_min'], r['p_max'], 
+    results.extend(mcs_result + building_result + pde_result + iss_result + beam_result + mna1_result + fom_result + mna5_result + heat3D_result)
+    # results.extend(heat3D_result)
+#
+    print(tabulate([[r['Model'], r['Spec'], r['Nadnf'],r['Ncdnf'],r['p_min'], r['p_max'], 
                     r['t_r'], r['t_c'], r['t_v']] for r in results],
-                  headers=["Model", "Spec", "Nadnf", "Ncdnf", "p_min", "p_max",
+                  headers=["Model", "Spec","Nadnf","Ncdnf","p_min", "p_max",
                           "t_r", "t_c", "t_v"]))
 
     # Save results to pickle file
-    path = "results"
+    cur_path = os.path.dirname(__file__)
+    path = cur_path + 'results' 
     if not os.path.exists(path):
         os.makedirs(path)
     with open(path + '/full_results.pkl', 'wb') as f:
@@ -1476,14 +1554,13 @@ def full_evaluation_results():
 def verification_Hylaa_tool():
     """
     Verify all benchamrks with using Hylaa verification tool
-    (NNV, Marabou, NNenum)
     """
     data = [
-    {"Model": 'MCS', "Spec": 0, "SAT": 'YES', "t_v": 0.005317},
+    {"Model": 'Motor', "Spec": 0, "SAT": 'YES', "t_v": 0.005317},
     {"Model": 'Building', "Spec": 0, "SAT": 'NO', "t_v": 0.160578}, 
     {"Model": 'PDE', "Spec": 0, "SAT": 'YES', "t_v": 0.371748},
     {"Model": 'ISS', "Spec": 0, "SAT": 'YES', "t_v": 3.292322},
-    {"Model": 'BEAM', "Spec": 0, "SAT": 'YES', "t_v": 4.475225},
+    {"Model": 'Beam', "Spec": 0, "SAT": 'YES', "t_v": 4.475225},
     {"Model": 'MNA1', "Spec": 0, "SAT": 'YES', "t_v": 3.634282},
     {"Model": 'FOM', "Spec": 0, "SAT": 'YES', "t_v": 22.683661},
     {"Model": 'MNA5', "Spec": 0, "SAT": 'YES', "t_v": 4.217258},
@@ -1501,7 +1578,8 @@ def verification_Hylaa_tool():
         results.append(result)
     
     # Save to pickle file
-    path = "results"
+    cur_path = os.path.dirname(__file__)
+    path = cur_path + 'results' 
     if not os.path.exists(path):
         os.makedirs(path)
     with open(path + '/Hylaa_results.pkl', 'wb') as f:
@@ -1544,7 +1622,8 @@ def generate_table_3_vs_Hylaa_tool():
             print(f"Error loading {filename}: {e}")
             return []
         
-    path = "results"
+    cur_path = os.path.dirname(__file__)
+    path = cur_path + 'results'     
     # Load all data sources
     probstarTL_data = load_pickle_file(path + '/full_results.pkl')
 
@@ -1616,10 +1695,8 @@ def generate_table_3_vs_Hylaa_tool():
     with open(path + '/Table_3_vs_Hylaa.tex', 'w') as f:
         f.write(table_content)
 
-    print("Table has been generated and saved to 'Table_3_vs_Hylaa.tex'")
+    print("Table has been generated and saved to 'results/Table_3_vs_Hylaa.tex'")
     return table_content
-
-
 
 if __name__ == '__main__':
 
