@@ -1090,7 +1090,7 @@ class DynamicFormula(object):
             d = None
             for Pi in P:
                 if Pi.t >= T:
-                    C =None
+                    C = None
                     d = None
                     break
                 else:  
