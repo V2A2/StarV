@@ -127,11 +127,11 @@ sudo apt-get install python3-dev python3-pip libgmp-dev libglpk-dev libgmp3-dev
 ```bash
 # Remove the old environment, if necessary.
 conda deactivate; conda env remove -n starv
-# install all dependents into the alpha-beta-crown environment
+# Install all dependencies into the starv environment
 conda create -n starv python=3.8
 # activate the environment
 conda activate starv
-# deactivate the environment when you are done
+# Deactivate the environment when you are done
 conda deactivate
 ```
 
