@@ -1019,3 +1019,15 @@ class Star(object):
 
         new_d = d + np.dot(new_C, c)
         return pc.Polytope(new_C, new_d)
+    
+    def toImageStar(self, image_shape, copy_=True):
+        """Converts to ImageStar set representation"""
+        n = np.prod(image_shape)
+        assert len(image_shape) == 3, f'error: Number of dimensions of image_shape should be 3'
+        assert self.dim == n, f'error: Incompatible dimension, Star set with dim={self.dim} cannot be converted into ImageStar set with dim={image_shape}'
+
+        from StarV.set.imagestar import ImageStar
+
+        out_shape = image_shape + (self.nVars + 1, )
+        new_V = self.V.reshape(out_shape)
+        return ImageStar(new_V, self.C, self.d, self.pred_lb, self.pred_ub, copy_=copy_)

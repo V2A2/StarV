@@ -9,6 +9,7 @@ import numpy as np
 import scipy.sparse as sp
 from StarV.set.sparsestar import SparseStar
 from StarV.set.star import Star
+from StarV.set.imagestar import ImageStar
 
 class LogSig(object):
     """
@@ -872,5 +873,9 @@ class LogSig(object):
             return LogSig.reachApprox_sparse(I=I, opt=opt, delta=delta, lp_solver=lp_solver, RF=RF, DR=DR, show=show)
         elif isinstance(I, Star):
             return LogSig.reachApprox_star(I, opt=opt, lp_solver=lp_solver, RF=RF)
+        elif isinstance(I, ImageStar):
+            shape = I.shape()
+            S = LogSig.reachApprox_star(I.toStar(), opt=opt, lp_solver=lp_solver, RF=RF)
+            return S.toImageStar(image_shape=shape, copy_=False)
         else:
             raise Exception('error: unknown input set')
