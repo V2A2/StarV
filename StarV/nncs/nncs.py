@@ -2,6 +2,10 @@
   Generic Neural Network Control System Class
   
   Dung Tran, 8/14/2023
+  Sung Woo Choi, 06/10/2025
+  	- added DynNN_NNCS (dynamic neural network NNCS)
+	- plant: dynamic NN
+	- controller: NN controller
 """
 
 from StarV.net.network import NeuralNetwork, reachExactBFS, reachApproxBFS
@@ -16,6 +20,19 @@ import time
 import numpy as np
 
 class ReachPRM_NNCS(object):
+    'reachability parameters for NNCS'
+
+    def __init__(self):
+        self.initSet = None
+        self.numSteps = 1
+        self.refInputs = []
+        self.method = 'exact-probstar'
+        self.filterProb = 0.0
+        self.lpSolver = 'gurobi'
+        self.show = True
+        self.numCores = 1
+
+class ReachPRM_DYNNN_NNCS(object):
     'reachability parameters for NNCS'
 
     def __init__(self):
@@ -66,7 +83,10 @@ class VerifyRes_NNCS(object):
         self.Qt_max = None # maximum upper bound quantitative result (for unbounded input set)
         self.p_ignored = None # total ignored probability
         
-
+class NCS:
+    def __init__(self):
+        self.controller = None
+        self.plant = None
 
 class NNCS(object):
     """Generic neural network control system class
@@ -124,10 +144,12 @@ class NNCS(object):
        The dynamical system can be:
         * Linear ODE
         * Nonlinear ODE will be added in future
+        * Dynamic Neural network
 
        Properties:
            @type: 1) linear-nncs: relu net + Linear ODEs
                   2) nonlinear-nncs: relu net + Nonlinear ODEs / sigmoid net + ODEs 
+                  3) dynnn-nncs: relu net (controller) + relu net (plant) 
            @in_dim: input dimension
            @out_dim: output dimension
 
@@ -138,25 +160,34 @@ class NNCS(object):
     def __init__(self, controller_net, plant, type=None):
 
         assert isinstance(controller_net, NeuralNetwork), 'error: net should be a Neural Network object'
-        assert isinstance(plant, DLODE) or isinstance(plant, LODE), 'error: plant should be a discrete ODE object'
+        assert isinstance(plant, DLODE) or isinstance(plant, LODE) or \
+            isinstance(plant, NeuralNetwork), 'error: plant should be a discrete ODE or neural network object'
 
         # TODO implement isReLUNetwork?
 
         # checking consistency
-        
-        assert plant.nI == controller_net.out_dim, 'error: number of plant inputs \
-        does not equal to the number of controller outputs'
+        # nI = plant.in_dim if isinstance(plant, NeuralNetwork) else plant.nI
+        # assert nI == controller_net.out_dim, 'error: number of plant inputs \
+        # does not equal to the number of controller outputs'
 
-        self.controller = controller_net
-        self.plant = plant
-        self.nO = plant.nO
+        self.ncs = NCS()
+        self.ncs.controller = controller_net
+        self.ncs.plant = plant
+
+        if isinstance(plant, NeuralNetwork):
+            self.nO = plant.out_dim
+            self.nI_fb = plant.out_dim    # number of feedback inputs to the controller
+        else:
+            self.nO = plant.nO
+            self.nI_fb = plant.nO    # number of feedback inputs to the controller
+
         self.nI = controller_net.in_dim
-        self.nI_fb = plant.nO    # number of feedback inputs to the controller
         self.nI_ref = controller_net.in_dim - self.nI_fb   # number of reference inputs to the controller
         self.type = type
         self.RX = None     # state reachable set
         self.RY = None     # output reachable set
         self.RU = None     # control set
+
 
     def __str__(self):
         """print information of the neural network control system"""
@@ -166,10 +197,10 @@ class NNCS(object):
         print('\n number of outputs: {}'.format(self.nO))
         print('\n number of inputs: {}'.format(self.nI))
         print('\n number of feeback inputs: {}'.format(self.nI_fb))
-        print('\n numher of reference inputs: {}'.format(self.nI_ref))
+        print('\n number of reference inputs: {}'.format(self.nI_ref))
         print('\n network controller & plant model information:')
-        print(self.controller)
-        print(self.plant)
+        print(self.ncs.controller)
+        print(self.ncs.plant)
         print('')
         return '\n'
         
@@ -189,7 +220,10 @@ class NNCS(object):
         #   7) reachPRM.show
 
         if self.type == 'DLNNCS': # discrete linear NNCS
-            self.RX, self.RY, self.RU = reachBFS_DLNNCS(self.controller, self.plant, reachPRM)
+            self.RX, self.RY, self.RU = reachBFS_DLNNCS(self.ncs, reachPRM)
+        elif self.type == 'DynNN-NNCS': # dynamic neural network NNCS
+            RX, p_ignored = reachBFS_DynNN_NNCS(self.ncs, reachPRM)
+            return RX, p_ignored
         else:
             raise RuntimeError('We are have not support \
             reachability analysis for type = {} yet'.format(self.type))
@@ -220,6 +254,15 @@ class AEBS_NNCS(object):
         self.transformer = transformer
         self.norm_mat = norm_mat
         self.scale_mat = scale_mat
+        self.plant = plant
+
+class DynNN_NNCS(object):
+
+    # plant: a dynamic neural network
+    # controller: a neural network controller
+
+    def __init__(self, controller, plant):
+        self.controller = controller
         self.plant = plant
 
 def verify_DLNNCS_MonteCarlo(ncs, verifyPRM, N_samples):
@@ -460,7 +503,11 @@ def stepReach_DLNNCS_extended(ncs, Xi, reachPRM):
                 if Xpf > reachPRM.filterProb:
                     RX.append(Xi1[i])
                 else:
-                    p_ignored = p_ignored + Xpf        
+                    p_ignored = p_ignored + Xpf
+
+    elif isinstance(ncs, DynNN_NNCS):
+        RX, p_ignored = stepReach_DynNN_NNCS(ncs, Xi, reachPRM)   # NNCS system with plant: Dynamic NN, and control: Control NN.
+
     else:
         raise RuntimeError('Unknown system')
 
@@ -695,6 +742,120 @@ def reachDFS_DLNNCS(ncs, reachPRM):
     return traces1, p_ig
 
 
+def reachBFS_DynNN_NNCS(ncs, reachPRM):
+    'breath first search reachability of dynamic neural network NNCS (DynNN_NNCS)'
+
+    assert isinstance(reachPRM, ReachPRM_DYNNN_NNCS), 'error: reachability parameter should be an ReachPRM_NNCS object'
+    assert reachPRM.initSet is not None, 'error: there is no initial set for reachability'
+    assert reachPRM.numSteps >= 1, 'error: number of time steps should be >= 1'
+    
+    if reachPRM.numCores > 1:
+        pool = multiprocessing.Pool(reachPRM.numCores)
+    else:
+        pool = None
+
+    if reachPRM.show:
+        print('\nReachability analysis of dynamic NN NNCS for {} steps...'.format(reachPRM.numSteps))
+                
+    RX = []   # state reachable set RX = [RX1, ..., RYN], RXi = [RXi1, RXi2, ...RXiM]
+
+    RX.append([reachPRM.initSet])
+    p_ignored = [0.]
+    # for i in range(0, reachPRM.numSteps+1):
+    for i in range(reachPRM.numSteps):
+        if reachPRM.show:
+            print('\nReachability analysis at step {}...'.format(i))
+
+        X0 = RX[i]
+        RXi = []
+        p_ign_i = p_ignored[i]
+        for j in range(0, len(X0)):            
+            RXij, pij = stepReach_DynNN_NNCS(ncs, X0[j], reachPRM=reachPRM)
+            RXi.extend(RXij)
+            p_ign_i = p_ign_i + pij
+
+        RX.append(RXi)
+        p_ignored.append(p_ign_i)
+
+    return RX, p_ignored
+
+
+def stepReach_DynNN_NNCS(ncs, Xi, reachPRM):
+    'one-step reachability analysis of dynamic NN NNCS, a normal NNCS with one controller and one plant'
+
+    refInputs = reachPRM.refInputs
+    filterProb = reachPRM.filterProb
+    numCores = reachPRM.numCores
+    lp_solver = reachPRM.lpSolver
+    controller = ncs.controller
+    plant = ncs.plant
+    Ui = None
+    # Xi: set of state of the plant at step i
+    # Yi: feedback to the network controller at step i
+
+    if filterProb < 0:
+        raise RuntimeError('Invalid filtering probability')
+
+    if numCores > 1:
+        pool = multiprocessing.Pool(numCores)
+    else:
+        pool = None
+    
+    # if control input, Ui, is not provided, compute control input with NN controller, i.e, Ui = NN_control(Xi)
+    if Ui is None or len(Ui) == 0:
+        # achieve control input from reachability of NN controller
+        fb_I = Xi.concatenate_with_vector(refInputs) if len(refInputs) > 0 else Xi
+        Ui = reachExactBFS(controller, [fb_I], lp_solver, pool=pool, show=False)
+    else:
+        if not isinstance(Ui, list):
+            Ui = [Ui]
+    p_ig = 0.0
+
+    print('Xi: \n')
+    print(repr(Xi))
+    print('prob: ', Xi.estimateProbability())
+    print()
+
+    print('fb_I: \n')
+    print(repr(fb_I))
+    print('prob: ', fb_I.estimateProbability())
+    print()
+    
+    # concatenate state and control input to construct input for NN plant, i.e., XUi = [Xi, Ui]^T
+    XUi = []
+    for U in Ui:
+        print('U: \n')
+        print(repr(U))
+        print('prob: ', U.estimateProbability())
+        print()
+        if filterProb > 0:
+            # filter out control input if the probability of control input is less tahn filterProb
+            pi = U.estimateProbability()
+            if pi <= filterProb:
+                p_ig += pi
+                continue
+ 
+        XUi.append(Xi.concatenate(U))
+        
+    
+    # reachability of NN plant; yi = NeuralNetwork(xi, ui) = NeuralNetwork([xi, ui])
+    Y = []
+    for I in XUi:
+        Y1 = reachExactBFS(plant, [I], lp_solver, pool=pool, show=False)
+        for Yi in Y1:
+            print('Yi: \n')
+            print(repr(Yi))
+            print('prob: ', Yi.estimateProbability())
+            print()
+            if filterProb > 0:
+                pi = Yi.estimateProbability()
+                if pi <= filterProb:
+                    p_ig += pi
+                    continue
+        
+        Y.append(Yi)
+
+    return Y, p_ig
 
 def check_sat_on_trace2(*args):
     'verify a temporal property on a single trace'
@@ -865,7 +1026,7 @@ def verify_temporal_specs_DLNNCS(ncs, verifyPRM):
     # Dung Tran: 1/14/2024, update 7/4/2024
 
 
-    assert isinstance(ncs, NNCS) or isinstance(ncs, AEBS_NNCS), 'error: ncs is not an NNCS object'
+    assert isinstance(ncs, NNCS) or isinstance(ncs, AEBS_NNCS) or isinstance(ncs, DynNN_NNCS), 'error: ncs is not an NNCS object'
     assert isinstance(verifyPRM, VerifyPRM_NNCS), 'error: verifyPRM is not a VerifyPRM_NNCS object'
 
     reachPRM = ReachPRM_NNCS()
