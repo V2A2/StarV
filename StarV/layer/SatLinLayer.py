@@ -18,7 +18,7 @@ class SatLinLayer(object):
     
     
     @staticmethod
-    def reach(In, method='exact', lp_solver='gurobi', pool=None, RF=0.0):
+    def reach(In, method='exact', lp_solver='gurobi', pool=None, RF=0.0, show=False):
         """main reachability method
            Args:
                @I: a list of input set (Star or ProbStar)
@@ -35,7 +35,7 @@ class SatLinLayer(object):
         if method == 'exact':
             return SatLin.reachExactMultiInputs(In, lp_solver, pool)
         elif method == 'approx':
-            raise Exception('error: under development')
+            return SatLin.reachApprox(In=In, lp_solver=lp_solver, show=show)
         elif method == 'relax':
             raise Exception('error: under development')
         else:
