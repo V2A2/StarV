@@ -327,7 +327,7 @@ python3 tutorial_star.py
 The StarV tool is currently developed by:
 
 ### Main developers
-- Hoang Dung Tran (dtran30@unl.edu), UNL
-- Sung Woo Choi (schoi9@unl.edu), UNL
-- Yuntao Li (yli120@unl.edu), UNL
-- Qing Liu (qliu15@unl.edu), UNL
+- Hoang Dung Tran (dungtran@ufl.edu), UF
+- Sung Woo Choi (sungwoo.choi@ufl.edu), UF
+- Yuntao Li (yli17@ufl.edu), UF
+- Qing Liu (qliu1@ufl.edu), UF
