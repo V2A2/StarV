@@ -789,7 +789,7 @@ class TanSig(object):
 
         nv = I.nVars + m
 
-        ## l > 0 & l != u
+        ## l >= 0 & l != u
         map1 = np.where(l[map0] >= 0)[0]
         if len(map1):
             map_ = map0[map1]
@@ -844,7 +844,7 @@ class TanSig(object):
             C22 = np.hstack([dyu_*V1, -V2])
             d22 = -dyu_*(c1 - u_) - yu_
 
-            # constraint 3: y <= (y(u) - y(l)) * (x -l) / (u - l) + y(l);
+            # constraint 3: y <= (y(u) - y(l)) * (x -l) / (u - l) + y(l)
             g = (yu_ - yl_) / (u_ - l_)
             C23 = np.hstack([-g*V1, V2])
             d23 = g*(c1 - l_) + yl_
@@ -916,7 +916,7 @@ class TanSig(object):
             d3 = np.hstack((d31, d32, d33, d34))
 
         else:
-            C2 = np.empty((0, nv))
+            C3 = np.empty((0, nv))
             d3 = np.empty((0))
 
         n = I.C.shape[0]

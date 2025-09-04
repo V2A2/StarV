@@ -65,7 +65,7 @@ class Star(object):
                 assert len(d.shape) == 1, 'error: \
                 constraint vector should be a 1D numpy array'
                 assert V.shape[1] == C.shape[1] + 1, 'error: \
-                Inconsistency between basic matrix and constraint matrix'
+                Inconsistency between generator matrix and constraint matrix'
                 assert C.shape[0] == d.shape[0], 'error: \
                 Inconsistency between constraint matrix and constraint vector'
                 assert C.shape[1] == pred_lb.shape[0] and \
@@ -886,7 +886,7 @@ class Star(object):
             d = 0
         m.addConstr(C @ x <= d)
         Ae = sp.csr_matrix(self.V[:, 1:])
-        be = s - self.V[:, 0, None]
+        be = s - self.V[:, 0]
         m.addConstr(Ae @ x == be)
         m.optimize()
 

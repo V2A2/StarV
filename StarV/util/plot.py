@@ -729,7 +729,7 @@ def plot_probstar_distribution(I, dir_mat=None, dir_vec=None, show_prob=True, la
     
     I1 = I.affineMap(dir_mat, dir_vec)
     if I1.dim > 2:
-        raise Exception(f'error: only 1D and 2D plots are supported; received ProbStar has {ndim} dimension')
+        raise Exception(f'error: only 1D and 2D plots are supported; received ProbStar has {I1.dim} dimension')
     
     xlabel=label[0]
     ylabel=label[1]

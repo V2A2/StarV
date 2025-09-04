@@ -82,9 +82,9 @@ class FullyConnectedLayer(object):
         
         elif W is not None:
 			#if x.shape[:2] == self.W.shape[:2]:
-            if x.ndim == self.W.ndim:
-                return W * x 
-        
+            if x.ndim == self.W.ndim or np.prod(self.W.shape) == 1:
+                return W * x
+            
             return np.matmul(W, x)
 
         elif b is not None:

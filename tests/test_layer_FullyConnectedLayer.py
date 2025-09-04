@@ -5,13 +5,13 @@ Date: 9/9/2022
 """
 
 import numpy as np
-from StarV.layer.fullyConnectedLayer import fullyConnectedLayer
+from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
 from StarV.set.probstar import ProbStar
 import multiprocessing
 
 class Test(object):
     """
-    Testing fullyConnectedLayer class methods
+    Testing FullyConnectedLayer class methods
     """
 
     def __init__(self):
@@ -24,10 +24,10 @@ class Test(object):
         self.n_tests = self.n_tests + 1
         W = np.random.rand(2, 3)
         b = np.random.rand(2)
-        print('Test fullyConnectedLayer Constructor')
+        print('Test fullFullyConnectedLayeryConnectedLayer Constructor')
 
         try:
-            fullyConnectedLayer(W, b)
+            FullyConnectedLayer([W, b])
         except Exception:
             print('Test Fail!')
             self.n_fails = self.n_fails + 1
@@ -39,7 +39,7 @@ class Test(object):
         print('Test fullyConnectedLayer random method')
 
         try:
-            fullyConnectedLayer.rand(2, 3)
+            FullyConnectedLayer.rand(2, 3)
         except Exception:
             print('Test Fail!')
             self.n_fails = self.n_fails + 1
@@ -51,7 +51,7 @@ class Test(object):
         print('Test fullyConnectedLayer reachExactSingleInput method')
 
         try:
-            L = fullyConnectedLayer.rand(2, 3)
+            L = FullyConnectedLayer.rand(2, 3)
             In = ProbStar.rand(2)
             print('Input Set:')
             In.__str__()
@@ -70,7 +70,7 @@ class Test(object):
         print('Without Parallel Computing')
         
         try:
-            L = fullyConnectedLayer.rand(2, 3)
+            L = FullyConnectedLayer.rand(2, 3)
             I1 = ProbStar.rand(2)
             In = []
             In.append(I1)
@@ -87,7 +87,7 @@ class Test(object):
         print('Using Parallel Computing')
 
         pool = multiprocessing.Pool(2)
-        L = fullyConnectedLayer.rand(2, 3)
+        L = FullyConnectedLayer.rand(2, 3)
         I1 = ProbStar.rand(2)
         In = []
         In.append(I1)
@@ -117,22 +117,22 @@ class Test(object):
 
             
 if __name__ == "__main__":
-    test_fullyConnectedLayer = Test()
+    test_FullyConnectedLayer = Test()
     print('\n=======================\
     ================================\
     ================================\
     ===============================\n')
-    test_fullyConnectedLayer.test_constructor()
-    test_fullyConnectedLayer.test_rand()
-    test_fullyConnectedLayer.test_reachExactSingleInput()
-    test_fullyConnectedLayer.test_reach()
+    test_FullyConnectedLayer.test_constructor()
+    test_FullyConnectedLayer.test_rand()
+    test_FullyConnectedLayer.test_reachExactSingleInput()
+    test_FullyConnectedLayer.test_reach()
     print('\n========================\
     =================================\
     =================================\
     =================================\n')
-    print('Testing ProbStar Class: fails: {}, successfull: {}, \
-    total tests: {}'.format(test_fullyConnectedLayer.n_fails,
-                            test_fullyConnectedLayer.n_tests - test_fullyConnectedLayer.n_fails,
-                            test_fullyConnectedLayer.n_tests))
+    print('Testing FullyConnectedLayer Class: fails: {}, successfull: {}, \
+    total tests: {}'.format(test_FullyConnectedLayer.n_fails,
+                            test_FullyConnectedLayer.n_tests - test_FullyConnectedLayer.n_fails,
+                            test_FullyConnectedLayer.n_tests))
 
     

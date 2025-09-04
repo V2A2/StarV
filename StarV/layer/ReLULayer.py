@@ -12,7 +12,7 @@ class ReLULayer(object):
         Author: Dung Tran
         Date: 9/10/2022
     """
-
+    
     @staticmethod
     def evaluate(x):
         return PosLin.evaluate(x)

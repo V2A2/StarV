@@ -6,8 +6,8 @@ Yuntao Li, 2/6/2024
 
 import os
 from scipy.io import loadmat
-from StarV.layer.fullyConnectedLayer import fullyConnectedLayer
 from StarV.layer.ReLULayer import ReLULayer
+from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
 from StarV.layer.LeakyReLULayer import LeakyReLULayer
 from StarV.layer.SatLinLayer import SatLinLayer
 from StarV.layer.SatLinsLayer import SatLinsLayer
@@ -24,11 +24,11 @@ def load_tiny_network_ReLU():
     layers = []
     W1 = np.array([[1.0, -2.0], [-1., 0.5], [1., 1.5]])
     b1 = np.array([0.5, 1.0, -0.5])
-    L1 = fullyConnectedLayer(W1, b1)
+    L1 = FullyConnectedLayer([W1, b1])
     L2 = ReLULayer()
     W2 = np.array([[-1.0, -1.0, 1.0], [2.0, 1.0, -0.5]])
     b2 = np.array([-0.2, -1.0])
-    L3 = fullyConnectedLayer(W2,b2)
+    L3 = FullyConnectedLayer([W2, b2])
     
     layers.append(L1)
     layers.append(L2)
@@ -59,7 +59,7 @@ def load_2017_IEEE_TNNLS_ReLU():
         Wi = W[0, i]
         bi = b[0, i]
         bi = bi.reshape(bi.shape[0],)
-        L1 = fullyConnectedLayer(Wi, bi)
+        L1 = FullyConnectedLayer([Wi, bi])
         layers.append(L1)
         L2 = ReLULayer()
         layers.append(L2)
@@ -67,7 +67,7 @@ def load_2017_IEEE_TNNLS_ReLU():
     Wi = W[0, b.shape[1]-1]
     bi = b[0, b.shape[1]-1]
     bi = bi.reshape(bi.shape[0],)
-    L1 = fullyConnectedLayer(Wi, bi)
+    L1 = FullyConnectedLayer([Wi, bi])
     layers.append(L1)
     net = NeuralNetwork(layers, net_type='ffnn_2017_IEEE_TNNLS')
 
@@ -106,7 +106,7 @@ def load_ACASXU_ReLU(x, y, spec_id, actv='relu'):
         Wi = W[0, i]
         bi = b[0, i]
         bi = bi.reshape(bi.shape[0],)
-        L1 = fullyConnectedLayer(Wi, bi)
+        L1 = FullyConnectedLayer([Wi, bi])
         layers.append(L1)
         L2 = ReLULayer()
         layers.append(L2)
@@ -114,7 +114,7 @@ def load_ACASXU_ReLU(x, y, spec_id, actv='relu'):
     Wi = W[0, b.shape[1]-1]
     bi = b[0, b.shape[1]-1]
     bi = bi.reshape(bi.shape[0],)
-    L1 = fullyConnectedLayer(Wi, bi)
+    L1 = FullyConnectedLayer([Wi, bi])
     layers.append(L1)
     net = NeuralNetwork(layers, net_type='ffnn_ACASXU_{}_{}'.format(x,y))
 
@@ -274,14 +274,14 @@ def load_HCAS_ReLU(prev_acv, tau, spec_id):
     for i in range(0, numLayers-1):
         Wi = weights[i]
         bi = biases[i]
-        L1 = fullyConnectedLayer(Wi, bi)
+        L1 = FullyConnectedLayer([Wi, bi])
         layers.append(L1)
         L2 = ReLULayer()
         layers.append(L2)
 
     Wi = weights[numLayers-1]
     bi = biases[numLayers-1]
-    L1 = fullyConnectedLayer(Wi, bi)
+    L1 = FullyConnectedLayer([Wi, bi])
     layers.append(L1)
 
     net = NeuralNetwork(layers, net_type='ffnn_HCAS_{}_{}'.format(prev_acv, tau))
@@ -365,11 +365,11 @@ def load_tiny_network_LeakyReLU():
     layers = []
     W1 = np.array([[1.0, -2.0], [-1., 0.5], [1., 1.5]])
     b1 = np.array([0.5, 1.0, -0.5])
-    L1 = fullyConnectedLayer(W1, b1)
+    L1 = FullyConnectedLayer([W1, b1])
     L2 = LeakyReLULayer()
     W2 = np.array([[-1.0, -1.0, 1.0], [2.0, 1.0, -0.5]])
     b2 = np.array([-0.2, -1.0])
-    L3 = fullyConnectedLayer(W2,b2)
+    L3 = FullyConnectedLayer([W2, b2])
     
     layers.append(L1)
     layers.append(L2)
@@ -400,7 +400,7 @@ def load_2017_IEEE_TNNLS_LeakyReLU():
         Wi = W[0, i]
         bi = b[0, i]
         bi = bi.reshape(bi.shape[0],)
-        L1 = fullyConnectedLayer(Wi, bi)
+        L1 = FullyConnectedLayer([Wi, bi])
         layers.append(L1)
         L2 = LeakyReLULayer()
         layers.append(L2)
@@ -408,7 +408,7 @@ def load_2017_IEEE_TNNLS_LeakyReLU():
     Wi = W[0, b.shape[1]-1]
     bi = b[0, b.shape[1]-1]
     bi = bi.reshape(bi.shape[0],)
-    L1 = fullyConnectedLayer(Wi, bi)
+    L1 = FullyConnectedLayer([Wi, bi])
     layers.append(L1)
     net = NeuralNetwork(layers, net_type='ffnn_2017_IEEE_TNNLS')
 
@@ -447,7 +447,7 @@ def load_ACASXU_LeakyReLU(x, y, spec_id, actv='relu'):
         Wi = W[0, i]
         bi = b[0, i]
         bi = bi.reshape(bi.shape[0],)
-        L1 = fullyConnectedLayer(Wi, bi)
+        L1 = FullyConnectedLayer([Wi, bi])
         layers.append(L1)
         L2 = LeakyReLULayer()
         layers.append(L2)
@@ -455,7 +455,7 @@ def load_ACASXU_LeakyReLU(x, y, spec_id, actv='relu'):
     Wi = W[0, b.shape[1]-1]
     bi = b[0, b.shape[1]-1]
     bi = bi.reshape(bi.shape[0],)
-    L1 = fullyConnectedLayer(Wi, bi)
+    L1 = FullyConnectedLayer([Wi, bi])
     layers.append(L1)
     net = NeuralNetwork(layers, net_type='ffnn_ACASXU_{}_{}'.format(x,y))
 
@@ -615,14 +615,14 @@ def load_HCAS_LeakyReLU(prev_acv, tau, spec_id):
     for i in range(0, numLayers-1):
         Wi = weights[i]
         bi = biases[i]
-        L1 = fullyConnectedLayer(Wi, bi)
+        L1 = FullyConnectedLayer([Wi, bi])
         layers.append(L1)
         L2 = LeakyReLULayer()
         layers.append(L2)
 
     Wi = weights[numLayers-1]
     bi = biases[numLayers-1]
-    L1 = fullyConnectedLayer(Wi, bi)
+    L1 = FullyConnectedLayer([Wi, bi])
     layers.append(L1)
 
     net = NeuralNetwork(layers, net_type='ffnn_HCAS_{}_{}'.format(prev_acv, tau))
@@ -706,11 +706,11 @@ def load_tiny_network_SatLin():
     layers = []
     W1 = np.array([[1.0, -2.0], [-1., 0.5], [1., 1.5]])
     b1 = np.array([0.5, 1.0, -0.5])
-    L1 = fullyConnectedLayer(W1, b1)
+    L1 = FullyConnectedLayer([W1, b1])
     L2 = SatLinLayer()
     W2 = np.array([[-1.0, -1.0, 1.0], [2.0, 1.0, -0.5]])
     b2 = np.array([-0.2, -1.0])
-    L3 = fullyConnectedLayer(W2,b2)
+    L3 = FullyConnectedLayer([W2, b2])
     
     layers.append(L1)
     layers.append(L2)
@@ -742,7 +742,7 @@ def load_2017_IEEE_TNNLS_SatLin():
         Wi = W[0, i]
         bi = b[0, i]
         bi = bi.reshape(bi.shape[0],)
-        L1 = fullyConnectedLayer(Wi, bi)
+        L1 = FullyConnectedLayer([Wi, bi])
         layers.append(L1)
         L2 = SatLinLayer()
         layers.append(L2)
@@ -750,7 +750,7 @@ def load_2017_IEEE_TNNLS_SatLin():
     Wi = W[0, b.shape[1]-1]
     bi = b[0, b.shape[1]-1]
     bi = bi.reshape(bi.shape[0],)
-    L1 = fullyConnectedLayer(Wi, bi)
+    L1 = FullyConnectedLayer([Wi, bi])
     layers.append(L1)
     net = NeuralNetwork(layers, net_type='ffnn_2017_IEEE_TNNLS')
 
@@ -790,7 +790,7 @@ def load_ACASXU_SatLin(x, y, spec_id):
         Wi = W[0, i]
         bi = b[0, i]
         bi = bi.reshape(bi.shape[0],)
-        L1 = fullyConnectedLayer(Wi, bi)
+        L1 = FullyConnectedLayer([Wi, bi])
         layers.append(L1)
         L2 = SatLinLayer()
         layers.append(L2)
@@ -798,7 +798,7 @@ def load_ACASXU_SatLin(x, y, spec_id):
     Wi = W[0, b.shape[1]-1]
     bi = b[0, b.shape[1]-1]
     bi = bi.reshape(bi.shape[0],)
-    L1 = fullyConnectedLayer(Wi, bi)
+    L1 = FullyConnectedLayer([Wi, bi])
     layers.append(L1)
     net = NeuralNetwork(layers, net_type='ffnn_ACASXU_{}_{}'.format(x,y))
 
@@ -963,14 +963,14 @@ def load_HCAS_SatLin(prev_acv, tau, spec_id):
     for i in range(0, numLayers-1):
         Wi = weights[i]
         bi = biases[i]
-        L1 = fullyConnectedLayer(Wi, bi)
+        L1 = FullyConnectedLayer([Wi, bi])
         layers.append(L1)
         L2 = SatLinLayer()
         layers.append(L2)
 
     Wi = weights[numLayers-1]
     bi = biases[numLayers-1]
-    L1 = fullyConnectedLayer(Wi, bi)
+    L1 = FullyConnectedLayer([Wi, bi])
     layers.append(L1)
 
     net = NeuralNetwork(layers, net_type='ffnn_HCAS_{}_{}'.format(prev_acv, tau))
@@ -1054,11 +1054,11 @@ def load_tiny_network_SatLins():
     layers = []
     W1 = np.array([[1.0, -2.0], [-1., 0.5], [1., 1.5]])
     b1 = np.array([0.5, 1.0, -0.5])
-    L1 = fullyConnectedLayer(W1, b1)
+    L1 = FullyConnectedLayer([W1, b1])
     L2 = SatLinsLayer()
     W2 = np.array([[-1.0, -1.0, 1.0], [2.0, 1.0, -0.5]])
     b2 = np.array([-0.2, -1.0])
-    L3 = fullyConnectedLayer(W2,b2)
+    L3 = FullyConnectedLayer([W2, b2])
     
     layers.append(L1)
     layers.append(L2)
@@ -1090,7 +1090,7 @@ def load_2017_IEEE_TNNLS_SatLins():
         Wi = W[0, i]
         bi = b[0, i]
         bi = bi.reshape(bi.shape[0],)
-        L1 = fullyConnectedLayer(Wi, bi)
+        L1 = FullyConnectedLayer([Wi, bi])
         layers.append(L1)
         L2 = SatLinsLayer()
         layers.append(L2)
@@ -1098,7 +1098,7 @@ def load_2017_IEEE_TNNLS_SatLins():
     Wi = W[0, b.shape[1]-1]
     bi = b[0, b.shape[1]-1]
     bi = bi.reshape(bi.shape[0],)
-    L1 = fullyConnectedLayer(Wi, bi)
+    L1 = FullyConnectedLayer([Wi, bi])
     layers.append(L1)
     net = NeuralNetwork(layers, net_type='ffnn_2017_IEEE_TNNLS')
 
@@ -1138,7 +1138,7 @@ def load_ACASXU_SatLins(x, y, spec_id):
         Wi = W[0, i]
         bi = b[0, i]
         bi = bi.reshape(bi.shape[0],)
-        L1 = fullyConnectedLayer(Wi, bi)
+        L1 = FullyConnectedLayer([Wi, bi])
         layers.append(L1)
         L2 = SatLinsLayer()
         layers.append(L2)
@@ -1146,7 +1146,7 @@ def load_ACASXU_SatLins(x, y, spec_id):
     Wi = W[0, b.shape[1]-1]
     bi = b[0, b.shape[1]-1]
     bi = bi.reshape(bi.shape[0],)
-    L1 = fullyConnectedLayer(Wi, bi)
+    L1 = FullyConnectedLayer([Wi, bi])
     layers.append(L1)
     net = NeuralNetwork(layers, net_type='ffnn_ACASXU_{}_{}'.format(x,y))
 
@@ -1310,14 +1310,14 @@ def load_HCAS_SatLins(prev_acv, tau, spec_id):
     for i in range(0, numLayers-1):
         Wi = weights[i]
         bi = biases[i]
-        L1 = fullyConnectedLayer(Wi, bi)
+        L1 = FullyConnectedLayer([Wi, bi])
         layers.append(L1)
         L2 = SatLinsLayer()
         layers.append(L2)
 
     Wi = weights[numLayers-1]
     bi = biases[numLayers-1]
-    L1 = fullyConnectedLayer(Wi, bi)
+    L1 = FullyConnectedLayer([Wi, bi])
     layers.append(L1)
 
     net = NeuralNetwork(layers, net_type='ffnn_HCAS_{}_{}'.format(prev_acv, tau))

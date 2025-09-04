@@ -482,23 +482,23 @@ class SparseImageStar2DCOO(object):
             (data, (row, col)), shape=(V.shape[0], V.shape[1])
         )
     
-    def resetRows_V_memory_issue(self, map):
-        '''Reset a row with index'''
+    # def resetRows_V_memory_issue(self, map):
+    #     '''Reset a row with index'''
 
-        V = self.V.tocsr()
+    #     V = self.V.tocsr()
 
-        n = V.indptr[1:] - V.indptr[:-1]
-        b = np.repeat(n[map][:, None], V.shape[0]+1, axis=1)
-        for i, m in enumerate(map):
-            b[i, :] = shift(b[i, :], m+1)
-        new_indptr = V.indptr - b.sum(axis=0)    
+    #     n = V.indptr[1:] - V.indptr[:-1]
+    #     b = np.repeat(n[map][:, None], V.shape[0]+1, axis=1)
+    #     for i, m in enumerate(map):
+    #         b[i, :] = shift(b[i, :], m+1)
+    #     new_indptr = V.indptr - b.sum(axis=0)    
 
-        mask = np.ones(V.shape[0], dtype=bool)
-        mask[map] = False
-        V = V[mask]
-        V.indptr = new_indptr
-        V._shape = self.V.shape
-        return V.tocoo(copy=False)
+    #     mask = np.ones(V.shape[0], dtype=bool)
+    #     mask[map] = False
+    #     V = V[mask]
+    #     V.indptr = new_indptr
+    #     V._shape = self.V.shape
+    #     return V.tocoo(copy=False)
     
     def resetRows_V(self, map):
         

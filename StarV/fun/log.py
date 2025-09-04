@@ -1,3 +1,4 @@
+w
 """
 Logarithm Class
 Sung Woo Choi, 06/24/2023

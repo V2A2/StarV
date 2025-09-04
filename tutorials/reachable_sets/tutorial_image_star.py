@@ -108,7 +108,7 @@ def imagestar_getRanges():
     ub = c + a
     
     IM = ImageStar(lb, ub)
-    H, W, C = IM.shape
+    H, W, C = IM.shape()
     print('Actual state bounds of ImageStar:')
     print('lower bounds:\n', lb.reshape(H, W))
     print('upper bounds:\n', ub.reshape(H, W))
@@ -137,7 +137,7 @@ def imagestar_estimateRanges():
     ub = c + a
     
     IM = ImageStar(lb, ub)
-    H, W, C = IM.shape
+    H, W, C = IM.shape()
     print('Actual state bounds of ImageStar:')
     print('lower bounds:\n', lb.reshape(H, W))
     print('upper bounds:\n', ub.reshape(H, W))

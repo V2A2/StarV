@@ -4,7 +4,6 @@ including Adult, Bank, German networks.
 Yuntao Li, 3/22/2024
 """
 import os
-from StarV.layer.fullyConnectedLayer import fullyConnectedLayer
 from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
 from StarV.layer.ReLULayer import ReLULayer
 from StarV.net.network import NeuralNetwork
@@ -121,7 +120,7 @@ def load_fairness_adult(id):
             # print(f"Wi shape: {Wi.shape}")
             bi = b[i]
             bi = bi.reshape(bi.shape[0],)
-            L1 = fullyConnectedLayer(Wi, bi)
+            L1 = FullyConnectedLayer([Wi, bi])
             # print(f"L1: {L1}")
             layers.append(L1)
             L2 = ReLULayer()
@@ -130,7 +129,7 @@ def load_fairness_adult(id):
         Wi = W[len(W)-1]
         bi = b[len(W)-1]
         bi = bi.reshape(bi.shape[0],)
-        L1 = fullyConnectedLayer(Wi, bi)
+        L1 = FullyConnectedLayer([Wi, bi])
         layers.append(L1)
         net = NeuralNetwork(layers, net_type='ffnn_AC-{}'.format(id))
         
@@ -179,7 +178,7 @@ def load_fairness_bank(id):
             # print(f"Wi shape: {Wi.shape}")
             bi = b[i]
             bi = bi.reshape(bi.shape[0],)
-            L1 = fullyConnectedLayer(Wi, bi)
+            L1 = FullyConnectedLayer([Wi, bi])
             # print(f"L1: {L1}")
             layers.append(L1)
             L2 = ReLULayer()
@@ -188,7 +187,7 @@ def load_fairness_bank(id):
         Wi = W[len(W)-1]
         bi = b[len(W)-1]
         bi = bi.reshape(bi.shape[0],)
-        L1 = fullyConnectedLayer(Wi, bi)
+        L1 = FullyConnectedLayer([Wi, bi])
         layers.append(L1)
         net = NeuralNetwork(layers, net_type='ffnn_BM-{}'.format(id))
         
@@ -237,7 +236,7 @@ def load_fairness_german(id):
             # print(f"Wi shape: {Wi.shape}")
             bi = b[i]
             bi = bi.reshape(bi.shape[0],)
-            L1 = fullyConnectedLayer(Wi, bi)
+            L1 = FullyConnectedLayer([Wi, bi])
             # print(f"L1: {L1}")
             layers.append(L1)
             L2 = ReLULayer()
@@ -246,7 +245,7 @@ def load_fairness_german(id):
         Wi = W[len(W)-1]
         bi = b[len(W)-1]
         bi = bi.reshape(bi.shape[0],)
-        L1 = fullyConnectedLayer(Wi, bi)
+        L1 = FullyConnectedLayer([Wi, bi])
         layers.append(L1)
         net = NeuralNetwork(layers, net_type='ffnn_GM-{}'.format(id))
         

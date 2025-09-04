@@ -10,7 +10,7 @@ from StarV.layer.ReLULayer import ReLULayer
 from StarV.layer.LeakyReLULayer import LeakyReLULayer
 from StarV.layer.SatLinLayer import SatLinLayer
 from StarV.layer.SatLinsLayer import SatLinsLayer
-from StarV.layer.fullyConnectedLayer import fullyConnectedLayer
+from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
 
 
 class RecurrentLayer(object):
@@ -62,8 +62,8 @@ class RecurrentLayer(object):
             self.fh = SatLinLayer()
         elif fh == "Satlins":
             self.fh = SatLinsLayer()
-        elif fh == "fullyConnected":
-            self.fh = fullyConnectedLayer()
+        elif fh == "FullyConnected":
+            self.fh = FullyConnectedLayer()
         else:
             self.fh = "purelin"
 
@@ -75,8 +75,8 @@ class RecurrentLayer(object):
             self.fo = SatLinLayer()
         elif fo == "Satlins":
             self.fo = SatLinsLayer()
-        elif fo == "fullyConnected":
-            self.fo = fullyConnectedLayer()
+        elif fo == "FullyConnected":
+            self.fo = FullyConnectedLayer()
         else:
             self.fo = "purelin"
 
@@ -161,8 +161,8 @@ class RecurrentLayer(object):
                     #     hj_reach = SatLinLayer.reach([hj_xi], method="exact", lp_solver=lp_solver)
                     # elif self.fh == "Satlins":
                     #     hj_reach = SatLinsLayer.reach([hj_xi], method="exact", lp_solver=lp_solver)
-                    # elif self.fh == "fullyConnected":
-                    #     hj_reach = fullyConnectedLayer.reach([hj_xi], method="exact", lp_solver=lp_solver)
+                    # elif self.fh == "FullyConnected":
+                    #     hj_reach = FullyConnectedLayer.reach([hj_xi], method="exact", lp_solver=lp_solver)
 
                     hj_reach = self.fh.reach([hj_xi], method="exact", lp_solver=lp_solver)
 

@@ -16,7 +16,7 @@ from StarV.fun.poslin import PosLin
 from StarV.fun.leakyrelu import LeakyReLU
 from StarV.fun.satlin import SatLin
 from StarV.fun.satlins import SatLins
-from StarV.layer.fullyConnectedLayer import fullyConnectedLayer
+from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
 from StarV.layer.ReLULayer import ReLULayer
 from StarV.layer.LeakyReLULayer import LeakyReLULayer
 from StarV.layer.SatLinLayer import SatLinLayer

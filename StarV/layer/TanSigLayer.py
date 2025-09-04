@@ -24,7 +24,7 @@ class TanSigLayer(object):
         """main reachability method
             Args:
                 @In: an input set (Star, SparseStar, or ProbStar)
-                @method: method: 'approx'
+                @method: 'approx'
                 @lp_solver: lp solver: 'gurobi' (default), 'glpk', or 'linprog'
                 @pool: parallel pool: None or multiprocessing.pool.Pool
                 @RF: relax-factor from 0 to 1 (0 by default)

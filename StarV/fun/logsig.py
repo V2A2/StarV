@@ -848,7 +848,7 @@ class LogSig(object):
             d3 = np.hstack((d31, d32, d33, d34))
 
         else:
-            C2 = np.empty((0, nv))
+            C3 = np.empty((0, nv))
             d3 = np.empty((0))
 
         n = I.C.shape[0]
