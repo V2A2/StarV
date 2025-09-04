@@ -799,10 +799,77 @@ class Star(object):
     
     def resetRows(self, map):
         """Reset a row with a map of indexes"""
-
+        for i in map: # Updated: Yuntao, 07/31/2025
+            if i < 0 or i > self.dim - 1:
+                raise Exception('error: invalid index, \
+                should be between {} and {}'.format(0, self.dim - 1))
+        if len(map) == 0:
+            raise Exception('error: map is empty, cannot reset rows')
         V = self.V
         V[map, :] = 0.0
         return Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
+
+    def resetRowWithFactor(self, index, factor):
+        """Reset a row with index and factor
+        Author: Yuntao, Date: 07/31/2025
+        """
+
+        if index < 0 or index > self.dim - 1:
+            raise Exception('error: invalid index, \
+            should be between {} and {}'.format(0, self.dim - 1))
+        V = self.V
+        V[index, :] *= factor
+        S = Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
+
+        return S
+
+    def resetRowsWithFactor(self, map, factor):
+        """Reset a row with a map of indexes and factor
+        Author: Yuntao, Date: 07/31/2025
+        """
+        for i in map:
+            if i < 0 or i > self.dim - 1:
+                raise Exception('error: invalid index, \
+                should be between {} and {}'.format(0, self.dim - 1))
+        if len(map) == 0:
+            raise Exception('error: map is empty, cannot reset rows')
+        V = self.V
+        V[map, :] *= factor
+        S = Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
+
+        return S
+
+    def resetRowWithUpdatedCenter(self, index, new_c):
+        """Reset a row with index, and with new center
+        Author: Yuntao, Date: 07/31/2025
+        """
+
+        if index < 0 or index > self.dim - 1:
+            raise Exception('error: invalid index, \
+            should be between {} and {}'.format(0, self.dim - 1))
+        V = self.V
+        V[index, :] = 0.0
+        V[index, 0] = new_c
+        S = Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
+
+        return S
+
+    def resetRowsWithUpdatedCenter(self, map, new_c):
+        """Reset a row with a map of indexes, and with new center
+        Author: Yuntao, Date: 07/31/2025
+        """
+        for i in map:
+            if i < 0 or i > self.dim - 1:
+                raise Exception('error: invalid index, \
+                should be between {} and {}'.format(0, self.dim - 1))
+        if len(map) == 0:
+            raise Exception('error: map is empty, cannot reset rows')
+        V = self.V
+        V[map, :] = 0.0
+        V[map, 0] = new_c
+        S = Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
+
+        return S
     
     def resetRowWithFactor(self, index, factor):
         """Reset a row with index and factor

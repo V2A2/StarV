@@ -323,8 +323,10 @@ class PosLin(object):
         map4 = map2[map3]
         map11 = np.concatenate([map1, map4])
 
-        In = I.resetRows(map11)
- 
+        In = I
+        if len(map11) > 0: # updated: Yuntao, 07/31/2025
+            In.resetRows(map11)
+
         if show:
             print('({} + {} = {}) / {} neurons have ub < = 0'.format(len(map1), len(map3), len(map11), len(u)))
 
