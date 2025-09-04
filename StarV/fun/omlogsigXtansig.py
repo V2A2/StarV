@@ -1,5 +1,5 @@
 """
-onlogsigXtansig Class ( (1 - logsig(x)) * tansig(y), where x \in X, y \in Y, X and Y are star sets)
+onlogsigXtansig Class ( (1 - logsig(x)) * tansig(y), where x in X, y in Y, X and Y are star sets)
 Sung Woo Choi, 04/11/2023
 
 """

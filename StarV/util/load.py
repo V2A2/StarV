@@ -61,7 +61,7 @@ def load_2017_IEEE_TNNLS():
         Wi = W[0, i]
         bi = b[0, i]
         bi = bi.reshape(bi.shape[0],)
-        L1 = fullyConnectedLayer(Wi, bi)
+        L1 = FullyConnectedLayer([Wi, bi])
         layers.append(L1)
         L2 = ReLULayer()
         layers.append(L2)
@@ -69,7 +69,7 @@ def load_2017_IEEE_TNNLS():
     Wi = W[0, b.shape[1]-1]
     bi = b[0, b.shape[1]-1]
     bi = bi.reshape(bi.shape[0],)
-    L1 = fullyConnectedLayer(Wi, bi)
+    L1 = FullyConnectedLayer([Wi, bi])
     layers.append(L1)
     net = NeuralNetwork(layers, net_type='ffnn_2017_IEEE_TNNLS')
 
@@ -106,7 +106,7 @@ def load_ACASXU(x,y,spec_id):
         Wi = W[0, i]
         bi = b[0, i]
         bi = bi.reshape(bi.shape[0],)
-        L1 = fullyConnectedLayer(Wi, bi)
+        L1 = FullyConnectedLayer([Wi, bi])
         layers.append(L1)
         L2 = ReLULayer()
         layers.append(L2)
@@ -114,7 +114,7 @@ def load_ACASXU(x,y,spec_id):
     Wi = W[0, b.shape[1]-1]
     bi = b[0, b.shape[1]-1]
     bi = bi.reshape(bi.shape[0],)
-    L1 = fullyConnectedLayer(Wi, bi)
+    L1 = FullyConnectedLayer([Wi, bi])
     layers.append(L1)
     net = NeuralNetwork(layers, net_type='ffnn_ACASXU_{}_{}'.format(x,y))
 
@@ -217,7 +217,7 @@ def load_DRL(net_id, prob_id):
         if (i % 2) == 0:
             W = net0[i].weight.detach().numpy()
             b = net0[i].bias.detach().numpy()
-            L = fullyConnectedLayer(W, b)
+            L = FullyConnectedLayer([W, b])
         else:
             L = ReLULayer()
 
@@ -272,11 +272,11 @@ def load_tiny_network():
     layers = []
     W1 = np.array([[1.0, -2.0], [-1., 0.5], [1., 1.5]])
     b1 = np.array([0.5, 1.0, -0.5])
-    L1 = fullyConnectedLayer(W1, b1)
+    L1 = FullyConnectedLayer([W1, b1])
     L2 = ReLULayer()
     W2 = np.array([[-1.0, -1.0, 1.0], [2.0, 1.0, -0.5]])
     b2 = np.array([-0.2, -1.0])
-    L3 = fullyConnectedLayer(W2,b2)
+    L3 = FullyConnectedLayer([W2, b2])
     
     layers.append(L1)
     layers.append(L2)
@@ -359,7 +359,7 @@ def load_acc_model(netname='controller_5_20', plant='linear', spec_ids=None, ini
         Wi = W[0,i]
         bi = b[i,0]
         bi = bi.reshape(bi.shape[0],)
-        L1 = fullyConnectedLayer(Wi, bi)
+        L1 = FullyConnectedLayer([Wi, bi])
         L2 = ReLULayer()
         layers.append(L1)
         layers.append(L2)
@@ -367,7 +367,7 @@ def load_acc_model(netname='controller_5_20', plant='linear', spec_ids=None, ini
 
     bi = b[n-1,0]
     bi = bi.reshape(bi.shape[0],)
-    L1 = fullyConnectedLayer(W[0,n-1], bi)
+    L1 = FullyConnectedLayer([W[0,n-1], bi])
     layers.append(L1)
     
     net = NeuralNetwork(layers, netname)
@@ -554,7 +554,7 @@ def load_acc_trapezius(t=10):
     
     layers = []
     for i in range(n_weight):
-        layers.append(fullyConnectedLayer(W[i].toarray(), b[i].toarray().ravel()))
+        layers.append(FullyConnectedLayer([W[i].toarray(), b[i].toarray().ravel()]))
         if i < n_act_fun:
             layers.append(MixedActivationLayer(act_fun[i]))
 
@@ -607,7 +607,7 @@ def load_acc_trapezius_model(netname='controller_3_20', plant='linear', spec_ids
         Wi = W[0,i]
         bi = b[i,0]
         bi = bi.reshape(bi.shape[0],)
-        L1 = fullyConnectedLayer(Wi, bi)
+        L1 = FullyConnectedLayer([Wi, bi])
         L2 = ReLULayer()
         layers.append(L1)
         layers.append(L2)
@@ -615,7 +615,7 @@ def load_acc_trapezius_model(netname='controller_3_20', plant='linear', spec_ids
 
     bi = b[n-1,0]
     bi = bi.reshape(bi.shape[0],)
-    L1 = fullyConnectedLayer(W[0,n-1], bi)
+    L1 = FullyConnectedLayer([W[0,n-1], bi])
     layers.append(L1)
     
     net = NeuralNetwork(layers, netname)
@@ -850,9 +850,9 @@ def load_AEBS_model():
     transform_layers = []
 
     # controller
-    FC1 = fullyConnectedLayer(control_W[0, 0], control_b[0, 0].reshape(control_b[0, 0].shape[1], ))
-    FC2 = fullyConnectedLayer(control_W[0, 1], control_b[0, 1].reshape(control_b[0, 1].shape[1], ))
-    FC3 = fullyConnectedLayer(control_W[0, 2], control_b[0, 2].reshape(control_b[0, 2].shape[1], ))
+    FC1 = FullyConnectedLayer([control_W[0, 0], control_b[0, 0].reshape(control_b[0, 0].shape[1], )])
+    FC2 = FullyConnectedLayer([control_W[0, 1], control_b[0, 1].reshape(control_b[0, 1].shape[1], )])
+    FC3 = FullyConnectedLayer([control_W[0, 2], control_b[0, 2].reshape(control_b[0, 2].shape[1], )])
     RL1 = ReLULayer()
     RL2 = ReLULayer()
     SL1 = SatLinLayer()
@@ -860,9 +860,9 @@ def load_AEBS_model():
     controller = NeuralNetwork(CLayers, net_type='controller')
 
     # transformer
-    TFC1 = fullyConnectedLayer(transform_W[0, 0], transform_b[0, 0].reshape(transform_b[0, 0].shape[1], ))
-    TFC2 = fullyConnectedLayer(transform_W[0, 1], transform_b[0, 1].reshape(transform_b[0, 1].shape[1], ))
-    TFC3 = fullyConnectedLayer(transform_W[0, 2], transform_b[0, 2].reshape(transform_b[0, 2].shape[1], ))
+    TFC1 = FullyConnectedLayer([transform_W[0, 0], transform_b[0, 0].reshape(transform_b[0, 0].shape[1], )])
+    TFC2 = FullyConnectedLayer([transform_W[0, 1], transform_b[0, 1].reshape(transform_b[0, 1].shape[1], )])
+    TFC3 = FullyConnectedLayer([transform_W[0, 2], transform_b[0, 2].reshape(transform_b[0, 2].shape[1], )])
     TRL1 = ReLULayer()
     TRL2 = ReLULayer()
     
@@ -962,7 +962,7 @@ def load_scherlock_acc():
 
     controller_layers = []
     for i in range(n_weight):
-        controller_layers.append(fullyConnectedLayer(Wc[i], bc[i].ravel()))
+        controller_layers.append(FullyConnectedLayer([Wc[i], bc[i].ravel()]))
         controller_layers.append(ReLULayer())
             
     controller_net = NeuralNetwork(controller_layers, net_type='controller_scherlock_acc')
@@ -974,7 +974,7 @@ def load_scherlock_acc():
 
     model_layers = []
     for i in range(n_weight):
-        model_layers.append(fullyConnectedLayer(Wm[i], bm[i].ravel()))
+        model_layers.append(FullyConnectedLayer([Wm[i], bm[i].ravel()]))
         model_layers.append(ReLULayer())
             
     model_net = NeuralNetwork(controller_layers, net_type='model_scherlock_acc')
@@ -1000,7 +1000,7 @@ def load_sherlock_acc_trapezius():
     
     layers = []
     for i in range(n_weight):
-        layers.append(fullyConnectedLayer(W[i].toarray(), b[i].toarray().ravel()))
+        layers.append(FullyConnectedLayer([W[i].toarray(), b[i].toarray().ravel()]))
         if i < n_act_fun:
             layers.append(MixedActivationLayer(act_fun[i]))
             
@@ -1082,12 +1082,12 @@ def load_mcs_model():
     cur_path = cur_path + '/data/lodes/mcs.mat' 
     mat_contents = loadmat(cur_path)
     A = mat_contents['A']
-    mat_contents = loadmat(cur_path)
-    A = mat_contents['A']
     B = mat_contents['B']
+    C = mat_contents['C']
     A = convert_to_numpy(A)
     B = convert_to_numpy(B)
-    plant = LODE(A, B)
+    C = convert_to_numpy(C)
+    plant = LODE(A, B,C)
     return plant
 
 
@@ -1119,11 +1119,6 @@ def load_beam_model():
 
     plant = LODE(A, B, C)
     return plant
-
-    # C = mat_contents['C']
-    # C = convert_to_numpy(C)
-    # plant = LODE(A, B, C)
-    # return plant
 
 
 def load_pde_model():

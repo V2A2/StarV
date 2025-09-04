@@ -274,9 +274,7 @@ class SatLins(object):
 
         assert isinstance(In, list), 'error: inputsets should be in a list'
         S = []
-        print(pool)
         if pool is None:
-            print("pool is none")
             for i in range(0, len(In)):
                 S.extend(SatLins.reachExactSingleInput(In[i], lp_solver))
         elif isinstance(pool, multiprocessing.pool.Pool):

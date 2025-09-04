@@ -589,18 +589,21 @@ class Formula(object):
 
     def print(self):
         'Print the formula'
+        print(self)
+
+    def __str__(self):
+        'Print the formula'
 
         str = ''
         for obj in self.formula:
             str = str + '\n' + obj.print()
 
-
         print('Formula: ')
         print('Formula type: {}'.format(self.formula_type))
         print('Formula length: {}'.format(self.length))
         print(str)
-        
-        return str
+
+        return '\n'
 
     def getDynamicFormula(self):
         'automatically generate dynamic formula: a abstract disjunctive normal form for verification'
@@ -1090,8 +1093,7 @@ class DynamicFormula(object):
                     C = None
                     d = None
                     break
-                else:
-                    
+                else:  
                     if C is None:
                         d = Pi.b - np.matmul(Pi.A, probstar_sig[Pi.t].V[:,0])
                         C = np.matmul(Pi.A, probstar_sig[Pi.t].V[:, 1:nVars+1])
@@ -1101,7 +1103,7 @@ class DynamicFormula(object):
 
                         C = np.vstack((C, C1))
                         d = np.concatenate((d, d1))
-                    
+
             if C is not None:
                 if len(base_probstar.C) != 0:
                     C1 = np.vstack((C, base_probstar.C))
@@ -1119,7 +1121,7 @@ class DynamicFormula(object):
                 if not S1.isEmptySet():
                     H = [C, d]
                     constraints.append(H)
-                
+
         cdnf = CDNF(constraints, base_probstar)
 
         return cdnf
@@ -1163,7 +1165,7 @@ class DynamicFormula(object):
                 p_SAT_MIN = p_SAT_MAX 
 
 
-        return SAT, p_SAT_MAX, p_SAT_MIN
+        return SAT, p_SAT_MAX, p_SAT_MIN, cdnf.length
 
 
     def evaluate2(self, probstar_sig, n_max):

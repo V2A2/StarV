@@ -3,7 +3,7 @@ Main Verifier Class
 Dung Tran, 9/10/2022
 """
 
-from StarV.net.network import NeuralNetwork, reachExactBFS
+from StarV.net.network import NeuralNetwork, reachExactBFS, reachApproxBFS
 from StarV.set.probstar import ProbStar
 from StarV.set.star import Star
 from StarV.spec.dProbStarTL import Formula
@@ -45,9 +45,17 @@ class Verifier(object):
         pass
 
 
-def checkSafetyStar(unsafe_mat, unsafe_vec, S):
+def checkSafetyStar(*args):
     """Intersect with unsafe region, can work in parallel"""
 
+    if isinstance(args[0], tuple):
+        args1 = args[0]
+    else:
+        args1 = args
+
+    unsafe_mat = args1[0]
+    unsafe_vec = args1[1]
+    S = args1[2]
     C = unsafe_mat
     d = unsafe_vec
     assert isinstance(C, np.ndarray), 'error: constraint matrix should be a numpy array'
@@ -354,9 +362,62 @@ def quantiVerifyMC(net, inputSet, unsafe_mat, unsafe_vec, numSamples=100000, nTi
 
         probSAT = probSAT + float(nSAT/n)
 
-        probSAT = probSAT/nTimes
+    probSAT = probSAT/nTimes
 
     return probSAT
+
+
+def qualiVerifyExactBFS(net, inputSet, unsafe_mat, unsafe_vec, lp_solver='gurobi', numCores=1, show=True):
+    """Qualitative Verification of FFNN Networks using exact bread-first-search"""
+
+    if numCores > 1:
+        pool = multiprocessing.Pool(numCores)
+    else:
+        pool = None
+    S = reachExactBFS(net, inputSet, lp_solver, pool, show)  # output set
+    P = []  # unsafe output set
+    Res = [] # Verification result
+
+    if pool is None:
+        for S1 in S:
+            P1 = checkSafetyStar(unsafe_mat, unsafe_vec, S1)
+            if isinstance(P1, Star):
+                P.append(P1)
+                Res.append('SAT')
+            else:
+                Res.append('UNSAT')
+    else:
+        S1 = pool.map(checkSafetyStar, zip([unsafe_mat]*len(S), [unsafe_vec]*len(S), S))
+        pool.close()
+        for S2 in S1:
+            if isinstance(S2, Star):
+                P.append(S2)
+                Res.append('SAT')
+            else:
+                Res.append('UNSAT')
+
+    # obtain counterexample sets
+    C = []
+    if len(P) > 0:
+        for P1 in P:
+            C1 = Star(inputSet[0].V, P1.C, P1.d, P1.pred_lb, P1.pred_ub)
+            C.append(C1)
+
+    return S, P, C, Res
+
+def qualiVerifyApproxBFS(net, inputSet, unsafe_mat, unsafe_vec, lp_solver='gurobi', show=True):
+    """ Overapproximate qualitative verification of ReLU network"""
+
+    S = reachApproxBFS(net, inputSet, lp_solver=lp_solver, show=show)  # output set
+
+    P = checkSafetyStar(unsafe_mat, unsafe_vec, S)
+    if not isinstance(P, Star):
+        P = []
+        Res = 'UNSAT'
+    else:
+        Res = 'UNKNOWN'
+
+    return S, P, Res
 
 
 # def quantiVerifyProbStarTL(model, spec, timeStep, numSteps, X0=None, U=None):

@@ -309,7 +309,7 @@ class SparseImageStar2DCSR(object):
         elif to_coo:
             print(f'C_{self.C.getformat()}: \n{self.C}')
         else:
-            print(f'C:\n   data: {self.C.data}\nindices: {self.C.indices}\n indptr: {self.C.indptr}')
+            print(f'C_{self.C.getformat()}:\n   data: {self.C.data}\nindices: {self.C.indices}\n indptr: {self.C.indptr}')
         print(f'd: {self.d}')
         print(f'pred_lb: {self.pred_lb}')
         print(f'pred_ub: {self.pred_ub}')

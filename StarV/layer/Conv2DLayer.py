@@ -110,8 +110,8 @@ class Conv2DLayer(object):
                 raise Exception('error: kernel weight should be a 2D, 3D, or 4D numpy array')
 
             # kernel weight in shape (kernel_height, kernel_width, ch_in, ch_out)
-            self.in_channel = kernel_weight.shape[1]
-            self.out_channel = kernel_weight.shape[0]
+            self.in_channel = kernel_weight.shape[-2]
+            self.out_channel = kernel_weight.shape[-1]
 
             if kernel_bias is not None:
                 assert isinstance(kernel_bias, np.ndarray) and kernel_bias.ndim == 1, \
@@ -134,18 +134,19 @@ class Conv2DLayer(object):
             
                 if isinstance(padding, int):
                     assert padding >= 0, 'error: padding should non-negative integers'
-                    self.padding = np.ones(2, dtype=np.int16)*padding
+                    self.padding = np.ones(4, dtype=np.int16)*padding
                 else:
                     padding = np.array(padding)
                     assert (padding >= 0).any(), 'error: padding should non-negative integers'
 
                     if len(padding) == 1:
-                        self.padding = np.ones(2, dtype=np.int16)*padding[0]
-                    else:
-                        if len(padding) == 4:
-                            if padding[0] == padding[1] and padding[2] == padding[3]:
-                                padding = np.array([padding[0], padding[2]])
+                        self.padding = np.ones(4, dtype=np.int16)*padding[0]
+                    elif len(padding) == 2:
+                        self.padding = np.array([padding[0], padding[0], padding[1], padding[1]])
+                    elif len(padding) == 4:
                         self.padding = np.array(padding)
+                    else:
+                        raise Exception('error: padding should contain 1, 2, 4 elements')    
                 
                 if isinstance(stride, int):
                     assert stride > 0, 'error: stride should positive integer'
@@ -209,8 +210,8 @@ class Conv2DLayer(object):
         elif isinstance(layer, torch.nn.Conv2d):
 
             # kernel weight in shape (ch_out, ch_in, kernel_height, kernel_width)
-            self.in_channel = layer.weight.shape[0]
-            self.out_channel = layer.weight.shape[1]
+            self.in_channel = layer.weight.shape[-2]
+            self.out_channel = layer.weight.shape[-1]
             
             self.stride = np.array(layer.stride)
             padding = np.array(layer.padding)
@@ -256,16 +257,16 @@ class Conv2DLayer(object):
             p, q, ci, co = self.weight.shape
             
             mo, no = self.get_output_size_sparse(in_height=in_shape[0], in_width=in_shape[1])
-            m += 2*self.padding[0]
-            n += 2*self.padding[1]
+            m += self.padding[0] + self.padding[1]
+            n += self.padding[2] + self.padding[3]
             
-            i_shift = n * self.stride[0] * c
-            j_shift = self.stride[1] * c
+            i_shift = n * self.stride[0] * ci
+            j_shift = self.stride[1] * ci
             
             ko = mo*no
 
             #weight has [H, W, Ci, Co] shape
-            #after madding [H + (m-p), W + (n-q), Ci, Co]
+            #after padding [H + (m-p), W + (n-q), Ci, Co]
             #after flattening [(p + (m-p)) * (q + (n-q)) * Ci, Co]
 
             Z = np.pad(self.weight, ((0, m-p), (0, n-q), (0, 0), (0,0)), mode='constant')
@@ -276,12 +277,12 @@ class Conv2DLayer(object):
             Z_ind = Z_.indices.copy()
 
             if dilation[0] > 1:
-                q_ind = Z_.indices // c % p #col
-                Z_ind += q_ind*(dilation[0]-1)*c
-
+                ind = Z_.indices // (ci * n)
+                Z_ind += ind*(dilation[0]-1)*ci*n
+        
             if dilation[1] > 1:
-                p_ind = Z_.indices // (c*q) #row
-                Z_ind += p_ind*(dilation[1]-1)*c*q
+                ind = Z_.indices // ci % n
+                Z_ind += ind*(dilation[1]-1)*ci
         
             data = np.repeat(Z_.data[None, :], ko, axis=0).reshape(-1)
 
@@ -338,6 +339,18 @@ class Conv2DLayer(object):
         else:
             print('bias: {}'.format(self.bias))
         return ''
+    
+    def info(self):
+        print(self)
+        
+    @staticmethod
+    def rand(height, width, in_channels,  out_channels):
+        """ Random generate a FullyConnectedLayer"""
+
+        W = np.random.rand(height, width, in_channels,  out_channels)
+        b = np.random.rand(out_channels)
+
+        return Conv2DLayer(layer=[W, b])
 
     def pad_coo(input, shape, padding, tocsc=False):
         if len(padding) == 4:
@@ -399,78 +412,100 @@ class Conv2DLayer(object):
         return output, mo, no
 
     def add_zero_padding(input, padding):
+        if len(padding) == 4:
+            pad = np.array(padding)
+        elif len(padding) == 2:
+            pad = np.array([padding[0], padding[0], padding[1], padding[1]])
+        elif len(padding) == 1:
+            pad = np.ones(4)*padding[0]
 
         assert isinstance(input, np.ndarray), \
         'error: input should be numpy ndarray'
 
-        if padding[0] == 0 and padding[1] == 0:
+        if (pad == 0).all():
             return input
         
         in_dim = input.ndim
         if in_dim == 4:
-            return np.pad(input, ((padding[0], padding[0]), (padding[1], padding[1]), (0, 0), (0,0)), mode='constant')
+            return np.pad(input, ((pad[0], pad[1]), (pad[2], pad[3]), (0, 0), (0,0)), mode='constant')
         elif in_dim == 3:
-            return np.pad(input, ((padding[0], padding[0]), (padding[1], padding[1]), (0, 0)), mode='constant')
+            return np.pad(input, ((pad[0], pad[1]), (pad[2], pad[3]), (0, 0)), mode='constant')
         elif in_dim == 2:
-            return np.pad(input, ((padding[0], padding[0]), (padding[1], padding[1])), mode='constant')
+            return np.pad(input, ((pad[0], pad[1]), (pad[2], pad[3])), mode='constant')
         else:
             raise Exception(
                 'Invalid number of input dimensions; it should be between 2D and 4D'
             )
     
-    def add_zero_padding_old(input, padding):
+    # def add_zero_padding_old(input, padding):
 
-        assert isinstance(input, np.ndarray), \
-        'error: input should be numpy ndarray'
+    #     assert isinstance(input, np.ndarray), \
+    #     'error: input should be numpy ndarray'
 
-        if padding[0] == 0 and padding[1] == 0:
-            return input
+    #     if padding[0] == 0 and padding[1] == 0:
+    #         return input
         
-        in_dim = input.ndim
-        if in_dim == 4:
-            h, w, c, n = input.shape
-            out = np.zeros(
-                (h + 2*padding[0], w + 2*padding[1], c, n)
-            )
-            out[padding[0]:h+padding[0], padding[1]:w+padding[1], :, :] = input
+    #     in_dim = input.ndim
+    #     if in_dim == 4:
+    #         h, w, c, n = input.shape
+    #         out = np.zeros(
+    #             (h + 2*padding[0], w + 2*padding[1], c, n)
+    #         )
+    #         out[padding[0]:h+padding[0], padding[1]:w+padding[1], :, :] = input
 
-        elif in_dim == 3:
-            h, w, c = input.shape
-            out = np.zeros(
-                (h + 2*padding[0], w + 2*padding[1], c)
-            )
-            out[padding[0]:h+padding[0], padding[1]:w+padding[1], :] = input
+    #     elif in_dim == 3:
+    #         h, w, c = input.shape
+    #         out = np.zeros(
+    #             (h + 2*padding[0], w + 2*padding[1], c)
+    #         )
+    #         out[padding[0]:h+padding[0], padding[1]:w+padding[1], :] = input
 
-        elif in_dim == 2:
-            h, w = input.shape
-            out = np.zeros(
-                (h + 2*padding[0], w + 2*padding[1])
-            )
-            out[padding[0]:h+padding[0], padding[1]:w+padding[1]] = input
+    #     elif in_dim == 2:
+    #         h, w = input.shape
+    #         out = np.zeros(
+    #             (h + 2*padding[0], w + 2*padding[1])
+    #         )
+    #         out[padding[0]:h+padding[0], padding[1]:w+padding[1]] = input
 
-        else:
-            raise Exception(
-                'Invalid number of input dimensions; it should be between 2D and 4D'
-            )
+    #     else:
+    #         raise Exception(
+    #             'Invalid number of input dimensions; it should be between 2D and 4D'
+    #         )
 
-        return out
+    #     return out
     
     def get_output_size(self, input):
+        padding = self.padding
+        if len(padding) == 4:
+            pad = padding
+        elif len(padding) == 2:
+            pad = np.array([padding[0], padding[0], padding[1], padding[1]])
+        elif len(padding) == 1:
+            pad = np.ones(4)*padding[0]
+            
         h, w, c, n = input.shape
         H, W = self.weight.shape[:2]
 
-        ho = ((h + 2*self.padding[0] - H - (H - 1) * (self.dilation[0] - 1)) // self.stride[0]) + 1
-        wo = ((w + 2*self.padding[1] - W - (W - 1) * (self.dilation[1] - 1)) // self.stride[1]) + 1
+        ho = ((h + pad[0] + pad[1] - H - (H - 1) * (self.dilation[0] - 1)) // self.stride[0]) + 1
+        wo = ((w + pad[2] + pad[3] - W - (W - 1) * (self.dilation[1] - 1)) // self.stride[1]) + 1
         
         assert ho > 0 and wo > 0, 'error: the shape of resulting output should be positive'
         return ho, wo
     
     def get_output_size_sparse(self, in_height, in_width):
+        padding = self.padding
+        if len(padding) == 4:
+            pad = padding
+        elif len(padding) == 2:
+            pad = np.array([padding[0], padding[0], padding[1], padding[1]])
+        elif len(padding) == 1:
+            pad = np.ones(4)*padding[0]
+            
         h, w = in_height, in_width
         H, W = self.weight.shape[:2]
 
-        ho = ((h + 2*self.padding[0] - H - (H - 1) * (self.dilation[0] - 1)) // self.stride[0]) + 1
-        wo = ((w + 2*self.padding[1] - W - (W - 1) * (self.dilation[1] - 1)) // self.stride[1]) + 1
+        ho = ((h + pad[0] + pad[1] - H - (H - 1) * (self.dilation[0] - 1)) // self.stride[0]) + 1
+        wo = ((w + pad[2] + pad[3] - W - (W - 1) * (self.dilation[1] - 1)) // self.stride[1]) + 1
 
         assert ho > 0 and wo > 0, 'error: the shape of resulting output should be positive'
         return ho, wo
@@ -712,10 +747,10 @@ class Conv2DLayer(object):
 
         m, n, c, b = input.shape
     
-        if padding[0] > 0 or padding[1] > 0:
-            m += 2*padding[0]
-            n += 2*padding[1]
-            XF = np.pad(input, ((padding[0], padding[0]), (padding[1], padding[1]), (0, 0), (0,0)), mode='constant').reshape(m*n*c, b)
+        if (padding > 0).any():
+            m += padding[0] + padding[1]
+            n += padding[2] + padding[3]
+            XF = np.pad(input, ((padding[0], padding[1]), (padding[2], padding[3]), (0, 0), (0,0)), mode='constant').reshape(m*n*c, b)
         else:
             XF = input.reshape(m*n*c, b)
 
@@ -735,20 +770,20 @@ class Conv2DLayer(object):
             p, q, ci, co  = weight.shape
             mo, no = self.get_output_size(input)
         
-            Z = np.pad(np.ones([p, q, c], dtype=bool), ((0, m-p), (0, n-q), (0, 0)), mode='constant').reshape(-1)
+            Z = np.pad(np.ones([p, q, ci], dtype=bool), ((0, m-p), (0, n-q), (0, 0)), mode='constant').reshape(-1)
             Z_ind = np.where(Z > 0)[0]
             Z_indices = Z_ind.copy()
 
             if dilation[0] > 1:
-                q_ind = Z_ind // c % p #col
-                Z_indices += q_ind*(dilation[0]-1)*c
-
+                ind = Z_ind // (ci * n)
+                Z_indices += ind*(dilation[0]-1)*ci*n
+        
             if dilation[1] > 1:
-                p_ind = Z_ind // (c*q) #row
-                Z_indices += p_ind*(dilation[1]-1)*c*q
+                ind = Z_ind // ci % n
+                Z_indices += ind*(dilation[1]-1)*ci
 
-            i_shift = n*stride[0]*c
-            j_shift = stride[1]*c
+            i_shift = n*stride[0]*ci
+            j_shift = stride[1]*ci
 
             z = p*q*c
             ko = mo*no
@@ -1202,13 +1237,13 @@ class Conv2DLayer(object):
             Z_ind = Z_.indices.copy()
 
             if dilation[0] > 1:
-                q_ind = Z_.indices // c % p #col
-                Z_ind += q_ind*(dilation[0]-1)*c
-
-            if dilation[1] > 1:
-                p_ind = Z_.indices // (c*q) #row
-                Z_ind += p_ind*(dilation[1]-1)*c*q
+                ind = Z_.indices // (ci * n)
+                Z_ind += ind*(dilation[0]-1)*ci*n
         
+            if dilation[1] > 1:
+                ind = Z_.indices // ci % n
+                Z_ind += ind*(dilation[1]-1)*ci
+            
             data = np.repeat(Z_.data[None, :], ko, axis=0).reshape(-1)
 
             indices = np.arange(ko, dtype=np.int32)[:, np.newaxis]
@@ -1276,12 +1311,12 @@ class Conv2DLayer(object):
                 K_ind = K_.indices.copy()
 
                 if dilation[0] > 1:
-                    q_ind = K_.indices // c % p #col
-                    K_ind += q_ind*(dilation[0]-1)*c
-
+                    ind = K_.indices // (ci * n)
+                    K_ind += ind*(dilation[0]-1)*ci*n
+            
                 if dilation[1] > 1:
-                    p_ind = K_.indices // (c*q) #row
-                    K_ind += p_ind*(dilation[1]-1)*c*q                
+                    ind = K_.indices // ci % n
+                    K_ind += ind*(dilation[1]-1)*ci        
 
                 data = np.repeat(K_.data[None, :], ko, axis=0).reshape(-1)
                 
@@ -1353,12 +1388,12 @@ class Conv2DLayer(object):
             K_ind = K_.indices.copy()
 
             if dilation[0] > 1:
-                q_ind = K_.indices // c % p #col
-                K_ind += q_ind*(dilation[0]-1)*c
-
+                ind = K_.indices // (ci * n)
+                K_ind += ind*(dilation[0]-1)*ci*n
+        
             if dilation[1] > 1:
-                p_ind = K_.indices // (c*q) #row
-                K_ind += p_ind*(dilation[1]-1)*c*q
+                ind = K_.indices // ci % n
+                K_ind += ind*(dilation[1]-1)*ci  
             
             data = np.repeat(K_.data[None, :], ko, axis=0).reshape(-1)
             
@@ -1520,14 +1555,14 @@ class Conv2DLayer(object):
             Z_ = sp.csr_array(Z.reshape(np.prod(Z.shape[:3]), co).T, copy=False)
             nnz = Z_.indptr[1:] - Z_.indptr[:-1]
             Z_ind = Z_.indices.copy()
-
+                
             if dilation[0] > 1:
-                q_ind = Z_.indices // c % p #col
-                Z_ind += q_ind*(dilation[0]-1)*c
-
+                ind = Z_.indices // (ci * n)
+                Z_ind += ind*(dilation[0]-1)*ci*n
+        
             if dilation[1] > 1:
-                p_ind = Z_.indices // (c*q) #row
-                Z_ind += p_ind*(dilation[1]-1)*c*q
+                ind = Z_.indices // ci % n
+                Z_ind += ind*(dilation[1]-1)*ci  
         
             data = np.repeat(Z_.data[None, :], ko, axis=0).reshape(-1)
 
@@ -1597,12 +1632,12 @@ class Conv2DLayer(object):
             K_ind = K_.indices.copy()
 
             if dilation[0] > 1:
-                q_ind = K_.indices // c % p #col
-                K_ind += q_ind*(dilation[0]-1)*c
-
+                ind = K_.indices // (ci * n)
+                K_ind += ind*(dilation[0]-1)*ci*n
+        
             if dilation[1] > 1:
-                p_ind = K_.indices // (c*q) #row
-                K_ind += p_ind*(dilation[1]-1)*c*q
+                ind = K_.indices // ci % n
+                K_ind += ind*(dilation[1]-1)*ci
 
             data = np.repeat(K_.data[None, :], ko, axis=0).reshape(-1)
             
@@ -1664,8 +1699,8 @@ class Conv2DLayer(object):
             
         K = np.pad(weight, ((0, 0), (0, n-q), (0, 0), (0,0)), mode='constant') 
                 
-        i_shift = n*stride[0]*c
-        j_shift = stride[1]*c
+        i_shift = n*stride[0]*ci
+        j_shift = stride[1]*ci
         
         ko = mo*no
         to = ko*co
@@ -1678,12 +1713,12 @@ class Conv2DLayer(object):
             K_ind = K_.indices.copy()
 
             if dilation[0] > 1:
-                q_ind = K_.indices // c % p #col
-                K_ind += q_ind*(dilation[0]-1)*c
-
+                ind = K_.indices // (ci * n)
+                K_ind += ind*(dilation[0]-1)*ci*n
+        
             if dilation[1] > 1:
-                p_ind = K_.indices // (c*q) #row
-                K_ind += p_ind*(dilation[1]-1)*c*q
+                ind = K_.indices // ci % n
+                K_ind += ind*(dilation[1]-1)*ci
             
             data = np.repeat(K_.data[None, :], ko, axis=0).reshape(-1)
             

@@ -580,7 +580,7 @@ class Test(object):
         print('res = ')
         res.print()
 
-        SAT, SAT_MIN, SAT_EXACT = F1.evaluate(probstar_sig)
+        SAT, SAT_MIN, SAT_EXACT, _ = F1.evaluate(probstar_sig)
         print('SAT = {}'.format(SAT))
         print('SAT-MIN = {}'.format(SAT_MIN))
         print('SAT-EXACT = {}'.format(SAT_EXACT))

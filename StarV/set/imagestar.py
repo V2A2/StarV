@@ -1,6 +1,7 @@
 """
 Image Star Class
-Sung Woo Choi, 08/10/2023
+Author: Sung Woo Choi
+Created: 08/10/2023
 
 """
 import copy
@@ -128,10 +129,7 @@ class ImageStar(object):
         
         elif len_ == 2:
             
-            if copy_ is True:
-                [lb, ub] = copy.deepcopy(args)
-            else:
-                [lb, ub] = args
+            [lb, ub] = copy.deepcopy(args) if copy_ else args
                 
             assert isinstance(lb, np.ndarray), \
             'error: lower bound vector should be a numpy array'
@@ -149,8 +147,8 @@ class ImageStar(object):
             img_dim = len(img_shape)
             dtype = lb.dtype
 
-            lb = lb.reshape(-1)
-            ub = ub.reshape(-1)
+            lb = lb.ravel()
+            ub = ub.ravel()
             dim = lb.shape[0]
             
             gtr = ub > lb
@@ -166,7 +164,7 @@ class ImageStar(object):
                     if gtr[i] > 0:
                         v[i, j] = 0.5 * (ub[i] - lb[i])
                         j += 1
-            V = np.column_stack([c, v])
+            V = np.hstack([c[:, None], v])
 
             self.num_pred = nv
 
@@ -292,10 +290,6 @@ class ImageStar(object):
         print('')
         return ''
     
-    @property
-    def shape(self):
-        return self.height, self.width, self.num_channel
-    
     def __len__(self):
         return 1
     
@@ -347,6 +341,13 @@ class ImageStar(object):
         
         else:
             raise Exception('Basis image dimension issue')    
+    
+    # @property
+    # def shape(self):
+    #     return self.height, self.width, self.num_channel
+    
+    def shape(self):
+        return self.height, self.width, self.num_channel     
         
     def clone(self):
         return copy.deepcopy(self)
@@ -411,8 +412,15 @@ class ImageStar(object):
             return self.flatten_affineMap(W, b)
         
         if W is not None:
-            assert W.ndim == self.V.ndim-1, f"inconsistent number of array dimensions between W and shape of Image; len(shape)={len(self.V.ndim-1)}, W.ndim={W.ndim}"
-            V = self.V * W[:, :, :, None]
+            if W.shape[1] == self.V.shape[0]:
+                w1, w2 = W.shape
+                h, w, c, m = self.V.shape
+                V = self.V.reshape(h, -1)
+                V = np.matmul(W, V).reshape(w1, w, c, m)
+            else:
+                assert W.ndim == self.V.ndim-1, 'error: ' +\
+                f"inconsistent number of array dimensions between W and shape of Image; len(shape)={self.V.ndim-1}, W.ndim={W.ndim}"
+                V = self.V * W[:, :, :, None]
         else:
             V = self.V.copy()
 
@@ -461,11 +469,11 @@ class ImageStar(object):
 
     def getMin(self, *args):
         """Get the minimum value of state x[index] or x[h_indx, w_indx, c_indx] by solving LP
-            lp_solver = 'gurobi', 'linprog', or 'glpk'
-            h_indx: veritcial index
-            w_indx: horizontal index
-            c_indx: channel index
-            index: flattened index
+            @lp_solver = 'gurobi', 'linprog', or 'glpk'
+            @h_indx: veritcial index
+            @w_indx: horizontal index
+            @c_indx: channel index
+            @index: flattened index
         """
         len_ = len(args)
 
@@ -500,11 +508,11 @@ class ImageStar(object):
     
     def getMax(self, *args):
         """Get the maximum value of state x[index] or x[h_indx, w_indx, c_indx] by solving LP
-            lp_solver = 'gurobi', 'linprog', or 'glpk'
-            h_indx: veritcial index
-            w_indx: horizontal index
-            c_indx: channel index
-            index: flattened index
+            @lp_solver = 'gurobi', 'linprog', or 'glpk'
+            @h_indx: veritcial index
+            @w_indx: horizontal index
+            @c_indx: channel index
+            @index: flattened index
         """
         len_ = len(args)
 
@@ -989,7 +997,7 @@ class ImageStar(object):
 
     def getMins_all(self, lp_solver='gurobi'):
 
-        xmin = np.zeros([self.height, self.height, self.num_channel], dtype=self.V.dtype)
+        xmin = np.zeros([self.height, self.width, self.num_channel], dtype=self.V.dtype)
         for h_ in range(self.height):
             for w_ in range(self.width):
                 for c_ in range(self.num_channel):
@@ -997,7 +1005,7 @@ class ImageStar(object):
         return xmin
 
     def getMaxs_all(self, lp_solver='gurobi'):
-        xmax = np.zeros([self.height, self.height, self.num_channel], dtype=self.V.dtype)
+        xmax = np.zeros([self.height, self.width, self.num_channel], dtype=self.V.dtype)
         for h_ in range(self.height):
             for w_ in range(self.width):
                 for c_ in range(self.num_channel):

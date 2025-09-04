@@ -87,7 +87,7 @@ class LODE(object):
         self.gB = None # used for one-step reachability gB = G(A,h)B in the CAV2017 paper
         self.dt = None # time step used for reachability
 
-    def info(self):
+    def __str__(self):
         """Print information of the system"""
 
         print('\n========= LODE ==========\n')
@@ -99,6 +99,12 @@ class LODE(object):
 
         print('\n Number of inputs: {}'.format(self.nI))
         print('\n Number of outputs: {}'.format(self.nO))
+        print('')
+        return '\n'
+
+
+    def info(self):
+        print(self)
 
     def stepResponse(self, x0=None, t=None, n=None):
 

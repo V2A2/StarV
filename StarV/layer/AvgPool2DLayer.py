@@ -73,19 +73,21 @@ class AvgPool2DLayer(object):
  
             if isinstance(padding, int):
                 assert padding >= 0, 'error: padding should non-negative integers'
-                self.padding = np.ones(2, dtype=np.int16)*padding
+                self.padding = np.ones(4, dtype=np.int16)*padding
             else:
                 padding = np.array(padding)
                 assert (padding >= 0).any(), 'error: padding should non-negative integers'
 
                 if len(padding) == 1:
-                    self.padding = np.ones(2, dtype=np.int16)*padding[0]
+                    self.padding = np.ones(4, dtype=np.int16)*padding[0]
                 else:
-                    if len(padding) == 4:
-                        if padding[0] == padding[1] and padding[2] == padding[3]:
-                            padding = np.array([padding[0], padding[2]])
-                    self.padding = np.array(padding)
-            assert (self.padding <= self.kernel_size // 2).any(), 'error: padding should be at most half of kernel size'
+                    if len(padding) == 2:
+                        padding = np.array([padding[0], padding[0], padding[1], padding[1]])
+                    elif len(padding) == 4:
+                        self.padding = padding
+                    else:
+                        raise Exception('error: padding should contain 1, 2, 4 elements')
+            # assert (self.padding <= self.kernel_size // 2).any(), 'error: padding should be at most half of kernel size'
             
             if isinstance(stride, int):
                 assert stride > 0, 'error: stride should positive integer'
@@ -116,15 +118,27 @@ class AvgPool2DLayer(object):
         print('stride: {}'.format(self.stride))
         print('padding: {}'.format(self.padding))
         return '\n'
+    
+    def info(self):
+        print(self)
 
-    def pad_coo(input, shape, padding, tocsr=False):
-        row = input.row + (input.row // (shape[1]*shape[2])) * 2 * padding[1] * shape[2]
-        row += shape[2]*((shape[1]+2*padding[1])*padding[0]+padding[1])
+    def pad_coo(input, shape, padding, tocsc=False):
+        if len(padding) == 4:
+            pad = np.array(padding)
+        elif len(padding) == 2:
+            pad = np.array([padding[0], padding[0], padding[1], padding[1]])
+        elif len(padding) == 1:
+            pad = np.ones(4)*padding[0]
 
-        mo = shape[0]+2*padding[0]
-        no = shape[1]+2*padding[1]
-        if tocsr is True:
-            output = sp.csr_array((input.data, (row, input.col)), shape = (mo*no*shape[2], input.shape[1]))
+        """Adding padding to coo"""
+        row = input.row + (input.row // (shape[1]*shape[2])) * (pad[2]+pad[3])* shape[2]
+        row += shape[2]*((shape[1]+pad[2]+pad[3])*pad[0]+pad[2])
+
+        mo = shape[0] + pad[0] + pad[1]
+        no = shape[1] + pad[2] + pad[3]
+		
+        if tocsc is True:
+            output = sp.csc_array((input.data, (row, input.col)), shape = (mo*no*shape[2], input.shape[1]))
         else:
             output = sp.coo_array((input.data, (row, input.col)), shape = (mo*no*shape[2], input.shape[1]))
         return output, mo, no
@@ -177,61 +191,64 @@ class AvgPool2DLayer(object):
     #         return output.tocsr(False), mo, no
         
     def add_zero_padding(input, padding):
+        if len(padding) == 4:
+            pad = np.array(padding)
+        elif len(padding) == 2:
+            pad = np.array([padding[0], padding[0], padding[1], padding[1]])
+        elif len(padding) == 1:
+            pad = np.ones(4)*padding[0]
 
         assert isinstance(input, np.ndarray), \
         'error: input should be numpy ndarray'
 
-        if padding[0] == 0 and padding[1] == 0:
+        if (pad == 0).all():
             return input
         
         in_dim = input.ndim
         if in_dim == 4:
-            h, w, c, n = input.shape
-            out = np.zeros(
-                (h + 2*padding[0], w + 2*padding[1], c, n), dtype=input.dtype
-            )
-            out[padding[0]:h+padding[0], padding[1]:w+padding[1], :, :] = input
-
+            return np.pad(input, ((pad[0], pad[1]), (pad[2], pad[3]), (0, 0), (0,0)), mode='constant')
         elif in_dim == 3:
-            h, w, c = input.shape
-            out = np.zeros(
-                (h + 2*padding[0], w + 2*padding[1], c), dtype=input.dtype
-            )
-            out[padding[0]:h+padding[0], padding[1]:w+padding[1], :] = input
-
+            return np.pad(input, ((pad[0], pad[1]), (pad[2], pad[3]), (0, 0)), mode='constant')
         elif in_dim == 2:
-            h, w = input.shape
-            out = np.zeros(
-                (h + 2*padding[0], w + 2*padding[1]), dtype=input.dtype
-            )
-            out[padding[0]:h+padding[0], padding[1]:w+padding[1]] = input
-
+            return np.pad(input, ((pad[0], pad[1]), (pad[2], pad[3])), mode='constant')
         else:
             raise Exception(
                 'Invalid number of input dimensions; it should be between 2D and 4D'
             )
-
-        return out
     
     def get_output_size(in_height, in_width, kernel_size, stride, padding):
+        if len(padding) == 4:
+            pad = padding
+        elif len(padding) == 2:
+            pad = np.array([padding[0], padding[0], padding[1], padding[1]])
+        elif len(padding) == 1:
+            pad = np.ones(4)*padding[0]
+
         h, w = in_height, in_width
         H, W = kernel_size
         ho = np.floor(
-            ((h + 2*padding[0] - H) // stride[0]) + 1
+            ((h + pad[0] + pad[1] - H) // stride[0]) + 1
         ).astype(int)
         wo = np.floor(
-            ((w + 2*padding[1] - W) // stride[1]) + 1
+            ((w + pad[2] + pad[3] - W) // stride[1]) + 1
         ).astype(int)
 
         assert ho > 0 and wo > 0, 'error: the shape of resulting output should be positive'
         return ho, wo
 
     def get_output_size_sparse(in_height, in_width, kernel_size, stride, padding):
+        if len(padding) == 4:
+            pad = padding
+        elif len(padding) == 2:
+            pad = np.array([padding[0], padding[0], padding[1], padding[1]])
+        elif len(padding) == 1:
+            pad = np.ones(4)*padding[0]
+
         h, w = in_height, in_width
         H, W = kernel_size
 
-        ho = (h + 2*padding[0] - H) // stride[0] + 1
-        wo = (w + 2*padding[1] - W) // stride[1] + 1
+        ho = (h + pad[0] + pad[1] - H) // stride[0] + 1
+        wo = (w + pad[2] + pad[3] - W) // stride[1] + 1
         
         assert ho > 0 and wo > 0, 'error: the shape of resulting output should be positive'
         return ho, wo
@@ -317,7 +334,7 @@ class AvgPool2DLayer(object):
         H, W = self.kernel_size
         ho, wo = AvgPool2DLayer.get_output_size(h, w, self.kernel_size, stride, padding)
         # pad_input = AvgPool2DLayer.add_zero_padding(input, padding)
-        pad_input = np.pad(input, ((padding[0], padding[0]), (padding[1], padding[1]), (0, 0), (0,0)), mode='constant')
+        pad_input = np.pad(input, ((padding[0], padding[1]), (padding[2], padding[3]), (0, 0), (0,0)), mode='constant')
 
         output = np.zeros((ho, wo, c, n), dtype=dtype)
         for z in range(n):
@@ -374,10 +391,10 @@ class AvgPool2DLayer(object):
         p, q = self.kernel_size
         mo, no = AvgPool2DLayer.get_output_size(m, n, self.kernel_size, stride, padding)
 
-        if padding[0] > 0 or padding[1] > 0:
-            m += 2*padding[0]
-            n += 2*padding[1]
-            XF = np.pad(input, ((padding[0], padding[0]), (padding[1], padding[1]), (0, 0), (0,0)), mode='constant').reshape(m*n*c, b)
+        if (padding > 0).any():
+            m += padding[0] + padding[1]
+            n += padding[2] + padding[3]
+            XF = np.pad(input, ((padding[0], padding[1]), (padding[2], padding[3]), (0, 0), (0,0)), mode='constant').reshape(m*n*c, b)
         else:
             XF = input.reshape(m*n*c, b)
 
@@ -454,8 +471,8 @@ class AvgPool2DLayer(object):
         H, W = self.kernel_size
         ho, wo = AvgPool2DLayer.get_output_size_sparse(h, w, self.kernel_size, stride, padding)
 
-        h += 2*padding[0]
-        w += 2*padding[1]
+        h += padding[0] + padding[1]
+        w += padding[2] + padding[3]
 
         div = H*W
         sp_im = []
@@ -470,7 +487,7 @@ class AvgPool2DLayer(object):
                 
                 # apply padding to input
                 row = im.row + padding[0]
-                col = im.col + padding[1]
+                col = im.col + padding[2]
                 data = im.data
 
                 rl = np.minimum(ho, np.maximum(0, np.ceil((row - H + 1) / stride[0]))).astype(np.uint16)
@@ -528,7 +545,7 @@ class AvgPool2DLayer(object):
         p, q = self.kernel_size
         mo, no = AvgPool2DLayer.get_output_size(m, n, self.kernel_size, stride, padding)
 
-        if padding[0] > 0 or padding[1] > 0:
+        if (padding > 0).any():
             XF, m, n = AvgPool2DLayer.pad_coo(input, shape, padding, tocsr=True)
         else:
             XF = input.tocsr()
@@ -597,7 +614,7 @@ class AvgPool2DLayer(object):
         p, q = self.kernel_size
         mo, no = AvgPool2DLayer.get_output_size(m, n, self.kernel_size, stride, padding)
 
-        if padding[0] > 0 or padding[1] > 0:
+        if (padding > 0).any():
             XF, m, n = AvgPool2DLayer.pad_coo(input, shape, padding)
         else:
             XF = input
@@ -660,7 +677,7 @@ class AvgPool2DLayer(object):
         p, q = self.kernel_size
         mo, no = AvgPool2DLayer.get_output_size(m, n, self.kernel_size, stride, padding)
 
-        if padding[0] > 0 or padding[1] > 0:
+        if (padding > 0).any():
             XF, m, n = AvgPool2DLayer.pad_csr(input, shape, padding)
         else:
             XF = input
@@ -725,7 +742,7 @@ class AvgPool2DLayer(object):
         p, q = self.kernel_size
         mo, no = AvgPool2DLayer.get_output_size(m, n, self.kernel_size, stride, padding)
 
-        if padding[0] > 0 or padding[1] > 0:
+        if (padding > 0).any():
             XF, m, n = AvgPool2DLayer.pad_csr(input, shape, padding)
         else:
             XF = input

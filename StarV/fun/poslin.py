@@ -42,6 +42,10 @@ class PosLin(object):
         return np.maximum(x, 0)
     
     @staticmethod
+    def f(x):
+        return np.maximum(x, 0)
+    
+    @staticmethod
     def multiStepReach(I, lp_solver='gurobi'):
         """
         multiStepReach method, compute reachable set for a multiple steps
@@ -821,7 +825,7 @@ class PosLin(object):
     
     def stepReachApprox(In, lp_solver='gurobi', RF=0.0, DR=0, show=False):
         """
-        Approx reachability using stepReach
+        Approx reachability using multi stepReachApprox
         Args:
             @In: a single input set
             @lp_solver: lp_solver
@@ -831,7 +835,6 @@ class PosLin(object):
 
         Author: Sung Woo Choi, Date: 09/12/2023
         """
-        toStar = None
 
         I = copy.deepcopy(In)
 
@@ -861,7 +864,7 @@ class PosLin(object):
                 print('Estimating lower and upper bounds of neurons')
  
             assert RF >= 0.0 and RF <= 1.0, \
-            'error: relaxation factor should be between 0.0 and 1.0, i.e. RF \in [0.0, 1.0]' 
+            'error: relaxation factor should be between 0.0 and 1.0, i.e. RF in [0.0, 1.0]' 
 
             # applying partial relaxation and partial LP solver
             I, l, u, map = PosLin.relax_by_area(I=I, l=l, u=u, lp_solver=lp_solver, RF=RF, show=show)

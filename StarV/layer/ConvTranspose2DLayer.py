@@ -129,13 +129,13 @@ class ConvTranspose2DLayer(object):
                 
                 if isinstance(padding, int):
                     assert padding >= 0, 'error: padding should non-negative integers'
-                    self.padding = np.ones(2, dtype=np.int16)*padding
+                    self.padding = np.ones(4, dtype=np.int16)*padding
                 else:
                     padding = np.array(padding)
                     assert (padding >= 0).any(), 'error: padding should non-negative integers'
 
                     if len(padding) == 1:
-                        self.padding = np.ones(2, dtype=np.int16)*padding[0]
+                        self.padding = np.ones(4, dtype=np.int16)*padding[0]
                     else:
                         if len(padding) == 2:
                             padding = np.array([padding[0], padding[0], padding[1], padding[1]])
@@ -170,9 +170,7 @@ class ConvTranspose2DLayer(object):
                     else:
                         raise Exception('error: incorrect dilation')
 
-                if output_padding == None:
-                    self.output_padding = np.zeros(2)
-                elif isinstance(output_padding, int):
+                if isinstance(output_padding, int):
                     self.output_padding = np.ones(2, dtype=np.int16)*output_padding
                 else:
                     if len(output_padding) == 1:
@@ -420,21 +418,37 @@ class ConvTranspose2DLayer(object):
         return output, mo, no
 
     def get_output_size(self, input):
+        padding = self.padding
+        if len(padding) == 4:
+            pad = padding
+        elif len(padding) == 2:
+            pad = np.array([padding[0], padding[0], padding[1], padding[1]])
+        elif len(padding) == 1:
+            pad = np.ones(4)*padding[0]
+            
         h, w, c, n = input.shape
         H, W = self.weight.shape[:2]
 
-        ho = (h - 1)*self.stride[0] - 2*self.padding[0] + self.dilation[0]*(H - 1) + self.output_padding[0] + 1
-        wo = (w - 1)*self.stride[1] - 2*self.padding[1] + self.dilation[1]*(W - 1) + self.output_padding[1] + 1
+        ho = (h - 1)*self.stride[0] - pad[0] - pad[1] + self.dilation[0]*(H - 1) + self.output_padding[0] + 1
+        wo = (w - 1)*self.stride[1] - pad[2] - pad[3] + self.dilation[1]*(W - 1) + self.output_padding[1] + 1
 
         assert ho > 0 and wo > 0, 'error: the shape of resulting output should be positive'
         return ho, wo
     
     def get_output_size_sparse(self, in_height, in_width):
+        padding = self.padding
+        if len(padding) == 4:
+            pad = padding
+        elif len(padding) == 2:
+            pad = np.array([padding[0], padding[0], padding[1], padding[1]])
+        elif len(padding) == 1:
+            pad = np.ones(4)*padding[0]
+            
         h, w = in_height, in_width
         H, W = self.weight.shape[:2]
 
-        ho = (h - 1)*self.stride[0] - 2*self.padding[0] + self.dilation[0]*(H - 1) + self.output_padding[0] + 1
-        wo = (w - 1)*self.stride[1] - 2*self.padding[1] + self.dilation[1]*(W - 1) + self.output_padding[1] + 1
+        ho = (h - 1)*self.stride[0] - pad[0] - pad[1] + self.dilation[0]*(H - 1) + self.output_padding[0] + 1
+        wo = (w - 1)*self.stride[1] - pad[2] - pad[3] + self.dilation[1]*(W - 1) + self.output_padding[1] + 1
 
         assert ho > 0 and wo > 0, 'error: the shape of resulting output should be positive'
         return ho, wo
@@ -554,100 +568,100 @@ class ConvTranspose2DLayer(object):
         #     output = output.squeeze(axis = 3)
         return output
     
-    def convtrans2d_test(self, input, bias=True):
-        """
-            Vectorized convolution 2D
+    # def convtrans2d_test(self, input, bias=True):
+    #     """
+    #         Vectorized convolution 2D
 
-            Args:
-               @input: dataset in numpy with shape of H, W, C, N, where H: height, W: width, C: input channel, N: number of batches
+    #         Args:
+    #            @input: dataset in numpy with shape of H, W, C, N, where H: height, W: width, C: input channel, N: number of batches
 
-            Return: 
-               @R: convolved dataset
-        """
+    #         Return: 
+    #            @R: convolved dataset
+    #     """
 
-        assert self.module == 'default', 'error: conv2d_vec support \'default\' module'
+    #     assert self.module == 'default', 'error: conv2d_vec support \'default\' module'
         
-        stride = self.stride
-        padding = self.padding
-        output_padding = self.output_padding
-        dilation = self.dilation
-        weight = self.weight
-        in_dim = input.ndim
-        dtype = input.dtype
+    #     stride = self.stride
+    #     padding = self.padding
+    #     output_padding = self.output_padding
+    #     dilation = self.dilation
+    #     weight = self.weight
+    #     in_dim = input.ndim
+    #     dtype = input.dtype
 
-        assert isinstance(input, np.ndarray), \
-        'error: input should be numpy ndarray'
-        assert in_dim >= 2 and in_dim <= 4, \
-        'error: input should be 2D, 3D, or 4D numpy ndarray'
+    #     assert isinstance(input, np.ndarray), \
+    #     'error: input should be numpy ndarray'
+    #     assert in_dim >= 2 and in_dim <= 4, \
+    #     'error: input should be 2D, 3D, or 4D numpy ndarray'
 
-        if in_dim == 2:
-            input = input[:, :, None, None]
-        elif in_dim == 3:
-            input = input[:, :, :, None]
+    #     if in_dim == 2:
+    #         input = input[:, :, None, None]
+    #     elif in_dim == 3:
+    #         input = input[:, :, :, None]
 
-        mo, no, _, b = input.shape
-        p, q, ci, co = weight.shape
+    #     mo, no, _, b = input.shape
+    #     p, q, ci, co = weight.shape
 
-        mi = (mo - 1)*self.stride[0] + dilation[0]*(p - 1) + 1
-        ni = (no - 1)*self.stride[1] + dilation[1]*(q - 1) + 1
-        m, n = mi, ni
+    #     mi = (mo - 1)*self.stride[0] + dilation[0]*(p - 1) + 1
+    #     ni = (no - 1)*self.stride[1] + dilation[1]*(q - 1) + 1
+    #     m, n = mi, ni
 
-        K = np.pad(weight, ((0, 0), (0, ni-q), (0, 0), (0,0)), mode='constant') 
+    #     K = np.pad(weight, ((0, 0), (0, ni-q), (0, 0), (0,0)), mode='constant') 
 
-        i_shift = ni * stride[0] * ci
-        j_shift = stride[1] * ci
+    #     i_shift = ni * stride[0] * ci
+    #     j_shift = stride[1] * ci
 
-        S = np.zeros([mo*no*co, p*q*ci])
+    #     S = np.zeros([mo*no*co, p*q*ci])
 
-        print('weight.shape: ', weight.shape)
-        prev_co_ = None
-        for o in range(mo*no*co):
+    #     print('weight.shape: ', weight.shape)
+    #     prev_co_ = None
+    #     for o in range(mo*no*co):
             
-            K_ = sp.csr_array(K[:, :, :, o%co].reshape(1, -1), copy=False)
-            K_ind = K_.indices.copy()
+    #         K_ = sp.csr_array(K[:, :, :, o%co].reshape(1, -1), copy=False)
+    #         K_ind = K_.indices.copy()
 
-            if dilation[0] > 1:
-                q_ind = K_.indices // ci % p #col
-                K_ind += q_ind*(dilation[0]-1)*ci
+    #         if dilation[0] > 1:
+    #             q_ind = K_.indices // ci % p
+    #             K_ind += q_ind*(dilation[0]-1)*ci
 
-            if dilation[1] > 1:
-                p_ind = K_.indices // (ci*q) #row
-                K_ind += p_ind*(dilation[1]-1)*ci*q       
+    #         if dilation[1] > 1:
+    #             p_ind = K_.indices // (ci*q)s
+    #             K_ind += p_ind*(dilation[1]-1)*ci*q       
 
-            indices = (o//co//no)*i_shift + (o//co%no)*j_shift + K_ind
+    #         indices = (o//co//no)*i_shift + (o//co%no)*j_shift + K_ind
 
-        p, q, ci, co  = weight.shape
-        mo, no = self.get_output_size(input)
+    #     p, q, ci, co  = weight.shape
+    #     mo, no = self.get_output_size(input)
     
-        Z = np.pad(np.ones([p, q, c], dtype=bool), ((0, m-p), (0, n-q), (0, 0)), mode='constant').reshape(-1)
-        Z_ind = np.where(Z > 0)[0]
-        Z_indices = Z_ind.copy()
+    #     Z = np.pad(np.ones([p, q, c], dtype=bool), ((0, m-p), (0, n-q), (0, 0)), mode='constant').reshape(-1)
+    #     Z_ind = np.where(Z > 0)[0]
+    #     Z_indices = Z_ind.copy()
 
-        if dilation[0] > 1:
-            q_ind = Z_ind // c % p #col
-            Z_indices += q_ind*(dilation[0]-1)*c
+    #     if dilation[0] > 1:
+    #         q_ind = Z_ind // c % p #col
+    #         Z_indices += q_ind*(dilation[0]-1)*c
 
-        if dilation[1] > 1:
-            p_ind = Z_ind // (c*q) #row
-            Z_indices += p_ind*(dilation[1]-1)*c*q
+    #     if dilation[1] > 1:
+    #         p_ind = Z_ind // (c*q) #row
+    #         Z_indices += p_ind*(dilation[1]-1)*c*q
 
-        i_shift = n*stride[0]*c
-        j_shift = stride[1]*c
+    #     i_shift = n*stride[0]*c
+    #     j_shift = stride[1]*c
 
-        z = p*q*c
-        ko = mo*no
-        X = np.zeros([b, ko, z], dtype=dtype)
-        for i in range(ko):
-            ind = (i//no)*i_shift + (i%no)*j_shift + Z_indices
-            X[:, i, :] = XF[ind, :].T
+    #     z = p*q*c
+    #     ko = mo*no
+    #     X = np.zeros([b, ko, z], dtype=dtype)
+    #     for i in range(ko):
+    #         ind = (i//no)*i_shift + (i%no)*j_shift + Z_indices
+    #         X[:, i, :] = XF[ind, :].T
 
-        K = weight.reshape(z, co)
-        output = X @ K #in shape [b, ko, co]
-        if bias is True:
-            if isinstance(self.bias, np.ndarray):
-                output += self.bias[None, None, :]
-        output = output.transpose([1, 2, 0]).reshape(mo, no, co, b)
-        return output
+    #     K = weight.reshape(z, co)
+    #     output = X @ K #in shape [b, ko, co]
+    #     if bias is True:
+    #         if isinstance(self.bias, np.ndarray):
+    #             output += self.bias[None, None, :]
+    #     output = output.transpose([1, 2, 0]).reshape(mo, no, co, b)
+    #     return output
    
     
 
@@ -690,7 +704,7 @@ class ConvTranspose2DLayer(object):
         Z_ind = Z_.indices.copy()
 
         if dilation[0] > 1:
-            q_ind = Z_.indices // ci % p #col
+            q_ind = Z_.indices // ci % q #col
             Z_ind += q_ind*(dilation[0]-1)*ci
 
         if dilation[1] > 1:
@@ -751,7 +765,7 @@ class ConvTranspose2DLayer(object):
         Z_ind = Z_.indices.copy()
 
         if dilation[0] > 1:
-            q_ind = Z_.indices // ci % p #col
+            q_ind = Z_.indices // ci % q #col
             Z_ind += q_ind*(dilation[0]-1)*ci
 
         if dilation[1] > 1:
@@ -1107,11 +1121,19 @@ class ConvTranspose2DLayer(object):
                 )
             
             elif self.module == 'default':
+                if In.c is None:
+                    new_V = self.convtrans2d(In.V, bias=False)
+                    if self.bias is not None:
+                        new_V[:, :, :, 0] += self.bias
+                    return SparseImageStar2DCSR(new_V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
+                
                 new_c = self.convtrans2d(In.c.reshape(In.shape), bias=True).reshape(-1)
-                new_V, out_shape = self.fconvtrans2d_coo_co_loop2(In.V, In.shape)
-                # new_V, out_shape = self.fconvtrans2d_coo(In.V, In.shape)
-
-            return SparseImageStar2DCOO(new_c, new_V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
+                # new_V, out_shape = self.fconvtrans2d_coo2(In.V, In.shape)
+                # new_V, out_shape = self.fconvtrans2d_coo_co_loop2(In.V, In.shape)
+                new_V, out_shape = self.fconvtrans2d_coo(In.V, In.shape)
+                return SparseImageStar2DCOO(new_c, new_V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
+            
+            raise Exception(f'error: ConvTranspose2DLayer unsupported module: {self.module}')
         
         elif isinstance(In, SparseImageStar2DCSR):
             if self.module == 'pytorch':
@@ -1120,11 +1142,19 @@ class ConvTranspose2DLayer(object):
                 )
             
             elif self.module == 'default':
+                if In.c is None:
+                    new_V = self.convtrans2d(In.V, bias=False)
+                    if self.bias is not None:
+                        new_V[:, :, :, 0] += self.bias
+                    return SparseImageStar2DCSR(new_V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
+                
                 new_c = self.convtrans2d(In.c.reshape(In.shape), bias=True).reshape(-1)
-                new_V, out_shape = self.fconvtrans2d_csr_co_loop2(In.V, In.shape)
-                # new_V, out_shape = self.fconvtrans2d_csr(In.V, In.shape)
+                # new_V, out_shape = self.fconvtrans2d_csr2(In.V, In.shape)
+                # new_V, out_shape = self.fconvtrans2d_csr_co_loop2(In.V, In.shape)
+                new_V, out_shape = self.fconvtrans2d_csr(In.V, In.shape)
+                return SparseImageStar2DCSR(new_c, new_V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
 
-            return SparseImageStar2DCSR(new_c, new_V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
+            raise Exception(f'error: ConvTranspose2DLayer unsupported module: {self.module}')
         
         else:
             raise Exception('error: Conv2DLayer supports ImageStar and SparseImageStar')

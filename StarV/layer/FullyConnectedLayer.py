@@ -52,6 +52,18 @@ class FullyConnectedLayer(object):
             self.in_dim = b.shape[0]
             self.out_dim = b.shape[0]
 
+    def __str__(self):
+        print('Layer type: {}'.format(self.__class__.__name__))
+        print('Weight matrix: {}'.format(self.W))
+        print('Bias vector: {}'.format(self.b))
+        print('Input dimension: {}'.format(self.in_dim))
+        print('Output dimension: {}'.format(self.out_dim))
+        print('')
+        return '\n'
+
+    def info(self):
+        print(self)
+
     def evaluate(self, x):
         """evaluation on an input vector/array x"""
 
@@ -70,9 +82,9 @@ class FullyConnectedLayer(object):
         
         elif W is not None:
 			#if x.shape[:2] == self.W.shape[:2]:
-            if x.ndim == self.W.ndim:
-                return W * x 
-        
+            if x.ndim == self.W.ndim or np.prod(self.W.shape) == 1:
+                return W * x
+            
             return np.matmul(W, x)
 
         elif b is not None:
@@ -93,7 +105,7 @@ class FullyConnectedLayer(object):
         W = np.random.rand(out_dim, in_dim)
         b = np.random.rand(out_dim)
 
-        return FullyConnectedLayer(layer=[W, b], module='default')
+        return FullyConnectedLayer(layer=[W, b])
 
     def reachExactSingleInput(self, In):
         return In.affineMap(self.W, self.b)
@@ -112,8 +124,6 @@ class FullyConnectedLayer(object):
 
         """
 
-        pool = None
-        
         if isinstance(inputSet, list):
             S = []
             if pool is None:

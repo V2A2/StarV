@@ -21,7 +21,7 @@ def arnoldi(A, x0, m, tolerance,compute_error = None,projection_mat=None):
     """
 
     if compute_error == True:
-        print("==== using -A in arnoldi inter ======:")
+        # print("==== using -A in arnoldi inter ======:")
         A = -A
    
     if m is None:
@@ -56,7 +56,8 @@ def arnoldi(A, x0, m, tolerance,compute_error = None,projection_mat=None):
         if Hm[i+1, i] >= tolerance:
             Vm[:, i+1] = wi/ Hm[i+1, i]
         elif i > 0 and Hm[i+1, i] < tolerance: 
-                print("=====break early in arnoldi ====")
+                #break early
+                # print("=====break early in arnoldi ====")
                 Vm = Vm[:,:i+2]
                 Hm = Hm[:i+2,:i+1]  
                 break # jump out the while loop   
@@ -92,7 +93,7 @@ def lanczos(A, x0, m, tolerance,compute_error = None,projection_mat=None):
     """
 
     if compute_error == True:
-        print("==== using -A in lanczos iter ======:")
+        # print("==== using -A in lanczos iter ======:")
         A = -A
    
     if m is None:
@@ -151,7 +152,7 @@ def lanczos(A, x0, m, tolerance,compute_error = None,projection_mat=None):
                 pv_mat[:,i+1] = Y
 
         elif i > 0 and prev_norm_H < tolerance:
-                print("=====break early in lanczos====")
+                # print("=====break early in lanczos====")
                 pv_mat = pv_mat[:, :i+2]
                 Hm = Hm[:i+2,:i+1]
                 break     

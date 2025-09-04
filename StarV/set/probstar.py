@@ -187,8 +187,9 @@ class ProbStar(object):
         print('ProbStar Set:')
         print('V: {}'.format(self.V.shape))
         print('Predicate Constraints:')
-        print('C: {}'.format(self.C.shape))
-        print('d: {}'.format(self.d.shape))
+        if len(self.C):
+            print('C: {}'.format(self.C.shape))
+            print('d: {}'.format(self.d.shape))
         print('dim: {}'.format(self.dim))
         print('nVars: {}'.format(self.nVars))
         print('pred_lb: {}'.format(self.pred_lb.shape))
@@ -856,6 +857,38 @@ class ProbStar(object):
             return S
         else:
             return self
+        
+    def concatenate(self, X):
+        """
+            concatenate a probstar with another probstar
+            Sung Woo Choi, 06/09/2025
+        """
+
+        assert isinstance(X, ProbStar), f'error: input X should be a ProbStar but received {type(X)}'
+
+        c1 = np.concatenate([self.V[:, 0], X.V[:, 0]])[:, None]
+        V1 = block_diag(self.V[:, 1:], X.V[:, 1:])
+        new_V = np.hstack([c1, V1])
+        
+        if len(self.d) == 0 and len(X.d) == 0:
+            new_C = []
+            new_d = []
+        else:
+            C1 = np.empty([0, self.nVars]) if len(self.d) == 0 else self.C
+            C2 = np.empty([0, X.nVars]) if len(X.d) == 0 else X.C
+            new_C = block_diag(C1, C2)
+
+            d1 = np.empty(0) if len(self.d) == 0 else self.d
+            d2 = np.empty(0) if len(X.d) == 0 else X.d
+            new_d = np.concatenate([d1, d2])
+
+        new_mu = np.concatenate([self.mu, X.mu])
+        new_Sig = block_diag(self.Sig, X.Sig)
+        
+        new_pred_lb = np.concatenate([self.pred_lb, X.pred_lb])
+        new_pred_ub = np.concatenate([self.pred_ub, X.pred_ub])
+
+        return ProbStar(new_V, new_C, new_d, new_mu, new_Sig, new_pred_lb, new_pred_ub)
 
     @staticmethod
     def rand(*args):

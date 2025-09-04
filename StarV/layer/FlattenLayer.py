@@ -52,6 +52,7 @@ class FlattenLayer(object):
                 return In
             
             out_shape = (In.V.shape[0], )
+            
             if self.channel_last:
                 if isinstance(In.V, sp.coo_array) or isinstance(In.V, sp.coo_matrix):
                     return SparseImageStar2DCOO(In.c, In.V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
@@ -106,7 +107,7 @@ class FlattenLayer(object):
                 @in_sets: a list of input sets or a single input set
 
             Return:
-                @S: flattend reachable set to Star or SparseStar
+                @S: flattened reachable set to Star or SparseStar
         """
 
         if isinstance(in_sets, list):

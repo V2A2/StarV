@@ -226,8 +226,8 @@ The user manual is availble at StarV root directory, `StarV`. The code for the t
 
 ```
 StarV (root directory)
+│    ...  
 │   manual.pdf
-│   ...  
 └───.devcontainer
 └───StarV (dev directory)
 └───artifacts

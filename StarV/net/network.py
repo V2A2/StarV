@@ -30,6 +30,7 @@ import multiprocessing
 import itertools
 from collections import Counter
 
+
 class NeuralNetwork(object):
     """Generic serial Neural Network class
 
@@ -185,57 +186,56 @@ def reachExactBFS(net, inputSet, lp_solver='gurobi', pool=None, show=True):
 
     return S
 
-def reachApproxBFS(net, inputSet, p_filter, lp_solver='gurobi', pool=None, show=True):
+def reachApproxBFS(net, inputSet, p_filter=0.0, lp_solver='gurobi', pool=None, show=True):
     """Compute Approximate Reachable Set layer-by-layer"""
 
     assert isinstance(net, NeuralNetwork), 'error: first input should be a NeuralNetwork object'
-    assert isinstance(inputSet, list), 'error: second input should be a list of Star/ProbStar set'
+    assert isinstance(inputSet, list) or isinstance(inputSet, Star), 'error: second input should be a list of Star/ProbStar set or just a Star set'
 
     # compute and filter reachable sets
     I = copy.deepcopy(inputSet)
-    p_ignored = 0.0
-    for i in range(0, net.n_layers):
-        if show:
-            print('================ Layer {} ================='.format(i))
-            print('Computing layer {} reachable set...'.format(i))
-        S = net.layers[i].reach(I, method='exact', lp_solver=lp_solver, pool=pool)
-        if show:
-            print('Number of probstars: {}'.format(len(S)))
-            print('Filtering probstars whose probabilities < {}...'.format(p_filter))
-        P = []
-        if pool is None:
-            for S1 in S:
-                P1, prob1 = filterProbStar(p_filter, S1)
-                if isinstance(P1, ProbStar):
-                    P.append(P1)
-                p_ignored = p_ignored + prob1  # update the total probability of ignored sets
-        else:
-            S1 = pool.map(filterProbStar, zip([p_filter]*len(S), S))
-            for S2 in S1:
-                if isinstance(S2[0], ProbStar):
-                    P.append(S2[0])
-                p_ignored = p_ignored + S2[1]
-        I = P            
-        if show:
-            print('Number of ignored probstars: {}'.format(len(S) - len(I)))
-            print('Number of remaining probstars: {}'.format(len(I)))
 
-        if len(I) == 0:
-            break
+    if isinstance(inputSet, list):
+        p_ignored = 0.0
+        for i in range(0, net.n_layers):
+            if show:
+                print('================ Layer {} ================='.format(i))
+                print('Computing layer {} reachable set...'.format(i))
+            S = net.layers[i].reach(I, method='exact', lp_solver=lp_solver, pool=pool)
+            if show:
+                print('Number of probstars: {}'.format(len(S)))
+                print('Filtering probstars whose probabilities < {}...'.format(p_filter))
+            P = []
+            if pool is None:
+                for S1 in S:
+                    P1, prob1 = filterProbStar(p_filter, S1)
+                    if isinstance(P1, ProbStar):
+                        P.append(P1)
+                    p_ignored = p_ignored + prob1  # update the total probability of ignored sets
+            else:
+                S1 = pool.map(filterProbStar, zip([p_filter]*len(S), S))
+                for S2 in S1:
+                    if isinstance(S2[0], ProbStar):
+                        P.append(S2[0])
+                    p_ignored = p_ignored + S2[1]
+            I = P            
+            if show:
+                print('Number of ignored probstars: {}'.format(len(S) - len(I)))
+                print('Number of remaining probstars: {}'.format(len(I)))
 
+            if len(I) == 0:
+                break
 
-    return I, p_ignored
+        return I, p_ignored
+    
+    if isinstance(I, Star):
+        for i in range(0, net.n_layers):
+            if show:
+                print('Computing layer {} {} reachable set...'.format(i, net.layers[i].__class__.__name__))
+                # print('Computing layer {} reachable set...'.format(i))
+            S = net.layers[i].reach(I, method='approx', lp_solver=lp_solver, pool=pool)
+            I = S
+            if show:
+                print('Number of stars: {}'.format(len(S)))
+        return S
 
-
-def reach_exact_bfs_star_relu(net: NeuralNetwork, inputSet: List[Star], method = 'exact',
-                  lp_solver: str = 'gurobi', pool: Optional[multiprocessing.Pool] = None, 
-                  show: bool = True) -> List[Union[Star, ProbStar]]:
-    """Compute Reachable Set layer-by-layer"""
-    S = [star.clone() for star in inputSet]
-    for i, layer in enumerate(net.layers):
-        if show:
-            print(f'Computing layer {i} reachable set...')
-        S = layer.reach(S, method, lp_solver=lp_solver, pool=pool)
-        if show:
-            print(f'Number of stars: {len(S)}\n')
-    return S

@@ -12,7 +12,7 @@ class ReLULayer(object):
         Author: Dung Tran
         Date: 9/10/2022
     """
-
+    
     @staticmethod
     def evaluate(x):
         return PosLin.evaluate(x)
@@ -43,3 +43,11 @@ class ReLULayer(object):
             return PosLin.reachApprox(In=In, lp_solver=lp_solver, show=show)
         else:
             raise Exception(f"error: unknown reachability method: {method}")
+
+    def __str__(self):
+        print('Layer type: {}'.format(self.__class__.__name__))
+        print('')
+        return '\n'
+
+    def info(self):
+        print(self)

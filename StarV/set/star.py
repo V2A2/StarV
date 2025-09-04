@@ -65,7 +65,7 @@ class Star(object):
                 assert len(d.shape) == 1, 'error: \
                 constraint vector should be a 1D numpy array'
                 assert V.shape[1] == C.shape[1] + 1, 'error: \
-                Inconsistency between basic matrix and constraint matrix'
+                Inconsistency between generator matrix and constraint matrix'
                 assert C.shape[0] == d.shape[0], 'error: \
                 Inconsistency between constraint matrix and constraint vector'
                 assert C.shape[1] == pred_lb.shape[0] and \
@@ -482,18 +482,50 @@ class Star(object):
             xmax[i] = self.getMax(index=map[i], lp_solver=lp_solver)
         return xmax
 
-    def getRanges(self, lp_solver='gurobi'):
-        """get lower bound and upper bound by solving LP"""
-
-        if lp_solver == 'estimate':
+    def getRanges(self, lp_solver='gurobi', RF=0.0, layer=None, delta=0.98):
+        """Get the lower and upper bound vectors of the state
+            Args:
+                lp_solver: linear programming solver. e.g.: 'gurobi', 'estimate', 'linprog'
+                RF: relaxation factor in [0.0, 1.0]
+        """
+        
+        if RF == 1.0:
             return self.estimateRanges()
+        
+        elif RF == 0.0:
+            if lp_solver == 'estimate':
+                return self.estimateRanges()
+            else:
+                l = self.getMins(np.arange(self.dim), lp_solver=lp_solver)
+                u = self.getMaxs(np.arange(self.dim), lp_solver=lp_solver)
+                return l, u
 
         else:
-            l = np.zeros(self.dim)
-            u = np.zeros(self.dim)
-            for i in range(0, self.dim):
-                l[i] = self.getMin(i, lp_solver)
-                u[i] = self.getMax(i, lp_solver)
+            assert RF > 0.0 and RF <= 1.0, \
+            'error: relaxation factor should be greater than 0.0 but less than or equal to 1.0'
+            l, u = self.estimateRanges()
+            n1 = round((1 - RF) * self.dim)
+            if layer in ['logsig', 'tansig']:
+                midx = np.argsort((u - l))[::-1]
+                midb = np.argwhere((l[midx] >= -delta) & (u[midx] <= delta))
+                
+                n2 = n1
+                check = midb.flatten().shape[0]
+                if n2 > check:
+                    n2 = check
+
+                mid = midx[midb[0:n2]]
+                l1 = self.getMins(mid)
+                u1 = self.getMaxs(mid)
+                l[mid] = l1
+                u[mid] = u1
+            else:
+                midx = np.argsort((u - l))[::-1]
+                mid = midx[0:n1]
+                l1 = self.getMins(mid)
+                u1 = self.getMaxs(mid)
+                l[mid] = l1
+                u[mid] = u1
             return l, u
     
         
@@ -537,7 +569,7 @@ class Star(object):
             x1 = c1 + V1 a1 in S1 (self) with P(a1) := C1 a1 <= d1
             x2 = c2 + V2 a2 in S2 (S)    with P(a2) := C2 a2 <= d2
 
-            x = x1 \cap x2
+            x = x1 \\cap x2
               = c1 + V1 a1 + 0 a2        with P'(a) = P'([a1, a2])
               = c2 + V2 a2 + 0 a1        with P'(a) = P'([a1, a2]),
             where
@@ -839,6 +871,33 @@ class Star(object):
 
         return S
     
+    def resetRowWithFactor(self, index, factor):
+        """Reset a row with index and factor
+        Author: Yuntao, Date: 6/22/2024
+        """
+
+        if index < 0 or index > self.dim - 1:
+            raise Exception('error: invalid index, \
+            should be between {} and {}'.format(0, self.dim - 1))
+        V = self.V
+        V[index, :] *= factor
+
+        return Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
+    
+    def resetRowWithUpdatedCenter(self, index, new_c):
+        """Reset a row with index, and with new center
+        Author: Yuntao, Date: 6/22/2024
+        """
+
+        if index < 0 or index > self.dim - 1:
+            raise Exception('error: invalid index, \
+            should be between {} and {}'.format(0, self.dim - 1))
+        V = self.V
+        V[index, :] = 0.0
+        V[index, 0] = new_c
+
+        return Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
+    
     def sample(self, N):
         """
         Sample N points in the feasible Star set.
@@ -894,7 +953,7 @@ class Star(object):
             d = 0
         m.addConstr(C @ x <= d)
         Ae = sp.csr_matrix(self.V[:, 1:])
-        be = s - self.V[:, 0, None]
+        be = s - self.V[:, 0]
         m.addConstr(Ae @ x == be)
         m.optimize()
 
@@ -1027,3 +1086,15 @@ class Star(object):
 
         new_d = d + np.dot(new_C, c)
         return pc.Polytope(new_C, new_d)
+    
+    def toImageStar(self, image_shape, copy_=True):
+        """Converts to ImageStar set representation"""
+        n = np.prod(image_shape)
+        assert len(image_shape) == 3, f'error: Number of dimensions of image_shape should be 3'
+        assert self.dim == n, f'error: Incompatible dimension, Star set with dim={self.dim} cannot be converted into ImageStar set with dim={image_shape}'
+
+        from StarV.set.imagestar import ImageStar
+
+        out_shape = image_shape + (self.nVars + 1, )
+        new_V = self.V.reshape(out_shape)
+        return ImageStar(new_V, self.C, self.d, self.pred_lb, self.pred_ub, copy_=copy_)

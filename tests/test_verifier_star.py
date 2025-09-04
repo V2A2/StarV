@@ -11,7 +11,6 @@ from StarV.layer.ReLULayer import ReLULayer
 from StarV.set.star import Star
 import numpy as np
 import multiprocessing
-from StarV.util.load_fairness import load_fairness_adult, load_fairness_bank, load_fairness_german
 import time
 from StarV.util.plot import plot_star
 from matplotlib import pyplot as plt

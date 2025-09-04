@@ -1,5 +1,5 @@
 """
-logsigXidentity Class (logsig(x) * y, where x \in X, y \in Y, X and Y are star sets)
+logsigXidentity Class (logsig(x) * y, where x in X, y in Y, X and Y are star sets)
 Sung Woo Choi, 08/02/2023
 
 """
@@ -989,7 +989,7 @@ class LogsigXIdentity(object):
         assert isinstance(X, SparseStar) and isinstance(H, SparseStar), 'error: both or one of input sets are not SparseStar sets'
         assert X.dim == H.dim, 'error: dimension of input sets does not match'
 
-        return LogsigXIdentity.multiStepLogsigXIdentity_sparse_multiConstraints(S, X, H, lp_solver=lp_solver, RF=RF, DR=DR)
+        return LogsigXIdentity.multiStepLogsigXIdentity_sparse_multiConstraints(X, H, lp_solver=lp_solver, RF=RF, DR=DR)
     
 
     def reach(X, H, lp_solver='gurobi', pool=None, RF=0.0, DR=0):

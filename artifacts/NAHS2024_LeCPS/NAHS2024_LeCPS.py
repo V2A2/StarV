@@ -6,28 +6,30 @@ Author: Yuntao Li
 Date: 01/08/2025
 """
 
+
+import numpy as np
+import time
+import os
+import copy
+import multiprocessing
+import pickle
+import pandas as pd
+from tabulate import tabulate
+from matplotlib.patches import Rectangle
+from matplotlib import pyplot as plt
+from matplotlib.pyplot import step, show
+from StarV.util.print_util import print_util
 from StarV.verifier.verifier import quantiVerifyBFS, quantiVerifyMC
 from StarV.set.probstar import ProbStar
-import numpy as np
 from StarV.util.load_piecewise import load_tiny_network_ReLU, load_tiny_network_LeakyReLU, load_tiny_network_SatLin, load_tiny_network_SatLins, load_tiny_network_SatLins
 from StarV.util.load_piecewise import load_HCAS_ReLU, load_HCAS_LeakyReLU, load_HCAS_SatLin, load_HCAS_SatLins
 from StarV.util.load_piecewise import load_ACASXU_ReLU, load_ACASXU_LeakyReLU, load_ACASXU_SatLin, load_ACASXU_SatLins
 from StarV.util.load import load_DRL
 from StarV.util.load import load_acc_model, load_AEBS_model
 from StarV.nncs.nncs import VerifyPRM_NNCS, verifyBFS_DLNNCS, reachBFS_AEBS, ReachPRM_NNCS, AEBS_NNCS
-import time
 from StarV.util.plot import plot_probstar
 from StarV.util.plot import plot_probstar_reachset, plot_probstar_reachset_with_unsafeSpec
-from matplotlib import pyplot as plt
-from matplotlib.pyplot import step, show
 from StarV.set.star import Star
-from tabulate import tabulate
-import os
-import copy
-import multiprocessing
-from matplotlib.patches import Rectangle
-from StarV.util.print_util import print_util
-
 
 
 def quantiverify_tiny_network_ReLU(numCores):
@@ -648,6 +650,306 @@ def quantiverify_ACASXU_all_ReLU_MC(x, y, spec_ids, unsafe_mat, unsafe_vec, numS
     print_util('h2')
     return data
 
+
+def format_net_name(x, y):
+    """Format network name as x-y"""
+    return f"{x}-{y}"
+
+def quantiverify_ACASXU_ReLU_table_3(x, y, spec_ids, numCores, unsafe_mat, unsafe_vec, p_filters):
+    """Verify all ACASXU ReLU networks with spec_id"""
+    print_util('h2')
+    results = []
+
+    if len(x) != len(y):
+        raise Exception('length(x) should equal length(y)')
+    if len(x) != len(spec_ids):
+        raise Exception('length(x) should equal length(spec_ids)')
+
+    for i in range(len(x)):
+        for p_filter in p_filters:
+            print_util('h3')
+            print('quanti verify of ACASXU N_{}_{} ReLU network under specification {}...'.format(x[i], y[i], spec_ids[i]))
+            net, lb, ub, unsmat, unsvec = load_ACASXU_ReLU(x[i], y[i], spec_ids[i])
+            net.info()
+            S = Star(lb, ub)
+            mu = 0.5*(S.pred_lb + S.pred_ub)
+            a = 3.0  # coefficient to adjust the distribution
+            sig = (mu - S.pred_lb)/a
+            print('Mean of predicate variables: mu = {}'.format(mu))
+            print('Standard deviation of predicate variables: sig = {}'.format(sig))
+            Sig = np.diag(np.square(sig))
+            print('Variance matrix of predicate variables: Sig = {}'.format(Sig))
+            In = ProbStar(S.V, S.C, S.d, mu, Sig, S.pred_lb, S.pred_ub)
+            inputSet = []
+            inputSet.append(In)
+            inputSetProb = inputSet[0].estimateProbability()
+            
+            start = time.time()
+            OutputSet, unsafeOutputSet, counterInputSet, prob_lb, prob_ub, prob_min, prob_max = quantiVerifyBFS(
+                net=net, inputSet=inputSet, unsafe_mat=unsmat,
+                unsafe_vec=unsvec, numCores=numCores, p_filter=p_filter
+            )
+            end = time.time()
+            verifyTime = end-start
+
+            # Store results in dictionary format
+            result = {
+                'Prop': spec_ids[i],
+                'Net': format_net_name(x[i], y[i]),
+                'p_f': p_filter,
+                'O': len(OutputSet),
+                'US-O': len(unsafeOutputSet),
+                'C': len(counterInputSet),
+                'US-Prob-LB': prob_lb,
+                'US-Prob-UB': prob_ub,
+                'US-Prob-Min': prob_min,
+                'US-Prob-Max': prob_max,
+                'I-Prob': inputSetProb,
+                'VT': verifyTime
+            }
+            results.append(result)
+            print_util('h3')
+
+    # Print verification results
+    print(tabulate([[r['Prop'], r['Net'], r['p_f'], r['O'], r['US-O'], r['C'], 
+                    r['US-Prob-LB'], r['US-Prob-UB'], r['US-Prob-Min'], r['US-Prob-Max'],
+                    r['I-Prob'], r['VT']] for r in results],
+                  headers=["Prop.", "Net", "p_filter", "OutputSet", "UnsafeOutputSet", "CounterInputSet",
+                          "UnsafeProb-LB", "UnsafeProb-UB", "UnsafeProb-Min", "UnsafeProb-Max",
+                          "inputSet Probability", "VerificationTime"]))
+
+    # Save results to pickle file
+    path = "artifacts/NAHS2024_LeCPS/ACASXU/ReLU"
+    if not os.path.exists(path):
+        os.makedirs(path)
+    with open(path + '/NAHS2024_AcasXu_ReLU_ProbStar.pkl', 'wb') as f:
+        pickle.dump(results, f)
+
+    print_util('h2')
+    return results
+
+
+def quantiverify_ACASXU_ReLU_MC_table_3(x, y, spec_ids, unsafe_mat, unsafe_vec, numSamples, nTimes, numCore):
+    """Verify all ACASXU ReLU networks with spec_id using Monte Carlo"""
+    print_util('h2')
+    results = []
+
+    if len(x) != len(y):
+        raise Exception('length(x) should equal length(y)')
+    if len(x) != len(spec_ids):
+        raise Exception('length(x) should equal length(spec_ids)')
+
+    for i in range(len(x)):
+        for numSample in numSamples:
+            print_util('h3')
+            print('quanti verify using Monte Carlo of ACASXU N_{}_{} ReLU network under specification {}...'.format(x[i], y[i], spec_ids[i]))
+            net, lb, ub, unsmat, unsvec = load_ACASXU_ReLU(x[i], y[i], spec_ids[i])
+            net.info()
+            S = Star(lb, ub)
+            mu = 0.5*(S.pred_lb + S.pred_ub)
+            a = 3.0  # coefficient to adjust the distribution
+            sig = (mu - S.pred_lb)/a
+            print('Mean of predicate variables: mu = {}'.format(mu))
+            print('Standard deviation of predicate variables: sig = {}'.format(sig))
+            Sig = np.diag(np.square(sig))
+            print('Variance matrix of predicate variables: Sig = {}'.format(Sig))
+            In = ProbStar(S.V, S.C, S.d, mu, Sig, S.pred_lb, S.pred_ub)
+
+            start = time.time()
+            unsafe_prob = quantiVerifyMC(net=net, inputSet=In, unsafe_mat=unsmat, 
+                                         unsafe_vec=unsvec, numSamples=numSample, nTimes=nTimes, numCores=numCore)
+            end = time.time()
+            verifyTime = end-start
+
+            # Store results in dictionary format
+            result = {
+                'Prop': spec_ids[i],
+                'Net': format_net_name(x[i], y[i]),
+                'p_f': 0,  # Monte Carlo results only correspond to p_f = 0
+                'MC_US-Prob': unsafe_prob,
+                'MC_VT': verifyTime
+            }
+            results.append(result)
+            print_util('h3')
+
+    # Print verification results
+    print(tabulate([[r['Prop'], r['Net'], r['MC_US-Prob'], r['MC_VT']] for r in results],
+                  headers=["Prop.", "Net", "UnsafeProb", "VerificationTime"]))
+
+    # Save results to pickle file
+    path = "artifacts/NAHS2024_LeCPS/ACASXU/ReLU"
+    if not os.path.exists(path):
+        os.makedirs(path)
+    with open(path + '/NAHS2024_AcasXu_ReLU_MC.pkl', 'wb') as f:
+        pickle.dump(results, f)
+
+    print_util('h2')
+    return results
+
+
+def qualiverify_ACASXU_ReLU_other_tools_table_3():
+    """
+    Verify all ACASXU ReLU networks with spec_id using other verification tools
+    (NNV, Marabou, NNenum)
+    """
+    data = [
+    {"x": 1, "y": 6, "s": 2, "Result": "violated", "NNV_exact": 13739.970, "Marabou": 166.58, "NNenum": 1.5938},
+    {"x": 2, "y": 2, "s": 2, "Result": "violated", "NNV_exact": 21908.227, "Marabou": 9.27, "NNenum": 0.89502},
+    {"x": 2, "y": 9, "s": 2, "Result": "violated", "NNV_exact": 74328.776, "Marabou": 31.19, "NNenum": 1.0538},
+    {"x": 3, "y": 1, "s": 2, "Result": "violated", "NNV_exact": 5601.779, "Marabou": 3.50, "NNenum": 0.86799},
+    {"x": 3, "y": 6, "s": 2, "Result": "violated", "NNV_exact": 74664.104, "Marabou": 36.28, "NNenum": 0.91804},
+    {"x": 3, "y": 7, "s": 2, "Result": "violated", "NNV_exact": 23282.763, "Marabou": 105.32, "NNenum": 61.198},
+    {"x": 4, "y": 1, "s": 2, "Result": "violated", "NNV_exact": 17789.960, "Marabou": 9.58, "NNenum": 0.87820},
+    {"x": 4, "y": 7, "s": 2, "Result": "violated", "NNV_exact": 40696.630, "Marabou": 8.67, "NNenum": 0.90657},
+    {"x": 5, "y": 3, "s": 2, "Result": "violated", "NNV_exact": 2740.739, "Marabou": 113.12, "NNenum": 1.9434},
+    {"x": 1, "y": 7, "s": 3, "Result": "violated", "NNV_exact": 0.943, "Marabou": 0.25, "NNenum": 0.86683},
+    {"x": 1, "y": 9, "s": 4, "Result": "violated", "NNV_exact": 1.176, "Marabou": 0.31, "NNenum": 0.86635}
+    ]
+
+    results = []
+    for entry in data:
+        result = {
+            'Prop': entry['s'],
+            'Net': format_net_name(entry['x'], entry['y']),
+            'p_f': 0,  # Other tools results only correspond to p_f = 0
+            'NNV': entry['NNV_exact'],
+            'Marabou': entry['Marabou'],
+            'NNenum': entry['NNenum']
+        }
+        results.append(result)
+    
+    # Save to pickle file
+    path = "artifacts/NAHS2024_LeCPS/ACASXU/ReLU"
+    if not os.path.exists(path):
+        os.makedirs(path)
+    with open(path + '/NAHS2024_AcasXu_ReLU_other_tools.pkl', 'wb') as f:
+        pickle.dump(results, f)
+    
+    return results
+
+
+def generate_table_3_AcasXu_ReLU_quanti_verify_vs_other_tools():
+    """
+    Generate LaTeX table combining verification results for ACASXU ReLU networks:
+    1. Quantitative Verification (ProbStar)
+    2. Monte Carlo results
+    3. Other verification tools (NNV, Marabou, NNenum)
+    """
+    def format_number(value):
+        """Preserve scientific notation for very small numbers and original format"""
+        if pd.isna(value) or value is None:
+            return ''
+        elif isinstance(value, int):
+            return f'{value}'
+        elif isinstance(value, float):
+            if abs(value) < 1e-5:  # Use scientific notation for very small numbers
+                return f'{value:.6e}'
+            elif abs(value) >= 1:  # Use fixed notation with reasonable precision
+                return f'{value:.6f}'.rstrip('0').rstrip('.')
+            else:  # For numbers between 0 and 1
+                return f'{value:.6f}'.rstrip('0').rstrip('.')
+        return str(value)
+
+    def load_pickle_file(filename):
+        """Load data from pickle file with error handling"""
+        try:
+            with open(filename, 'rb') as f:
+                return pickle.load(f)
+        except FileNotFoundError:
+            print(f"Warning: {filename} not found")
+            return []
+        except Exception as e:
+            print(f"Error loading {filename}: {e}")
+            return []
+        
+    path = "artifacts/NAHS2024_LeCPS/ACASXU/ReLU"
+    # Load all data sources
+    probstar_data = load_pickle_file(path + '/NAHS2024_AcasXu_ReLU_ProbStar.pkl')
+    mc_data = load_pickle_file(path + '/NAHS2024_AcasXu_ReLU_MC.pkl')
+    other_tools_data = load_pickle_file(path + '/NAHS2024_AcasXu_ReLU_other_tools.pkl')
+
+    # Create lookup dictionaries for MC and other tools data
+    mc_dict = {(d['Prop'], d['Net']): d for d in mc_data}
+    other_dict = {(d['Prop'], d['Net']): d for d in other_tools_data}
+
+    # Sort probstar data by Prop, Net, and p_f
+    sorted_data = sorted(probstar_data, key=lambda x: (x['Prop'], x['Net'], x['p_f']))
+
+    # Generate LaTeX table
+    table_lines = [
+        r"\begin{table*}[h]",
+        r"\centering",
+        r"\resizebox{\textwidth}{!}{%",
+        r"\begin{tabular}{llllllllllll||ll||l|l|l}",
+        r"\hline",
+        r"    \multicolumn{12}{c||}{\textbf{Quantitative Verification}}  & " + 
+        r"\multicolumn{2}{c||}{\textbf{Monte Carlo (NS: $10^7$)}} & " +
+        r"\multicolumn{3}{c}{\textbf{Qualitative Verification}} \\",
+        r"\hline",
+        r"\textbf{Prop} & \textbf{Net} & \textbf{$p_f$} & " +
+        r"\textbf{$\mathcal{O}$} & \textbf{$\mathcal{US-O}$} & " +
+        r"\textbf{$\mathcal{C}$} & \textbf{US-Prob-LB} & \textbf{US-Prob-UB} & " +
+        r"\textbf{US-Prob-Min} & \textbf{US-Prob-Max} & \textbf{I-Prob} & " +
+        r"\textbf{VT} & \textbf{US-Prob} & \textbf{VT} & \textbf{NNV} & " +
+        r"\textbf{Marabou} & \textbf{NNenum}\\",
+        r"\hline"
+    ]
+
+    # Add data rows
+    for entry in sorted_data:
+        prop = entry['Prop']
+        net = entry['Net']
+        p_f = entry['p_f']
+        
+        # Base row with Quantitative Verification data
+        row = [
+            str(prop),
+            net,
+            str(p_f),
+            format_number(entry['O']),
+            format_number(entry['US-O']),
+            format_number(entry['C']),
+            format_number(entry['US-Prob-LB']),
+            format_number(entry['US-Prob-UB']),
+            format_number(entry['US-Prob-Min']),
+            format_number(entry['US-Prob-Max']),
+            format_number(entry['I-Prob']),
+            format_number(entry['VT'])
+        ]
+
+        # Add Monte Carlo and Other Tools data only if p_f = 0
+        if p_f == 0:
+            mc_entry = mc_dict.get((prop, net), {})
+            other_entry = other_dict.get((prop, net), {})
+            
+            row.extend([
+                format_number(mc_entry.get('MC_US-Prob', '')),
+                format_number(mc_entry.get('MC_VT', '')),
+                format_number(other_entry.get('NNV', '')),
+                format_number(other_entry.get('Marabou', '')),
+                format_number(other_entry.get('NNenum', ''))
+            ])
+        else:
+            # Add empty cells for Monte Carlo and Other Tools columns
+            row.extend([''] * 5)
+
+        table_lines.append(' & '.join(row) + r' \\')
+
+    # Add table footer
+    table_lines.extend([
+        r"\hline",
+        r"\end{tabular}%",
+        r"}",
+        r"\end{table*}"
+    ])
+
+    # Join all lines with newlines and save to file
+    table_content = '\n'.join(table_lines)
+    with open(path + '/Table_3_AcasXu_ReLU_quanti_verify_vs_other_tools.tex', 'w') as f:
+        f.write(table_content)
+
+    print("Table has been generated and saved to 'Table_3_AcasXu_ReLU_quanti_verify_vs_other_tools.tex'")
+    return table_content
 
 
 def quantiverify_ACASXU_all_LeakyReLU(x, y, spec_ids, numCores, unsafe_mat, unsafe_vec, p_filters):
@@ -1534,9 +1836,11 @@ if __name__ == "__main__":
     x = [1, 2, 2, 3, 3, 3, 4, 4, 5, 1, 1]
     y = [6, 2, 9, 1, 6, 7, 1, 7, 3, 7, 9] 
     s = [2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 4] # property id
-    quantiverify_ACASXU_all_ReLU(x=x, y=y, spec_ids=s, numCores=16, unsafe_mat=None, unsafe_vec=None, p_filters=[0.0, 1e-5]) # Table 3: AcasXu ReLU networks, ProbStar
+    quantiverify_ACASXU_ReLU_table_3(x=x, y=y, spec_ids=s, numCores=16, unsafe_mat=None, unsafe_vec=None, p_filters=[0.0, 1e-5]) # AcasXu ReLU networks, ProbStar
     numSamplesList = [10000000]
-    quantiverify_ACASXU_all_ReLU_MC(x=x, y=y, spec_ids=s, unsafe_mat=None, unsafe_vec=None, numSamples=numSamplesList, nTimes=10, numCore=16) # Table 3: AcasXu ReLU networks, Monte Carlo
+    quantiverify_ACASXU_ReLU_MC_table_3(x=x, y=y, spec_ids=s, unsafe_mat=None, unsafe_vec=None, numSamples=numSamplesList, nTimes=10, numCore=16) # AcasXu ReLU networks, Monte Carlo
+    qualiverify_ACASXU_ReLU_other_tools_table_3() # AcasXu ReLU networks, other tools
+    generate_table_3_AcasXu_ReLU_quanti_verify_vs_other_tools() # Table 3: Combined AcasXu ReLU networks, ProbStar vs MC vs other tools
 
     quantiverify_ACASXU_all_LeakyReLU(x=x, y=y, spec_ids=s, numCores=16, unsafe_mat=None, unsafe_vec=None, p_filters=[0.0, 1e-5]) # Table 4: AcasXu LeakyReLU networks
     quantiverify_ACASXU_all_SatLin(x=x, y=y, spec_ids=s, numCores=16, unsafe_mat=None, unsafe_vec=None, p_filters=[1e-5]) # Table 4: AcasXu SatLin networks

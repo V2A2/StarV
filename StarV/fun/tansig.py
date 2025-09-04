@@ -9,6 +9,7 @@ import numpy as np
 import scipy.sparse as sp
 from StarV.set.sparsestar import SparseStar
 from StarV.set.star import Star
+from StarV.set.imagestar import ImageStar
 
 class TanSig(object):
     """
@@ -304,54 +305,53 @@ class TanSig(object):
         gl = np.zeros(n)
         gu = np.zeros(n)
 
-        map1 = np.where((l >= 0) & (l != u))[0]
+        map = np.where((l >= 0) & (l != u))[0]
         # xo = (u*u - l*l) / (2*(u-l))
         # constraint 2: y <= y'(xo)*(x - xo) + y(xo)
-        xo = (u[map1]*u[map1] - l[map1]*l[map1]) / (2*(u[map1]-l[map1]))
+        xo = (u[map]*u[map] - l[map]*l[map]) / (2*(u[map]-l[map]))
         dyo = TanSig.df(xo)
-        au[map1] = dyo
-        gu[map1] = TanSig.f(xo) - dyo*xo
+        au[map] = dyo
+        gu[map] = TanSig.f(xo) - dyo*xo
         # constraint 3: y >= (y(u) - y(l)) * (x - l) / (u - l) + y(l);
-        al[map1] = (yu[map1] - yl[map1]) / (u[map1] - l[map1])
-        gl[map1] = yl[map1]  - al[map1] *l[map1] 
+        al[map] = (yu[map] - yl[map]) / (u[map] - l[map])
+        gl[map] = yl[map]  - al[map] *l[map] 
 
-        map2 = np.where((u <= 0) & (l != u))[0]
+        map = np.where((u <= 0) & (l != u))[0]
         # xo = (u*u - l*l) / (2*(u-l))
         # constraint 2: y >= y'(xo)*(x - xo) + y(xo) 
-        # xo = (u[map2]*u[map2] - l[map2]*l[map2]) / (2*(u[map2]-l[map2]))
-        xo = 0.5*(u[map2] + l[map2])
+        # xo = (u[map]*u[map] - l[map]*l[map]) / (2*(u[map]-l[map]))
+        xo = 0.5*(u[map] + l[map])
         dyo = TanSig.df(xo)
-        al[map2] = dyo
-        gl[map2] = TanSig.f(xo) - dyo*xo
+        al[map] = dyo
+        gl[map] = TanSig.f(xo) - dyo*xo
         # constraint 3: y <= (y(u) - y(l)) * (x -l) / (u - l) + y(l);
-        au[map2] = (yu[map2] - yl[map2]) / (u[map2] - l[map2])
-        gu[map2] = yu[map2] - au[map2] *u[map2] 
+        au[map] = (yu[map] - yl[map]) / (u[map] - l[map])
+        gu[map] = yu[map] - au[map] *u[map] 
 
-        map3 = np.where((l < 0) & (u > 0))[0]
-        ou = TanSig.optimal_iter_approx_upper(l[map3], u[map3])
-        ol = TanSig.optimal_iter_approx_lower(l[map3], u[map3])
+        map = np.where((l < 0) & (u > 0))[0]
+        ou = TanSig.optimal_iter_approx_upper(l[map], u[map])
+        ol = TanSig.optimal_iter_approx_lower(l[map], u[map])
 
 
         # constraint 3: y[index] >= y'(xol) * (x[index] - xol) + y(xol)
-        al[map3] = TanSig.df(ol)
-        gl[map3] = TanSig.f(ol) - al[map3]*ol
+        al[map] = TanSig.df(ol)
+        gl[map] = TanSig.f(ol) - al[map]*ol
         # constraint 4: y[index] <= y'(xou) * (x[index] - xou) + y(xou)
-        au[map3] = TanSig.df(ou)
-        gu[map3] = TanSig.f(ou) - au[map3]*ou
+        au[map] = TanSig.df(ou)
+        gu[map] = TanSig.f(ou) - au[map]*ou
 
         Du = np.diag(au)
         Dl = np.diag(al)
         return Dl, Du, gl, gu
     
     
-
     def reachApprox_sparse(I, opt=True, delta=0.98, lp_solver='gurobi', RF=0.0, DR=0, show=False):
         
         assert isinstance(I, SparseStar), 'error: input set is not a SparseStar set'
 
         N = I.dim
 
-        l, u = I.getRanges(lp_solver=lp_solver, RF=RF)
+        l, u = I.getRanges(lp_solver=lp_solver, RF=RF, layer='logsig', delta=delta)
         l = l.reshape(N, 1)
         u = u.reshape(N, 1)
 
@@ -602,16 +602,7 @@ class TanSig(object):
         if DR > 0:
             S = S.depthReduction(DR=DR)
         return S
-
-    def reach(I, opt=False, delta=0.98, lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
-
-        if isinstance(I, SparseStar):
-            return TanSig.reachApprox_sparse(I=I, opt=opt, delta=delta, lp_solver=lp_solver, RF=RF, DR=DR, show=show)
-        elif isinstance(I, Star):
-            # return TanSig.reachApproxStar(I, lp_solver, RF)
-            raise Exception('error: under development')
-        else:
-            raise Exception('error: unknown input set')
+    
 
     # used for GRU and LSTM ( logsigXtansig, (1-logsig)Xtansig )
     def getConstraints(c, X, A0, l, u, nZVars,opt=False):
@@ -653,7 +644,7 @@ class TanSig(object):
 
             # constraint 3: y >= (y(u) - y(l)) * (x - l) / (u - l) + y(l);
             g = (yu_ - yl_) / (u_ - l_)
-            C13 = sp.hstack((Z, g*X[map_], -A0[map_, :]))
+            C13 = sp.hstack((Z, g*X[map_, :], -A0[map_, :]))
             d13 = -g*(c[map_] - l_) - yl_
 
             # xo = (u*u - l*l) / (2*(u-l))
@@ -754,11 +745,11 @@ class TanSig(object):
                 ml = (yu_ - gly) / (u_ - glx)
 
                 # constraint 3: y[index] >= m_l * (x[index] - u) + y_u
-                C33 = sp.hstack((Z, ml*X[map1], -A0[map1, :]))
+                C33 = sp.hstack((Z, ml*X[map1, :], -A0[map1, :]))
                 d33 = -ml*(c[map1] - u_) - yu_
 
                 # constraint 4: y[index] <= m_u * (x[index] - l) + y_l
-                C34 = sp.hstack((Z, -mu*X[map1], A0[map1, :]))
+                C34 = sp.hstack((Z, -mu*X[map1, :], A0[map1, :]))
                 d34 = mu*(c[map1] - l_) + yl_
 
             C3 = sp.vstack((C31, C32, C33, C34)).tocsc()
@@ -771,3 +762,188 @@ class TanSig(object):
         new_C = sp.vstack((C1, C2, C3))
         new_d = np.hstack((d1, d2, d3))
         return new_C, new_d, yl[map0], yu[map0]
+    
+
+    def reachApprox_star(I, opt=True, lp_solver='gurobi', RF=0.0):
+        
+        assert isinstance(I, Star), 'error: input set is not a SparseStar set'
+
+        N = I.dim
+
+        l, u = I.getRanges(lp_solver=lp_solver, RF=RF)
+        yl, yu = TanSig.f(l), TanSig.f(u)
+        dyl, dyu = TanSig.df(l), TanSig.df(u)
+
+        ## l != u
+        map0 = np.where(l != u)[0]
+        m = len(map0)
+        V0 = np.zeros((N, m))
+        for i in range(m):
+            V0[map0[i], i] = 1
+        new_V = np.hstack([np.zeros([N, m+1]), V0])
+
+        map1 = np.where(l == u)[0]
+        if len(map1):
+            new_V[map1, 0] = yl[map1]
+            new_V[map1, 1:m+1] = 0
+
+        nv = I.nVars + m
+
+        ## l >= 0 & l != u
+        map1 = np.where(l[map0] >= 0)[0]
+        if len(map1):
+            map_ = map0[map1]
+            l_, u_ = l[map_], u[map_]
+            yl_, yu_ = yl[map_], yu[map_]
+            dyl_, dyu_ = dyl[map_], dyu[map_]
+            c1, V1 = I.V[map_, 0], I.V[map_, 1:]
+            V2 = V0[map_, :]
+
+            # constraint 1: y <= y'(l) * (x - l) + y(l)
+            C11 = np.hstack([-dyl_*V1, V2])
+            d11 = dyl_*(c1 - l) + yl_
+            
+            # constraint 2: y <= y'(u) * (x - u) + y(u)
+            C12 = np.hstack([-dyu_*V1, V2])
+            d12 = dyu_*(c1 - u_) + yu_
+            
+            # constraint 3: y >= (y(u) - y(l)) * (x - l) / (u - l) + y(l);
+            g = (yu_ - yl_) / (u_ - l_)
+            C13 = np.hstack([g*V1, -V2])
+            d13 = -g*(c1 - l_) - yl_
+
+            # xo = (u*u - l*l) / (2*(u-l))
+            # constraint 4: y <= y'(xo)*(x - xo) + y(xo)
+            xo = 0.5*(u_ + l_)
+            # xo = (u_*u_ - l_*l_) / (2*(u_ - l_))
+            dyo = TanSig.df(xo)
+            C14 = np.hstack([-dyo*V1, V2])
+            d14 = dyo*(c1 - xo) + TanSig.f(xo)
+
+            C1 = np.vstack((C11, C12, C13, C14))
+            d1 = np.hstack((d11, d12, d13, d14))
+        else:
+            C1 = np.empty((0, nv))
+            d1 = np.empty((0))
+
+        ## u <= 0 & l != u
+        map1 = np.where(u[map0] <= 0)[0]
+        if len(map1):
+            map_ = map0[map1]
+            l_, u_ = l[map_], u[map_]
+            yl_, yu_ = yl[map_], yu[map_]
+            dyl_, dyu_ = dyl[map_], dyu[map_]
+            c1, V1 = I.V[map_, 0], I.V[map_, 1:]
+            V2 = V0[map_, :]
+
+            # constraint 1: y >= y'(l) * (x - l) + y(l)
+            C21 = np.hstack([dyl_*V1, -V2])
+            d21 = -dyl_*(c1 - l_) - yl_
+
+            # constraint 2: y >= y'(u) * (x - u) + y(u)
+            C22 = np.hstack([dyu_*V1, -V2])
+            d22 = -dyu_*(c1 - u_) - yu_
+
+            # constraint 3: y <= (y(u) - y(l)) * (x -l) / (u - l) + y(l)
+            g = (yu_ - yl_) / (u_ - l_)
+            C23 = np.hstack([-g*V1, V2])
+            d23 = g*(c1 - l_) + yl_
+
+            # xo = (u*u - l*l) / (2*(u-l))
+            # constraint 4: y >= y'(xo)*(x - xo) + y(xo) 
+            # xo = (u_*u_ - l_*l_) / (2*(u_ - l_))
+            xo = 0.5*(u_ + l_)
+            dyo = TanSig.df(xo)
+            C24 = sp.hstack([dyo*V1, -V2])
+            d24 = -dyo*(c1 - xo) - TanSig.f(xo)
+
+            C2 = np.vstack((C21, C22, C23, C24))
+            d2 = np.hstack((d21, d22, d23, d24))
+        else:
+            C2 = np.empty((0, nv))
+            d2 = np.empty((0))
+
+        map1 = np.where((l < 0) & (u > 0))[0]
+        if len(map1):
+            l_, u_ = l[map1], u[map1]
+            yl_, yu_ = yl[map1], yu[map1]
+            dyl_, dyu_ = dyl[map1], dyu[map1]
+            c1, V1 = I.V[map1, 0], I.V[map1, 1:]
+            V2 = V0[map1, :]
+
+            dmin = np.minimum(dyl_, dyu_)
+
+            # constraint 1: y >= min(y'(l), y'(u)) * (x - l) + y(l)
+            C31 = np.hstack([dmin*V1, -V2])
+            d31 = -dmin*(c1 - l_) - yl_
+
+            # constraint 2: y <= min(y'(l), y'(u)) * (x - u) + y(u)
+            C32 = np.hstack([-dmin*V1, V2])
+            d32 = dmin*(c1 - u_) + yu_
+
+            if opt == True:
+                xou = TanSig.optimal_iter_approx_upper(l_, u_)
+                xol = TanSig.optimal_iter_approx_lower(l_, u_)
+                dxou = TanSig.df(xou)
+                dxol = TanSig.df(xol)
+
+                # constraint 3: y[index] >= y'(xol)*(x[index] - xol) + y(xol)
+                C33 = np.hstack([dxol*V1, -V2])
+                d33 = -dxol*(c1 - xol) - TanSig.f(xol)
+                
+                # constraint 4: y[index] <= y'(xou)*(x[index] - xou) + y(xou)
+                C34 = np.hstack([-dxou*V1, V2])
+                d34 = dxou*(c1 - xou) + TanSig.f(xou)
+
+            else:
+                gux = (yu_ - dmin * u_) / (1 - dmin)
+                guy = gux 
+                glx = (yl_ - dmin * l_) / (1 - dmin)
+                gly = glx
+
+                mu = (yl_ - guy) / (l_ - gux)
+                ml = (yu_ - gly) / (u_ - glx)
+                
+                # constraint 3: y[index] >= m_l * (x[index] - u) + y_u
+                C33 = np.hstack([ml*V1, -V2])
+                d33 = -ml*(c1 - u_) - yu_
+
+                # constraint 4: y[index] <= m_u * (x[index] - l) + y_l
+                C34 = np.hstack([-mu*V1, V2])
+                d34 = mu*(c1 - l_) + yl_
+
+            C3 = np.vstack((C31, C32, C33, C34))
+            d3 = np.hstack((d31, d32, d33, d34))
+
+        else:
+            C3 = np.empty((0, nv))
+            d3 = np.empty((0))
+
+        n = I.C.shape[0]
+        if len(I.d):
+            C0 = np.hstack([I.C, np.zeros([n, m])]) 
+            d0 = I.d
+        else:
+            C0 = np.empty([0, I.nVars+m])
+            d0 = np.empty([0])
+
+        new_C = np.vstack((C0, C1, C2, C3))
+        new_d = np.hstack((d0, d1, d2, d3))
+
+        new_pred_lb = np.hstack((I.pred_lb, yl[map0]))
+        new_pred_ub = np.hstack((I.pred_ub, yu[map0]))
+        
+        return Star(new_V, new_C, new_d, new_pred_lb, new_pred_ub)
+    
+    
+    def reach(I, opt=False, delta=0.98, lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
+        if isinstance(I, SparseStar):
+            return TanSig.reachApprox_sparse(I=I, opt=opt, delta=delta, lp_solver=lp_solver, RF=RF, DR=DR, show=show)
+        elif isinstance(I, Star):
+            return TanSig.reachApprox_star(I, opt=opt, lp_solver=lp_solver, RF=RF)
+        elif isinstance(I, ImageStar):
+            shape = I.shape()
+            S = TanSig.reachApprox_star(I.toStar(), opt=opt, lp_solver=lp_solver, RF=RF)
+            return S.toImageStar(image_shape=shape, copy_=False)
+        else:
+            raise Exception('error: unknown input set')

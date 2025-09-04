@@ -96,7 +96,7 @@ class Test(object):
             print('\nY6 = {}'.format(Y6))
 
             U0 = np.array([1.0, 0.5])
-            X7, Y7 = plant.stepReach(U0=U0)
+            X7, Y7 = plant.stepReach(U=U0)
             print('\nX7 = {}'.format(X7))
             print('\nY7 = {}'.format(Y7))
 
