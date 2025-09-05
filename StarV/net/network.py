@@ -5,6 +5,7 @@
   Update: 12/20/2024 (Sung Woo Choi, merging)
 """
 
+import time
 import copy
 import torch
 import numpy as np
@@ -86,12 +87,14 @@ class NeuralNetwork(object):
                 str_ += ' (opt = {}, delta = {})'.format(layer_.opt, layer_.delta)
             elif isinstance(layer_, Conv2DLayer):
                 if layer_.sparse:
-                    str_ += ' ({}, {}, kernel_size = {}, stride = {}, padding = {}, dtype={})'.format(layer_.in_shape[2], layer_.out_shape[2], layer_.kernel_size, layer_.stride, layer_.padding, layer_.weight.dtype)
+                    str_ += ' ({}, {}, kernel_size = {}, stride = {}, padding = {}, dilation = {}, dtype={})'.format(
+                        layer_.in_shape[2], layer_.out_shape[2], layer_.kernel_size, layer_.stride, layer_.padding, layer_.dilation, layer_.weight.dtype)
                 else:
-                    str_ += ' ({}, {}, kernel_size = {}, stride = {}, padding = {}, dtype={})'.format(layer_.weight.shape[2], layer_.weight.shape[3], layer_.weight.shape[:2], layer_.stride, layer_.padding, layer_.weight.dtype)
+                    str_ += ' ({}, {}, kernel_size = {}, stride = {}, padding = {}, dilation = {}, dtype={})'.format(
+                        layer_.weight.shape[2], layer_.weight.shape[3], layer_.weight.shape[:2], layer_.stride, layer_.padding, layer_.dilation, layer_.weight.dtype)
             elif isinstance(layer_, ConvTranspose2DLayer):
-                str_ += ' ({}, {}, kernel_size = {}, stride = {}, padding = {}, output_padding={}, dtype={})'.format(
-                    layer_.weight.shape[2], layer_.weight.shape[3], layer_.weight.shape[:2], layer_.stride, layer_.padding, layer_.output_padding,  layer_.weight.dtype)
+                str_ += ' ({}, {}, kernel_size = {}, stride = {}, padding = {}, output_padding={}, dilation = {}, dtype={})'.format(
+                    layer_.weight.shape[2], layer_.weight.shape[3], layer_.weight.shape[:2], layer_.stride, layer_.padding, layer_.output_padding, layer_.dilation, layer_.weight.dtype)
             elif isinstance(layer_, AvgPool2DLayer):
                 str_ += ' (kernel_size = {}, stride = {}, padding = {})'.format(layer_.kernel_size, layer_.stride, layer_.padding)
             elif isinstance(layer_, MaxPool2DLayer):
@@ -115,8 +118,10 @@ class NeuralNetwork(object):
         y = input_vec.copy()
         for i in range(self.n_layers):
             if show: print(f"evaluating {i} layer: {self.layers[i].__class__.__name__}"); print(f"input shape: {y.shape}")
+            if show: start = time.perf_counter()
             y = self.layers[i].evaluate(y)
             if show: print(f"output shape: {y.shape}")
+            if show: print(f'computation time: {time.perf_counter()-start}')
         return y
 
 def rand_ffnn(arch, actvs):
