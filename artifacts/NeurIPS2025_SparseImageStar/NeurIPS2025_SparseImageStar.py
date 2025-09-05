@@ -1916,16 +1916,16 @@ if __name__ == "__main__":
     # Figure 7: Memory usage and computation time comparison between SparseImageStar CSR and COO in verifying the VGG16 (vnncomp2023) with spec c4 image
     memory_usage_vgg16_spec_cn(spec=4)
 
-    # # Verification results of Verivital network from vnncomp2021
-    verify_vnncomp2021_verivital(net_type='maxpool', dtype='float32')
-    plot_table_vnncomp2021_verivital(dtype='float32')
-
     # Verification results of VGG16 in seconds with specifications generated with random images
     verify_vgg16_network_spec_cn_random()
     plot_table_vgg16_network_random_images()
 
     # Verification results of VGG16 with specifications from vnncomp2023, but modified to contain a full output specification (results in seconds)
     plot_table_vgg16_network_full_specification()
+
+    # Verification results of Verivital network from vnncomp2021
+    verify_vnncomp2021_verivital(net_type='maxpool', dtype='float32')
+    plot_table_vnncomp2021_verivital(dtype='float32')
 
     # Verification results of the MNIST CNN (CAV2020) [add ab-crown]
 

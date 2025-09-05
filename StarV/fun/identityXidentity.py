@@ -1,5 +1,6 @@
 """
 IdentityXIdentity Class (x * y, where x in X, y in Y, X and Y are star sets)
+Element-wise multiplication (Hadamard product) of two reachble sets
 Sung Woo Choi, 06/18/2023
 
 """
@@ -265,8 +266,8 @@ class IdentityXIdentity(object):
     @staticmethod
     def getMultiConstraints(xl, xu, yl, yu):
         """
-            Get four hyper-plane linear constraints thatt constraints x*y function.
-            The method is equivalent to convexull of four vertices
+            Get four hyper-plane constraints that encloses x*y function.
+            The method is equivalent to convex hull of four vertices
             
             Args:
                 @xl: lower bound vector of an input set, X
@@ -282,11 +283,11 @@ class IdentityXIdentity(object):
                 @Ly = [ly1, ly2], where ly1, ly2 are column vector
                 @Lb = [lb1, lb2], where lb1, lb2 are column vector
                 
-                Hyper-planes:
-                    1. z <= ux1 * x + uy1 * y + ub1
-                    2. z <= ux2 * x + uy2 * y + ub2
-                    3. z >= lx1 * x + ly1 * y + lb1
-                    4. z >= lx2 * x + ly2 * y + lb2
+            Hyper-plane constraints:
+                1. z <= ux1 * x + uy1 * y + ub1
+                2. z <= ux2 * x + uy2 * y + ub2
+                3. z >= lx1 * x + ly1 * y + lb1
+                4. z >= lx2 * x + ly2 * y + lb2
             
             Author: Sung Woo Choi
             Date: 06/23/2023

@@ -712,7 +712,7 @@ class LogSig(object):
         V0 = np.zeros((N, m))
         for i in range(m):
             V0[map0[i], i] = 1
-        new_V = np.hstack([np.zeros([N, m+1]), V0])
+        new_V = np.hstack([np.zeros([N, I.nVars+1]), V0])
 
         map1 = np.where(l == u)[0]
         if len(map1):
@@ -732,16 +732,16 @@ class LogSig(object):
             V2 = V0[map_, :]
 
             # constraint 1: y <= y'(l) * (x - l) + y(l)
-            C11 = np.hstack([-dyl_*V1, V2])
-            d11 = dyl_*(c1 - l) + yl_
+            C11 = np.hstack([-dyl_[:, None]*V1, V2])
+            d11 = dyl_*(c1 - l_) + yl_
             
             # constraint 2: y <= y'(u) * (x - u) + y(u)
-            C12 = np.hstack([-dyu_*V1, V2])
+            C12 = np.hstack([-dyu_[:, None]*V1, V2])
             d12 = dyu_*(c1 - u_) + yu_
             
             # constraint 3: y >= (y(u) - y(l)) * (x - l) / (u - l) + y(l);
             g = (yu_ - yl_) / (u_ - l_)
-            C13 = np.hstack([g*V1, -V2])
+            C13 = np.hstack([g[:, None]*V1, -V2])
             d13 = -g*(c1 - l_) - yl_
 
             # xo = (u*u - l*l) / (2*(u-l))
@@ -749,7 +749,7 @@ class LogSig(object):
             xo = 0.5*(u_ + l_)
             # xo = (u_*u_ - l_*l_) / (2*(u_ - l_))
             dyo = LogSig.df(xo)
-            C14 = np.hstack([-dyo*V1, V2])
+            C14 = np.hstack([-dyo[:, None]*V1, V2])
             d14 = dyo*(c1 - xo) + LogSig.f(xo)
 
             C1 = np.vstack((C11, C12, C13, C14))
@@ -769,16 +769,16 @@ class LogSig(object):
             V2 = V0[map_, :]
 
             # constraint 1: y >= y'(l) * (x - l) + y(l)
-            C21 = np.hstack([dyl_*V1, -V2])
+            C21 = np.hstack([dyl_[:, None]*V1, -V2])
             d21 = -dyl_*(c1 - l_) - yl_
 
             # constraint 2: y >= y'(u) * (x - u) + y(u)
-            C22 = np.hstack([dyu_*V1, -V2])
+            C22 = np.hstack([dyu_[:, None]*V1, -V2])
             d22 = -dyu_*(c1 - u_) - yu_
 
-            # constraint 3: y <= (y(u) - y(l)) * (x -l) / (u - l) + y(l);
+            # constraint 3: y <= (y(u) - y(l)) * (x -l) / (u - l) + y(l)
             g = (yu_ - yl_) / (u_ - l_)
-            C23 = np.hstack([-g*V1, V2])
+            C23 = np.hstack([-g[:, None]*V1, V2])
             d23 = g*(c1 - l_) + yl_
 
             # xo = (u*u - l*l) / (2*(u-l))
@@ -806,11 +806,11 @@ class LogSig(object):
             dmin = np.minimum(dyl_, dyu_)
 
             # constraint 1: y >= min(y'(l), y'(u)) * (x - l) + y(l)
-            C31 = np.hstack([dmin*V1, -V2])
+            C31 = np.hstack([dmin[:, None]*V1, -V2])
             d31 = -dmin*(c1 - l_) - yl_
 
             # constraint 2: y <= min(y'(l), y'(u)) * (x - u) + y(u)
-            C32 = np.hstack([-dmin*V1, V2])
+            C32 = np.hstack([-dmin[:, None]*V1, V2])
             d32 = dmin*(c1 - u_) + yu_
 
             if opt == True:
@@ -820,11 +820,11 @@ class LogSig(object):
                 dxol = LogSig.df(xol)
 
                 # constraint 3: y[index] >= y'(xol)*(x[index] - xol) + y(xol)
-                C33 = np.hstack([dxol*V1, -V2])
+                C33 = np.hstack([dxol[:, None]*V1, -V2])
                 d33 = -dxol*(c1 - xol) - LogSig.f(xol)
                 
                 # constraint 4: y[index] <= y'(xou)*(x[index] - xou) + y(xou)
-                C34 = np.hstack([-dxou*V1, V2])
+                C34 = np.hstack([-dxou[:, None]*V1, V2])
                 d34 = dxou*(c1 - xou) + LogSig.f(xou)
 
             else:
@@ -837,11 +837,11 @@ class LogSig(object):
                 ml = (yu_ - gly) / (u_ - glx)
                 
                 # constraint 3: y[index] >= m_l * (x[index] - u) + y_u
-                C33 = np.hstack([ml*V1, -V2])
+                C33 = np.hstack([ml[:, None]*V1, -V2])
                 d33 = -ml*(c1 - u_) - yu_
 
                 # constraint 4: y[index] <= m_u * (x[index] - l) + y_l
-                C34 = np.hstack([-mu*V1, V2])
+                C34 = np.hstack([-mu[:, None]*V1, V2])
                 d34 = mu*(c1 - l_) + yl_
 
             C3 = np.vstack((C31, C32, C33, C34))
