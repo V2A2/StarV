@@ -509,7 +509,7 @@ class ConvTranspose2DLayer(object):
 
         return output
     
-    def convtrans2d(self, input, bias=True):
+    def convtrans2d_basic(self, input, bias=True):
         """ 
             Basic, transposed convolution 2D
 
@@ -566,6 +566,187 @@ class ConvTranspose2DLayer(object):
 
         # if in_dim == 3 or in_dim == 2:
         #     output = output.squeeze(axis = 3)
+        return output
+    
+    def convtrans2d(self, input, bias=True):
+        """ 
+            Basic, transposed convolution 2D
+
+            Args:
+            @input: dataset in numpy with shape of H, W, C, N, where H: height, W: width, C: input channel, N: number of batches
+
+            Return: 
+            @R: transpose convolved dataset
+
+        """
+        in_dim = input.ndim
+        dtype = input.dtype
+
+        assert isinstance(input, np.ndarray), \
+        'error: input should be numpy ndarray'
+        assert in_dim >= 2 and in_dim <= 4, \
+        'error: input should be 2D, 3D, or 4D numpy ndarray'
+
+        assert self.module == 'default', 'error: conv2d_sparse() supports \'default\' module'
+
+        stride = self.stride
+        dilation = self.dilation
+        weight = self.weight
+        opad = self.output_padding
+        pad = self.padding
+
+        h, w, _, m = input.shape
+        p, q, co, ci = weight.shape
+
+        ho = (h - 1)*self.stride[0] + dilation[0]*(p - 1) + 1 - pad[0] - pad[1] + opad[0]
+        wo = (w - 1)*self.stride[1] + dilation[1]*(q - 1) + 1 - pad[2] - pad[3] + opad[1]
+
+        Z = np.pad(weight, ((0, ho-p), (0, wo-q), (0, 0), (0,0)), mode='constant')
+        Z_ = sp.csr_array(Z.reshape(np.prod(Z.shape[:3]), ci).T, copy=False)
+        Z_ind = Z_.indices.copy()
+
+        if dilation[0] > 1:
+            q_ind = Z_.indices // co % q #col
+            Z_ind += q_ind*(dilation[0]-1)*co
+
+        if dilation[1] > 1:
+            p_ind = Z_.indices // (co*q) #row
+            Z_ind += p_ind*(dilation[1]-1)*co*q
+
+        i_shift = wo * stride[0] * co
+        j_shift = stride[1] * co
+
+        z = p*q*ci
+        ko = ho*wo
+        X = np.zeros([m, ko, z], dtype=dtype)
+        XF = input.reshape(h*w*ci, m)
+        print(f'Z_.indices: {Z_.indices.shape}')
+        print(f'XF: {XF.shape}')
+        print(f'X: {X.shape}')
+        for i in range(ko):
+            ind = (i//wo)*i_shift + (i%wo)*j_shift + Z_ind
+            print('XF[ind, :].T: ', XF[ind, :].T.sahpe)
+            X[:, i, :] = XF[ind, :].T
+        
+        K = weight.transpose([0, 1, 3, 2]).reshape(z, co)
+        output = X @ K # in [m , ko, co] shape
+        output = output.transpose([1, 2, 0]).reshape(ho, wo, co, m)
+        output = ConvTranspose2DLayer.apply_padding(output, pad, opad)
+
+        if bias is True:
+            if isinstance(self.bias, np.ndarray):
+                output += self.bias[None, None, :, None]
+        return output
+    
+
+    def convtrans2d2(self, input, bias=True):
+        """ 
+            Basic, transposed convolution 2D
+
+            Args:
+            @input: dataset in numpy with shape of H, W, C, N, where H: height, W: width, C: input channel, N: number of batches
+
+            Return: 
+            @R: transpose convolved dataset
+
+            #has error in unrolled weight size
+
+        """
+        in_dim = input.ndim
+        dtype = input.dtype
+
+        assert isinstance(input, np.ndarray), \
+        'error: input should be numpy ndarray'
+        assert in_dim >= 2 and in_dim <= 4, \
+        'error: input should be 2D, 3D, or 4D numpy ndarray'
+
+        assert self.module == 'default', 'error: conv2d_sparse() supports \'default\' module'
+
+        stride = self.stride
+        dilation = self.dilation
+        weight = self.weight
+        opad = self.output_padding
+        pad = self.padding.copy()
+        pad[1] -= opad[0]
+        pad[3] -= opad[1]
+
+        h, w, _, m = input.shape
+        p, q, co, ci = weight.shape
+
+        ho = (h - 1)*self.stride[0] + dilation[0]*(p - 1) + 1 - pad[0] - pad[1]
+        wo = (w - 1)*self.stride[1] + dilation[1]*(q - 1) + 1 - pad[2] - pad[3]
+
+        wh, ww = ho*wo*co, h*w*ci
+
+        lr_pad = pad[2] == 0 and pad[3] == 0
+
+        X = input.reshape(ww, m)
+
+        a = co*((w-1)*stride[1]+ dilation[1]*(q - 1) + 1)
+        W = []
+
+        print('checking convtrans2d() function=========================')
+        print(f'padding: {pad}')
+        print(f'h, w, c, m: {input.shape}')
+        print(f'ho, wo, co: {ho, wo, co}')
+        print(f'pq, q, co, ci: {weight.shape}')
+        print(f'a: {a}')
+        print(f'pad[2]*co: {pad[2]*co}')
+        print(f'pad[3]*co: {pad[3]*co}')
+
+
+        for j in range(p):
+            data_, row_, col_ = [], [], []
+            W2 = sp.coo_array((a, ci))
+            for i in range(w):
+                W1 = sp.coo_array(weight[j, :, :, :].reshape(-1, ci))
+                W1._shape = (a, ci)
+                row = W1.row.copy()
+
+                if dilation[0] > 1:
+                    r = W1.row // (co * q)
+                    row += r*(dilation[1]-1)*co*q
+                if dilation[1] > 1:
+                    r = W1.row // co % q
+                    row += r*(dilation[1]-1)*co
+
+                data_.extend(W1.data)
+                col_.extend(W1.col + i*ci)
+                row_.extend(row + i*stride[1]*co)
+
+            # applying padding[2] and padding[3]
+            if lr_pad:
+                W2 = sp.coo_array((data_, (row_, col_)), shape=(a, ci*(w)))
+            else:
+                W2 = sp.csr_array((data_, (row_, col_)), shape=(a, ci*(w)))
+                a1 = np.zeros([a], dtype=bool)
+                if pad[3] > 0:
+                    a1[pad[2]*co:-pad[3]*co] = True
+                else: a1[pad[2]*co:] = True
+                W2 = W2[a1].tocoo()
+                print(f'W2: {W2.shape}')
+            W.append(W2)
+
+        a -= (pad[2]+pad[3])*co
+
+        data_, col_, row_ = [], [], []
+        for k in range(h):
+            for j in range(p):
+                t = k*stride[0] + dilation[0]*j
+                if t < pad[0]: continue # padding[0]
+                if t - pad[1] >= ho + opad[0]: continue # padding[1]
+
+                col = W[j].col + k*w*ci
+                row = W[j].row + k*stride[0]*a + j*dilation[0]*a - (pad[0])*a
+                data_.append(W[j].data)
+                row_.append(row)
+                col_.append(col)
+        WF = sp.coo_array((np.hstack(data_), (np.hstack(row_), np.hstack(col_))), shape=(wh, ww))
+        output = WF @ X
+        output = output.reshape(ho, wo, co, m)
+        if bias is True:
+            if isinstance(self.bias, np.ndarray):
+                output += self.bias[None, None, :, None]
         return output
     
     # def convtrans2d_test(self, input, bias=True):
@@ -663,7 +844,83 @@ class ConvTranspose2DLayer(object):
     #     output = output.transpose([1, 2, 0]).reshape(mo, no, co, b)
     #     return output
    
-    
+    def fconvtrans2d_coo2(self, input, shape):
+
+        assert self.module == 'default', 'error: conv2d_sparse() supports \'default\' module'
+
+        stride = self.stride
+        dilation = self.dilation
+        weight = self.weight
+        opad = self.output_padding
+        pad = self.padding.copy()
+        pad[1] -= opad[0]
+        pad[3] -= opad[1]
+
+        assert isinstance(input, sp.coo_array) or isinstance(input, sp.coo_matrix), \
+        'error: input should be a scipy sparse coo array or matrix'
+
+        h, w, _ = shape
+        p, q, co, ci = weight.shape
+
+        ho = (h - 1)*self.stride[0] + dilation[0]*(p - 1) + 1 - pad[0] - pad[1]
+        wo = (w - 1)*self.stride[1] + dilation[1]*(q - 1) + 1 - pad[2] - pad[3]
+
+        wh, ww = ho*wo*co, h*w*ci
+
+        lr_pad = pad[2] == 0 and pad[3] == 0
+
+        a = co*((w-1)*stride[1]+ dilation[1]*(q - 1) + 1)
+        W = []
+        for j in range(p):
+            data_, row_, col_ = [], [], []
+            W2 = sp.coo_array((a, ci))
+            for i in range(w):
+                W1 = sp.coo_array(weight[j, :, :, :].reshape(-1, ci))
+                W1._shape = (a, ci)
+                row = W1.row.copy()
+
+                if dilation[0] > 1:
+                    r = W1.row // (co * q)
+                    row += r*(dilation[1]-1)*co*q
+                if dilation[1] > 1:
+                    r = W1.row // co % q
+                    row += r*(dilation[1]-1)*co
+
+                data_.extend(W1.data)
+                col_.extend(W1.col + i*ci)
+                row_.extend(row + i*stride[1]*co)
+
+            # applying padding[2] and padding[3]
+            if lr_pad:
+                W2 = sp.coo_array((data_, (row_, col_)), shape=(a, ci*(w)))
+            else:
+                W2 = sp.csr_array((data_, (row_, col_)), shape=(a, ci*(w)))
+                a1 = np.zeros([a], dtype=bool)
+                if pad[3] > 0:
+                    a1[pad[2]*co:-pad[3]*co] = True
+                else: a1[pad[2]*co:] = True
+                W2 = W2[a1].tocoo()
+            W.append(W2)
+
+        a -= (pad[2]+pad[3])*co
+
+        data_, col_, row_ = [], [], []
+        for k in range(h):
+            for j in range(p):
+                t = k*stride[0] + dilation[0]*j
+                if t < pad[0]: continue # padding[0]
+                if t - pad[1] >= ho + opad[0]: continue # padding[1]
+
+                col = W[j].col + k*w*ci
+                row = W[j].row + k*stride[0]*a + j*dilation[0]*a - (pad[0])*a
+                data_.append(W[j].data)
+                row_.append(row)
+                col_.append(col)
+        WF = sp.coo_array((np.hstack(data_), (np.hstack(row_), np.hstack(col_))), shape=(wh, ww))
+        output = (WF @ input).tocoo()
+
+        out_shape = (ho, wo, co)
+        return output, out_shape
 
     def fconvtrans2d_coo(self, input, shape):
         """
@@ -725,6 +982,84 @@ class ConvTranspose2DLayer(object):
         out_shape = (m, n, ci)
         return output, out_shape
     
+
+    def fconvtrans2d_csr2(self, input, shape):
+
+        assert self.module == 'default', 'error: conv2d_sparse() supports \'default\' module'
+
+        stride = self.stride
+        dilation = self.dilation
+        weight = self.weight
+        opad = self.output_padding
+        pad = self.padding.copy()
+        pad[1] -= opad[0]
+        pad[3] -= opad[1]
+
+        assert isinstance(input, sp.csr_array) or isinstance(input, sp.csr_matrix), \
+        'error: input should be a scipy sparse csr array or matrix'
+
+        h, w, _ = shape
+        p, q, co, ci = weight.shape
+
+        ho = (h - 1)*self.stride[0] + dilation[0]*(p - 1) + 1 - pad[0] - pad[1]
+        wo = (w - 1)*self.stride[1] + dilation[1]*(q - 1) + 1 - pad[2] - pad[3]
+
+        wh, ww = ho*wo*co, h*w*ci
+
+        lr_pad = pad[2] == 0 and pad[3] == 0
+
+        a = co*((w-1)*stride[1]+ dilation[1]*(q - 1) + 1)
+        W = []
+        for j in range(p):
+            data_, row_, col_ = [], [], []
+            W2 = sp.coo_array((a, ci))
+            for i in range(w):
+                W1 = sp.coo_array(weight[j, :, :, :].reshape(-1, ci))
+                W1._shape = (a, ci)
+                row = W1.row.copy()
+
+                if dilation[0] > 1:
+                    r = W1.row // (co * q)
+                    row += r*(dilation[1]-1)*co*q
+                if dilation[1] > 1:
+                    r = W1.row // co % q
+                    row += r*(dilation[1]-1)*co
+
+                data_.extend(W1.data)
+                col_.extend(W1.col + i*ci)
+                row_.extend(row + i*stride[1]*co)
+
+            # applying padding[2] and padding[3]
+            if lr_pad:
+                W2 = sp.coo_array((data_, (row_, col_)), shape=(a, ci*(w)))
+            else:
+                W2 = sp.csr_array((data_, (row_, col_)), shape=(a, ci*(w)))
+                a1 = np.zeros([a], dtype=bool)
+                if pad[3] > 0:
+                    a1[pad[2]*co:-pad[3]*co] = True
+                else: a1[pad[2]*co:] = True
+                W2 = W2[a1].tocoo()
+            W.append(W2)
+
+        a -= (pad[2]+pad[3])*co
+
+        data_, col_, row_ = [], [], []
+        for k in range(h):
+            for j in range(p):
+                t = k*stride[0] + dilation[0]*j
+                if t < pad[0]: continue # padding[0]
+                if t - pad[1] >= ho + opad[0]: continue # padding[1]
+
+                col = W[j].col + k*w*ci
+                row = W[j].row + k*stride[0]*a + j*dilation[0]*a - (pad[0])*a
+                data_.append(W[j].data)
+                row_.append(row)
+                col_.append(col)
+        WF = sp.coo_array((np.hstack(data_), (np.hstack(row_), np.hstack(col_))), shape=(wh, ww))
+        output = WF @ input
+
+        out_shape = (ho, wo, co)
+        return output, out_shape
 
     def fconvtrans2d_csr(self, input, shape):
         """
