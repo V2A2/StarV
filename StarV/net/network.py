@@ -12,7 +12,6 @@ import numpy as np
 from typing import List, Union, Tuple, Optional
 from StarV.layer.ReLULayer import ReLULayer
 from StarV.layer.FlattenLayer import FlattenLayer
-from StarV.layer.fullyConnectedLayer import fullyConnectedLayer
 from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
 from StarV.layer.Conv2DLayer import Conv2DLayer
 from StarV.layer.ConvTranspose2DLayer import ConvTranspose2DLayer
