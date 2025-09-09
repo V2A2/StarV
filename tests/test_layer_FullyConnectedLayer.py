@@ -1,5 +1,5 @@
 """
-Test fullyConnectedLayer Class
+Test FullyConnectedLayer Class
 Author: Dung Tran
 Date: 9/9/2022
 """
@@ -36,7 +36,7 @@ class Test(object):
 
     def test_rand(self):
         self.n_tests = self.n_tests + 1
-        print('Test fullyConnectedLayer random method')
+        print('Test FullyConnectedLayer random method')
 
         try:
             FullyConnectedLayer.rand(2, 3)
@@ -48,7 +48,7 @@ class Test(object):
 
     def test_reachExactSingleInput(self):
         self.n_tests = self.n_tests + 1
-        print('Test fullyConnectedLayer reachExactSingleInput method')
+        print('Test FullyConnectedLayer reachExactSingleInput method')
 
         try:
             L = FullyConnectedLayer.rand(2, 3)
@@ -66,7 +66,7 @@ class Test(object):
 
     def test_reach(self):
         self.n_tests = self.n_tests + 1
-        print('Test fullyConnectedLayer reach method')
+        print('Test FullyConnectedLayer reach method')
         print('Without Parallel Computing')
         
         try:
@@ -99,7 +99,7 @@ class Test(object):
                 
         # try:
         #     pool = multiprocessing.Pool(2)
-        #     L = fullyConnectedLayer.rand(2, 3)
+        #     L = FullyConnectedLayer.rand(2, 3)
         #     I1 = ProbStar.rand(2)
         #     In = []
         #     In.append(I1)

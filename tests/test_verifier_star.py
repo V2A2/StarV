@@ -6,7 +6,7 @@ Date: 3/22/2024
 
 from StarV.net.network import NeuralNetwork
 from StarV.verifier.verifier_star import reachExactBFS, checkSafetyStar
-from StarV.layer.fullyConnectedLayer import fullyConnectedLayer
+from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
 from StarV.layer.ReLULayer import ReLULayer
 from StarV.set.star import Star
 import numpy as np
@@ -34,7 +34,7 @@ class Test(object):
         self.n_tests = self.n_tests + 2
         W = np.eye(2)
         b = np.zeros(2,)
-        L1 = fullyConnectedLayer(W, b)
+        L1 = FullyConnectedLayer([W, b])
         L2 = ReLULayer()
         layers = []
         layers.append(L1)
