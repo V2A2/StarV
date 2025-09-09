@@ -5,7 +5,7 @@
 
 # StarV
 
-Event-driven Monitoring and Verification Codesign for Distributed Learning-enabled Cyber-Physical Systems with Star Reachability
+Qualitative and Quantitative Verification Tool for Learning-enabled Systems
 
 * Operating System: Ubuntu 20, 22. <!-- - RAM: at least 64 GB -->
 * Python version: 3.8+
