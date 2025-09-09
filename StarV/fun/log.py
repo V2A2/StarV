@@ -1,4 +1,18 @@
-w
+#########################################################################
+##   This file is part of the StarV verifier                           ##
+##                                                                     ##
+##   Copyright (c) 2025 The StarV Team                                 ##
+##   License: BSD-3-Clause                                             ##
+##                                                                     ##
+##   Primary contacts: Hoang Dung Tran <dungtran@ufl.edu> (UF)         ##
+##                     Sung Woo Choi <sungwoo.choi@ufl.edu> (UF)       ##
+##                     Yuntao Li <yli17@ufl.edu> (UF)                  ##
+##                     Qing Liu <qliu1@ufl.edu> (UF)                   ##
+##                                                                     ##
+##   See CONTRIBUTORS for full author contacts and affiliations.       ##
+##   This program is licensed under the BSD 3‑Clause License; see the  ##
+##   LICENSE file in the root directory.                               ##
+#########################################################################
 """
 Logarithm Class
 Sung Woo Choi, 06/24/2023

@@ -1,3 +1,18 @@
+#########################################################################
+##   This file is part of the StarV verifier                           ##
+##                                                                     ##
+##   Copyright (c) 2025 The StarV Team                                 ##
+##   License: BSD-3-Clause                                             ##
+##                                                                     ##
+##   Primary contacts: Hoang Dung Tran <dungtran@ufl.edu> (UF)         ##
+##                     Sung Woo Choi <sungwoo.choi@ufl.edu> (UF)       ##
+##                     Yuntao Li <yli17@ufl.edu> (UF)                  ##
+##                     Qing Liu <qliu1@ufl.edu> (UF)                   ##
+##                                                                     ##
+##   See CONTRIBUTORS for full author contacts and affiliations.       ##
+##   This program is licensed under the BSD 3‑Clause License; see the  ##
+##   LICENSE file in the root directory.                               ##
+#########################################################################
 """
 load module (ReLU, LeakyReLU, SatLin, SatLins networks) for testing/evaluation, 
 including tiny network, 2017 IEEE TNNLS paper, ACASXU networks, HCAS networks, etc.
