@@ -57,11 +57,8 @@ class ImageStar(object):
         len_ = len(args)
 
         if len_ == 5:
-            
-            if copy_ is True:
-                [V, C, d, pred_lb, pred_ub] = copy.deepcopy(args)
-            else:
-                [V, C, d, pred_lb, pred_ub] = args
+
+            [V, C, d, pred_lb, pred_ub] = copy.deepcopy(args) if copy_ is True else args
                 
             assert isinstance(V, np.ndarray), \
             'error: basis matrix should be a numpy array'
@@ -128,9 +125,9 @@ class ImageStar(object):
             self.num_pixel = self.height * self.width * self.num_channel
         
         elif len_ == 2:
-            
-            [lb, ub] = copy.deepcopy(args) if copy_ else args
-                
+
+            [lb, ub] = copy.deepcopy(args) if copy_ is True else args
+
             assert isinstance(lb, np.ndarray), \
             'error: lower bound vector should be a numpy array'
             assert isinstance(ub, np.ndarray), \

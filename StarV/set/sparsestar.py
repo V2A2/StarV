@@ -46,10 +46,7 @@ class SparseStar(object):
         len_ = len(args)
         if len_ == 6:
 
-            if copy_ is True:
-                [A, C, d, pred_lb, pred_ub, pred_depth] = copy.deepcopy(args)
-            else:
-                [A, C, d, pred_lb, pred_ub, pred_depth] = args
+            [A, C, d, pred_lb, pred_ub, pred_depth] = copy.deepcopy(args) if copy_ is True else args
                 
             assert isinstance(A, np.ndarray), \
             'error: basis matrix should be a 2D numpy array'
@@ -147,10 +144,7 @@ class SparseStar(object):
 
         elif len_ == 2:
             
-            if copy_ is True:
-                [lb, ub] = copy.deepcopy(args)
-            else:
-                [lb, ub] = args
+            [lb, ub] = copy.deepcopy(args) if copy_ is True else args
                 
             assert isinstance(lb, np.ndarray), \
             'error: lower bound vector should be a 1D numpy array'
@@ -192,8 +186,9 @@ class SparseStar(object):
             self.nIVars = nv #self.dim
 
         elif len_ == 1:
-            [P] = copy.deepcopy(args)
 
+            [P] = copy.deepcopy(args) if copy_ is True else args
+            
             assert isinstance(P, pc.Polytope), \
             'error: input set is not a polytope Polytope'
 

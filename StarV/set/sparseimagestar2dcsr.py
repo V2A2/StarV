@@ -57,10 +57,7 @@ class SparseImageStar2DCSR(object):
 
         if len_ == 7:
             
-            if copy is True:
-                [c, V, C, d, pred_lb, pred_ub, shape] = copy.deepcopy(args)
-            else:
-                [c, V, C, d, pred_lb, pred_ub, shape] = args
+            [c, V, C, d, pred_lb, pred_ub, shape] = copy.deepcopy(args) if copy_ is True else args
 
             # if len(shape) == 2:
             #     assert isinstance(V, sp.csr_array) or isinstance(V, sp.csr_matrix) or \
@@ -115,10 +112,7 @@ class SparseImageStar2DCSR(object):
 
         elif len_ == 6:
 
-            if copy is True:
-                [V, C, d, pred_lb, pred_ub, shape] = copy.deepcopy(args)
-            else:
-                [V, C, d, pred_lb, pred_ub, shape] = args
+            [V, C, d, pred_lb, pred_ub, shape] = copy.deepcopy(args) if copy_ is True else args
 
             assert isinstance(V, np.ndarray), \
             'error: basis matrix should be a numpy array'
@@ -160,11 +154,8 @@ class SparseImageStar2DCSR(object):
             self.num_pred = self.V.shape[-1] - 1
 
         elif len_ == 2:
-            
-            if copy is True:
-                [lb, ub] = copy.deepcopy(args)
-            else:
-                [lb, ub] = args
+
+            [lb, ub] = copy.deepcopy(args) if copy_ is True else args
 
             assert isinstance(lb, np.ndarray), \
             'error: lower bound image should be a numpy array'
