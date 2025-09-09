@@ -15,9 +15,8 @@ from StarV.layer.SatLinsLayer import SatLinsLayer
 from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
 
 def as_list(x):
-    """flatten reach() multiple utput to a list of sets."""
+    """flatten multiple list of output to a list of sets."""
     return list(x) if isinstance(x, (list, tuple)) else [x]
-
 
 class RecurrentLayer(object):
     """ RecurrentLayer class
@@ -36,10 +35,7 @@ class RecurrentLayer(object):
         assert isinstance(Whx, np.ndarray), "weights_mat for input states should be a 2d numpy array"
         assert isinstance(Woh, np.ndarray), "Weight mat for hidden states to output states should be a 2d numpy array"
         assert isinstance(bo, np.ndarray), "Output later bias vector should be a 1d numpy array"
-        # assert fh or fo is not None, 'error: \
-        #     There should be an activation function for both hidden states and output states'
-        # # assert isinstance(X, ProbStar), "Input set should be ProbStar or Star set"
-        assert isinstance(In, list), 'error: input sets should be in a list'
+        assert isinstance(In, list), 'error: input sets should be a list'
         self.Whx = Whx
         self.Whh = Whh
         self.bh = bh
@@ -51,79 +47,6 @@ class RecurrentLayer(object):
         print("number of input sets:",self.nIn)
         # self.nH = nh # number of memory units in hidden layer
         #self.T =T # maximum time
-
-    # def rand(in_dim, out_dim) -> "RecurrentLayer":
-    #     """
-    #     Generate a random RecurrentLayer model.
-
-    #     Args:
-    #         in_dim (int): The input dimension.
-    #         out_dim (int): The output dimension.
-
-    #     Returns:
-    #         RecurrentLayer: The random RecurrentLayer model.
-    #     """
-    #     Whh = np.random.rand(out_dim, out_dim)
-    #     bh = np.random.rand(out_dim)
-    #     Whx = np.random.rand(out_dim, in_dim)
-    #     Woh = np.random.rand(out_dim, out_dim)
-    #     bo = np.random.rand(out_dim)
-    #     return RecurrentLayer(Whh, bh, Whx, Woh, bo)
-
-    # def reach(self,In,method= 'exact', lp_solver='gurobi', pool=None, RF=0.0, DR=0):
-    #     Weight_In = []
-    #     H = []
-    #     O = []
-    #     for i in range(0,len(In)):
-    #         weight_Inputs = In[i].affineMap(self.Whx)
-    #         Weight_In.append(weight_Inputs)
-    #         print("number of AffineMap input sets:",len(Weight_In))
-    #         print("======= WIn[i]:==========",Weight_In[i])
-    #     for i in range(0,len(In)):
-    #         #H_hat[i]= self.In[i].affineMap(self.Whx,self.bh)
-    #         if i == 0 :
-    #             H0 =[]
-    #             H0_out = ReLULayer.reach(Weight_In[i], method = method)
-    #             print("H0_out[i].V:",H0_out[i].V)
-    #             H0.append(H0_out)
-    #             H.append(H0)
-    #             m0 = len(H0[i])
-    #             print("======= m0 ===========:",m0)
-    #             for j in range(0,m0):
-    #                 H_weight = H0[j].affineMap(self.Woh,self.bo)
-    #                 H1_out = ReLULayer.reach(H_weight, method = method)
-    #             O.append(H1_out)
-    #             print("======= len(Ooutput) if i == 1 : ===========:",len(O))
-    #         else: # i > 1
-    #             print("===============+++++++++ the {}th input set ========+++++++++\n".format(i))
-    #             m1 = len(H[i-1])
-    #             print("======= m1 ===========",m1)
-    #             H2 = H[i-1]
-    #             # print("H2:",H2)
-    #             H3 = []
-    #             for j in range(0,m1):
-    #                 print("========== H2_1.C:",H2[0].C)
-    #                 H2_weight = H2[j].affineMap(self.Whh,self.bh)
-    #                 print("========== H2_[j].C:",H2[j].C)
-    #                 print("========== H2_weight.C:",H2_weight.C)
-    #                 H2_sum = H2_weight.minKowskiSum(Weight_In[i])
-    #                 print("========== H2_sum:",H2_sum)
-    #                 H2_out = ReLULayer.reach(H2_sum, method = method)
-    #                 print("====== len(H2_out)======:",len(H2_out))
-    #                 H3.extend(H2_out)
-    #                 print("========== H2_out:=========",H2_out[j])
-    #             H.append(H3)
-    #             print("========== len(H)=======:",len(H))
-    #             m2 = len(H3)
-    #             print("======= m2 ===========",m2)
-    #             HO = []
-    #             for k in range (0,m2):
-    #                 print("========== H3[k]:",H3[k])
-    #                 HO_weight = H3[k].affineMap(self.Woh,self.bo)
-    #                 print("========== HO_weight:",HO_weight)
-    #                 HO_out = ReLULayer.reach(HO_weight, method = method)
-    #                 HO.append(HO_out)
-    #             O.append(HO)
 
     def reach(self,In,method= 'exact', lp_solver='gurobi', pool=None, RF=0.0, DR=0):
                 
@@ -190,10 +113,10 @@ class RecurrentLayer(object):
 def load_simple_rnn(dtype=float):
     """Load RNN model"""
 
-    cur_path = os.path.dirname(__file__)
+    cur_path = os.path.dirname(os.path.abspath(__file__))
     # print("current_path:",cur_path)
     # example_path = cur_path + '/simple_rnn.mat' 
-    mat_contents = loadmat("/home/qliu1/Desktop/RNN/StarV-RNN/StarV/layer/simple_rnn_v7.mat")
+    mat_contents = loadmat( cur_path + "/simple_rnn_v7.mat")
     Whx = np.asarray(mat_contents["kernel"], dtype)              # (H x I)
     Whh = np.asarray(mat_contents["recurrent_kernel"], dtype)    # (H x H)
     bh = np.asarray(mat_contents["bias"], dtype).reshape(-1) # (H,)
@@ -205,7 +128,7 @@ def load_simple_rnn(dtype=float):
     bo  = np.zeros(2,)
 
     """Create input data points"""
-    data_contents = loadmat('/home/qliu1/Desktop/RNN/StarV-RNN/StarV/layer//points.mat')
+    data_contents = loadmat( cur_path + '/points.mat')
     data_points = np.asarray(data_contents["pickle_data"], dtype)     
     
     return  Whx,Whh,bh,Woh,bo,data_points
