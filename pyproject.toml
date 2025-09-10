@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "starv"
-version = "0.1.0"
-description = "Event-driven Monitoring and Verification Codesign for Distributed Learning-enabled Cyber-Physical Systems with Star Reachability"
+version = "0.1.1"
+description = "Qualitative and Quantitative Verification Tool for Learning-enabled Systems"
 authors = [
     {name = "Hoang Dung Tran", email = "dungtran@ufl.edu"},
     {name = "Sung Woo Choi", email = "sungwoo.choi@ufl.edu"},

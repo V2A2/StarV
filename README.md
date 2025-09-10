@@ -249,8 +249,8 @@ python3 tutorial_star.py
 ```
 
 ## Publications
-- **StarV Tool** ([Tran et al. CAV 2025])
-- **ProbStarTL** ([Tran et al. HSCC 2025])
+- **StarV Tool** ([Tran et al. CAV 2025](https://link.springer.com/chapter/10.1007/978-3-031-98679-6_17))
+- **ProbStarTL** ([Tran et al. HSCC 2025](https://dl.acm.org/doi/pdf/10.1145/3716863.3718035))
 - **SparseStar LSTM & GRU** ([Choi et al. NAHS 2025](https://doi.org/10.1016/j.nahs.2025.101581))
 - **ProbStar** ([Tran et al. HSCC 2023](https://dl.acm.org/doi/10.1145/3575870.3587112))
 - **Star RNN** ([Tran et al. HSCC 2023](https://dl.acm.org/doi/10.1145/3575870.3587128))
@@ -261,6 +261,23 @@ python3 tutorial_star.py
 
 
 ```
+@inproceedings{tran2025starv,
+  title={StarV: A Qualitative and Quantitative Verification Tool for Learning-Enabled Systems},
+  author={Tran, Hoang-Dung and Choi, Sung Woo and Li, Yuntao and Liu, Qing and Okamoto, Hideki and Hoxha, Bardh and Fainekos, Georgios},
+  booktitle={International Conference on Computer Aided Verification},
+  pages={376--394},
+  year={2025},
+  organization={Springer}
+}
+
+@inproceedings{tran2025probstar,
+  title={ProbStar Temporal Logic for Verifying Complex Behaviors of Learning-enabled Systems},
+  author={Tran, Hoang-Dung and Choi, Sung Woo and Li, Yuntao and Okamoto, Hideki and Hoxha, Bardh and Fainekos, Georgios},
+  booktitle={Proceedings of the 28th ACM International Conference on Hybrid Systems: Computation and Control},
+  pages={1--12},
+  year={2025}
+}
+
 @article{choi2025reachability,
   title={Reachability analysis of recurrent neural networks},
   author={Choi, Sung Woo and Li, Yuntao and Yang, Xiaodong and Yamaguchi, Tomoya and Hoxha, Bardh and Fainekos, Georgios and Prokhorov, Danil and Tran, Hoang-Dung},
