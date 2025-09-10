@@ -14,9 +14,9 @@ from StarV.layer.SatLinLayer import SatLinLayer
 from StarV.layer.SatLinsLayer import SatLinsLayer
 from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
 
-def as_list(x):
-    """flatten multiple list of output to a list of sets."""
-    return list(x) if isinstance(x, (list, tuple)) else [x]
+# def as_list(x):
+#     """flatten multiple list of output to a list of sets."""
+#     return list(x) if isinstance(x, (list, tuple)) else [x]
 
 class RecurrentLayer(object):
     """ RecurrentLayer class
@@ -38,7 +38,7 @@ class RecurrentLayer(object):
         assert isinstance(In, list), 'error: input sets should be a list'
         self.Whx = Whx
         self.Whh = Whh
-        self.bh = bh
+        self.bhx = bh
         self.Woh = Woh
         self.bo = bo
         self.In = In
@@ -50,65 +50,73 @@ class RecurrentLayer(object):
 
     def reach(self,In,method= 'exact', lp_solver='gurobi', pool=None, RF=0.0, DR=0):
                 
-        Weight_In = [] # store a list of mapped input, T sets
+        Weight_In = [] # store a list of mapped input list(contain only one set), T sets
         H = []
         O = []
         for i in range(0,len(In)):
-            weight_Inputs = In[i].affineMap(self.Whx)
-            Weight_In.append(weight_Inputs)
+            print("--------------------------------Computing weighted input --------------------------")
+            WIn=[]
+            MIn = self.In[i].affineMap(self.Whx,self.bhx)
+            WIn.append(MIn)
+            print("======= WIn type:==========",type(WIn))
+            Weight_In.append(WIn)
             print("number of AffineMap input sets:",len(Weight_In))
-            print("======= WIn[i]:==========",Weight_In[i])
+            print("======= Weight_In type:==========",type(Weight_In))
+            # print("======= WIn[i]:==========",Weight_In[i][0])
         for i in range(0,len(In)):
             #H_hat[i]= self.In[i].affineMap(self.Whx,self.bh)
             if i == 0 :
+                print("\n--------------------------------If i == 1 --------------------------")
                 H0 =[]
                 H0_out = ReLULayer.reach(Weight_In[i], method = method)
-                print("H0_out[i].V:",H0_out[i].V)
-                H0.extend(as_list(H0_out))
+                print("H0_out[0].V:",H0_out[i].V)
+                H0.extend(H0_out)
                 H.append(H0)
+                print("======= len(H) if i == 0 : ===========:",len(H))
                 # m0 = len(H0[i])
                 # print("======= m0 ===========:",m0)
                 O1 = []
                 for h in H0:
-                    H_weight = h.affineMap(self.Woh,self.bo)
-                    H1_out = ReLULayer.reach(H_weight, method = method)
-                    O1.extend(as_list(H1_out))
+                    print("========== h in H0=====:",h)
+                    HO_out = h.affineMap(self.Woh,self.bo)
+                    print("V_shape, if i == 1 :",HO_out.V.shape)
+                    O1.append(HO_out)
+                    print("len(O1):",len(O1))
                 O.append(O1)
                 print("======= len(Ooutput) if i == 1 : ===========:",len(O))
             else: # i > 1
-                print("===============+++++++++ the {}th input set ========+++++++++\n".format(i))
-                # m1 = len(H[i-1])
-                # print("======= m1 ===========",m1)
+                print("\n--------------------------------If i > 1 --------------------------")
                 pre_H = H[i-1]
                 # print("H2:",H2)
                 H3 = []
                 for h in pre_H:
+                    H4= []
                     # print("========== H2_1.C:",H2[0].C)
-                    H2_weight = h.affineMap(self.Whh,self.bh)
+                    H2_weight = h.affineMap(self.Whh)
                     # print("========== H2_[j].C:",H2[j].C)
-                    print("========== H2_weight.C:",H2_weight.C)
-                    H2_sum = H2_weight.minKowskiSum(Weight_In[i])
+                    print("H2_weight.C:",H2_weight.C)
+                    H2_sum = H2_weight.minKowskiSum(Weight_In[i][0])
                     # print("========== H2_sum:",H2_sum)
-                    H2_out = ReLULayer.reach(H2_sum, method = method)
-                    # print("====== len(H2_out)======:",len(H2_out))
-                    H3.extend(as_list(H2_out))
-                    # print("========== H2_out:=========",H2_out)
+                    H4.append(H2_sum)
+                    print("========len(H4):{},type(H4):{}, if i > 1======".format(len(H4),type(H4)))
+                    H2_out = ReLULayer.reach(H4, method = method)
+                    print("H2_out_V_shape, if i > 1:",H2_out[0].V.shape)
+                    H3.extend(H2_out)
                 H.append(H3)
-                print("========== len(H)=======:",len(H))
+                print("========== len(H), if i >1 =======:",len(H))
                 m2 = len(H3)
                 print("======= m2 ===========",m2)
-                HO = []
+                O2 = []
                 for h in H3:
                     # print("========== H3[k]:",H3[k])
-                    HO_weight = h.affineMap(self.Woh,self.bo)
-                    print("========== HO_weight:",HO_weight)
-                    HO_out = ReLULayer.reach(HO_weight, method = method)
-                    HO.extend(as_list(HO_out))
-                O.append(HO)
-                print("====== len of output set:======", len(O))
+                    HO_out = h.affineMap(self.Woh,self.bo)
+                    # print("========== HO_out:", HO_out)
+                    O2.append(HO_out)
+                O.append(O2)
+                print("====== len of output set, if i > 1:======", len(O))
                 # print("====== output set:======", O[i])
 
-        return O
+        return O,H
 
 def load_simple_rnn(dtype=float):
     """Load RNN model"""
@@ -143,7 +151,7 @@ def RNN_get_reachable_set(input_points, eps):
     for i in range (0,n):
         X.append(Star(x[:,i] - eps, x[:, i] + eps))
         print("number of input star_set:",len(X))
-        print("X[i].V:",X[i].V)
+        # print("X[i].V:",X[i].V)
 
     return X
 
@@ -155,12 +163,11 @@ def test_simple_rnn():
     x= x.T
     print("x_length:",len(x))
     print("x(i)_shape:",len(x[1]))
-    print("x.T:",x)
+    # print("x.T:",x)
     eps = 0.01
     T = [5 ,10 ,15, 20]
     # N = len(T)
-    Y = []
-    result = []
+    results = []
     for k in range(0,x_len):
         # for i in range (0,N):
             xk = np.array(x[:, k]).reshape(-1,1)
@@ -177,11 +184,12 @@ def test_simple_rnn():
             print("input_points-shape:",input_points.shape)
             X = RNN_get_reachable_set(input_points=input_points,eps=eps)
             RNN = RecurrentLayer(Whx, Whh, bh, Woh, bo, X)
-            Y = RNN.reach(X)
+            Y,H= RNN.reach(X)
             # print("+++ Y_type++++:",type(Y))
-            result.append(Y)
-            print("+++ result length ++++:",len(result))
-
+            print("+++ Outputset length:{}, Hidden layer set length:{} ++++:".format(len(Y),len(H)))
+            results.append(Y)
+            results.append(H)
+            
     return result
 
 
@@ -202,9 +210,9 @@ if __name__ == '__main__':
     print("H:",H)
 
     result = test_simple_rnn()
-    # print("number of output:",NO)
-    for i, Oi in enumerate(result):
-            print(f"input_seq = {i}: , |O[i]|={len(Oi):3d}")
+    # # print("number of output:",NO)
+    # for i, Oi in enumerate(result):
+    #         print(f"input_seq = {i}: , |O[i]|={len(Oi):3d}")
 
     for i, Y in enumerate(result):
         print("====== number of output set of {}th input_seq:{}=====".format(i,len(Y)))
