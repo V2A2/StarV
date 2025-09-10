@@ -68,6 +68,7 @@ def getVertices(I):
 
     return verts
 
+
 def get_bounding_box(A, b):
     'get bounding box of a H-polytope Ax <= b'
 
@@ -87,6 +88,7 @@ def get_bounding_box(A, b):
         ub[i] = max_sol[i]
         
     return lb, ub
+
 
 def plot_1D_Star(I, show=True, color='g'):
     """Plot a 1D star set
@@ -181,6 +183,7 @@ def plot_2D_Star_with_sampling(I, sample_points=None, show=True, color='g', mark
     if show:
         plt.legend()
         plt.show()
+        
         
 def plot_2D_UnsafeSpec(unsafe_mat, unsafe_vec, show=True, color='r'):
     'plot unsafe spec'
@@ -346,8 +349,6 @@ def plot_probstar_signals(traces, dir_mat=None, dir_vec=None, show_prob=True, la
     if show:
         plt.show()
 
-   
-
 
 def plot_probstar_signal(trace,  dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g', font_size = 13):
     """
@@ -401,6 +402,7 @@ def plot_probstar_signal(trace,  dir_mat=None, dir_vec=None, show_prob=True, lab
     if show:
         plt.show()
 
+
 def plot_SAT_trace(sat_trace, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g'):
     'plot a sat trace'
 
@@ -412,6 +414,7 @@ def plot_SAT_trace(sat_trace, dir_mat=None, dir_vec=None, show_prob=True, label=
     print('traces = {}'.format(traces))
 
     plot_probstar_signals(traces, dir_mat, dir_vec, show_prob, label, show, color)
+
 
 def plot_probstar_reachset(rs, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g', font_size = 13):
     """
@@ -567,7 +570,6 @@ def plot_probstar_reachset_with_unsafeSpec(rs, unsafe_mat, unsafe_vec, dir_mat=N
         plt.show()
 
        
-    
 def plot_star(I, dir_mat=None, dir_vec=None, label=('$y_1$', '$y_2$'), show=True, color='g', font_size = 15):
     """Plot a star set in a specific direction
        y = dir_mat*x + dir_vec, x in I
@@ -663,8 +665,8 @@ def plot_multivariate_normal_distribution(mu, Sig, lb, ub, numMeshPoints=40, xla
         plt.show()
 
 
-def plot_probstar_distribution_error(I, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g', numMeshPoints=40, zlabel='Probability Density'):
-    'plot a probstar distribution on a specific direction'
+def plot_probstar_distribution_separate_plots(I, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g', numMeshPoints=40, zlabel='Probability Density'):
+    'plot a probstar and probstar distribution on a specific direction'
 
     # references: for distribution transformation
     # https://peterroelants.github.io/posts/multivariate-normal-primer/
@@ -688,7 +690,7 @@ def plot_probstar_distribution_error(I, dir_mat=None, dir_vec=None, show_prob=Tr
         ylabel=label[1]
 
         # plot transformed distribution 
-
+        # TODO: neet to get actual predicate bound considering C a <= d
         X = np.linspace(lb[0], ub[0], numMeshPoints)
         Y = np.linspace(lb[1], ub[1], numMeshPoints)
         X,Y = np.meshgrid(X, Y)
@@ -731,110 +733,8 @@ def plot_probstar_distribution_error(I, dir_mat=None, dir_vec=None, show_prob=Tr
 
     else:
         raise RuntimeError('The input I is not a probstar')
-
-
-def plot_probstar_distribution(I, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g', numMeshPoints=40, zlabel='Probability Density', cmap='viridis'):
-    'plot a probstar distribution on a specific direction'
-
-    # references: for distribution transformation
-    # https://peterroelants.github.io/posts/multivariate-normal-primer/
-    # Dung Tran: 10/22/2024
-    # Updated:
-    #   - Sung Woo Choi: 01/16/2025
-    
-    I1 = I.affineMap(dir_mat, dir_vec)
-    if I1.dim > 2:
-        raise Exception(f'error: only 1D and 2D plots are supported; received ProbStar has {I1.dim} dimension')
-    
-    xlabel=label[0]
-    ylabel=label[1]
-
-    # get meshgrid from predicate domain
-    # TO DO: neet to get actual predicate bound considering C a <= d
-    lb, ub = I1.pred_lb, I1.pred_ub
-    X = np.linspace(lb[0], ub[0], numMeshPoints)
-    Y = np.linspace(lb[1], ub[1], numMeshPoints)
-    X, Y = np.meshgrid(X, Y)
-
-    # get transformed distribution: I = c + V*alpha, alpha ~ N(mu, Sig)
-    c = I1.V[:, 0]
-    V = I1.V[:, 1:]
-    pos = np.concatenate([X[:,:,None], Y[:,:,None]], axis=2)
-    pos = np.einsum('pk,ijk->ijp', V, pos) + c[None,None,:]
-    
-    new_mu = np.matmul(V, I1.mu) + c
-    new_Sig = np.matmul(np.matmul(V, I1.Sig), np.transpose(V))
-
-    F = multivariate_normal(new_mu, new_Sig)
-    Z = F.pdf(pos)
-    X = pos[:, :, 0]
-    Y = pos[:, :, 1]
-
-    # Plot
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.plot_surface(X, Y, Z, cmap=cmap, linewidth=0)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    ax.set_zlabel(zlabel)
-    if show:
-        plt.show()
         
 
-def plot_probstar_contour(I, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g', numMeshPoints=40, zlabel='Probability Density', cmap='viridis'):
-    'plot a probstar distribution on a specific direction'
-
-    # references: for distribution transformation
-    # https://peterroelants.github.io/posts/multivariate-normal-primer/
-    # Dung Tran: 10/22/2024
-    # Updated:
-    #   - Sung Woo Choi: 01/16/2025
-    
-    I1 = I.affineMap(dir_mat, dir_vec)
-    if I1.dim > 2:
-        raise Exception('error: only 2D plot is supported')
-    
-    xlabel=label[0]
-    ylabel=label[1]
-
-    # get meshgrid from predicate domain
-    # TO DO: neet to get actual predicate bound considering C a <= d
-    lb, ub = I1.pred_lb, I1.pred_ub
-    # lb, ub = I1.getRanges()
-    X = np.linspace(lb[0], ub[0], numMeshPoints)
-    Y = np.linspace(lb[1], ub[1], numMeshPoints)
-    X, Y = np.meshgrid(X, Y)
-
-    # get transformed distribution: I = c + V*alpha, alpha ~ N(mu, Sig)
-    c = I1.V[:, 0]
-    V = I1.V[:, 1:]
-    pos = np.concatenate([X[:,:,None], Y[:,:,None]], axis=2)
-    pos = np.einsum('pk,ijk->ijp', V, pos) + c[None,None,:]
-    
-    new_mu = np.matmul(V, I1.mu) + c
-    new_Sig = np.matmul(np.matmul(V, I1.Sig), np.transpose(V))
-
-    F = multivariate_normal(new_mu, new_Sig)
-    Z = F.pdf(pos)
-    X = pos[:, :, 0]
-    Y = pos[:, :, 1]
-
-    prob = I1.estimateProbability()
-    lb, ub = I1.getRanges()
-    # Plot
-    plt.rcParams["figure.figsize"] = [5, 5]
-    plt.rcParams["figure.autolayout"] = True
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    ax.contourf(X, Y, Z, cmap=cmap)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
-    # ax.set_zlabel(zlabel)
-    ax.text(0.5*(lb[0] + ub[0]), 0.5*(lb[1] + ub[1]), str(prob), color='red')
-    if show:
-        plt.show()
-
-    
 def plot_3D_Star_ax(I, ax, color='r',alpha=1.0, edgecolor='k', linewidth=1.0, show=True, qhull_option='Qt'):
     """
     From https://github.com/Shaddadi/veritex/blob/master/veritex/utils/plot_poly.py
@@ -869,6 +769,7 @@ def plot_3D_Star_ax(I, ax, color='r',alpha=1.0, edgecolor='k', linewidth=1.0, sh
         ax.set_zlabel('Z-axis')
     if show:
         plt.show()
+
 
 def plot_3D_Star_single(I, color='r',alpha=1.0, edgecolor='k', linewidth=1.0, show=True, qhull_option='Qt'):
     """
@@ -983,6 +884,7 @@ def plot_3D_Star(I, alpha=0.3, edgecolor='k', linewidth=1.0, show=True, qhull_op
     if show:
         plt.show()
 
+
 def plot_Mesh3D_Star(I, opacity=1.0,show=True):
     vs = np.array(getVertices(I))
     hull = ConvexHull(vs)
@@ -1056,7 +958,7 @@ def plot_Mesh3D_Box(lb, ub, opacity=1.0, show=True):
         return data
 
 
-def plot_probstar_distribution_test(I, dir_mat=None, dir_vec=None, show_prob=True, 
+def plot_probstar_distribution(I, dir_mat=None, dir_vec=None, show_prob=True, 
                              label=('$y_1$', '$y_2$'), show=True, color='g', 
                              numMeshPoints=100, zlabel='Probability Density', 
                              cmap='viridis', font_size=15):
@@ -1069,7 +971,7 @@ def plot_probstar_distribution_test(I, dir_mat=None, dir_vec=None, show_prob=Tru
     #   - Sung Woo Choi: 01/16/2025
     #   - Yuntao Li: 01/30/2025
 
-    # TO DO: neet to double check more cases
+    # TODO: neet to double check more cases
 
     # Apply affine transformation if provided
     I1 = I.affineMap(dir_mat, dir_vec) if (dir_mat is not None or dir_vec is not None) else I
@@ -1130,88 +1032,7 @@ def plot_probstar_distribution_test(I, dir_mat=None, dir_vec=None, show_prob=Tru
         plt.show()
 
 
-def plot_probstar_contour_test(I, dir_mat=None, dir_vec=None, show_prob=True, 
-                         label=('$y_1$', '$y_2$'), show=True, color='g', 
-                         numMeshPoints=100, levels=10, cmap='viridis', font_size=15):
-    """
-    Plot a ProbStar contour using triangulation for irregular grid
-    """
-
-    # references: for distribution transformation
-    # https://peterroelants.github.io/posts/multivariate-normal-primer/
-    # Dung Tran: 10/22/2024
-    # Updated:
-    #   - Sung Woo Choi: 01/16/2025
-    #   - Yuntao Li: 01/30/2025
-
-    # TO DO: neet to double check more cases
-
-    # Apply affine transformation if provided
-    I1 = I.affineMap(dir_mat, dir_vec) if (dir_mat is not None or dir_vec is not None) else I
-    
-    # Check dimensionality
-    if I1.dim > 2:
-        raise ValueError(f'Only 1D and 2D plots are supported; received ProbStar has {I1.dim} dimensions')
-    
-    # Create mesh grid from predicate domain
-    lb, ub = I1.pred_lb, I1.pred_ub
-    X = np.linspace(lb[0], ub[0], numMeshPoints)
-    Y = np.linspace(lb[1], ub[1], numMeshPoints)
-    
-    X, Y = np.meshgrid(X, Y)
-    
-    pos = np.stack([X.ravel(), Y.ravel()], axis=1)
-
-    # Check predicate constraints
-    if len(I1.C) > 0 and len(I1.d) > 0:
-        constraints = np.matmul(I1.C, pos.T)
-        valid_mask = np.all(constraints <= I1.d[:, None], axis=0)
-        pos = pos[valid_mask]
-
-    # Transform points
-    c = I1.V[:, 0]  # center
-    V = I1.V[:, 1:] # basis vectors
-    transformed_pos = np.matmul(pos, V.T) + c
-    
-    # Compute distribution
-    new_mu = np.matmul(V, I1.mu) + c
-    new_Sig = np.matmul(np.matmul(V, I1.Sig), np.transpose(V))
-    
-    # Create and evaluate distribution
-    F = multivariate_normal(new_mu, new_Sig)
-    Z = F.pdf(transformed_pos)
-    
-    triang = Triangulation(transformed_pos[:,0], transformed_pos[:,1])
-    
-    fig, ax = plt.subplots()
-
-    # Plot filled contours using trangulation
-    contour = ax.tricontourf(triang, Z,
-                            levels=levels,
-                            cmap=cmap)
-    
-    # Add contour lines
-    ax.tricontour(triang, Z,
-                  levels=levels,
-                  colors='black',
-                  alpha=0.3,
-                  linewidths=0.5)
-    
-    # Set labels and title
-    ax.set_xlabel(label[0], fontsize=font_size)
-    ax.set_ylabel(label[1], fontsize=font_size)
-    ax.tick_params(labelsize=font_size)
-    # ax.set_title('ProbStar Contour')
-
-
-    prob = I1.estimateProbability()
-    lb, ub = I1.getRanges()
-    ax.text(0.5*(lb[0] + ub[0]), 0.5*(lb[1] + ub[1]), str(prob), color='red')
-    
-    if show:
-        plt.show()
-
-def plot_probstar_contour_general(I, dir_mat=None, dir_vec=None, show_prob=True, 
+def plot_probstar_contour(I, dir_mat=None, dir_vec=None, show_prob=True, 
                                 label=('$y_1$', '$y_2$'), show=True, 
                                 numMeshPoints=100, levels=10, cmap='viridis', font_size=15):
     """
@@ -1219,9 +1040,17 @@ def plot_probstar_contour_general(I, dir_mat=None, dir_vec=None, show_prob=True,
 
     - Yuntao Li: 1/16/2025
     """
+    # references: for distribution transformation
+    # https://peterroelants.github.io/posts/multivariate-normal-primer/
+    # Dung Tran: 10/22/2024
+    # Updated:
+    #   - Sung Woo Choi: 01/16/2025
+    #   - Yuntao Li: 01/30/2025
+
+    # TODO: neet to double check more cases
     fig, ax = plt.subplots()
     
-    def plot_single_probstar(I1):
+    def plot_single_probstar_contour(I1):
         """Helper function to plot a single ProbStar contour"""
         if I1.dim > 2:
             raise ValueError('error: only 2D plot is supported')
@@ -1262,7 +1091,7 @@ def plot_probstar_contour_general(I, dir_mat=None, dir_vec=None, show_prob=True,
     # Handle different input types
     if isinstance(I, ProbStar):
         I1 = I.affineMap(dir_mat, dir_vec)
-        l, u = plot_single_probstar(I1)
+        l, u = plot_single_probstar_contour(I1)
         if show_prob and l is not None:
             prob = I1.estimateProbability()
             ax.text(0.5*(l[0] + u[0]), 0.5*(l[1] + u[1]), str(prob), color='red')
@@ -1274,7 +1103,7 @@ def plot_probstar_contour_general(I, dir_mat=None, dir_vec=None, show_prob=True,
         U = []
         for i, probstar in enumerate(I):
             I1 = probstar.affineMap(dir_mat, dir_vec)
-            l, u = plot_single_probstar(I1)
+            l, u = plot_single_probstar_contour(I1)
             if l is not None:  # Not an empty set
                 if len(L) == 0:
                     L = l
@@ -1299,7 +1128,8 @@ def plot_probstar_contour_general(I, dir_mat=None, dir_vec=None, show_prob=True,
     ax.set_ylabel(label[1], fontsize=font_size)
     ax.tick_params(labelsize=font_size)
 
-    # # Add vertical line at y1 = 4
+    ## Optional: Add unsafe condition line and text
+    ## For example: Add vertical line at y1 = 4
     # ax.axvline(x=4, color='red', linestyle='--', linewidth=2)
 
     # # Add 'unsafe condition' text
