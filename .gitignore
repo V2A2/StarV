@@ -1,2 +1,20 @@
-starv.egg-info/
+# Python bytecode
 __pycache__/
+*.pyc
+
+# Virtual environments
+.env
+venv/
+env/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# OS-generated files
+.DS_Store
+
+# My IDE-specific files
+.idea/
+.vscode/

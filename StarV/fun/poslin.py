@@ -315,9 +315,13 @@ class PosLin(object):
         ub = np.concatenate([uN, uO])
         return In, lb, ub, MAP
 
-    # def estimate_approx(I, l, u, lp_solver='gurobi', show=False):
 
     def approx(I, l, u, lp_solver='gurobi', show=False):
+        """
+        updated: 
+            Yuntao, 07/31/2025
+            Sung Woo Choi, 09/13/2025
+        """
 
         if show:
             print('Internediate reachable set has {} neurons'.format(len(l)))
@@ -332,15 +336,15 @@ class PosLin(object):
 
         xmax = I.getMaxs(map2, lp_solver)
         map3 = np.argwhere(xmax <= 0).reshape(-1)
-        # if show:
-        #     print('Ranges of {} neurons with (ub <= 0) are found by LP solver'.format(len(map3)))
+        if show:
+            print('Ranges of {} neurons with (ub <= 0) are found by LP solver'.format(len(map3)))
 
         map4 = map2[map3]
         map11 = np.concatenate([map1, map4])
 
         In = I
         if len(map11) > 0: # updated: Yuntao, 07/31/2025
-            In.resetRows(map11)
+            In = In.resetRows(map11)
 
         if show:
             print('({} + {} = {}) / {} neurons have ub < = 0'.format(len(map1), len(map3), len(map11), len(u)))
