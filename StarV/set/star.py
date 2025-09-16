@@ -18,6 +18,7 @@ Star Class
 Dung Tran, 9/13/2022
 Update: 11/22/2024 (Sung Woo Choi)
 Update: 12/20/2024 (Sung Woo Choi, merging)
+Update: 09/16/2025 (Yuntao Li)
 """
 
 # !/usr/bin/python3
@@ -754,8 +755,10 @@ class Star(object):
 
         return new_pred_lb, new_pred_ub
 
-    def addConstraint(self, C, d):
-        """ Add a single constraint to a ProbStar, self & Cx <= d"""
+    def addConstraint(self, C, d, copy_=True, tighten_bounds=True):
+        """ Add a single constraint to a ProbStar, self & Cx <= d
+        Update: Yuntao Li, Date: 09/16/2025
+        """
 
         assert isinstance(C, np.ndarray) and len(C.shape) == 1, 'error: \
         constraint matrix should be 1D numpy array'
@@ -764,83 +767,103 @@ class Star(object):
         assert C.shape[0] == self.dim, 'error: \
         inconsistency between the constraint matrix and the probstar dimension'
 
-        v = np.matmul(C, self.V)
-        newC = v[1:self.nVars+1]
-        newd = d - v[0]
+        v = np.matmul(C, self.V)        # shape: (nVars+1,)
+        newC_row = v[1:self.nVars+1]
+        newd_rhs = d - v[0]
 
         if len(self.C) != 0:
-            self.C = np.vstack((newC, self.C))
-            self.d = np.concatenate([newd, self.d])
+            newC = np.vstack((newC_row, self.C))
+            newd = np.concatenate([newd_rhs, self.d])
             
         else:
-            self.C = newC.reshape(1, self.nVars)
-            self.d = newd
-        new_pred_lb, new_pred_ub = Star.updatePredicateRanges(newC, newd,
-                                                                  self.pred_lb,
-                                                                  self.pred_ub)
-        self.pred_lb = new_pred_lb
-        self.pred_ub = new_pred_ub
+            newC = newC_row.reshape(1, self.nVars)
+            newd = newd_rhs
 
-        return self
+        if tighten_bounds:
+            pred_lb_new, pred_ub_new = Star.updatePredicateRanges(newC_row, newd_rhs,
+                                                                    self.pred_lb,
+                                                                    self.pred_ub)
+        else:
+            pred_lb_new, pred_ub_new = self.pred_lb, self.pred_ub
+        return Star(self.V, newC, newd, pred_lb_new, pred_ub_new, copy_=copy_)
 
-    def addMultipleConstraints(self, C, d):
-        """ Add multiple constraint to a Star, self & Cx <= d"""
+    def addMultipleConstraints(self, C, d, copy_=True, tighten_bounds=True):
+        """ Add multiple constraint to a Star, self & Cx <= d
+        Update: Yuntao Li, Date: 09/16/2025
+        """
 
         assert isinstance(C, np.ndarray), 'error: constraint matrix should be a numpy array'
         assert isinstance(d, np.ndarray), 'error: constraint vector should be a numpy array'
         assert C.shape[0] == d.shape[0], 'error: inconsistency between \
         constraint matrix and constraint vector'
         assert len(d.shape) == 1, 'error: constraint vector should be a 1D numpy array'
+        m = C.shape[0]
         
-        if C.shape[0] == 1:
-            self.addConstraint(C, d)
+        T = np.matmul(C, self.V)            # shape: (m, nVars+1)
+        newC_rows = T[:, 1:self.nVars+1]    # shape: (m, nVars)
+        new_rhs = d - T[:, 0]             # shape: (m,)
+
+        if len(self.C) != 0:
+            newC = np.vstack((newC_rows, self.C))
+            newd = np.concatenate([new_rhs, self.d])
         else:
-            for i in range(0, C.shape[0]):
-                self.addConstraint(C[i, :], np.array([d[i]]))
+            newC = newC_rows
+            newd = new_rhs
+        
+        pred_lb_cur, pred_ub_cur = self.pred_lb, self.pred_ub
 
-        return self
+        if tighten_bounds:
+            for i in range(m):
+                pred_lb_cur, pred_ub_cur = Star.updatePredicateRanges(
+                    newC_rows[i, :], np.array([new_rhs[i]]),
+                    pred_lb_cur, pred_ub_cur
+                )
 
-    def resetRow(self, index):
-        """Reset a row with index"""
+        return Star(self.V, newC, newd, pred_lb_cur, pred_ub_cur, copy_=copy_)
+
+    def resetRow(self, index, copy_=True):
+        """Reset a row with index
+        Update: Yuntao Li, Date: 09/16/2025
+        """
 
         if index < 0 or index > self.dim - 1:
             raise Exception('error: invalid index, \
             should be between {} and {}'.format(0, self.dim - 1))
-        V = self.V
+        V = self.V.copy()
         V[index, :] = 0.0
-        S = Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
-
-        return S
+        return Star(V, self.C, self.d, self.pred_lb, self.pred_ub, copy_=copy_)
     
-    def resetRows(self, map):
-        """Reset a row with a map of indexes"""
+    def resetRows(self, map, copy_=True):
+        """Reset a row with a map of indexes
+        Update: Yuntao Li, Date: 09/16/2025
+        """
         for i in map: # Updated: Yuntao, 07/31/2025
             if i < 0 or i > self.dim - 1:
                 raise Exception('error: invalid index, \
                 should be between {} and {}'.format(0, self.dim - 1))
         if len(map) == 0:
             raise Exception('error: map is empty, cannot reset rows')
-        V = self.V
+        V = self.V.copy()
         V[map, :] = 0.0
-        return Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
+        return Star(V, self.C, self.d, self.pred_lb, self.pred_ub, copy_=copy_)
 
-    def resetRowWithFactor(self, index, factor):
+    def resetRowWithFactor(self, index, factor, copy_=True):
         """Reset a row with index and factor
         Author: Yuntao, Date: 07/31/2025
+        Update: Yuntao Li, Date: 09/16/2025
         """
 
         if index < 0 or index > self.dim - 1:
             raise Exception('error: invalid index, \
             should be between {} and {}'.format(0, self.dim - 1))
-        V = self.V
+        V = self.V.copy()
         V[index, :] *= factor
-        S = Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
+        return Star(V, self.C, self.d, self.pred_lb, self.pred_ub, copy_=copy_)
 
-        return S
-
-    def resetRowsWithFactor(self, map, factor):
+    def resetRowsWithFactor(self, map, factor, copy_=True):
         """Reset a row with a map of indexes and factor
         Author: Yuntao, Date: 07/31/2025
+        Update: Yuntao Li, Date: 09/16/2025
         """
         for i in map:
             if i < 0 or i > self.dim - 1:
@@ -848,30 +871,28 @@ class Star(object):
                 should be between {} and {}'.format(0, self.dim - 1))
         if len(map) == 0:
             raise Exception('error: map is empty, cannot reset rows')
-        V = self.V
+        V = self.V.copy()
         V[map, :] *= factor
-        S = Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
+        return Star(V, self.C, self.d, self.pred_lb, self.pred_ub, copy_=copy_)
 
-        return S
-
-    def resetRowWithUpdatedCenter(self, index, new_c):
+    def resetRowWithUpdatedCenter(self, index, new_c, copy_=True):
         """Reset a row with index, and with new center
         Author: Yuntao, Date: 07/31/2025
+        Update: Yuntao Li, Date: 09/16/2025
         """
 
         if index < 0 or index > self.dim - 1:
             raise Exception('error: invalid index, \
             should be between {} and {}'.format(0, self.dim - 1))
-        V = self.V
+        V = self.V.copy()
         V[index, :] = 0.0
         V[index, 0] = new_c
-        S = Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
+        return Star(V, self.C, self.d, self.pred_lb, self.pred_ub, copy_=copy_)
 
-        return S
-
-    def resetRowsWithUpdatedCenter(self, map, new_c):
+    def resetRowsWithUpdatedCenter(self, map, new_c, copy_=True):
         """Reset a row with a map of indexes, and with new center
         Author: Yuntao, Date: 07/31/2025
+        Update: Yuntao Li, Date: 09/16/2025
         """
         for i in map:
             if i < 0 or i > self.dim - 1:
@@ -879,40 +900,11 @@ class Star(object):
                 should be between {} and {}'.format(0, self.dim - 1))
         if len(map) == 0:
             raise Exception('error: map is empty, cannot reset rows')
-        V = self.V
+        V = self.V.copy()
         V[map, :] = 0.0
         V[map, 0] = new_c
-        S = Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
+        return Star(V, self.C, self.d, self.pred_lb, self.pred_ub, copy_=copy_)
 
-        return S
-    
-    def resetRowWithFactor(self, index, factor):
-        """Reset a row with index and factor
-        Author: Yuntao, Date: 6/22/2024
-        """
-
-        if index < 0 or index > self.dim - 1:
-            raise Exception('error: invalid index, \
-            should be between {} and {}'.format(0, self.dim - 1))
-        V = self.V
-        V[index, :] *= factor
-
-        return Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
-    
-    def resetRowWithUpdatedCenter(self, index, new_c):
-        """Reset a row with index, and with new center
-        Author: Yuntao, Date: 6/22/2024
-        """
-
-        if index < 0 or index > self.dim - 1:
-            raise Exception('error: invalid index, \
-            should be between {} and {}'.format(0, self.dim - 1))
-        V = self.V
-        V[index, :] = 0.0
-        V[index, 0] = new_c
-
-        return Star(V, self.C, self.d, self.pred_lb, self.pred_ub)
-    
     def sample(self, N):
         """
         Sample N points in the feasible Star set.

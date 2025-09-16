@@ -366,11 +366,14 @@ class Test(object):
         print('\nTesting addConstraint method...')
 
         try:
+            S1 = S.addConstraint(C, d)
+            S2 = S.addConstraint(C, d, tighten_bounds=False)
             print('Before adding new constraint')
             S.__str__()
-            S.addConstraint(C, d)
             print('After adding new constraint')
-            S.__str__()
+            S1.__str__()
+            print('After adding new constraint without tightening bounds')
+            S2.__str__()
         except Exception:
             print("Test Fail!")
             self.n_fails = self.n_fails + 1
@@ -390,14 +393,16 @@ class Test(object):
         d = np.array([0.25, 0.])
 
         print('\nTesting addMultipleConstraints method...')
-        S.addMultipleConstraints(C, d)
 
         try:
+            S1 = S.addMultipleConstraints(C, d)
+            S2 = S.addMultipleConstraints(C, d, tighten_bounds=False)
             print('Before adding new constraints')
             S.__str__()
-            S.addMultipleConstraints(C, d)
             print('After adding new constraints')
-            S.__str__()
+            S1.__str__()
+            print('After adding new constraints without tightening bounds')
+            S2.__str__()
         except Exception:
             print("Test Fail!")
             self.n_fails = self.n_fails + 1
@@ -491,6 +496,133 @@ class Test(object):
             print('Test Sucessfull!')
 
 
+
+    def test_resetRow(self):
+
+        self.n_tests = self.n_tests + 1
+        print('\nTesting resetRow method...')
+
+        try:
+            S = ProbStar.rand(2)
+            S1 = S.resetRow(0)
+            print('\nBefore resetRow: ')
+            S.__str__()
+            print('\nAfter resetRow: ')
+            S1.__str__()
+
+        except Exception:
+            print('Test Fails')
+            self.n_fails = self.n_fails + 1
+
+        else:
+            print('Test Sucessfull!')
+
+    def test_resetRows(self):
+
+        self.n_tests = self.n_tests + 1
+        print('\nTesting resetRows method...')
+
+        try:
+            S = ProbStar.rand(2)
+            rows = [0, 1]
+            S1 = S.resetRows(rows)
+            print('\nBefore resetRows: ')
+            S.__str__()
+            print('\nAfter resetRows: ')
+            S1.__str__()
+
+        except Exception:
+            print('Test Fails')
+            self.n_fails = self.n_fails + 1
+
+        else:
+            print('Test Sucessfull!')
+
+    def test_resetRowWithFactor(self):
+        
+        self.n_tests = self.n_tests + 1
+        print('\nTesting resetRowWithFactor method...')
+
+        try:
+            S = ProbStar.rand(2)
+            factor = 0.01
+            S1 = S.resetRowWithFactor(0, factor)
+            print('\nBefore resetRowWithFactor: ')
+            S.__str__()
+            print('\nAfter resetRowWithFactor: ')
+            S1.__str__()
+
+        except Exception:
+            print('Test Fails')
+            self.n_fails = self.n_fails + 1
+
+        else:
+            print('Test Sucessfull!')
+
+    def test_resetRowsWithFactor(self):
+        
+        self.n_tests = self.n_tests + 1
+        print('\nTesting resetRowsWithFactor method...')
+
+        try:
+            S = ProbStar.rand(2)
+            rows = [0, 1]
+            factor = 0.01
+            S1 = S.resetRowsWithFactor(rows, factor)
+            print('\nBefore resetRowsWithFactor: ')
+            S.__str__()
+            print('\nAfter resetRowsWithFactor: ')
+            S1.__str__()
+        except Exception:
+            print('Test Fails')
+            self.n_fails = self.n_fails + 1
+
+        else:
+            print('Test Sucessfull!')
+
+    def test_resetRowWithUpdatedCenter(self):
+        
+        self.n_tests = self.n_tests + 1
+        print('\nTesting resetRowWithUpdatedCenter method...')
+
+        try:
+            S = ProbStar.rand(2)
+            newCenter = 1.0
+            S1 = S.resetRowWithUpdatedCenter(0, newCenter)
+            print('\nBefore resetRowWithUpdatedCenter: ')
+            S.__str__()
+            print('\nAfter resetRowWithUpdatedCenter: ')
+            S1.__str__()
+
+        except Exception:
+            print('Test Fails')
+            self.n_fails = self.n_fails + 1
+
+        else:
+            print('Test Sucessfull!')
+
+    def test_resetRowsWithUpdatedCenter(self):
+        
+        self.n_tests = self.n_tests + 1
+        print('\nTesting resetRowsWithUpdatedCenter method...')
+
+        try:
+            S = ProbStar.rand(2)
+            newCenters = 1.0
+            S1 = S.resetRowsWithUpdatedCenter([0, 1], newCenters)
+            print('\nBefore resetRowsWithUpdatedCenter: ')
+            S.__str__()
+            print('\nAfter resetRowsWithUpdatedCenter: ')
+            S1.__str__()
+
+        except Exception:
+            print('Test Fails')
+            self.n_fails = self.n_fails + 1
+
+        else:
+            print('Test Sucessfull!')
+
+
 if __name__ == "__main__":
 
     test_probstar = Test()
@@ -515,6 +647,12 @@ if __name__ == "__main__":
     test_probstar.test_addMultipleConstraints()
     test_probstar.test_sampling()
     test_probstar.test_concatenate_with_vector()
+    test_probstar.test_resetRow()
+    test_probstar.test_resetRows()
+    test_probstar.test_resetRowWithFactor()
+    test_probstar.test_resetRowsWithFactor()
+    test_probstar.test_resetRowWithUpdatedCenter()
+    test_probstar.test_resetRowsWithUpdatedCenter()
     print('\n========================\
     =================================\
     =================================\

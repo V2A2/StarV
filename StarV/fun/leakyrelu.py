@@ -16,6 +16,7 @@
 """
 LeakyReLU Class
 Yuntao Li, 1/10/2024
+Update: Yuntao Li, Date: 09/16/2025
 """
 
 # !/usr/bin/python3
@@ -63,6 +64,7 @@ class LeakyReLU:
             @S: star output set
 
         Author: Yuntao Li, Date: 1/18/2024
+        Update: Yuntao Li, Date: 09/16/2025
         """
         len_args = len(args)
         if len_args == 3:  # 3 arguments
@@ -99,9 +101,9 @@ class LeakyReLU:
                     d = np.zeros(1,)
                     S1 = copy.deepcopy(I)
                     S2 = copy.deepcopy(I)
-                    S1.addConstraint(C, d)  # x <= 0
-                    S1.resetRowWithFactor(index, gamma)
-                    S2.addConstraint(-C, d)  # x >= 0
+                    S1 = S1.addConstraint(C, d)  # x <= 0
+                    S1 = S1.resetRowWithFactor(index, gamma)
+                    S2 = S2.addConstraint(-C, d)  # x >= 0
                     S = []
                     S.append(S1)
                     S.append(S2)

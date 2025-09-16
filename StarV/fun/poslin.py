@@ -17,7 +17,7 @@
 PosLin Class
 Dung Tran, 8/29/2022
 Update: 12/20/2024 (Sung Woo Choi, merging)
-
+Update: Yuntao Li, Date: 09/16/2025
 """
 
 # !/usr/bin/python3
@@ -88,6 +88,8 @@ class PosLin(object):
 
         Returns:
             @S: star output set
+
+        Update: Yuntao Li, Date: 09/16/2025
         """
 
         len_args = len(args)
@@ -126,9 +128,9 @@ class PosLin(object):
                     d = np.zeros(1,)
                     S1 = copy.deepcopy(I)
                     S2 = copy.deepcopy(I)
-                    S1.addConstraint(C, d)  # x <= 0
-                    S1.resetRow(index)
-                    S2.addConstraint(-C, d)  # x >= 0
+                    S1 = S1.addConstraint(C, d)  # x <= 0
+                    S1 = S1.resetRow(index)
+                    S2 = S2.addConstraint(-C, d)  # x >= 0
                     S = []
                     S.append(S1)
                     S.append(S2)
@@ -321,6 +323,7 @@ class PosLin(object):
         updated: 
             Yuntao, 07/31/2025
             Sung Woo Choi, 09/13/2025
+            Yuntao, 09/16/2025
         """
 
         if show:
@@ -342,9 +345,8 @@ class PosLin(object):
         map4 = map2[map3]
         map11 = np.concatenate([map1, map4])
 
-        In = I
-        if len(map11) > 0: # updated: Yuntao, 07/31/2025
-            In = In.resetRows(map11)
+        # updated: Yuntao, 09/16/2025
+        In = I.resetRows(map11) if len(map11) > 0 else I
 
         if show:
             print('({} + {} = {}) / {} neurons have ub < = 0'.format(len(map1), len(map3), len(map11), len(u)))

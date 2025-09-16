@@ -16,6 +16,7 @@
 """
 Satlin Class
 Yuntao Li, 1/18/2024
+Update: Yuntao Li, Date: 09/16/2025
 """
 
 from StarV.set.probstar import ProbStar
@@ -72,6 +73,7 @@ class SatLin(object):
         Author: Yuntao Li, Date: 1/18/2024
 
         Author: Dung Tran, update 4/20/2024, fix some small errors
+        Update: Yuntao Li, Date: 09/16/2025
         """
 
         len_args = len(args)
@@ -108,12 +110,12 @@ class SatLin(object):
             S2 = copy.deepcopy(I)
 
             # 0 <= x <= 1
-            S1.addConstraint(-C, d) # x >= 0 -> -x <= 0
+            S1 = S1.addConstraint(-C, d) # x >= 0 -> -x <= 0
             #S1.addConstraint(C, d) # x <= 1
-            S1.addConstraint(C, d1) # x1 <= 1, Tran Fixed this
+            S1 = S1.addConstraint(C, d1) # x1 <= 1, Tran Fixed this
             
-            S2.addConstraint(-C, -d1) # x >= 1 -> -x <= -1
-            S2.resetRowWithUpdatedCenter(index, 1.0)
+            S2 = S2.addConstraint(-C, -d1) # x >= 1 -> -x <= -1
+            S2 = S2.resetRowWithUpdatedCenter(index, 1.0)
 
             S = []
             S.append(S1)
@@ -128,10 +130,10 @@ class SatLin(object):
             S1 = copy.deepcopy(I)
             S2 = copy.deepcopy(I)
 
-            S1.addConstraint(C, d)  # x <= 0
-            S1.resetRow(index)
+            S1 = S1.addConstraint(C, d)  # x <= 0
+            S1 = S1.resetRow(index)
 
-            S2.addConstraint(-C, d) # x >= 0 -> -x <= 0
+            S2 = S2.addConstraint(-C, d) # x >= 0 -> -x <= 0
 
             S = []
             S.append(S1)
@@ -148,15 +150,15 @@ class SatLin(object):
             S2 = copy.deepcopy(I)
             S3 = copy.deepcopy(I)
 
-            S1.addConstraint(C, d)  # x <= 0
-            S1.resetRow(index)
+            S1 = S1.addConstraint(C, d)  # x <= 0
+            S1 = S1.resetRow(index)
 
             # 0 <= x <= 1
-            S2.addConstraint(-C, d) # x >= 0 -> -x <= 0
-            S2.addConstraint(C, d1) # x <= 1
+            S2 = S2.addConstraint(-C, d) # x >= 0 -> -x <= 0
+            S2 = S2.addConstraint(C, d1) # x <= 1
 
-            S3.addConstraint(-C, -d1) # x >= 1 -> -x <= -1
-            S3.resetRowWithUpdatedCenter(index, 1.0)
+            S3 = S3.addConstraint(-C, -d1) # x >= 1 -> -x <= -1
+            S3 = S3.resetRowWithUpdatedCenter(index, 1.0)
 
             S = []
             S.append(S1)
@@ -166,10 +168,8 @@ class SatLin(object):
 
         # ------------- case 5) -------------
         if xmin >= 1:
-            S1 = copy.deepcopy(I)
-            S1.resetRowWithUpdatedCenter(index, 1.0) # x >= 1 -> -x <= -1
             S = []
-            S.append(S1)
+            S.append(I.resetRowWithUpdatedCenter(index, 1.0)) # x >= 1 -> -x <= -1
             return S
 
         # ------------- case 6) -------------
@@ -327,6 +327,7 @@ class SatLin(object):
             output set
 
         Author: Yuntao Li, Date: 07/31/2025
+        Update: Yuntao Li, Date: 09/16/2025
         """
 
         assert isinstance(In, Star), 'Input is not a Star set'
@@ -463,15 +464,13 @@ class SatLin(object):
         if lb >= 1:
             if show:
                 print('\nPerforming SatLin stepReachStarApprox for case 5...')
-            S = copy.deepcopy(In)
-            return S.resetRowWithUpdatedCenter(index, 1.0) # x >= 1 -> -x <= -1
+            return In.resetRowWithUpdatedCenter(index, 1.0) # x >= 1 -> -x <= -1
 
         # ------------- case 6) -------------
         if ub <= 0:
             if show:
                 print('\nPerforming SatLin stepReachStarApprox for case 6...')
-            S = copy.deepcopy(In)
-            return S.resetRow(index)  # x <= 0
+            return In.resetRow(index) # x <= 0
 
 
     @staticmethod

@@ -19,6 +19,7 @@ Dung Tran, 8/10/2022
 
 Update: 8/13/2023
 Update: 12/20/2024 (Sung Woo Choi, merging)
+Update: 09/16/2025 (Yuntao Li)
 """
 
 # !/usr/bin/python3
@@ -724,8 +725,10 @@ class ProbStar(object):
 
         return new_pred_lb, new_pred_ub
 
-    def addConstraint(self, C, d):
-        """ Add a single constraint to a ProbStar, self & Cx <= d"""
+    def addConstraint(self, C, d, copy_=True, tighten_bounds=True):
+        """ Add a single constraint to a ProbStar, self & Cx <= d
+        Update: Yuntao Li, Date: 09/16/2025
+        """
 
         assert isinstance(C, np.ndarray) and len(C.shape) == 1, 'error: \
         constraint matrix should be 1D numpy array'
@@ -734,123 +737,157 @@ class ProbStar(object):
         assert C.shape[0] == self.dim, 'error: \
         inconsistency between the constraint matrix and the probstar dimension'
 
-        v = np.matmul(C, self.V)
-        newC = v[1:self.nVars+1]
-        newd = d - v[0]
+        v = np.matmul(C, self.V)        # shape: (nVars+1,)
+        newC_row = v[1:self.nVars+1]
+        newd_rhs = d - v[0]
 
         if len(self.C) != 0:
-            self.C = np.vstack((newC, self.C))
-            self.d = np.concatenate([newd, self.d])
+            newC = np.vstack((newC_row, self.C))
+            newd = np.concatenate([newd_rhs, self.d])
             
         else:
-            self.C = newC.reshape(1, self.nVars)
-            self.d = newd
-        new_pred_lb, new_pred_ub = ProbStar.updatePredicateRanges(newC, newd,
-                                                                  self.pred_lb,
-                                                                  self.pred_ub)
-        self.pred_lb = new_pred_lb
-        self.pred_ub = new_pred_ub
+            newC = newC_row.reshape(1, self.nVars)
+            newd = newd_rhs
 
-        return self
-
-    def addConstraintWithoutUpdateBounds(self, C, d):
-
-        """ Add a single constraint to a ProbStar, self & Cx <= d"""
-        
-        assert isinstance(C, np.ndarray) and len(C.shape) == 1, 'error: \
-        constraint matrix should be 1D numpy array'
-        assert isinstance(d, np.ndarray) and len(d.shape) == 1, 'error: \
-        constraint vector should be a 1D numpy array'
-        assert C.shape[0] == self.dim, 'error: \
-        inconsistency between the constraint matrix and the probstar dimension'
-
-        v = np.matmul(C, self.V)
-        newC = v[1:self.nVars+1]
-        newd = d - v[0]
-
-        if len(self.C) != 0:
-            self.C = np.vstack((newC, self.C))
-            self.d = np.concatenate([newd, self.d])
-            
+        if tighten_bounds:
+            pred_lb_new, pred_ub_new = ProbStar.updatePredicateRanges(newC_row, newd_rhs,
+                                                                      self.pred_lb,
+                                                                      self.pred_ub)
         else:
-            self.C = newC.reshape(1, self.nVars)
-            self.d = newd
+            pred_lb_new, pred_ub_new = self.pred_lb, self.pred_ub
 
-        return self
+        return ProbStar(self.V, newC, newd, self.mu, self.Sig,
+                        pred_lb_new, pred_ub_new, copy_=copy_)
 
-    def addMultipleConstraints(self, C, d):
-        """ Add multiple constraint to a ProbStar, self & Cx <= d"""
+
+    def addMultipleConstraints(self, C, d, copy_=True, tighten_bounds=True):
+        """ Add multiple constraint to a ProbStar, self & Cx <= d
+        Update: Yuntao Li, Date: 09/16/2025
+        """
 
         assert isinstance(C, np.ndarray), 'error: constraint matrix should be a numpy array'
         assert isinstance(d, np.ndarray), 'error: constraint vector should be a numpy array'
         assert C.shape[0] == d.shape[0], 'error: inconsistency between \
         constraint matrix and constraint vector'
         assert len(d.shape) == 1, 'error: constraint vector should be a 1D numpy array'
+        m = C.shape[0]
+
+        T = np.matmul(C, self.V)            # shape: (m, nVars+1)
+        newC_rows = T[:, 1:self.nVars+1]    # shape: (m, nVars)
+        new_rhs = d - T[:, 0]               # shape: (m,)
+
+        if len(self.C) != 0:
+            newC = np.vstack((newC_rows, self.C))
+            newd = np.concatenate([new_rhs, self.d])
+        else:
+            newC = newC_rows
+            newd = new_rhs
         
-     
-        for i in range(0, C.shape[0]):
-            self.addConstraint(C[i, :], np.array([d[i]]))
+        pred_lb_cur, pred_ub_cur = self.pred_lb, self.pred_ub
 
-        return self
+        if tighten_bounds:
+            for i in range(m):
+                pred_lb_cur, pred_ub_cur = ProbStar.updatePredicateRanges(
+                    newC_rows[i, :], np.array([new_rhs[i]]),
+                    pred_lb_cur, pred_ub_cur
+                )
 
-    def addMultipleConstraintsWithoutUpdateBounds(self, C, d):
-        """ Add multiple constraint to a ProbStar, self & Cx <= d"""
+        return ProbStar(self.V, newC, newd, self.mu, self.Sig,
+                        pred_lb_cur, pred_ub_cur, copy_=copy_)
+    
 
-        assert isinstance(C, np.ndarray), 'error: constraint matrix should be a numpy array'
-        assert isinstance(d, np.ndarray), 'error: constraint vector should be a numpy array'
-        assert C.shape[0] == d.shape[0], 'error: inconsistency between \
-        constraint matrix and constraint vector'
-        assert len(d.shape) == 1, 'error: constraint vector should be a 1D numpy array'
-
-
-        for i in range(0, C.shape[0]):
-            self.addConstraintWithoutUpdateBounds(C[i, :], np.array([d[i]]))
-
-        return self
-
-    def resetRow(self, index):
-        """Reset a row with index"""
+    def resetRow(self, index, copy_=True):
+        """Reset a row with index
+        Update: Yuntao Li, Date: 09/16/2025
+        """
 
         if index < 0 or index > self.dim - 1:
             raise Exception('error: invalid index, \
             should be between {} and {}'.format(0, self.dim - 1))
-        V = self.V
+        V = self.V.copy()
         V[index, :] = 0.0
-        S = ProbStar(V, self.C, self.d, self.mu, self.Sig,
-                     self.pred_lb, self.pred_ub)
+        return ProbStar(V, self.C, self.d, self.mu, self.Sig,
+                        self.pred_lb, self.pred_ub, copy_=copy_)
 
-        return S
 
-    def resetRowWithFactor(self, index, factor):
+    def resetRows(self, map, copy_=True):
+        """Reset a row with a map of indexes
+        Update: Yuntao Li, Date: 09/16/2025
+        """
+        for i in map:
+            if i < 0 or i > self.dim - 1:
+                raise Exception('error: invalid index, \
+                should be between {} and {}'.format(0, self.dim - 1))
+        if len(map) == 0:
+            raise Exception('error: map is empty, cannot reset rows')
+        V = self.V.copy()
+        V[map, :] = 0.0
+        return ProbStar(V, self.C, self.d, self.mu, self.Sig,
+                        self.pred_lb, self.pred_ub, copy_=copy_)
+
+
+    def resetRowWithFactor(self, index, factor, copy_=True):
         """Reset a row with index and factor
         Author: Yuntao, Date: 1/30/2024
+        Update: Yuntao Li, Date: 09/16/2025
         """
 
         if index < 0 or index > self.dim - 1:
             raise Exception('error: invalid index, \
             should be between {} and {}'.format(0, self.dim - 1))
-        V = self.V
+        V = self.V.copy()
         V[index, :] *= factor
-        S = ProbStar(V, self.C, self.d, self.mu, self.Sig,
-                     self.pred_lb, self.pred_ub)
+        return ProbStar(V, self.C, self.d, self.mu, self.Sig,
+                        self.pred_lb, self.pred_ub, copy_=copy_)
 
-        return S
-    
-    def resetRowWithUpdatedCenter(self, index, new_c):
+
+    def resetRowsWithFactor(self, map, factor, copy_=True):
+        """Reset a row with a map of indexes and factor
+        Update: Yuntao Li, Date: 09/16/2025
+        """
+        for i in map:
+            if i < 0 or i > self.dim - 1:
+                raise Exception('error: invalid index, \
+                should be between {} and {}'.format(0, self.dim - 1))
+        if len(map) == 0:
+            raise Exception('error: map is empty, cannot reset rows')
+        V = self.V.copy()
+        V[map, :] *= factor
+        return ProbStar(V, self.C, self.d, self.mu, self.Sig,
+                        self.pred_lb, self.pred_ub, copy_=copy_)
+
+
+    def resetRowWithUpdatedCenter(self, index, new_c, copy_=True):
         """Reset a row with index, and with new center
         Author: Yuntao, Date: 1/30/2024
+        Update: Yuntao Li, Date: 09/16/2025
         """
 
         if index < 0 or index > self.dim - 1:
             raise Exception('error: invalid index, \
             should be between {} and {}'.format(0, self.dim - 1))
-        V = self.V
+        V = self.V.copy()
         V[index, :] = 0.0
         V[index, 0] = new_c
-        S = ProbStar(V, self.C, self.d, self.mu, self.Sig,
-                     self.pred_lb, self.pred_ub)
+        return ProbStar(V, self.C, self.d, self.mu, self.Sig,
+                        self.pred_lb, self.pred_ub, copy_=copy_)
 
-        return S
+
+    def resetRowsWithUpdatedCenter(self, map, new_c, copy_=True):
+        """Reset a row with a map of indexes, and with new center
+        Update: Yuntao Li, Date: 09/16/2025
+        """
+        for i in map:
+            if i < 0 or i > self.dim - 1:
+                raise Exception('error: invalid index, \
+                should be between {} and {}'.format(0, self.dim - 1))
+        if len(map) == 0:
+            raise Exception('error: map is empty, cannot reset rows')
+        V = self.V.copy()
+        V[map, :] = 0.0
+        V[map, 0] = new_c
+        return ProbStar(V, self.C, self.d, self.mu, self.Sig,
+                        self.pred_lb, self.pred_ub, copy_=copy_)
 
 
     def concatenate_with_vector(self, v=[]):
