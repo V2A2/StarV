@@ -101,9 +101,9 @@ class LeakyReLU:
                     d = np.zeros(1,)
                     S1 = copy.deepcopy(I)
                     S2 = copy.deepcopy(I)
-                    S1 = S1.addConstraint(C, d)  # x <= 0
-                    S1 = S1.resetRowWithFactor(index, gamma)
-                    S2 = S2.addConstraint(-C, d)  # x >= 0
+                    S1 = S1.addConstraint(C, d, copy_=False)  # x <= 0
+                    S1 = S1.resetRowWithFactor(index, gamma, copy_=False)
+                    S2 = S2.addConstraint(-C, d, copy_=False)  # x >= 0
                     S = []
                     S.append(S1)
                     S.append(S2)

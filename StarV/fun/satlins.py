@@ -106,11 +106,11 @@ class SatLins(object):
             S2 = copy.deepcopy(I)
 
             # -1 <= x <= 1
-            S1 = S1.addConstraint(-C, d) # x >= -1 ---> -x <= 1
-            S1 = S1.addConstraint(C, d) # x <= 1
+            S1 = S1.addConstraint(-C, d, copy_=False) # x >= -1 ---> -x <= 1
+            S1 = S1.addConstraint(C, d, copy_=False) # x <= 1
 
-            S2 = S2.addConstraint(-C, -d) # x >= 1 ---> -x <= -1
-            S2 = S2.resetRowWithUpdatedCenter(index, 1.0)
+            S2 = S2.addConstraint(-C, -d, copy_=False) # x >= 1 ---> -x <= -1
+            S2 = S2.resetRowWithUpdatedCenter(index, 1.0, copy_=False)
 
             S = []
             S.append(S1)
@@ -125,10 +125,10 @@ class SatLins(object):
             S1 = copy.deepcopy(I)
             S2 = copy.deepcopy(I)
 
-            S1 = S1.addConstraint(C, -d)  # x <= -1
-            S1 = S1.resetRowWithUpdatedCenter(index, -1.0)
+            S1 = S1.addConstraint(C, -d, copy_=False)  # x <= -1
+            S1 = S1.resetRowWithUpdatedCenter(index, -1.0, copy_=False)
 
-            S2 = S2.addConstraint(-C, d) # x >= -1 -> -x <= 1
+            S2 = S2.addConstraint(-C, d, copy_=False) # x >= -1 -> -x <= 1
 
             S = []
             S.append(S1)
@@ -144,15 +144,15 @@ class SatLins(object):
             S2 = copy.deepcopy(I)
             S3 = copy.deepcopy(I)
 
-            S1 = S1.addConstraint(C, -d)  # x <= -1
-            S1 = S1.resetRowWithUpdatedCenter(index, -1.0)
+            S1 = S1.addConstraint(C, -d, copy_=False)  # x <= -1
+            S1 = S1.resetRowWithUpdatedCenter(index, -1.0, copy_=False)
 
             # -1 <= x <= 1
-            S2 = S2.addConstraint(-C, d) # x >= -1 -> -x <= 1
-            S2 = S2.addConstraint(C, d) # x <= 1
+            S2 = S2.addConstraint(-C, d, copy_=False) # x >= -1 -> -x <= 1
+            S2 = S2.addConstraint(C, d, copy_=False) # x <= 1
 
-            S3 = S3.addConstraint(-C, -d) # x >= 1 -> -x <= -1
-            S3 = S3.resetRowWithUpdatedCenter(index, 1.0)
+            S3 = S3.addConstraint(-C, -d, copy_=False) # x >= 1 -> -x <= -1
+            S3 = S3.resetRowWithUpdatedCenter(index, 1.0, copy_=False)
 
             S = []
             S.append(S1)
