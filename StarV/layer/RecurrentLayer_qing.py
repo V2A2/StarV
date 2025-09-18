@@ -261,39 +261,42 @@ def test_simple_rnn():
     eps = 0.01
     T = [5 ,10 ,15, 20]
     # N = len(T)
-    # results = []
-
+    results = []
     for k in range(0,x_len):
+        print("!!!!!!!!!!!!!!!!! Compute the {}th input seq !!!!!!!!!!!!".format(k))
         # for _ in range (len(T)):
-            xk = np.array(x[:, k]).reshape(-1,1)
-            # print("xk:",xk) 
-            print("xk_type:",type(xk)) 
-            print("xk_shape:",xk.shape) 
-            input_points = []  
-            col_points = []
-            for _ in range(T[0]) :        
-                col_points.append(xk) # repeating T times
-            input_points = np.hstack(col_points) # (40, T)
-            # print("input_points-type:",type(input_points))
-            # print("input_points-shape:",input_points.shape)
-            S = get_reachable_set(input_points=input_points,eps=eps)
-            print("@@@@@@ input Star set: @@@@@@",S)
-            Numlayers = len(layers)
-            print("number of layers:",Numlayers)
-            Layer_RS = []
-            RS = S
-            print("@@@@@@ number of input Star set: @@@@@@",len(RS))
-            for j in range(0,Numlayers):
-                print("\n====== Process the {}th layer of NN ===========".format(j))
-                layers[j].info()
-                RS1 = net.layers[j].reach(RS, method = "approx", lp_solver='gurobi', pool=None, RF=0.0, DR=0)
-                print("The first ouput set len:",len(RS1))
-                print("The first ouput set type:",type(RS1))
-                RS = RS1
-                Layer_RS.append(RS1)
-            result = RS1
-            
-    return result
+        xk = np.array(x[:, k]).reshape(-1,1)
+        # print("xk:",xk) 
+        print("xk_type:",type(xk)) 
+        print("xk_shape:",xk.shape) 
+        input_points = []  
+        col_points = []
+        for _ in range(T[0]) :        
+            col_points.append(xk) # repeating T times
+        input_points = np.hstack(col_points) # (40, T)
+        # print("input_points-type:",type(input_points))
+        # print("input_points-shape:",input_points.shape)
+        S = get_reachable_set(input_points=input_points,eps=eps)
+        print("@@@@@@ input Star set: @@@@@@",S)
+        Numlayers = len(layers)
+        print("number of layers:",Numlayers)
+        Layer_RS = []
+        RS = S
+        print("@@@@@@ number of input Star set: @@@@@@",len(RS))
+        for j in range(0,Numlayers):
+            print("\n====== Process the {}th layer of NN ===========".format(j))
+            layers[j].info()
+            RS1 = net.layers[j].reach(RS, method = "approx", lp_solver='gurobi', pool=None, RF=0.0, DR=0)
+            print("The {}th ouput set len:{}".format(j,len(RS1)))
+            print("The {}th ouput set type:{}".format(j,type(RS1)))
+            RS = RS1
+            Layer_RS.append(RS1)
+        result = RS1
+        print("====== NN result len:=========",len(result))
+        results.append(result)
+    print("====== NN results len:=========",len(results))
+    
+    return results
 
 
 
@@ -313,8 +316,7 @@ if __name__ == '__main__':
     # print("H:",H)
 
 
-    result = test_simple_rnn()
-
+    results = test_simple_rnn()
 
     # for i, Y in enumerate(result):
     #     print("====== number of output set of {}th input_seq:{}=====".format(i,len(Y)))
@@ -322,3 +324,16 @@ if __name__ == '__main__':
     #     for j,y in enumerate(Y):
     #         print("y_type:",type(y))
     #         print("Y{}{}:{}".format(i,j,y[j]))
+    
+
+    # for i, Y in enumerate(results):
+    #     print("====== number of output set of {}th input_seq:{}=====".format(i,results[i]))
+    #     print("y_type:",type(Y))
+
+    for i, result in enumerate(results):
+        print("====== number of output set of {}th input_seq:{}=====".format(i,len(result)))
+        print("length result{} in results:{}".format(i,len(result)))
+        for j,r in enumerate(result):
+            print("r_type:",type(r))
+            print("\n\nr{}{}= {}".format(i,j,r))
+    
