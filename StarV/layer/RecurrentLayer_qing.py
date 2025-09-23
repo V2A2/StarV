@@ -4,6 +4,7 @@ Qing Liu, 07/15/2025
 """
 from scipy.io import loadmat
 import os
+import mat73
 import numpy as np
 from StarV.set.star import Star
 from StarV.set.probstar import ProbStar
@@ -156,15 +157,15 @@ class RecurrentLayer(object):
             print("--------------------------------Computing weighted input --------------------------")
             MIn = In[i].affineMap(self.Whx,self.bhx)
             Weight_In.append(MIn)
-            print("======= WIn type:==========",type(Weight_In))
-            print("number of AffineMap input sets:",len(Weight_In))
+        print("======= WIn type:==========",type(Weight_In))
+        print("number of AffineMap input sets:",len(Weight_In))
         for i in range(0,len(In)):
             if i == 0 :
                 print("\n--------------------------------If i == 0 --------------------------")
-                # H0 =[]
-                H0_out = ReLULayer.reach(Weight_In[i], method = method)
+                print("Weight_In[0]",Weight_In[0])
+                H0_out = ReLULayer.reach(Weight_In[i], method = method, lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False)
                 print("======= H0_out type:==========",type(H0_out))
-                print("number of ReLU output sets:",len(H0_out))
+                print("number of ReLU output sets in i == 0:",len(H0_out))
                 print("H0_out[0].V:",H0_out.V)
                 H.append(H0_out)
                 print("======= len(H) if i == 0 : ===========:",len(H))
@@ -180,7 +181,8 @@ class RecurrentLayer(object):
                 H2_sum = H2_weight.minKowskiSum(Weight_In[i])
                 H2_out = ReLULayer.reach(H2_sum, method = method)
                 H.append(H2_out)
-                O.append(H2_out)
+                HO_out = H2_out.affineMap(self.Woh,self.bo)
+                O.append(HO_out)
                 print("========== len(H), if i >1 =======:",len(H))
                 print("====== len of output set, if i > 1:======", len(O))
 
@@ -208,17 +210,27 @@ def load_simple_rnn(dtype=float):
     Whh = np.asarray(mat_contents["recurrent_kernel"], dtype)    # (H x H)
     bh = np.asarray(mat_contents["bias"], dtype).reshape(-1) # (H,)
     print("\n########### hiddem layer bias: ##############\n",bh)
-    
+
     H,I = Whx.shape
     Woh = np.eye(2, H)   
-    print("Woh:",Woh)              
+    print("Woh:",Woh)
+    print("Whx:",Whx) 
+    print("Whh:",Whh)                   
     bo  = np.zeros(2,)
+    print("bo:",bo)
 
     """Load input data points"""
     data_contents = loadmat( cur_path + '/points.mat')
     data_points = np.asarray(data_contents["pickle_data"], dtype)     
+
+    W_contents = mat73.loadmat( cur_path + "/dense.mat")
+    W_ff = np.asarray(W_contents["W"], dtype=object)
+    b_ff = np.asarray(W_contents["b"], dtype=object)
+    # print("W_ff:",W_ff[0])
+    # print("b_ff:",b_ff[0])
+
     
-    return  Whx,Whh,bh,Woh,bo,data_points
+    return  Whx,Whh,bh,Woh,bo,data_points, W_ff,b_ff
 
 def get_reachable_set(input_points, eps):
 
@@ -231,30 +243,39 @@ def get_reachable_set(input_points, eps):
     for i in range (0,n):
         X.append(Star(x[:,i] - eps, x[:, i] + eps))
         print("number of input star_set:",len(X))
-        # print("X[i].V:",X[i].V)
+        print("X[i].V:",X[i].V)
+        print("X[i].V:",X[i].V.shape)
 
 
     return X
 
 def test_simple_rnn():
 
-    Whx,Whh,bh,Woh,bo,data_points =load_simple_rnn()
+    Whx,Whh,bh,Woh,bo,data_points, W_ff,b_ff =load_simple_rnn()
 
     # create NN
     L1 = RecurrentLayer(Whx,Whh,bh,Woh,bo)
-    L2 = FullyConnectedLayer.rand(2,32)
-    L3 = FullyConnectedLayer.rand(32,32)
-    L4 = FullyConnectedLayer.rand(32,32)
-    L5 = FullyConnectedLayer.rand(32,32)
-    L6 = FullyConnectedLayer.rand(32,20)
+    mat= []
+    for i in range(len(W_ff)):
+        W_b = [W_ff[i],b_ff[i]]
+        print("w_B:",W_b)
+        mat.append(W_b)
+    print("len(mat):",len(mat))
+    L2 = FullyConnectedLayer(mat[0])
+    L3 = FullyConnectedLayer(mat[1])
+    L4 = FullyConnectedLayer(mat[2])
+    L5 = FullyConnectedLayer(mat[3])
+    L6 = FullyConnectedLayer(mat[4])
+    L7 = FullyConnectedLayer(mat[5])
 
-    layers = [L1,L2,L3,L4,L5,L6]
+
+    layers = [L1,L2,L3,L4,L5,L6,L7]
     net = NeuralNetwork(layers=layers)
 
     # create input reachable sets
     x_len = 5
     x = data_points[:x_len,:]
-    x= x.T
+    x = x.T
     print("x_length:",len(x))
     print("x(i)_shape:",len(x[1]))
     # print("x.T:",x)
@@ -267,17 +288,17 @@ def test_simple_rnn():
         # for _ in range (len(T)):
         xk = np.array(x[:, k]).reshape(-1,1)
         # print("xk:",xk) 
-        print("xk_type:",type(xk)) 
+        # print("xk_type:",type(xk)) 
         print("xk_shape:",xk.shape) 
         input_points = []  
         col_points = []
         for _ in range(T[0]) :        
             col_points.append(xk) # repeating T times
         input_points = np.hstack(col_points) # (40, T)
-        # print("input_points-type:",type(input_points))
-        # print("input_points-shape:",input_points.shape)
+        print("input_points-len:",len(input_points))
+        print("input_points-shape:",input_points.shape)
         S = get_reachable_set(input_points=input_points,eps=eps)
-        print("@@@@@@ input Star set: @@@@@@",S)
+        # print("@@@@@@ input Star set: @@@@@@",S)
         Numlayers = len(layers)
         print("number of layers:",Numlayers)
         Layer_RS = []
@@ -287,8 +308,10 @@ def test_simple_rnn():
             print("\n====== Process the {}th layer of NN ===========".format(j))
             layers[j].info()
             RS1 = net.layers[j].reach(RS, method = "approx", lp_solver='gurobi', pool=None, RF=0.0, DR=0)
-            print("The {}th ouput set len:{}".format(j,len(RS1)))
-            print("The {}th ouput set type:{}".format(j,type(RS1)))
+            print("The {}th layer ouput set len:{}".format(j,len(RS1)))
+            print("The {}th layer ouput set type:{}".format(j,type(RS1)))
+            for i in range(5):
+                print("The {}th layer {}th ouput set for {}th input sequences:{}".format(j,i,RS1[i],k))
             RS = RS1
             Layer_RS.append(RS1)
         result = RS1
@@ -301,19 +324,6 @@ def test_simple_rnn():
 
 
 if __name__ == '__main__':
-    
-    # Whx,Whh,bh,Woh,bo,data_points =load_simple_rnn()
-    # print("Whx:{},Whh{}".format(Whx,Whh))
-    # H = []
-    # X = []
-    # x1 = [1,2]
-    # X.extend(x1)
-    # x2 = [1,2,3,4]
-    # X.extend(x2)
-    # H.append(X)
-    # print("X:",X)
-    # print("X1:",X[0])
-    # print("H:",H)
 
 
     results = test_simple_rnn()
