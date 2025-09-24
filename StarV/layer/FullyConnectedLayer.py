@@ -6,6 +6,7 @@ Sung Woo Choi, 07/06/2023
 import torch
 import numpy as np
 import multiprocessing
+from StarV.layer.ReLULayer import ReLULayer
 
 class FullyConnectedLayer(object):
     """ FullyConnectedLayer class
@@ -19,7 +20,7 @@ class FullyConnectedLayer(object):
             @rand: random generate a FullyConnectedLayer
     """
 
-    def __init__(self, layer, dtype='float64'):
+    def __init__(self, layer,fo = None, dtype='float64'):
 
         if isinstance(layer, list):
             W, b = layer
@@ -51,6 +52,8 @@ class FullyConnectedLayer(object):
         else:
             self.in_dim = b.shape[0]
             self.out_dim = b.shape[0]
+        
+        self.fo = fo
 
     def __str__(self):
         print('Layer type: {}'.format(self.__class__.__name__))
@@ -107,10 +110,35 @@ class FullyConnectedLayer(object):
 
         return FullyConnectedLayer(layer=[W, b])
 
-    def reachExactSingleInput(self, In):
-        return In.affineMap(self.W, self.b)
+
+    def reachExactSingleInput(self, In,method=None):
+        if method == 'exact':
+            if self.fo == None:
+                print(" exact method in fully, no relu")
+                S = []
+                for i in range(len(In)):
+                    weighted_sum = In[i].affineMap(self.W, self.b)
+                    S.append(weighted_sum)
+                    return S
+            elif self.fo == 'relu':
+                print(" exact method in fc layer, with relu")
+                S = []
+                for i in range(len(In)):
+                    weighted_sum = In[i].affineMap(self.W, self.b)
+                    S.append(weighted_sum)
+                return ReLULayer.reach(S, method)
+
+        else:  
+            print(" approx method in fc layer, no relu")      
+            S = In.affineMap(self.W, self.b)
+            if  self.fo == 'relu':
+                print(" approx method in fc, with relu")
+                S = ReLULayer.reach(S, method)
+            return S
+            
+
         
-    def reach(self, inputSet, method=None, lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
+    def reach(self, inputSet, method, lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
         """main reachability method
            Args:
                @inputSet: a list of input set (Star, ProbStar, or SparseStar)
@@ -128,13 +156,15 @@ class FullyConnectedLayer(object):
             S = []
             if pool is None:
                 for i in range(0, len(inputSet)):
-                    S.append(self.reachExactSingleInput(inputSet[i]))
+                    S.append(self.reachExactSingleInput(inputSet[i],method))
             elif isinstance(pool, multiprocessing.pool.Pool):
-                S = S + pool.map(self.reachExactSingleInput, inputSet)
+                S = S + pool.map(self.reachExactSingleInput, inputSet,method)
             else:
                 raise Exception('error: unknown/unsupport pool type')         
 
         else:
-            S = self.reachExactSingleInput(inputSet)
+            S = self.reachExactSingleInput(inputSet,method)
                 
         return S
+    
+    

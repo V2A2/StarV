@@ -9,7 +9,6 @@ import numpy as np
 from StarV.set.star import Star
 from StarV.set.probstar import ProbStar
 from StarV.layer.ReLULayer import ReLULayer
-from StarV.layer.ReLULayer import ReLULayer
 from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
 from StarV.net.network import NeuralNetwork
 
@@ -26,7 +25,7 @@ class RecurrentLayer(object):
             bo:  bias vector for output states
             fo: activation function for output nodes
     """
-    def __init__(self,Whx, Whh, bh, Woh, bo):
+    def __init__(self,Whx, Whh, bh, Woh, bo,fo):
         assert isinstance(Whh, np.ndarray), " Weights mat for hidden states to hiedden states should be a 2d numpy array"
         assert isinstance(bh, np.ndarray), "Hidden layer bias vector should be a 1d numpy array"
         assert isinstance(Whx, np.ndarray), "Weights_mat for input states should be a 2d numpy array"
@@ -40,6 +39,7 @@ class RecurrentLayer(object):
         self.bhx = bh
         self.Woh = Woh
         self.bo = bo
+        self.fo = fo
         # self.In = In
         # self.method = method
 
@@ -105,14 +105,15 @@ class RecurrentLayer(object):
                 # print("======= len(H) if i == 0 : ===========:",len(H))
                 # m0 = len(H0[i])
                 # print("======= m0 ===========:",m0)
-                # O1 = []
+                O1 = []
                 for h in H0:
                     # print("========== h in H0=====:",h)
                     HO_out = h.affineMap(self.Woh,self.bo)
                     # print("V_shape, if i == 0 :",HO_out.V.shape)
-                    O.append(HO_out)
+                    # O.append(HO_out)
+                    O1.append(HO_out)
                     # print("len(O1):",len(O))
-                # O.append(O1)
+                O.append(O1)
                 # print("======= len(Ooutput) if i == 0 : ===========:",len(O))
             else: # i > 1
                 print("\n--------------------------------If i > 1 --------------------------")
@@ -136,15 +137,19 @@ class RecurrentLayer(object):
                 # print("========== len(H), if i >1 =======:",len(H))
                 m2 = len(H3)
                 # print("======= m2 ===========",m2)
-                # O2 = []
+                O2 = []
                 for h in H3:
                     # print("========== H3[k]:",H3[k])
                     HO_out = h.affineMap(self.Woh,self.bo)
                     # print("========== HO_out:", HO_out)
-                    O.append(HO_out)
-                # O.append(O2)
+                    # O.append(HO_out)
+                    O2.append(HO_out)
+                O.append(O2)
                 print("====== len of output set, if i > 1:======", len(O))
                 # print("====== output set:======", O[i])
+        print("output sets type:",type(O))
+        print("output sets type O[i]:",type(O[0]))
+
 
         return O
     
@@ -276,19 +281,19 @@ def test_simple_rnn():
     Whx,Whh,bh,Woh,bo,data_points, W_ff,b_ff =load_simple_rnn()
 
     # create NN
-    L1 = RecurrentLayer(Whx,Whh,bh,Woh,bo)
+    L1 = RecurrentLayer(Whx,Whh,bh,Woh,bo,fo =None)
     mat= []
     for i in range(len(W_ff)):
         W_b = [W_ff[i],b_ff[i]]
         # print("w_B:",W_b)
         mat.append(W_b)
     print("len(mat):",len(mat))
-    L2 = FullyConnectedLayer(mat[0])
-    L3 = FullyConnectedLayer(mat[1])
-    L4 = FullyConnectedLayer(mat[2])
-    L5 = FullyConnectedLayer(mat[3])
-    L6 = FullyConnectedLayer(mat[4])
-    L7 = FullyConnectedLayer(mat[5])
+    L2 = FullyConnectedLayer(mat[0],fo='relu')
+    L3 = FullyConnectedLayer(mat[1],fo ='relu')
+    L4 = FullyConnectedLayer(mat[2],fo='relu')
+    L5 = FullyConnectedLayer(mat[3],fo='relu')
+    L6 = FullyConnectedLayer(mat[4],fo='relu')
+    L7 = FullyConnectedLayer(mat[5],fo='relu')
 
 
     layers = [L1,L2,L3,L4,L5,L6,L7]
@@ -333,10 +338,16 @@ def test_simple_rnn():
             print("\n====== Process the {}th layer of NN ===========".format(j+1))
             layers[j].info()
             RS1 = net.layers[j].reach(RS, method = "exact", lp_solver='gurobi', pool=None, RF=0.0, DR=0)
-            print("The {}th layer ouput set len:{}".format(j+1,len(RS1)))
-            print("The {}th layer ouput set type:{}".format(j+1,type(RS1)))
-            for i in range(5):
-                print("The {}th layer of {}th ouput set for {}th input sequences:{}".format(j+1,i+1,k+1,RS1[i]))
+            print("The {}th layer ouput set len RS1:{}".format(j+1,len(RS1)))
+            print("The {}th layer ouput set type RS1[i]:{}".format(j+1,type(RS1)))
+            print("The {}th layer ouput set type RS1[i][i]:{}".format(j+1,type(RS1[0])))
+            print("The {}th layer ouput set RS1[0][0]:{}".format(j+1,RS1[0][0].V))
+            for i in range(len(RS1)):  
+                l = len(RS1[i])
+                for m in range(l) :             
+                    print("The {}th layer of {}{}th ouput set for {}th input sequences:{}".format(j+1,i+1,m+1,k+1,RS1[i][m]))
+            # for i in range(len(RS1)):           
+            #         print("The {}th layer of {}th ouput set for {}th input sequences:{}".format(j+1,i+1,k+1,RS1[i]))
             RS = RS1
             Layer_RS.append(RS1)
         result = RS1
