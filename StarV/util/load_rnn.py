@@ -10,7 +10,7 @@ def load_simple_rnn(dtype=float):
     """Load RNN model"""
 
     cur_path = os.path.dirname(os.path.abspath(__file__))
-    mat_contents = loadmat( cur_path + "/data/matlab/HSCC2023/small_RNN/simple_rnn.mat")
+    mat_contents = loadmat( cur_path + "/data/simple_rnn/simple_rnn.mat")
     Whx = np.asarray(mat_contents["kernel"], dtype)              # (H x I)
     Whh = np.asarray(mat_contents["recurrent_kernel"], dtype)    # (H x H)
     bh = np.asarray(mat_contents["bias"], dtype).reshape(-1) # (H,)
@@ -20,10 +20,10 @@ def load_simple_rnn(dtype=float):
     bo  = np.zeros(2,)
 
     """Load input data points"""
-    data_contents = loadmat( cur_path + '/data/matlab/HSCC2023/small_RNN/points.mat')
+    data_contents = loadmat( cur_path + '/data/simple_rnn/points.mat')
     data_points = np.asarray(data_contents["pickle_data"], dtype)     
 
-    W_contents = loadmat( cur_path + "/data/matlab/HSCC2023/small_RNN/dense.mat")
+    W_contents = loadmat( cur_path + "/data/simple_rnn/dense.mat")
     W_ff = np.asarray(W_contents["W"], dtype=object)
     b_ff = np.asarray(W_contents["b"], dtype=object)
 
