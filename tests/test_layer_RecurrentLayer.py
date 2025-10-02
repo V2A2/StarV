@@ -147,7 +147,7 @@ class Test(object):
         L7 = FullyConnectedLayer(mat[5],fo='relu')
 
 
-        layers = [L1,L2,L3]
+        layers = [L1,L2,L3,L4,L5,L6,L7]
         net = NeuralNetwork(layers=layers)
 
         x_len = 5
@@ -198,7 +198,37 @@ class Test(object):
         
         return results
 
-
+    def test_multiRandomLayers(self):
+        self.n_tests = self.n_tests + 1
+        print('\nTest multiRecurrentLayer\n')
+        
+        try:
+            L1 = RecurrentLayer.rand(2, 8)
+            L2 = FullyConnectedLayer.rand(8,12)
+            layers = [L1,L2]
+            net = NeuralNetwork(layers=layers)
+            Numlayers = len(layers)
+            In = []
+            I = Star.rand(2)
+            I.C = np.zeros([1,I.nVars])  
+            I.d = np.zeros([1])
+            for i in range(5):
+                In.append(I)
+            print('Number of input sets: {}'.format(len(In)))
+            results = []
+            RS = In
+            for j in range(0,Numlayers):
+                print("\n====== Process the {}th layer of NN ===========".format(j+1))
+                layers[j].info()
+                RS1 = net.layers[j].reach(RS, method = "exact", lp_solver='gurobi', pool=None, RF=0.0, DR=0)
+                RS = RS1
+            result = RS1
+            results.append(result)
+        except Exception:
+            print('Test Fail!')
+            self.n_fails = self.n_fails + 1
+        else:
+            print('Test Successfull!')
             
 if __name__ == "__main__":
 
@@ -207,12 +237,13 @@ if __name__ == "__main__":
     ================================\
     ================================\
     ===============================\n')
-    test_RecurrentLayer.test_constructor()
-    test_RecurrentLayer.test_rand()
-    test_RecurrentLayer.test_reachExact()
-    test_RecurrentLayer.test_reachApprox()
-    test_RecurrentLayer.test_reach()
-    test_RecurrentLayer.test_simple_rnn()
+    # test_RecurrentLayer.test_constructor()
+    # test_RecurrentLayer.test_rand()
+    # test_RecurrentLayer.test_reachExact()
+    # test_RecurrentLayer.test_reachApprox()
+    # test_RecurrentLayer.test_reach()
+    # test_RecurrentLayer.test_simple_rnn()
+    test_RecurrentLayer.test_multiRandomLayers()
     print('\n========================\
     =================================\
     =================================\
