@@ -11,7 +11,7 @@ from StarV.set.probstar import ProbStar
 from StarV.layer.ReLULayer import ReLULayer
 from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
 from StarV.net.network import NeuralNetwork
-from StarV.util.load_rnn import load_simple_rnn, get_reachable_set
+from StarV.util.load_rnn import load_simple_rnn, get_Star_set,get_ProbStar_set
 
 
 class RecurrentLayer(object):
@@ -225,20 +225,21 @@ def test_simple_rnn():
     for k in range(0,x_len):
         print("\n\n\n\n!!!!!!!!!!!!!!!!! Compute the {}th input seq !!!!!!!!!!!!".format(k+1))
         # for _ in range (len(T)):
-        xk = np.array(x[:, k]).reshape(-1,1)
-        print("xk:",xk) 
-        print("xk_type:",type(xk)) 
-        print("xk_shape:",xk.shape) 
-        input_points = []  
-        col_points = []
-        for _ in range(T[0]) :        
-            col_points.append(xk) # repeating T times
-        # print("col_points:",col_points)
-        input_points = np.hstack(col_points) # (40, T)
-        print("input_points-len:",len(input_points))
-        print("input_points-shape:",input_points.shape)
-        S = get_reachable_set(input_points=input_points,eps=eps)
-        # print("@@@@@@ input Star set: @@@@@@",S)
+        col_point = np.array(x[:, k]).reshape(-1,1)
+        print("col_point:",col_point) 
+        print("col_point_type:",type(col_point)) 
+        print("col_point_shape:",col_point.shape) 
+        
+        # input_points = []  
+        # col_points = []
+        # for _ in range(T[0]) :        
+        #     col_points.append(xk) # repeating T times
+        # # print("col_points:",col_points)
+        # input_points = np.hstack(col_points) # (40, T)
+        # print("input_points-len:",len(input_points))
+        # print("input_points-shape:",input_points.shape)
+        S = get_ProbStar_set(col_point,eps,T[0])
+        print("@@@@@@ input Star set: @@@@@@",S[0])
         Numlayers = len(layers)
         print("number of layers:",Numlayers)
         Layer_RS = []
@@ -247,18 +248,18 @@ def test_simple_rnn():
         for j in range(0,Numlayers):
             print("\n====== Process the {}th layer of NN ===========".format(j+1))
             layers[j].info()
-            RS1 = net.layers[j].reach(RS, method = "approx", lp_solver='gurobi', pool=None, RF=0.0, DR=0)
+            RS1 = net.layers[j].reach(RS, method = "exact", lp_solver='gurobi', pool=None, RF=0.0, DR=0)
             print("The {}th layer ouput set len RS1:{}".format(j+1,len(RS1)))
             print("The {}th layer ouput set type RS1:{}".format(j+1,type(RS1)))
             print("The {}th layer ouput set type RS1[i]:{}".format(j+1,type(RS1[0])))
             
-            # print("The {}th layer ouput set RS1[0][0]:{}".format(j+1,RS1[0][0].V))
-            # for i in range(len(RS1)):  
-            #     l = len(RS1[i])
-            #     for m in range(l) :             
-            #         print("The {}th layer of {}{}th ouput set for {}th input sequences:{}".format(j+1,i+1,m+1,k+1,RS1[i][m]))
-            for i in range(len(RS1)):           
-                    print("The {}th layer of {}th ouput set for {}th input sequences:{}".format(j+1,i+1,k+1,RS1[i]))
+            print("The {}th layer ouput set RS1[0][0]:{}".format(j+1,RS1[0][0].V))
+            for i in range(len(RS1)):  
+                l = len(RS1[i])
+                for m in range(l) :             
+                    print("The {}th layer of {}{}th ouput set for {}th input sequences:{}, prob= {}".format(j+1,i+1,m+1,k+1,RS1[i][m],RS1[i][m].estimateProbability()))
+            # for i in range(len(RS1)):           
+            #         print("The {}th layer of {}th ouput set for {}th input sequences:{}".format(j+1,i+1,k+1,RS1[i]))
             RS = RS1
             Layer_RS.append(RS1)
         result = RS1
