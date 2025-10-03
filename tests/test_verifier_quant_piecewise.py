@@ -6,7 +6,7 @@ Date: 2/8/2024
 
 from StarV.net.network import NeuralNetwork
 from StarV.verifier.verifier import reachExactBFS, checkSafetyStar, checkSafetyProbStar, quantiVerifyExactBFS, quantiVerifyBFS, quantiVerifyMC, quantiVerifyProbStarTL
-from StarV.layer.fullyConnectedLayer import fullyConnectedLayer
+from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
 from StarV.layer.ReLULayer import ReLULayer
 from StarV.layer.LeakyReLULayer import LeakyReLULayer
 from StarV.layer.SatLinLayer import SatLinLayer

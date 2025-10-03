@@ -7,7 +7,7 @@ import pickle
 
 from StarV.set.star import Star
 from StarV.set.probstar import ProbStar
-from StarV.layer.fullyConnectedLayer import fullyConnectedLayer
+from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
 from StarV.layer.ReLULayer import ReLULayer
 from StarV.layer.MixedActivationLayer import MixedActivationLayer
 from StarV.net.network import NeuralNetwork, reachExactBFS
@@ -27,7 +27,7 @@ def load_modelNN_controllerNN():
 
     controller_layers = []
     for i in range(n_weight):
-        controller_layers.append(fullyConnectedLayer(Wc[i], bc[i].ravel()))
+        controller_layers.append(FullyConnectedLayer(Wc[i], bc[i].ravel()))
         controller_layers.append(ReLULayer())
             
     controller_net = NeuralNetwork(controller_layers, net_type='controller network')
@@ -39,7 +39,7 @@ def load_modelNN_controllerNN():
 
     model_layers = []
     for i in range(n_weight):
-        model_layers.append(fullyConnectedLayer(Wm[i], bm[i].ravel()))
+        model_layers.append(FullyConnectedLayer(Wm[i], bm[i].ravel()))
         model_layers.append(ReLULayer())
             
     model_net = NeuralNetwork(controller_layers, net_type='model network')
@@ -61,7 +61,7 @@ def load_Trapezius_network():
     
     layers = []
     for i in range(n_weight):
-        layers.append(fullyConnectedLayer(W[i].toarray(), b[i].toarray().ravel()))
+        layers.append(FullyConnectedLayer(W[i].toarray(), b[i].toarray().ravel()))
         if i < n_act_fun:
             layers.append(MixedActivationLayer(act_fun[i]))
             

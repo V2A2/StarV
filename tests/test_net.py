@@ -5,7 +5,7 @@ Date: 9/10/2022
 """
 
 from StarV.net.network import NeuralNetwork, rand_ffnn, reachExactBFS, reachApproxBFS
-from StarV.layer.fullyConnectedLayer import fullyConnectedLayer
+from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
 from StarV.layer.ReLULayer import ReLULayer
 from StarV.layer.LeakyReLULayer import LeakyReLULayer
 from StarV.layer.SatLinLayer import SatLinLayer
@@ -66,7 +66,7 @@ class Test(object):
         self.n_tests = self.n_tests + 2
         W = np.eye(2)
         b = np.zeros(2,)
-        L1 = fullyConnectedLayer(W, b)
+        L1 = FullyConnectedLayer(W, b)
         # L2 = ReLULayer()
         # L2 = LeakyReLULayer()
         # L2 = SatLinLayer()
@@ -121,7 +121,7 @@ class Test(object):
         self.n_tests = self.n_tests + 2
         # W = np.eye(2)
         # b = np.zeros(2,)
-        # L1 = fullyConnectedLayer(W, b)
+        # L1 = FullyConnectedLayer(W, b)
         # # L2 = ReLULayer()
         # # L2 = LeakyReLULayer()
         # L2 = SatLinLayer()
@@ -133,11 +133,11 @@ class Test(object):
         layers = []
         W1 = np.array([[1.0, -2.0], [-1., 0.5], [1., 1.5]])
         b1 = np.array([0.5, 1.0, -0.5])
-        L1 = fullyConnectedLayer(W1, b1)
+        L1 = FullyConnectedLayer(W1, b1)
         L2 = SatLinLayer()
         W2 = np.array([[-1.0, -1.0, 1.0], [2.0, 1.0, -0.5]])
         b2 = np.array([-0.2, -1.0])
-        L3 = fullyConnectedLayer(W2,b2)
+        L3 = FullyConnectedLayer(W2,b2)
         
         layers.append(L1)
         layers.append(L2)
@@ -198,7 +198,7 @@ class Test(object):
         self.n_tests = self.n_tests + 2
         W = np.eye(2)
         b = np.zeros(2,)
-        L1 = fullyConnectedLayer(W, b)
+        L1 = FullyConnectedLayer(W, b)
         L2 = ReLULayer()
         layers = []
         layers.append(L1)

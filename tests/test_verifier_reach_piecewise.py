@@ -6,7 +6,7 @@ Date: 2/8/2024
 
 from StarV.net.network import NeuralNetwork
 from StarV.verifier.verifier import reachExactBFS, checkSafetyStar, checkSafetyProbStar, quantiVerifyExactBFS, quantiVerifyBFS, quantiVerifyMC, quantiVerifyProbStarTL
-from StarV.layer.fullyConnectedLayer import fullyConnectedLayer
+from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
 from StarV.layer.ReLULayer import ReLULayer
 from StarV.layer.LeakyReLULayer import LeakyReLULayer
 from StarV.layer.SatLinLayer import SatLinLayer
@@ -94,7 +94,7 @@ class Test(object):
         self.n_tests = self.n_tests + 2
         W = np.eye(2)
         b = np.zeros(2,)
-        L1 = fullyConnectedLayer(W, b)
+        L1 = FullyConnectedLayer(W, b)
         L2 = ReLULayer()
         layers = []
         layers.append(L1)
@@ -150,7 +150,7 @@ class Test(object):
         self.n_tests = self.n_tests + 2
         W = np.eye(2)
         b = np.zeros(2,)
-        L1 = fullyConnectedLayer(W, b)
+        L1 = FullyConnectedLayer(W, b)
         L2 = LeakyReLULayer()
         layers = []
         layers.append(L1)
@@ -204,7 +204,7 @@ class Test(object):
         self.n_tests = self.n_tests + 2
         W = np.eye(2)
         b = np.zeros(2,)
-        L1 = fullyConnectedLayer(W, b)
+        L1 = FullyConnectedLayer(W, b)
         L2 = SatLinLayer()
         layers = []
         layers.append(L1)
@@ -258,7 +258,7 @@ class Test(object):
         self.n_tests = self.n_tests + 2
         W = np.eye(2)
         b = np.zeros(2,)
-        L1 = fullyConnectedLayer(W, b)
+        L1 = FullyConnectedLayer(W, b)
         L2 = SatLinsLayer()
         layers = []
         layers.append(L1)

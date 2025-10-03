@@ -129,7 +129,7 @@ def run_harmonic( use_arnoldi =True,use_init_space=False):
     print(tabulate(data,headers=[ "Model","spec","prob-Min","prob-Max", "tr","tc","tv"],tablefmt='latex'))
 
     # save verification results
-    cur_path = os.path.dirname(__file__)
+    cur_path = os.path.dirname(os.path.abspath(__file__))
     path = cur_path + '/results'  
     if not os.path.exists(path):
         os.makedirs(path)
