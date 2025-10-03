@@ -62,6 +62,7 @@ class RecurrentLayer(object):
         print(self)
 
 
+
     def reachExact(self, In, method="exact", lp_solver="gurobi", pool=None, RF=0.0, DR=0):
         """
         Perform exact reachability analysis of an RNN with ReLU activation.
@@ -71,8 +72,8 @@ class RecurrentLayer(object):
             method (str): Reachability method, default "exact".
             lp_solver (str): Linear programming solver, default 'gurobi'.
             pool: Optional multiprocessing pool.
-            RF (float): Reserved for future use (regularization factor).
-            DR (int): Reserved for future use (dropout rate).
+            RF (float): Reserved for future use.
+            DR (int): Reserved for future use.
 
         Returns:
             list: List of reachable output sets at each timestep.
@@ -110,17 +111,17 @@ class RecurrentLayer(object):
             # Save hidden states
             H.append(hidden_states)
 
-            # Compute outputs: y_t = Woh * h_t + bo
+            oi = []
+            print(f"number of output sets in step {t} for hidden states:{len(hidden_states)}")
             for h in hidden_states:
-                outputs_t = h.affineMap(self.Woh, self.bo) 
-                O.append([outputs_t])
-
-            print(f"  Hidden states: {len(hidden_states)} sets")
-            print(f"  Outputs: {len(outputs_t)} sets")
+                 outputs_t = h.affineMap(self.Woh, self.bo) 
+                 oi.append(outputs_t)
+            O.append(oi)
 
         print("\n===== Reachability analysis using exactReach complete =====")
         print(f"Total timesteps: {len(O)}")
         return O
+
 
 
 

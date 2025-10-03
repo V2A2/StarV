@@ -11,6 +11,7 @@ from StarV.layer.RecurrentLayer import RecurrentLayer
 from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
 from StarV.net.network import NeuralNetwork
 from StarV.util.load_rnn import load_simple_rnn, get_Star_set,get_ProbStar_set
+from StarV.util.plot import plot_2D_Star
 
 
 
@@ -226,11 +227,11 @@ if __name__ == "__main__":
     ===============================\n')
     # test_RecurrentLayer.test_constructor()
     # test_RecurrentLayer.test_rand()
-    # test_RecurrentLayer.test_reachExact()
+    test_RecurrentLayer.test_reachExact()
     # test_RecurrentLayer.test_reachApprox()
     # test_RecurrentLayer.test_reach()
     # test_RecurrentLayer.test_simple_rnn()
-    test_RecurrentLayer.test_multiRandomLayers()
+    # test_RecurrentLayer.test_multiRandomLayers()
     print('\n========================\
     =================================\
     =================================\
