@@ -111,7 +111,7 @@ class FullyConnectedLayer(object):
         return FullyConnectedLayer(layer=[W, b])
 
 
-    def reachExactSingleInput(self, In, method=None):
+    def reachExactSingleInput(self, In,method=None):
         if method == 'exact':
             if self.fo == None:
                 S = []
