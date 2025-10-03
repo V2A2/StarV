@@ -10,7 +10,7 @@ from StarV.set.probstar import ProbStar
 from StarV.layer.RecurrentLayer import RecurrentLayer
 from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
 from StarV.net.network import NeuralNetwork
-from StarV.util.load_rnn import load_simple_rnn, get_reachable_set
+from StarV.util.load_rnn import load_simple_rnn, get_Star_set,get_ProbStar_set
 
 
 
@@ -150,41 +150,28 @@ class Test(object):
         layers = [L1,L2,L3,L4,L5,L6,L7]
         net = NeuralNetwork(layers=layers)
 
-        x_len = 5
-        x = data_points[:x_len,:]
+        num_input_seq= 5
+        x = data_points[:num_input_seq,:]
         x = x.T
     
         eps = 0.01
-        T = 5 
-        # N = len(T)
+        time_steps = 5 
         results = []
         try :
-            for k in range(0,x_len):
-                # print("\n\n\n\n!!!!!!!!!!!!!!!!! Compute the {}th input seq !!!!!!!!!!!!".format(k+1))
+            for k in range(0,num_input_seq):
                 xk = np.array(x[:, k]).reshape(-1,1)
                 input_points = []  
                 col_points = []
-                for _ in range(T) :        
+                for _ in range(time_steps) :        
                     col_points.append(xk) # repeating T times
                 input_points = np.hstack(col_points) # (40, T)
-                S = get_reachable_set(input_points=input_points,eps=eps)
+                S = get_ProbStar_set(input_points=input_points,eps=eps)
                 Numlayers = len(layers)
-                # print("number of layers:",Numlayers)
                 Layer_RS = []
                 RS = S
-                # print("========== number of input Star set: ===========",len(RS))
                 for j in range(0,Numlayers):
-                    # print("\n====== Process the {}th layer of NN ===========".format(j+1))
                     # layers[j].info()
                     RS1 = net.layers[j].reach(RS, method = "exact", lp_solver='gurobi', pool=None, RF=0.0, DR=0)
-                    # print("The {}th layer ouput set RS1 length is:{}".format(j+1,len(RS1)))
-                    # print("The {}th layer ouput set RS1[{}] length is :{}".format(j+1,0,len(RS1[0])))
-                    # for i in range(len(RS1)):  
-                    #     l = len(RS1[i])
-                    #     for m in range(l) :             
-                    #         print("Print the {}th layer of rechable set for {}th input sequences in RS[{}][{}] is :{}".format(j+1,i+1,k+1,m+1,RS1[i][m]))
-                    # for i in range(len(RS1)):           
-                    #         print("The {}th layer of {}th ouput set for {}th input sequences:{}".format(j+1,i+1,k+1,RS1[i]))
                     RS = RS1
                     Layer_RS.append(RS1)
                 result = RS1
