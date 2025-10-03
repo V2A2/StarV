@@ -111,17 +111,15 @@ class FullyConnectedLayer(object):
         return FullyConnectedLayer(layer=[W, b])
 
 
-    def reachExactSingleInput(self, In,method=None):
+    def reachExactSingleInput(self, In, method=None):
         if method == 'exact':
             if self.fo == None:
-                print(" exact method in fully, no relu")
                 S = []
                 for i in range(len(In)):
                     weighted_sum = In[i].affineMap(self.W, self.b)
                     S.append(weighted_sum)
                     return S
             elif self.fo == 'relu':
-                print(" exact method in fc layer, with relu")
                 S = []
                 for i in range(len(In)):
                     weighted_sum = In[i].affineMap(self.W, self.b)
@@ -129,10 +127,8 @@ class FullyConnectedLayer(object):
                 return ReLULayer.reach(S, method)
 
         else:  
-            print(" approx method in fc layer, no relu")      
             S = In.affineMap(self.W, self.b)
             if  self.fo == 'relu':
-                print(" approx method in fc, with relu")
                 S = ReLULayer.reach(S, method)
             return S
             

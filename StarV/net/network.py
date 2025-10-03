@@ -21,7 +21,7 @@ from StarV.layer.BatchNorm2DLayer import BatchNorm2DLayer
 from StarV.layer.LogSigLayer import LogSigLayer
 from StarV.layer.TanSigLayer import TanSigLayer
 from StarV.layer.PixelClassificationLayer import PixelClassificationLayer
-from StarV.layer.RecurrentLayer import RecurrentLayer
+# from StarV.layer.RecurrentLayer import RecurrentLayer
 
 from StarV.set.probstar import ProbStar
 from StarV.set.star import Star
@@ -76,7 +76,7 @@ class NeuralNetwork(object):
         for i in range(0, self.n_layers):
             str_ = 'Layer {}: {}'.format(i, type(self.layers[i]))
             layer_ = self.layers[i]
-            if isinstance(layer_, FullyConnectedLayer) or isinstance(layer_, fullyConnectedLayer):
+            if isinstance(layer_, FullyConnectedLayer) or isinstance(layer_, FullyConnectedLayer):
                 if layer_.W is not None:
                     str_ += ' ({}, {}, dtype={})'.format(layer_.out_dim, layer_.in_dim, layer_.W.dtype)
                 else:
@@ -147,7 +147,7 @@ def rand_ffnn(arch, actvs):
     for i in range(0, len(actvs)):
         W = np.random.rand(arch[i+1], arch[i])
         b = np.random.rand(arch[i+1])
-        layers.append(fullyConnectedLayer(W, b))
+        layers.append(FullyConnectedLayer(W, b))
         if actvs[i] == 'poslin' or actvs[i] == 'relu':
             layers.append(ReLULayer())
 

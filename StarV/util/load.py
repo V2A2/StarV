@@ -15,7 +15,6 @@ import csv
 
 from scipy.io import loadmat
 from scipy.sparse import csc_matrix
-from StarV.layer.fullyConnectedLayer import fullyConnectedLayer
 from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
 from StarV.layer.LogSigLayer import LogSigLayer
 from StarV.layer.TanSigLayer import TanSigLayer
