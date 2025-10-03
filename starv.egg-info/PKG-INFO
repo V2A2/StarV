@@ -1,4 +1,4 @@
-Metadata-Version: 2.4
+Metadata-Version: 2.1
 Name: starv
 Version: 0.1.0
 Summary: Event-driven Monitoring and Verification Codesign for Distributed Learning-enabled Cyber-Physical Systems with Star Reachability
@@ -24,7 +24,6 @@ Requires-Dist: onnx2pytorch
 Requires-Dist: onnxruntime
 Requires-Dist: scikit-learn
 Requires-Dist: pandas
-Dynamic: license-file
 
 <p align="right">
 <a href="https://github.com/V2A2"><img src="./v2a2_logo.png" width="10%"></a>

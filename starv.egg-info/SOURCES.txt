@@ -33,13 +33,13 @@ StarV/layer/MaxPool2DLayer.py
 StarV/layer/MixedActivationLayer.py
 StarV/layer/PixelClassificationLayer.py
 StarV/layer/ReLULayer.py
-StarV/layer/RecurrentLayer.py
+StarV/layer/RecurrentLayer_1.py
+StarV/layer/RecurrentLayer_qing.py
 StarV/layer/ReshapeLayer.py
 StarV/layer/SatLinLayer.py
 StarV/layer/SatLinsLayer.py
 StarV/layer/TanSigLayer.py
 StarV/layer/__init__.py
-StarV/layer/fullyConnectedLayer.py
 StarV/net/__init__.py
 StarV/net/network.py
 StarV/nncs/__init__.py
@@ -62,6 +62,7 @@ StarV/util/attack.py
 StarV/util/load.py
 StarV/util/load_fairness.py
 StarV/util/load_piecewise.py
+StarV/util/load_rnn.py
 StarV/util/minimax_tilting_sampler.py
 StarV/util/plot.py
 StarV/util/print_util.py
