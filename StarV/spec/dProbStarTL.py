@@ -143,56 +143,6 @@ class AtomicPredicate(object):
 
         print('{} * x[t={}] <= {}\n'.format(self.A, self.t, self.b))
 
-    # def render(self, probstar_sig):
-    #     'obtain a concrete set of constraints for satisfaction of an atomic predicate on multiple reach set'
-
-    #     assert isinstance(probstar_sig, list), 'error: input should be a list of probstars'
-    #     C = None
-    #     d = None
-    #     nVarMax = 0
-    #     nVarMaxID = 0
-    #     for i in range(0, len(probstar_sig)):
-    #         R = copy.deepcopy(probstar_sig[i])
-    #         R.addConstraint(self.A, self.b)
-    #         C1 = R.C
-    #         d1 = R.d
-    #         if C is None:
-    #             C = copy.deepcopy(C1)
-    #             d = copy.deepcopy(d1)
-    #             nVarMax = R.nVars
-    #         else:
-    #             n, m = C.shape  # m is the number of predicate variables in the current constraint
-    #             n1, m1 = C1.shape # m1 is the number of predicate variables in the new constraint
-                
-    #             if m < m1:  # usually happen
-    #                 dC = np.zeros((n, m1-m))
-    #                 C = np.append(C, dC, axis=1)
-    #             if m1 < m: # not usually happen
-    #                 dC = np.zeros((n, m-m1))
-    #                 C1 = np.append(C1, dC, axis=1)
-                    
-    #             C = np.concatenate((C, C1), axis=0)
-    #             d = np.concatenate((d, d1))
-
-    #             if R.nVars > nVarMax:
-    #                 nVarMax = R.nVars
-    #                 nVarMaxID = i
-                
-
-    #     # combine all constraints into a single set of constraints
-    #     P = pc.Polytope(C, d)
-    #     P1 = pc.reduce(P)
-    #     Cmin = P1.A
-    #     dmin = P1.b
-    #     _, m = Cmin.shape
-    #     V = np.eye(m,m)
-    #     center = np.zeros((m, 1))
-    #     V = np.append(center, V, axis=1)
-    #     S = ProbStar(V, Cmin, dmin, probstar_sig[nVarMaxID].mu, probstar_sig[nVarMaxID].Sig,\
-    #                  probstar_sig[nVarMaxID].pred_lb, probstar_sig[nVarMaxID].pred_ub)
-    #     # S is a probstar that contains all points for satisfaction
-        
-    #     return S
 
     @staticmethod
     def rand(nVars, t=None):
@@ -712,63 +662,6 @@ class Formula(object):
             raise RuntimeError('error: syntax error, number of left brackets is not equal to number of right brackets')
 
         return lb_idxes, rb_idxes
-        
-
-    # def render(self, probstar_signal):
-    #     'render a formula on a probstar_signal, return a concrete probstar with constraints for statisfaction'
-    
-    #     assert isinstance(probstar_signal, list), 'error: probstar_signal should be a list of probstars'
-    #     for probstar in probstar_signal:
-    #         assert isinstance(probstar, ProbStar), 'error: probstar_signal should contain ProbStar objects'
-
-    #     # a temporal formula should be started with a temporal operator (ALWAYS or EVENTUALLY), followed by a bracket
-        
-    #     # BASIC FORMULA TYPES:
-    #     # 1) Always formula:
-    #     #        Conjunction: ALWAYS_[t1, t2 ] (AP1 AND AP2 AND ... APn)
-    #     #        Disjunction: ALWAYS_[t1, t2] (AP1 OR AP2)
-    #     #        Conditional: ALWAYS_[t1, t2] (AP1 IMPLY AP2)
-    #     # 
-    #     # 2) Eventually formula:
-    #     #        Conjunction: EVENTUALLY_[t1, t2] (AP1 AND AP2 AND ...APn)
-    #     #        Disjunction: EVENTUALLY_[t1, t2] (AP1 OR AP2 OR ...APn)
-    #     #        Conditional: EVENTUALLY_[t1, t2] (AP1 IMPLY AP2)
-    #     # 
-    #     # COMPOSITE FORMULA:
-    #     #
-
-    #     S = None
-    #     if self.formula_type == 'ConjunctiveAlways':
-    #         S = renderConjunctiveAlwaysFormula(self, probstar_signal)
-    #     else:
-    #         raise RuntimeError('Not support rendering {} formula yet'.format(self.formula_type))
-
-    #     return S
-
-# def renderConjunctiveAlwaysFormula(f, probstar_signal):
-#     'rendering conjective always formula on a reachable set signal'
-
-#     assert isinstance(f, Formula), 'error: f should be a Formula object'
-#     assert f.formula_type == 'ConjunctiveAlways', 'error: formula is not a conjunctive always type'
-
-#     S = []
-#     for item in f.formula[1: f.length]:
-#         if isinstance(item, AtomicPredicate):
-#             if f.formula[0].end_time is None:
-#                 S1 = item.render(probstar_signal)
-#             else:
-#                 required_length = f.formula[0].end_time - f.formula[0].start_time + 1
-#                 if len(probstar_signal) < required_length:
-#                     raise RuntimeError('probstar signal has insufficient length to evaluate the formula')
-#                 else:
-#                     S1 = item.render(probstar_signal[f.formula[0].start_time:f.formula[0].end_time + 1])
-
-#             S.append(S1)
-
-#     # combining all stars into a single star
-#     S = combineProbStars(S)
-
-#     return S
 
 
 def combineProbStars(probstar_sig):
@@ -1182,56 +1075,6 @@ class DynamicFormula(object):
 
         return SAT, p_SAT_MAX, p_SAT_MIN, cdnf.length
 
-
-    def evaluate2(self, probstar_sig, n_max):
-        'evaluate the satisfaction of the abtract-timed dyanmic formula on a probstar signal'
-
-        # last update: Dung Tran, 7/4/2024
-        # improve the way to estimate the satisfaction probability
-        # when cdnf.length > 11, we calculate the probability of satisfaction with n_max (< 11) largest probstars in cdnf
-        # we need to shorten the cdnf so that the cdnf.length --> cdnf.length = n_max
-        # UNDER TESTING
-
-        if n_max > 11:
-            raise RuntimeError('we can only handle CDNF with length of 11, please set 1<= n_max <= 11')
-
-        print('Realizing Abstract DNF specification on a ProbStar Signal...')
-        cdnf = self.realization(probstar_sig)
-        print('Length of Computable DNF = {}'.format(cdnf.length))
-        if cdnf.length > n_max:
-            print('CDNF is too large (> {} probstars), we need to shorten (split) \
-            it to estimate the probability of satisfaction...', n_max)
-        p_SAT_MAX, p_SAT_MIN = cdnf.getApproxSATProbability(n_max)
-        
-        return p_SAT_MAX, p_SAT_MIN
-
-    def evaluate_for_full_analysis2(self, probstar_sig, n_max):
-        'improved evaluation of the abstract-timed dynamic formula on a probstar signal'
-
-        # UNDER TESTING
-        print('Realizing Abstract DNF specification on a ProbStar Signal...')
-        cdnf = self.realization(probstar_sig)
-        print('Length of Computable DNF = {}'.format(cdnf.length))
-
-        p_trace = cdnf.getTraceProbability()  # probability of the probstar signal
-        SAT = []
-        p_SAT_MIN = 0.0
-        p_SAT_MAX = 0.0
-        p_approx = 0       # p_approx = 0 -> exact analysis, p_approx = 1 -> approximate analysis
-        cdnf_SAT = []
-        cdnf_IG = []
-        sat_trace = []
-        if cdnf.length != 0:
-
-            sat_trace = [probstar_sig, cdnf]
-            cdnf_SAT = cdnf
-            p_SAT_MAX, p_SAT_MIN = cdnf.getApproxSATProbability(n_max)
-            if p_SAT_MAX == p_SAT_MIN:
-                p_approx = 1
-
-        return p_SAT_MAX, p_SAT_MIN, p_approx, cdnf_SAT, sat_trace
-        
-        
 
     def evaluate_for_full_analysis(self, probstar_sig):
         'evaluate the satisfaction of the abtract-timed dyanmic formula on a probstar signal'
