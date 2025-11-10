@@ -59,6 +59,7 @@ class ReachPRM_DYNNN_NNCS(object):
         self.lpSolver = 'gurobi'
         self.show = True
         self.numCores = 1
+        self.abSpecs = None # abstract DNF specification used to guide reachability analysis, see spec/dProbStarTL.py
 
 class VerifyPRM_NNCS(object):
     'reachability parameters for NNCS'
