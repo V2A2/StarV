@@ -757,6 +757,12 @@ def reachDFS_DLNNCS(ncs, reachPRM):
     return traces1, p_ig
 
 
+def specGuidedReachDFS_DLNNCS(ncs, reachPRM):
+    'specification guided reachability using abstract DNF specification to reduce the number of traces'
+    # Dung Tran: 11/10/2025 updated date:
+    pass
+
+
 def reachBFS_DynNN_NNCS(ncs, reachPRM):
     'breath first search reachability of dynamic neural network NNCS (DynNN_NNCS)'
 
