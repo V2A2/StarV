@@ -27,7 +27,7 @@ from StarV.net.network import NeuralNetwork, reachExactBFS, reachApproxBFS
 from StarV.plant.dlode import DLODE
 from StarV.plant.lode import LODE
 from StarV.set.probstar import ProbStar
-from StarV.spec.dProbStarTL import Formula, DynamicFormula
+from StarV.spec.dProbStarTL import Formula, DynamicFormula, AtomicPredicate
 import multiprocessing
 from multiprocessing import Process, Queue
 import copy
@@ -46,6 +46,7 @@ class ReachPRM_NNCS(object):
         self.lpSolver = 'gurobi'
         self.show = True
         self.numCores = 1
+        self.specs = None   # abstract specification used to guide reachability analysis, a Formula object
 
 class ReachPRM_DYNNN_NNCS(object):
     'reachability parameters for NNCS'
@@ -761,8 +762,45 @@ def reachDFS_DLNNCS(ncs, reachPRM):
 def specGuidedReachDFS_DLNNCS(ncs, reachPRM):
     'specification guided reachability using abstract DNF specification to reduce the number of traces'
     # Dung Tran: 11/10/2025 updated date:
+
     pass
 
+def singleSpecGuidedReachDFS_DLNNCS(ncs, initSet, spec):
+    'a single abstract specification - guided reachability'
+
+    # Dung Tran: 11/11/2025, update date:
+    # spec = P = [C0, C1, ..., Cn], Ci is an AtomicPredicate
+    # 
+    pass
+
+def specGuidedStepReach_DLNNCS(ncs, Xi, reachPRM, spec_i_mat, spec_i_vec):
+    'a single step spec-guided reachability'
+
+    # Dung Tran: 11/11/2025, update date:
+
+    Xi_AND_spec_i = Xi.intersectHalfSpace(spec_i_mat, spec_i_vec)
+    RX, p_ig = stepReach_DLNNCS_extended(ncs, Xi_AND_spec_i, reachPRM)
+
+    return RX, p_ig
+    
+def getAbstractSpecConstraints(spec):
+    'get constraint matrix and vector from an abstract specification'
+
+    # Dung Tran: 11/11/2025, update date:
+    # spec = [C0, C1, ..., Cn], Ci is an AtomicPredicate with time t
+    # we collect all constraints for all time steps in the spec
+    # for example: C0.t = 0, C1.t = 0, C2.t = 1, C3.t = 1, C4.t = 2, C5.t = 2
+    # we will merge C0 and C1 together for step t = 0,
+    # and then (C2, C3) for step t=1, and (C4, C5) for step t=2
+
+    T = [] # list of time steps
+    for i in range(0, len(spec)):
+        Ci = spec[i]
+        assert isinstance(Ci, AtomicPredicate), 'error: spec[{}] is not an AtomicPredicate object'.format(i)
+        T.append(Ci.t)
+
+    
+    pass
 
 def reachBFS_DynNN_NNCS(ncs, reachPRM):
     'breath first search reachability of dynamic neural network NNCS (DynNN_NNCS)'
