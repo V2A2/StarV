@@ -20,7 +20,7 @@ class FullyConnectedLayer(object):
             @rand: random generate a FullyConnectedLayer
     """
 
-    def __init__(self, layer,fo = None, dtype='float64'):
+    def __init__(self, layer, dtype='float64'):
 
         if isinstance(layer, list):
             W, b = layer
@@ -53,7 +53,7 @@ class FullyConnectedLayer(object):
             self.in_dim = b.shape[0]
             self.out_dim = b.shape[0]
         
-        self.fo = fo
+        # self.fo = fo
 
     def __str__(self):
         print('Layer type: {}'.format(self.__class__.__name__))
@@ -111,26 +111,38 @@ class FullyConnectedLayer(object):
         return FullyConnectedLayer(layer=[W, b])
 
 
-    def reachExactSingleInput(self, In,method=None):
-        if method == 'exact':
-            if self.fo == None:
-                S = []
-                for i in range(len(In)):
-                    weighted_sum = In[i].affineMap(self.W, self.b)
-                    S.append(weighted_sum)
-                    return S
-            elif self.fo == 'relu':
-                S = []
-                for i in range(len(In)):
-                    weighted_sum = In[i].affineMap(self.W, self.b)
-                    S.append(weighted_sum)
-                return ReLULayer.reach(S, method)
-
-        else:  
+    def reachExactSingleInput(self, In):
             S = In.affineMap(self.W, self.b)
-            if  self.fo == 'relu':
-                S = ReLULayer.reach(S, method)
             return S
+        
+    # def reachExactMultiInput(self, In):
+    #     if method == 'exact':
+    #         if self.fo == None:
+    #             S = []
+    #             for i in range(len(In)):
+    #                 weighted_sum = In[i].affineMap(self.W, self.b)
+    #                 S.append(weighted_sum)
+    #                 return S
+    #         elif self.fo == 'relu':
+    #             S = []
+    #             for i in range(len(In)):
+    #                 weighted_sum = In[i].affineMap(self.W, self.b)
+    #                 S.append(weighted_sum)
+    #             return ReLULayer.reach(S, method)
+
+    #     else:  
+    #         S = In.affineMap(self.W, self.b)
+    #         if  self.fo == 'relu':
+    #             S = ReLULayer.reach(S, method)
+    #         return S
+    def reachExactMultiInput(self, In):
+        S = []
+        for i in range(len(In)):
+            weighted_sum = In[i].affineMap(self.W, self.b)
+            S.append(weighted_sum)
+            return S
+    
+            
             
 
         
@@ -152,9 +164,13 @@ class FullyConnectedLayer(object):
             S = []
             if pool is None:
                 for i in range(0, len(inputSet)):
-                    S.append(self.reachExactSingleInput(inputSet[i],method))
+                    if isinstance(inputSet[i],list):
+                        S.append(self.reachExactMultiInput(inputSet[i]))
+                    else:
+                        S.append(self.reachExactSingleInput(inputSet[i]))
+
             elif isinstance(pool, multiprocessing.pool.Pool):
-                S = S + pool.map(self.reachExactSingleInput, inputSet,method)
+                S = S + pool.map(self.reachExactSingleInput, inputSet)
             else:
                 raise Exception('error: unknown/unsupport pool type')         
 
