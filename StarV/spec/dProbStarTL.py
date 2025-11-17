@@ -21,6 +21,7 @@ Probabilistic Star Temporal Logic Specification Language in discrete-time domain
 Author: Dung Tran
 Date: 12/2/2022
 Update: 7/4/2024
+      - 11/17/2025: add composed predicate (Predicate Class and its methods, update AtomicPredicate methods)
 
 ==================================================================================
 DESCRIPTION:
@@ -149,14 +150,98 @@ class AtomicPredicate(object):
         'generate random predicate'
 
         A = np.random.rand(nVars)
-        b = np.random.rand(1)
+        b = np.random.rand(nVars )
         P = AtomicPredicate(A, b)
         if t is not None:
             P.at_time(t)
 
-        return P    
+        return P
     
-    
+
+class Predicate(object):
+    'Composed predicate object: P: Ax <= b'
+
+    # Dung Tran: date: 11/17/2025
+
+    def __init__(self, A=None, b=None, t=None):
+
+        if A is not None and B is not None:
+            assert isinstance(A, np.ndarray), 'error: A should be a numpy array'
+            assert len(A.shape) == 2, 'error: A should be 2D numpy array'
+            assert isinstance(b, np.ndarray), 'error: b should be a numpy array'
+            assert len(b.shape) == 1, 'error: b should be 1D numpy array'
+            assert (A.shape[1] == b.shape[0]), 'error: inconsistency between predicate matrix and predicate vector'
+
+        
+        self.A = A
+        self.b = b
+        self.type = 'ComposedPredicate'
+        self.t = t
+
+    def at_time(self, t):
+
+        assert t >= 0, 'error: invalid time step, t should be >= 0'
+        
+        return Predicate(self.A, self.b, t)
+
+    def print_info(self):
+
+        print('{} * x[t={}] <= {}\n'.format(self.A, self.t, self.b))
+
+    @staticmethod
+    def rand(nVars, t=None):
+        'generate random predicate'
+
+        A = np.random.rand(nVars, nVars)
+        b = np.random.rand(nVars)
+        P = Predicate(A, b)
+        if t is not None:
+            P.at_time(t)
+
+        return P
+
+    def compose(self, other):
+        'compose with other predicate or an atomic predicate'
+
+        P = []
+        if isinstance(other, Predicate):
+            if other.A is None:
+                P = self
+            else:
+                if self.A is None:
+                    P = other
+                else:
+                    if self.A.shape[1] != other.A.shape[1]:
+                        raise ValueError('inconsistent dimension (number of variables) between two predicates')
+                    elif self.t != other.t:
+                        raise ValueError('inconsistent time between two predicates')
+                    else:
+                        newA = np.vstack((self.A, other.A))
+                        newb = np.hstack((self.b, other.b))
+                        P = Predicate(newA, newb, self.t)
+        elif isinstance(other, AtomicPredicate):
+            if self.A is None:
+                newA = other.A.reshape(1, other.A.shape[1])
+                P = Predicate(newA, other.b, other.t)
+            else:
+                if self.t != other.t:
+                    raise ValueError('inconsistent time between two predicates')
+                else:
+                    A1 = other.A.reshape(1, other.A.shape[1])
+                    if A1.shape[1] != self.A.shape[1]:
+                        raise ValueError('inconsistent dimension (number of variables) between two predicates')
+                    else:
+                        newA = np.vstack((self.A, other.A))
+                        newb = np.hstack((self.b, other.b))
+                        P = Predicate(newA, newb, self.t)
+
+        else:
+            raise TypeError('Unknown input type, should be an AtomicPredicate or a Predicate Object')
+
+        return P
+                            
+
+        
 class _AND_(object):
 
     'AND'

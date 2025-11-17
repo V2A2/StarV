@@ -17,6 +17,7 @@
   Generic Neural Network Control System Class
   
   Dung Tran, 8/14/2023
+        - 11/15/2025: specification-guided reachability
   Sung Woo Choi, 06/10/2025
   	- added DynNN_NNCS (dynamic neural network NNCS)
 	- plant: dynamic NN
@@ -783,7 +784,7 @@ def specGuidedStepReach_DLNNCS(ncs, Xi, reachPRM, spec_i_mat, spec_i_vec):
 
     return RX, p_ig
     
-def getAbstractSpecConstraints(spec):
+def getAbstractSpecConstraints(spec, step_i):
     'get constraint matrix and vector from an abstract specification'
 
     # Dung Tran: 11/11/2025, update date:
