@@ -219,22 +219,11 @@ class PosLin(object):
             raise Exception('error: Invalid \
             number of input arguments, should be 1, 2 or 3')
 
-        print("In type of reachExactMultiInputs:", type(In))
         assert isinstance(In, list), 'error: input sets should be in a list'
         S = []
         if pool is None:
             for i in range(0, len(In)):
-                if isinstance(In[0], list):
-                    print('++++++++++++++++++++=Input set {} is a list of sets'.format(i))
-                    S1= []
-                    In1 =  In[i]
-                    for j in range(0, len(In1)):
-                        # print("tyepe of In1[{}]: {}".format(j, type(In1[j])))
-                        S2 = PosLin.reachExactSingleInput(In1[j], lp_solver)
-                        S1.extend(S2)
-                    S.extend(S1)
-                else:
-                    S.extend(PosLin.reachExactSingleInput(In[i], lp_solver))
+                S.extend(PosLin.reachExactSingleInput(In[i], lp_solver))
         elif isinstance(pool, multiprocessing.pool.Pool):
             S1 = []
             S1 = S1 + pool.map(PosLin.reachExactSingleInput, zip(In, [lp_solver]*len(In)))

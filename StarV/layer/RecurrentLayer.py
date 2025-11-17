@@ -99,13 +99,14 @@ class RecurrentLayer(object):
                         WIn = I[i].affineMap(self.Whx, self.bhx)
                         h_out  = ReLULayer.reach([WIn], method=method)
                         hidden_states.extend(h_out )
-                        # print(f"Input sets is a list Hidden states len in step {t}, input set {i}:{len(hidden_states)}")
+                        print(f"Input sets is a list Hidden states len in step {t}, input set {i}:{len(hidden_states)}")
                     print(f"Hidden states len in step {t}:{len(hidden_states)}")
                 else:
                     WIn = I.affineMap(self.Whx, self.bhx)
+                    print("WIn t =0 dim:",WIn.dim)
                     h_out  = ReLULayer.reach([WIn], method=method)
                     hidden_states.extend(h_out)
-                    # print(f"Hidden states len in step {t}:{len(hidden_states)}")
+                    print(f"Hidden states len in step {t}:{len(hidden_states)}")
 
             else:
                 # Subsequent timesteps: h_t = ReLU(Whx * x_t + bhx + Whh * h_{t-1})
@@ -118,15 +119,17 @@ class RecurrentLayer(object):
                         WIn = I[i].affineMap(self.Whx, self.bhx)
                         WIn_list.append(WIn)
                     print(f"===========number of WIn_list in step {t}:{len(WIn_list)}==========")
-                    summed = []
+                    # summed = []
                     for h_prev in prev_hidden:
                         h_recurrent = h_prev.affineMap(self.Whh)
                         # summed= []
                         for WIn in WIn_list:
                             h_p= h_recurrent.minKowskiSum(WIn)
-                            sum= h_p
-                        summed.append(sum)
-                        print(f"Number of summed sets after minsum in step {t}:{len(summed)}")
+                            h_recurrent= h_p
+                        h_out = ReLULayer.reach([h_recurrent], method=method)
+                        print(f"Number of h_out sets after relu in step {t}:{len(h_out)}")
+                        hidden_states.extend(h_out)
+                    print(f"Number of hidden_states sets after minsum in step {t}:{len(hidden_states)}")
 
                 else:
                     WIn = I.affineMap(self.Whx, self.bhx)
@@ -134,9 +137,9 @@ class RecurrentLayer(object):
                         h_recurrent = h_prev.affineMap(self.Whh)
                         summed = h_recurrent.minKowskiSum(WIn)
 
-                # Apply ReLU
-                h_out = ReLULayer.reach([summed], method=method)
-                hidden_states.extend(h_out)
+                        # Apply ReLU
+                        h_out = ReLULayer.reach([summed], method=method)
+                        hidden_states.extend(h_out)
 
             # Save hidden states
             H.append(hidden_states)
