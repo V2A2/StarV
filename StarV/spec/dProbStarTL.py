@@ -221,13 +221,13 @@ class Predicate(object):
                         P = Predicate(newA, newb, self.t)
         elif isinstance(other, AtomicPredicate):
             if self.A is None:
-                newA = other.A.reshape(1, other.A.shape[1])
+                newA = other.A.reshape(1, other.A.shape[0])
                 P = Predicate(newA, other.b, other.t)
             else:
                 if self.t != other.t:
                     raise ValueError('inconsistent time between two predicates')
                 else:
-                    A1 = other.A.reshape(1, other.A.shape[1])
+                    A1 = other.A.reshape(1, other.A.shape[0])
                     if A1.shape[1] != self.A.shape[1]:
                         raise ValueError('inconsistent dimension (number of variables) between two predicates')
                     else:
