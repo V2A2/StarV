@@ -229,10 +229,10 @@ class PosLin(object):
                     S1= []
                     In1 =  In[i]
                     for j in range(0, len(In1)):
-                        print("tyepe of In1[{}]: {}".format(j, type(In1[j])))
+                        # print("tyepe of In1[{}]: {}".format(j, type(In1[j])))
                         S2 = PosLin.reachExactSingleInput(In1[j], lp_solver)
                         S1.extend(S2)
-                    S.append(S1)
+                    S.extend(S1)
                 else:
                     S.extend(PosLin.reachExactSingleInput(In[i], lp_solver))
         elif isinstance(pool, multiprocessing.pool.Pool):

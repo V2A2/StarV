@@ -118,15 +118,21 @@ class RecurrentLayer(object):
                         WIn = I[i].affineMap(self.Whx, self.bhx)
                         WIn_list.append(WIn)
                     print(f"===========number of WIn_list in step {t}:{len(WIn_list)}==========")
-                    summed = []
+                    all_sum = []
                     for h_prev in prev_hidden:
                         h_recurrent = h_prev.affineMap(self.Whh)
-                        # summed= []
+                        sum = []
                         for WIn in WIn_list:
-                            h_p= h_recurrent.minKowskiSum(WIn)
-                            sum= h_p
-                        summed.append(sum)
-                        print(f"Number of summed sets after minsum in step {t}:{len(summed)}")
+                            h_p = h_recurrent.minKowskiSum(WIn)
+                            sum.append(h_p)
+                            # print(f"Number of summed sets after minsum for first hidden state:{len(summed)}")
+                            # print(f"Type of h_p sets after minsum for first hidden state:{type(h_p)}")
+                            # print(f"Type of summed sets after minsum for first hidden state:{type(summed)}")
+                        all_sum.extend(sum)
+                        summed = all_sum
+                        print(f"Number of summed sets after minsum for first all hidden states in step {t}:{len(all_sum)}")
+                        # print(f"type of all summed sets after minsum for first all hidden states in step {t}:{type(all_sum)}")
+                        # print(f"type of first all summed sets after minsum for first all hidden states in step {t}:{type(all_sum[0])}")
 
                 else:
                     WIn = I.affineMap(self.Whx, self.bhx)
@@ -135,15 +141,22 @@ class RecurrentLayer(object):
                         summed = h_recurrent.minKowskiSum(WIn)
 
                 # Apply ReLU
+                print("type of summed sets before ReLU in step {}:{}".format(t,type(summed)))
+                # print("type of summed_1 sets before ReLU in step {}:{}".format(t,type(summed[0])))
                 h_out = ReLULayer.reach([summed], method=method)
+                print("Type of h_out after ReLU in step {}:{}".format(t,type(h_out)))
+                print("Type of h_out_1 after ReLU in step {}:{}".format(t,type(h_out[0])))
                 hidden_states.extend(h_out)
+                print("Type of h_s after ReLU in step {}:{}".format(t,type(hidden_states)))
+                print("Type of h_s_1 after ReLU in step {}:{}".format(t,type(hidden_states[0])))
 
             # Save hidden states
             H.append(hidden_states)
 
             oi = []
-            print(f"number of output sets in step {t} for hidden states:{len(hidden_states)}")
+            print(f"number of output sets in step {t} as same in hidden states:{len(hidden_states)}")
             for h in hidden_states:
+                 print(f"Type of h in hidden states at time {t}:{type(h)}")
                  outputs_t = h.affineMap(self.Woh, self.bo) 
                  oi.append(outputs_t)
             O.append(oi)
