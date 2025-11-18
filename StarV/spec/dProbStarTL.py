@@ -112,7 +112,6 @@ class AtomicPredicate(object):
         assert isinstance(b, np.ndarray), 'error: b should be a numpy array'
         assert len(b.shape) == 1, 'error: b should be 1D numpy array'
         assert len(A.shape) == 1, 'error: A should be 1D numpy array'
-        assert b.shape[0] == 1, 'error: b should be a scalar'
 
         self.A = A
         self.b = b
@@ -150,7 +149,7 @@ class AtomicPredicate(object):
         'generate random predicate'
 
         A = np.random.rand(nVars)
-        b = np.random.rand(nVars )
+        b = np.random.rand(1)
         P = AtomicPredicate(A, b)
         if t is not None:
             P.at_time(t)
@@ -165,12 +164,12 @@ class Predicate(object):
 
     def __init__(self, A=None, b=None, t=None):
 
-        if A is not None and B is not None:
+        if A is not None and b is not None:
             assert isinstance(A, np.ndarray), 'error: A should be a numpy array'
             assert len(A.shape) == 2, 'error: A should be 2D numpy array'
             assert isinstance(b, np.ndarray), 'error: b should be a numpy array'
             assert len(b.shape) == 1, 'error: b should be 1D numpy array'
-            assert (A.shape[1] == b.shape[0]), 'error: inconsistency between predicate matrix and predicate vector'
+            assert (A.shape[0] == b.shape[0]), 'error: inconsistency between predicate matrix and predicate vector'
 
         
         self.A = A

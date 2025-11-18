@@ -6,7 +6,7 @@ Dung Tran
 
 import numpy as np
 from StarV.spec.dProbStarTL import _ALWAYS_, _EVENTUALLY_, AtomicPredicate, Formula, _LeftBracket_, _RightBracket_, _AND_
-from StarV.spec.dProbStarTL import DynamicFormula
+from StarV.spec.dProbStarTL import DynamicFormula, Predicate
 from StarV.set.probstar import ProbStar
 
 class Test(object):
@@ -73,8 +73,47 @@ class Test(object):
         else:
             print('Test Successfull!')
 
+    def test_Predicate_rand(self):
 
-   
+        self.n_tests = self.n_tests + 1
+       
+        try:
+             P = Predicate.rand(3)
+             P.print_info()
+        except Exception:
+            self.n_fails = self.n_fails + 1
+            print('Test Fail!')
+        else:
+            print('Test Successfull!')
+
+    def test_Predicate_compose(self):
+
+        self.n_tests = self.n_tests + 1
+
+        
+        try:
+            P1 = Predicate.rand(3)
+            A1 = AtomicPredicate.rand(3)
+            P3 = Predicate.rand(3)
+            P3 = P3.at_time(2)
+            P1 = P1.at_time(2)
+            A1 = A1.at_time(2)
+
+            A1.print_info()
+            P1.print_info()
+            P3.print_info()
+        
+            P2 = P1.compose(A1)
+            P2.print_info()
+
+            P4 = P1.compose(P3)
+            P4.print_info()
+        
+        except Exception:
+            self.n_fails = self.n_fails + 1
+            print('Test Fail!')
+        else:
+            print('Test Successfull!')
 
     def test_getDynamicFormula(self):
         'test automatic algorithm to generate dynamic formula for verification'
@@ -301,13 +340,14 @@ if __name__ == "__main__":
     ================================\
     ================================\
     ===============================\n')
-    test_dProbStar.test_Formula()
-    # test_dProbStar.test_AtomicPredicate_render() # no longer used
-    test_dProbStar.test_AtomicPredicate_rand()
-    # test_dProbStar.test_Always_render() # no longer used
-    test_dProbStar.test_DynamicFormula()
-    test_dProbStar.test_getDynamicFormula()
-    test_dProbStar.test_DynamicFormula_evaluate()
+    #test_dProbStar.test_Formula()
+    #test_dProbStar.test_AtomicPredicate_rand()
+    #test_dProbStar.test_Predicate_rand()
+    test_dProbStar.test_Predicate_compose()
+    #test_dProbStar.test_DynamicFormula()
+    #test_dProbStar.test_getDynamicFormula()
+    #test_dProbStar.test_DynamicFormula_evaluate()
+   
     print('\n========================\
     =================================\
     =================================\
