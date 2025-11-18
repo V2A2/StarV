@@ -28,8 +28,9 @@ from StarV.net.network import NeuralNetwork, reachExactBFS, reachApproxBFS
 from StarV.plant.dlode import DLODE
 from StarV.plant.lode import LODE
 from StarV.set.probstar import ProbStar
-from StarV.spec.dProbStarTL import Formula, DynamicFormula, AtomicPredicate
+from StarV.spec.dProbStarTL import Formula, DynamicFormula, AtomicPredicate, Predicate
 import multiprocessing
+import warnings
 from multiprocessing import Process, Queue
 import copy
 import time
@@ -784,24 +785,26 @@ def specGuidedStepReach_DLNNCS(ncs, Xi, reachPRM, spec_i_mat, spec_i_vec):
 
     return RX, p_ig
     
-def getAbstractSpecConstraints(spec, step_i):
+def getCurrentSpecConstraints(spec, current_step):
     'get constraint matrix and vector from an abstract specification'
 
-    # Dung Tran: 11/11/2025, update date:
+    # Dung Tran: 11/11/2025, update date: 11/18/2025
     # spec = [C0, C1, ..., Cn], Ci is an AtomicPredicate with time t
     # we collect all constraints for all time steps in the spec
     # for example: C0.t = 0, C1.t = 0, C2.t = 1, C3.t = 1, C4.t = 2, C5.t = 2
-    # we will merge C0 and C1 together for step t = 0,
-    # and then (C2, C3) for step t=1, and (C4, C5) for step t=2
+    # if current_step = 0, we return a composed predicate P = [C0 & C1]
+    # if current_step = 1, we return a composed predicate P = [C2 & C3]
 
-    T = [] # list of time steps
+    assert current_step >= 0, 'error: invalid current_step, should be >= 0'
+    P = Predicate(A=None,b=None,t=None)
     for i in range(0, len(spec)):
         Ci = spec[i]
         assert isinstance(Ci, AtomicPredicate), 'error: spec[{}] is not an AtomicPredicate object'.format(i)
-        T.append(Ci.t)
-
-    
-    pass
+        if Ci.t == current_step:
+            P = P.compose(Ci)
+    if P.A is None:
+        warnings.warn('There are no constraints related to current_step = {}'.format(current_step))
+    return P
 
 def reachBFS_DynNN_NNCS(ncs, reachPRM):
     'breath first search reachability of dynamic neural network NNCS (DynNN_NNCS)'

@@ -140,7 +140,8 @@ class AtomicPredicate(object):
         return str
 
     def print_info(self):
-
+        
+        print('Atomic Predicate: \n')
         print('{} * x[t={}] <= {}\n'.format(self.A, self.t, self.b))
 
 
@@ -185,6 +186,7 @@ class Predicate(object):
 
     def print_info(self):
 
+        print('Composed Predicate: \n')
         print('{} * x[t={}] <= {}\n'.format(self.A, self.t, self.b))
 
     @staticmethod
