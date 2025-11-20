@@ -48,7 +48,6 @@ class ReachPRM_NNCS(object):
         self.lpSolver = 'gurobi'
         self.show = True
         self.numCores = 1
-        self.specs = None   # abstract specification used to guide reachability analysis, a Formula object
 
 class ReachPRM_DYNNN_NNCS(object):
     'reachability parameters for NNCS'
@@ -62,7 +61,6 @@ class ReachPRM_DYNNN_NNCS(object):
         self.lpSolver = 'gurobi'
         self.show = True
         self.numCores = 1
-        self.abSpecs = None # abstract DNF specification used to guide reachability analysis, see spec/dProbStarTL.py
 
 class VerifyPRM_NNCS(object):
     'reachability parameters for NNCS'
@@ -760,30 +758,102 @@ def reachDFS_DLNNCS(ncs, reachPRM):
     
     return traces1, p_ig
 
+def specGuidedVerification_DLNNCS(ncs, verifyPRM):
+    'specification-guided verification'
 
-def specGuidedReachDFS_DLNNCS(ncs, reachPRM):
-    'specification guided reachability using abstract DNF specification to reduce the number of traces'
-    # Dung Tran: 11/10/2025 updated date:
+    # Dung Tran: 11/20/2025
 
     pass
 
-def singleSpecGuidedReachDFS_DLNNCS(ncs, initSet, spec):
+def specGuidedReachDFS_DLNNCS(ncs, reachPRM, abSpec):
+    'specification guided reachability using abstract DNF specification to reduce the number of traces'
+    # Dung Tran: 11/10/2025 updated date: 11/20/2025
+
+    assert isinstance(abSpec, DynamicFormula), 'error: abSpec (abstract DNF specification) should be a DynamicFormula object, not None'
+
+    sat_traces = []
+    p_ig = []
+    for i in range(0, len(abSpec)):
+        spec_i = abSpec[i]
+        traces_i, p_ig_i = singleSpecGuidedReachDFS_DLNNCS(ncs, reachPRM, spec_i)
+        sat_traces.append(traces_i)
+        p_ig.append(p_ig_i)
+
+    return sat_traces, p_ig
+
+def singleSpecGuidedReachDFS_DLNNCS(ncs, reachPRM, spec_i):
     'a single abstract specification - guided reachability'
 
-    # Dung Tran: 11/11/2025, update date:
-    # spec = P = [C0, C1, ..., Cn], Ci is an AtomicPredicate
-    # 
-    pass
+    # Dung Tran: 11/11/2025, update date: 11/20/2025
+    # abSpec (DNF format) = P = [[P0], [P1], ..., [Pm]], spec_i = Pi = [C0, C1, ..., Cn], Ci is an AtomicPredicate
+    
+    assert isinstance(reachPRM, ReachPRM_NNCS), 'error: reachability parameter should be an ReachPRM_NNCS object'
+    assert reachPRM.initSet is not None, 'error: there is no initial set for reachability'
+    assert reachPRM.numSteps >= 1, 'error: number of time steps should be >= 1'
+    
+    # get number of time steps needed for checking spec_i, not neccessary equal to reachPRM.numSteps
 
-def specGuidedStepReach_DLNNCS(ncs, Xi, reachPRM, spec_i_mat, spec_i_vec):
-    'a single step spec-guided reachability'
+    steps = []
+    for i in len(spec_i):
+        Ci = spec_i[i]
+        steps.append(Ci.t)
 
-    # Dung Tran: 11/11/2025, update date:
+    k = max(steps)  # number of reachability steps
+    remains = [] # contains all remaining reachable set at all k steps, remains = [RM1, RM2, ..., RMk], RMi = [X1, X2, ..., Xm]
+    
+    X0 = copy.deepcopy(reachPRM.initSet)
+    remains.append([X0])
+    T = []
+    p_ig = 0.0
+    traces = []
+    
+    while True:
+        i = len(remains)  # equal to the current considering time step
+        if i != 0:
+            Ri = remains[i-1]
+            current_step = i-1  # current time step in reachability analysis
+            cur_step_pred = getCurrentSpecConstraints(spec_i, current_step)  # constraints corresponding to the current time step
+        else:
+            break
+        
+        if len(Ri) != 0:
+            Xi = Ri.pop(0)
 
-    Xi_AND_spec_i = Xi.intersectHalfSpace(spec_i_mat, spec_i_vec)
-    RX, p_ig = stepReach_DLNNCS_extended(ncs, Xi_AND_spec_i, reachPRM)
+            # construct new initial set with new constraints for current time step
+            newXi = Xi.addMultipleConstraints(cur_step_pred.A, cur_step_pred.b)  # this may be an empty set
+            T.append(newXi)
 
-    return RX, p_ig
+            Xi_plus_1, pig_i = stepReach_DLNNCS_extended(ncs, newXi, reachPRM)
+            p_ig = p_ig + pig_i
+            
+            if i == k:
+                
+                for Xj in Xi_plus_1:
+                    Tj = copy.deepcopy(T)
+                    Tj.append(Xj)
+                    traces.append(Tj)
+                T.pop(len(T)-1)
+            else:
+                remains.append(Xi_plus_1)
+                    
+        else:
+            
+            remains.pop(i-1)
+            if len(T) != 0:
+                T.pop(len(T)-1)
+
+    # a trace share the same predicate constraint P(alpha) with the final reach set in the trace
+    traces1 = []
+    for trace in traces:
+        n = len(trace)
+        trace1 = []
+        for i in range(0, n):
+            R = ProbStar(trace[i].V, trace[n-1].C, trace[n-1].d, trace[n-1].mu, \
+                         trace[n-1].Sig, trace[n-1].pred_lb, trace[n-1].pred_ub)
+            trace1.append(R)
+        traces1.append(trace1)         
+    
+    return traces1, p_ig
     
 def getCurrentSpecConstraints(spec, current_step):
     'get constraint matrix and vector from an abstract specification'
