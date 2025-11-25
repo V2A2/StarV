@@ -376,6 +376,7 @@ class Test(object):
                     set_from_O1 = sum
                 all_approx_set.append(set_from_O1)
 
+
             print("number of sets after Relu(O1)_minsum_Relu(X2) using approx method 1:{}\n".format(len(all_approx_set)))
 
             # =================Relu(O1)_minsum_Relu(X2)================= N sets approx method 2, reduce output set amount and reduce minsum operations
@@ -390,24 +391,55 @@ class Test(object):
 
             print("number of sets after Relu(O1)_minsum_Relu(X2) using approx method 2:{}\n".format(len(all_approx_set_1)))
 
+            # =================Approximate to single set: Minsum(Relu(O1))_minsum_Minsum(Relu(X2))================= 1 set
+            O1_1 = relu_O1[0]
+            for y in range(1,len(relu_O1)):
+                summed = O1_1.minKowskiSum(relu_O1[y])
+                summed_O1= summed
+            print("number of sets after minsum(relu_O1):{}\n".format(len(summed_O1)))
+
+            X2_1 = relu_X2[0]
+            for y in range(1,len(relu_X2)):
+                summed = X2_1.minKowskiSum(relu_O1[y])
+                summed_X2= summed
+            print("number of sets after minsum(relu_X2):{}\n".format(len(summed_X2)))
+
+            All_Sum = summed_O1.minKowskiSum(summed_X2)  
+            print("All_Sum_Minsum(Relu(O1))_minsum_Minsum(Relu(X2)):{}\n".format(All_Sum.V))
+
+            # =================Approximate to single set: Minsum(Relu(O1))_minsum_Relu(X2)================= len(relu(x2)) sets
+
+            min_all =[]
+            for i in range(len(relu_X2)):
+                summed = summed_O1.minKowskiSum(relu_X2[i])
+                min_all.append(summed)
+            print("number of sets after minsum(relu_O1)_(relu_X2):{}\n".format(len(min_all)))
 
 
-            # =========================Plot results=========================
+            # min_all =[]
+            # for i in range(len(relu_O1)):
+            #     summed = relu_O1[i].minKowskiSum(summed_X2)
+            #     min_all.append(summed)
+            # print("number of sets after minsum(relu_O1)_(relu_X2):{}\n".format(len(min_all)))
+
+
+            # # =========================Plot results=========================
 
             color1 = 'g'
             color2 = 'r' 
             color3 = 'b' 
             color4 = 'y'
+            color5 = 'm'
 
-            # Plot Relu(O1_minsum_X2)
-            print("\n-----------------------------------------------------------------------------\n")
-            for S in relu_1:
-                plot_2D_Star(S, color=color1, show=False)
-                print("plot the {}th set in relu_1".format(relu_1.index(S)))
-                lb,ub = S.getRanges()
-                print("lower bound {} and upper bound range of the {}th set in relu_1".format(lb,ub,relu_1.index(S)))
-            plt.savefig("Relu(O1_minsum_X2).png") 
-            plt.show()
+            # # Plot Relu(O1_minsum_X2)
+            # print("\n-----------------------------------------------------------------------------\n")
+            # for S in relu_1:
+            #     plot_2D_Star(S, color=color1, show=False)
+            #     print("plot the {}th set in relu_1".format(relu_1.index(S)))
+            #     lb,ub = S.getRanges()
+            #     print("lower bound {} and upper bound range of the {}th set in relu_1".format(lb,ub,relu_1.index(S)))
+            # plt.savefig("Relu(O1_minsum_X2).png") 
+            # plt.show()
 
             # Plot Relu(O1)_minsum_Relu(X2)_exact, N x M sets
             print("-----------------------------------------------------------------------------\n")
@@ -417,20 +449,20 @@ class Test(object):
                 lb,ub = S.getRanges()
                 print("lower bound {} and upper bound range of the {}th set in all_exact_set".format(lb,ub,all_exact_set.index(S)))
                 # plt.show()
-            plt.savefig("Relu(O1)_minsum_Relu(X2)_exact.png") 
+            # plt.savefig("Relu(O1)_minsum_Relu(X2)_exact.png") 
             plt.show()
 
 
-            print("-----------------------------------------------------------------------------\n")
-            # Plot Relu(O1)_minsum_Relu(X2)_approx_1, N sets
-            for S in all_approx_set:
-                plot_2D_Star(S, color=color3, show=False)
-                print("plot the {}th set in all_approx_set".format(all_approx_set.index(S)))
-                lb,ub = S.getRanges()
-                print("lower bound {} and upper bound range of the {}th set in all_approx_set".format(lb,ub,all_approx_set.index(S)))
-                # plt.show()
-            plt.savefig("Relu(O1)_minsum_Relu(X2)_approx.png") 
-            plt.show()
+            # print("-----------------------------------------------------------------------------\n")
+            # # Plot Relu(O1)_minsum_Relu(X2)_approx_1, N sets
+            # for S in all_approx_set:
+            #     plot_2D_Star(S, color=color3, show=False)
+            #     print("plot the {}th set in all_approx_set".format(all_approx_set.index(S)))
+            #     lb,ub = S.getRanges()
+            #     print("lower bound {} and upper bound range of the {}th set in all_approx_set".format(lb,ub,all_approx_set.index(S)))
+            #     # plt.show()
+            # plt.savefig("Relu(O1)_minsum_Relu(X2)_approx.png") 
+            # plt.show()
 
 
             print("-----------------------------------------------------------------------------\n")
@@ -443,6 +475,27 @@ class Test(object):
                 # plt.show()
             plt.savefig("Relu(O1)_minsum_Relu(X2)_approx_1.png") 
             plt.show()
+
+
+            print("-----------------------------------------------------------------------------\n")
+            # Plot Minsum(Relu(O1))_minsum_Minsum(Relu(X2)), 1 set
+            
+            plot_2D_Star(All_Sum, color=color5, show=False)
+            lb,ub = All_Sum.getRanges()
+            print("lower bound {} and upper bound {} range of the set in All_Sum".format(lb,ub))
+            plt.savefig("Minsum(Relu(O1))_minsum_Minsum(Relu(X2)).png") 
+            plt.show()
+
+
+            print("-----------------------------------------------------------------------------\n")
+            # Plot Minsum(Relu(O1))_minsum_(Relu(X2)), len(relu(x2)) set
+            for s in min_all:
+                plot_2D_Star(s, color=color5, show=False)
+                lb,ub = s.getRanges()
+                print("lower bound {} and upper bound {} range of the {}th set in All_Sum".format(lb,ub,min_all.index(s)))
+            # plt.savefig("Minsum(Relu(O1))_minsum_Minsum(Relu(X2)).png") 
+            plt.show()
+
 
             # # Affine mapping testing
             # af_O1 = O1.affineMap(Whh)
