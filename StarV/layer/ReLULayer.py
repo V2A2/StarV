@@ -35,7 +35,15 @@ class ReLULayer(object):
 
         if method == 'exact':
             print(" taype of input set:", type(In))
-            return PosLin.reachExactMultiInputs(In, lp_solver, pool)
+            S = []
+            for i in range(0, len(In)):
+                if isinstance(In[i],list):
+                    S1 = PosLin.reachExactMultiInputs(In[i], lp_solver, pool)
+                    S.append(S1)
+                else:
+                    S = PosLin.reachExactMultiInputs(In, lp_solver, pool)
+            return S
+        
         elif method == 'approx':
             return PosLin.reachApproxSingleInput(In=In, lp_solver=lp_solver, RF=RF, DR=DR, show=show)
         elif method == 'relax':

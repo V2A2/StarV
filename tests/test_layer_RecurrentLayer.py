@@ -155,37 +155,37 @@ class Test(object):
         layers = [L1,L2,L3,L4,L5,L6]
         net = NeuralNetwork(layers=layers)
 
-        num_input_seq= 5
+        num_input_seq= 1
         x = data_points[:num_input_seq,:]
         x = x.T
     
         eps = 0.01
         time_steps = 5 
         results = []
-        try :
-            for k in range(0,num_input_seq):
-                xk = np.array(x[:, k]).reshape(-1,1)
-                col_point = xk
-                S = get_ProbStar_set(col_point,eps,time_steps)
-                Numlayers = len(layers)
-                Layer_RS = []
-                RS = S
-                for j in range(0,Numlayers):
-                    layers[j].info()
-                    RS1 = net.layers[j].reach(RS, method = "exact", lp_solver='gurobi', pool=None, RF=0.0, DR=0)
-                    # print("\nnumer of Output sets after layer {} : {}".format(j+1,len(RS1)))
-                    # print("output set types after layer {} : {}".format(j+1,type(RS1)))
-                    # print("output set[0] types after layer {} : {}".format(j+1,type(RS1[0])))
-                    # print("num of output set[0] types after layer {} : {}".format(j+1,len(RS1[0])))
-                    RS = RS1
-                    Layer_RS.append(RS1)
-                result = RS1
-                results.append(result)
-        except Exception:
-            print('Test Fail!')
-            self.n_fails = self.n_fails + 1
-        else:
-            print('Test Successfull!')
+        # try :
+        for k in range(0,num_input_seq):
+            xk = np.array(x[:, k]).reshape(-1,1)
+            col_point = xk
+            S = get_ProbStar_set(col_point,eps,time_steps)
+            Numlayers = len(layers)
+            Layer_RS = []
+            RS = S
+            for j in range(0,Numlayers):
+                layers[j].info()
+                RS1 = net.layers[j].reach(RS, method = "exact", lp_solver='gurobi', pool=None, RF=0.0, DR=0)
+                print("\nnumer of Output sets after layer {} : {}".format(j+1,len(RS1)))
+                print("output set types after layer {} : {}".format(j+1,type(RS1)))
+                print("output set[0] types after layer {} : {}".format(j+1,type(RS1[0])))
+                print("num of output set[0]  after layer {} : {}".format(j+1,len(RS1[0])))
+                RS = RS1
+                Layer_RS.append(RS1)
+            result = RS1
+            results.append(result)
+        # except Exception:
+        #     print('Test Fail!')
+        #     self.n_fails = self.n_fails + 1
+        # else:
+        #     print('Test Successfull!')
 
         
         return results
@@ -538,9 +538,9 @@ if __name__ == "__main__":
     # test_RecurrentLayer.test_reachExact()
     # test_RecurrentLayer.test_reachApprox()
     # test_RecurrentLayer.test_reach()
-    # test_RecurrentLayer.test_simple_rnn()
+    test_RecurrentLayer.test_simple_rnn()
     # test_RecurrentLayer.test_multiRandomLayers()
-    test_RecurrentLayer.test_multiMinsum()
+    # test_RecurrentLayer.test_multiMinsum()
     print('\n========================\
     =================================\
     =================================\
