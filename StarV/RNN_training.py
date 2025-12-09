@@ -66,22 +66,75 @@ class RNN_training(object):
         return df_merged_data
 
 
-    def construct_input_seq(engine_seq, rul_seq, window_size=20):
+    def create_input_sequnces(self,engine_data, window_size):
+       
+        """
+        Input:
+        engine_data: dataframe with columns:
+            unit_number, time_cycles, OP_1, OP_2, OP_3,
+            var_1 ... var_21, total_cycles, RUL
+        window_size: sliding window length ( time steps)
+
+        Output:
+            X: input sequences for all engines
+            y: target RUL value
+        """
+
+        num_vars = [
+        'OP_1', 'OP_2', 'OP_3'
+        ] + [f'var_{i}' for i in range(1, 22)]
+
+        # 24 features: 3 operations + 21 sensors
+
+        X = []
+        y = []
+
+        grouped_engine_data = engine_data.groupby("unit_number")
+        print("grouped_engine_data.size:",grouped_engine_data.size())
+
+        for unit, group in grouped_engine_data:
+
+            # print(f"--- Group: {unit} ---")
+            # print(group) # print all rows in that group
+            # print("\n")
+
+            features = group[num_vars].values # all features in each engine, each feature is the op + sensor data
+
+            # print("optional setting + sensor measurements:",features)          
+            rul = group["RUL"].values                       
+
+            num_cycles = len(features) # num_cycles for each engine
+
+            # generate input sequences for each engine
+            input_seqs =[]
+            rul_value=[]
+            for start in range(num_cycles - window_size + 1):
+                end = start + window_size
+                each_window = features[start:end]    
+
+                target_rul = rul[end-1]
+
+                # print("each_window:",each_window)   
+                print("target_rul_for_cycle{} in engine{}:{}".format(start+window_size,unit,target_rul))    
+                input_seqs.append(each_window)
+                rul_value.append(target_rul)
+            print("number of input seqs for engine {}:{}".format(unit,len(input_seqs)))
+
+            X.extend(input_seqs)
+            y.extend(rul)
+        print("number of input seqs for all engines:{}".format(len(X)))
+
+        return np.array(X), np.array(y)
+
+    def train():
         pass
 
-        # X, y = [], []
-        # T = len(engine_seq)
-        # for t in range(T - win_size + 1):
-        #     window = engine_seq[t:t+win_size, 1:]   
-        #     target = rul_seq[t+win_size-1]
-        #     X.append(window)
-        #     y.append(target)
-        # return np.array(X), np.array(y)
-
-
+    def validation():
+        pass
 
     def predict():
         pass
+
 
 def plot_egine_cycles(df_train,index_names):
 
@@ -101,7 +154,8 @@ def plot_egine_cycles(df_train,index_names):
 if __name__ == "__main__":
 
     RNN = RNN_training()
-    # index_names = ['unit_number', 'time_cycles']
     df_train,_,_=RNN.load_data()
-    merged = RNN.Merged_with_RUL(df_train)
+    merged_data = RNN.Merged_with_RUL(df_train)
     # plot_egine_cycles(df_train,index_names)
+    win_size =20
+    X,y= RNN.create_input_sequnces(merged_data,win_size)
