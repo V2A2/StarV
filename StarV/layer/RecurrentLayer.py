@@ -42,9 +42,9 @@ class RecurrentLayer(object):
 
     @classmethod
     def rand(cls,in_dim, out_dim):
-        Whx = np.random.rand(out_dim, in_dim)
+        Whx = np.round(np.random.rand(out_dim, in_dim),2)
         Whh = np.random.rand(out_dim, out_dim)
-        bh = np.random.rand(out_dim)
+        bh =np.round(np.random.rand(out_dim),2)
         Woh = np.random.rand(out_dim, out_dim)
         bo = np.random.rand(out_dim)
         return RecurrentLayer( Whx,Whh, bh, Woh, bo)
@@ -92,54 +92,26 @@ class RecurrentLayer(object):
             if t == 0:
                 # First timestep: h0 = ReLU(Whx * x + bhx)
                 print(f"===========number of input sets in step {t}:{len(I)}==========")
-                hidden_states = []
-                if isinstance(I, list):
-                    print(f"Input sets is a list ===========number of input sets in step {t}:{len(I)}==========")
-                    for i in range(len(I)):
-                        WIn = I[i].affineMap(self.Whx, self.bhx)
-                        h_out  = ReLULayer.reach([WIn], method=method)
-                        hidden_states.extend(h_out )
-                        print(f"Input sets is a list Hidden states len in step {t}, input set {i}:{len(hidden_states)}")
-                    print(f"Hidden states len in step {t}:{len(hidden_states)}")
-                else:
-                    WIn = I.affineMap(self.Whx, self.bhx)
-                    print("WIn t =0 dim:",WIn.dim)
-                    h_out  = ReLULayer.reach([WIn], method=method)
-                    hidden_states.extend(h_out)
-                    print(f"Hidden states len in step {t}:{len(hidden_states)}")
+        
+                WIn = I.affineMap(self.Whx, self.bhx)
+                h_out  = ReLULayer.reach([WIn], method=method)
+                hidden_states = h_out
 
             else:
                 # Subsequent timesteps: h_t = ReLU(Whx * x_t + bhx + Whh * h_{t-1})
                 hidden_states = []
                 prev_hidden = H[t - 1]
-                WIn_list = []
-                if isinstance(I, list):
-                    print(f"===========number of input sets  from prev output for this layer in step {t}:{len(I)}==========")
-                    for i in range(len(I)):
-                        WIn = I[i].affineMap(self.Whx, self.bhx)
-                        WIn_list.append(WIn)
-                    print(f"===========number of WIn_list in step {t}:{len(WIn_list)}==========")
-                    # summed = []
-                    for h_prev in prev_hidden:
-                        h_recurrent = h_prev.affineMap(self.Whh)
-                        # summed= []
-                        for WIn in WIn_list:
-                            h_p= h_recurrent.minKowskiSum(WIn)
-                            h_recurrent= h_p
-                        h_out = ReLULayer.reach([h_recurrent], method=method)
-                        print(f"Number of h_out sets after relu in step {t}:{len(h_out)}")
-                        hidden_states.extend(h_out)
-                    print(f"Number of hidden_states sets after minsum in step {t}:{len(hidden_states)}")
+                WIn = I.affineMap(self.Whx, self.bhx)
 
-                else:
-                    WIn = I.affineMap(self.Whx, self.bhx)
-                    for h_prev in prev_hidden:
-                        h_recurrent = h_prev.affineMap(self.Whh)
-                        summed = h_recurrent.minKowskiSum(WIn)
+                for h_prev in prev_hidden:
+                    h_recurrent = h_prev.affineMap(self.Whh)
+                    summed = h_recurrent.minKowskiSum(WIn)
 
-                        # Apply ReLU
-                        h_out = ReLULayer.reach([summed], method=method)
-                        hidden_states.extend(h_out)
+                    # Apply ReLU
+                    h_out = ReLULayer.reach([summed], method=method)
+                    print(f"Number of h_out sets after relu in step {t}:{len(h_out)}")
+                    hidden_states.extend(h_out)
+                print(f"Number of hidden_states sets after minsum in step {t}:{len(hidden_states)}")
 
             # Save hidden states
             H.append(hidden_states)
@@ -213,7 +185,6 @@ class RecurrentLayer(object):
             method = "exact"
         if method == "exact":
             S = self.reachExact(In, method, lp_solver, pool, RF, DR)
-            # print("(Rcuurent layer)Final output set len:",len(S))
             return S
         elif method == "approx":
             return self.reachApprox(In, method, lp_solver, pool, RF, DR)
