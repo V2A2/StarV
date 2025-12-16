@@ -35,7 +35,6 @@ class RNN_dataset(object):
         df_train = pd.read_csv(data_path + '/train_FD001.txt',sep='\s+',header=None,index_col=False,names=col_names)
         df_test = pd.read_csv(data_path +'/test_FD001.txt',sep='\s+',header=None,index_col=False,names=col_names)
         y_test = pd.read_csv(data_path +'/RUL_FD001.txt',sep='\s+',header=None,index_col=False,names=['RUL'])
-        df_test.shape
 
         print("all_train_data_shape:",df_train.shape)
         print("all_test_data_shape:",df_test.shape)
@@ -50,7 +49,7 @@ class RNN_dataset(object):
 
     def Merged_with_RUL(self, df_data):
 
-        ''' Add additinal column for currecnt RUL for each engine cycle'''
+        ''' Add additinal column for RUL for each engine unit cycle'''
 
         total_cycles_per_engine = (df_data.groupby("unit_number")["time_cycles"].max())
         cycles_per_engine = total_cycles_per_engine.reset_index().rename(columns={"time_cycles": "total_cycles"})
@@ -60,6 +59,8 @@ class RNN_dataset(object):
         df_merged_data = df_data.merge(cycles_per_engine, on="unit_number", how="left")
 
         df_merged_data["RUL"] = df_merged_data["total_cycles"] - df_merged_data["time_cycles"]
+
+        df_merged_data = df_merged_data.drop("total_cycles", axis=1) 
         
         # df_merged_data = df_merged_data.drop("total_cycles", axis=1) 
 
@@ -84,13 +85,14 @@ class RNN_dataset(object):
 
         num_vars = [
         'OP_1', 'OP_2', 'OP_3'
-        ] + [f'var_{i}' for i in range(1, 22)]
+        ] + [f'var_{i}' for i in range(1, 22)] +['RUL'] 
 
         # 24 features: 3 operations + 21 sensors
 
         X = []
         y = []
 
+        # group by engine unit
         grouped_engine_data = engine_data.groupby("unit_number")
         print("grouped_engine_data.size:",grouped_engine_data.size())
 
@@ -99,46 +101,47 @@ class RNN_dataset(object):
             # print(f"--- Group: {unit} ---\n")
             # print(group) # print all rows in that group
 
-            features = group[num_vars].values # all features in each engine, each feature is the op + sensor data
+            features = group[num_vars].values # all features in each engine, each feature is the optional setting(3)+ sensor measurements(21)
 
             # print("optional setting + sensor measurements:",features)          
-            rul = group["RUL"].values                       
+            # rul = group["RUL"].values                       
 
             num_cycles = len(features) # num_cycles for each engine
 
             # generate input sequences for each engine
             input_seqs =[]
-            rul_value=[]
+            # rul_value=[]
             for start in range(num_cycles - window_size + 1):
                 end = start + window_size
                 each_window = features[start:end]    
-
-                target_rul = rul[end-1]
-
+                # target_rul = rul[end-1]
                 # print("each_window:",each_window)   
                 # print("target_rul_for_cycle{} in engine{}:{}".format(start+window_size,unit,target_rul))    
                 input_seqs.append(each_window)
-                rul_value.append(target_rul)
+                # rul_value.append(target_rul)
             # print("number of input seqs for engine {}:{}".format(unit,len(input_seqs)))
 
-            X.extend(input_seqs)
-            y.extend(rul)
+            X.extend(input_seqs) # including RUL
+        print(f"X:{X[0]}")
+            # y.extend(rul)
         print("number of input seqs for all engines:{}".format(len(X)))
 
-        return np.array(X), np.array(y)
+        return np.array(X)
     
 
-class CmapssDataset(Dataset):
-    def __init__(self, X, y):
+class CMAPSS_Dataset(Dataset):
+    def __init__(self, X):
         self.X = torch.tensor(X, dtype=torch.float32)
-        self.y = torch.tensor(y, dtype=torch.float32)
 
     def __len__(self):
-        return len(self.y)
+        return len(self.X)
 
     def __getitem__(self, idx):
-        return self.X[idx], self.y[idx]
-
+        return self.X[idx]
+    
+    def get_data_loader(self,batch_size):
+        dataloader= DataLoader(self.X,batch_size,shuffle=True)
+        return dataloader
 
 class RNN_model(nn.Module):
     def __init__(self, input_size, hidden_size, fc_sizes,dropout_prob):
@@ -174,9 +177,10 @@ class RNN_model(nn.Module):
     def init_weights(self):
         # RNN initialization
         for name, param in self.rnn.named_parameters():
-            # print(f"RNN_Name: {name} ---- Shape: {param.shape}")
+            print(f"RNN_Name: {name} ---- Shape: {param.shape}")
             if "weight_ih" in name:
-                nn.init.xavier_uniform_(param) # weight init from xavier uniform(-a,a)
+                # nn.init.xavier_uniform_(param) # weight init from xavier uniform(-a,a)
+                nn.init.kaiming_uniform_(param) 
                 # print(f"weight_ih_init:{param}")
             elif "weight_hh" in name:
                 nn.init.orthogonal_(param)
@@ -188,26 +192,33 @@ class RNN_model(nn.Module):
             for name, param in layer.named_parameters():
                 # print(f"FC_layer {i}: {layer} ---- Shape: {param.shape}")
                 # if isinstance(param, nn.Linear):
-                nn.init.xavier_uniform_(layer.weight)
+                nn.init.kaiming_uniform_(layer.weight)
                 # print(f"FC_layer {i} weight initialization:{layer.weight}")
                 nn.init.zeros_(layer.bias)
 
     def forward(self, x):
-        rnn_out, h = self.rnn(x)
-        last_hidden_state = h[-1]              
+        rnn_out, h = self.rnn(x) # output: tensor of shape (L,D∗Hout)(L,D∗Hout​)  h: tensor of shape (D*num_layers,Hout​), D = 2 if bidirectional=True otherwise 1
+        print(f"rnn_output:{rnn_out.shape}, hidden_state:{h}")
+        last_hidden_state = h[-1]       
+        print(f"last_hidden_state_shape:{last_hidden_state.shape}")
         h_dropped = self.last_hidden_layer_dropout(last_hidden_state)
+        print(f"hidden_state_after_dropout_shape:{h_dropped.shape}")
         output = self.fc(h_dropped)
+        print(f"output_shape:{output.shape}")
         output = output.squeeze(-1)        
         return output
 
-    def train():
+    def train(self,model,train_inputs,train_targets,optimizer,epocjs):
+        model.train()
+
+
         pass
 
-    def validation():
+    def validation(self):
         pass
 
-    def predict():
-        pass
+    # def predict():
+    #     pass
 
 
 def plot_egine_cycles(df_train,index_names):
@@ -234,22 +245,30 @@ def set_seed(seed=42):
 
 if __name__ == "__main__":
 
+    np.set_printoptions(formatter={'float': '{: 0.3f}'.format})
+
     set_seed(25) 
     data = RNN_dataset()
     df_train,_,_=data.load_data()
     merged_data = data.Merged_with_RUL(df_train)
-    # plot_egine_cycles(df_train,index_names)
+    # plot_egine_cycles(df_train,index_names = ['unit_number', 'time_cycles'])
     win_size =20
-    input_seqs,targt= data.create_input_sequnces(merged_data,win_size)
+    input_seqs= data.create_input_sequnces(merged_data,win_size)
     print("input_seqs_shape:",input_seqs.shape)
 
-    X = torch.tensor(input_seqs, dtype=torch.float32)
-    print("X_tshape:",X.shape)
-    y = torch.tensor(targt, dtype=torch.float32)
+    # X = torch.tensor(input_seqs, dtype=torch.float32)
+    # print("X_tshape:",X.shape)
+    X = CMAPSS_Dataset(input_seqs)
+    print("X_length:",X.__len__())
+    # print("X_item:",X.__getitem__(0))
+    train_dataloader = X.get_data_loader(batch_size=32)
 
+    print("train_datatloader:",len(train_dataloader))
+    iter_train_loader = next(iter(train_dataloader))
+    # print("X_batch:",X.shape)
 
-    model= RNN_model(input_size=24, hidden_size=32, fc_sizes=[32, 16, 8], dropout_prob=0.2)
+    model= RNN_model(input_size=25, hidden_size=32, fc_sizes=[32, 16, 8], dropout_prob=0.3)
     model.init_weights()
-    output = model.forward(X)
-    print("output_shape:",output.detach().numpy())
+    output = model.forward(iter_train_loader)
+    print("output:",output.detach().numpy())
 
