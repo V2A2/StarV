@@ -85,9 +85,9 @@ class RNN_dataset(object):
 
         num_vars = [
         'OP_1', 'OP_2', 'OP_3'
-        ] + [f'var_{i}' for i in range(1, 22)] +['RUL'] 
+        ] + [f'var_{i}' for i in range(1, 22)]
 
-        # 24 features: 3 operations + 21 sensors
+        # 24 features: 3 operations + 21 sensors 
 
         X = []
         y = []
@@ -104,48 +104,52 @@ class RNN_dataset(object):
             features = group[num_vars].values # all features in each engine, each feature is the optional setting(3)+ sensor measurements(21)
 
             # print("optional setting + sensor measurements:",features)          
-            # rul = group["RUL"].values                       
+            rul = group["RUL"].values                       
 
             num_cycles = len(features) # num_cycles for each engine
 
             # generate input sequences for each engine
             input_seqs =[]
-            # rul_value=[]
+            rul_value=[]
             for start in range(num_cycles - window_size + 1):
                 end = start + window_size
                 each_window = features[start:end]    
-                # target_rul = rul[end-1]
+                target_rul = rul[end-1]
                 # print("each_window:",each_window)   
                 # print("target_rul_for_cycle{} in engine{}:{}".format(start+window_size,unit,target_rul))    
                 input_seqs.append(each_window)
-                # rul_value.append(target_rul)
+                rul_value.append(target_rul)
             # print("number of input seqs for engine {}:{}".format(unit,len(input_seqs)))
 
             X.extend(input_seqs) # including RUL
+            y.extend(rul_value)
         print(f"X:{X[0]}")
-            # y.extend(rul)
+        print(f"y:{y[0]}")
         print("number of input seqs for all engines:{}".format(len(X)))
 
-        return np.array(X)
+        return np.array(X), np.array(y)
     
 
 class CMAPSS_Dataset(Dataset):
-    def __init__(self, X):
+    def __init__(self, X,y):
         self.X = torch.tensor(X, dtype=torch.float32)
+        self.y = torch.tensor(y, dtype=torch.float32)
 
     def __len__(self):
         return len(self.X)
 
     def __getitem__(self, idx):
-        return self.X[idx]
-    
-    def get_data_loader(self,batch_size):
-        dataloader= DataLoader(self.X,batch_size,shuffle=True)
-        return dataloader
+
+        inputs = self.X[idx].squeeze(0)
+        rul = self.y[idx].squeeze(0)
+        return inputs, rul
+
 
 class RNN_model(nn.Module):
-    def __init__(self, input_size, hidden_size, fc_sizes,dropout_prob):
+    def __init__(self, input_size: int, hidden_size:int, fc_sizes:list,dropout_prob:float):
+
         super().__init__()
+    
 
         # Vanilla RNN with ReLu
         self.rnn = nn.RNN(
@@ -173,6 +177,8 @@ class RNN_model(nn.Module):
 
         fc_layers.append(output_layer)
         self.fc = nn.Sequential(*fc_layers)
+
+        self.init_weights()
     
     def init_weights(self):
         # RNN initialization
@@ -190,13 +196,15 @@ class RNN_model(nn.Module):
         # FC layers initialization
         for i, layer in enumerate(self.fc):
             for name, param in layer.named_parameters():
-                # print(f"FC_layer {i}: {layer} ---- Shape: {param.shape}")
-                # if isinstance(param, nn.Linear):
-                nn.init.kaiming_uniform_(layer.weight)
-                # print(f"FC_layer {i} weight initialization:{layer.weight}")
-                nn.init.zeros_(layer.bias)
+                if isinstance(layer, nn.Linear):
+                    # print(f"FC_layer {i}: {layer} ---- Shape: {param.shape}")
+                    # if isinstance(param, nn.Linear):
+                    nn.init.kaiming_uniform_(layer.weight,nonlinearity='relu')
+                    # print(f"FC_layer {i} weight initialization:{layer.weight}")
+                    nn.init.zeros_(layer.bias)
 
     def forward(self, x):
+        print(f"input_shape in forward:{x.shape}")
         rnn_out, h = self.rnn(x) # output: tensor of shape (L,D∗Hout)(L,D∗Hout​)  h: tensor of shape (D*num_layers,Hout​), D = 2 if bidirectional=True otherwise 1
         print(f"rnn_output:{rnn_out.shape}, hidden_state:{h}")
         last_hidden_state = h[-1]       
@@ -208,11 +216,65 @@ class RNN_model(nn.Module):
         output = output.squeeze(-1)        
         return output
 
-    def train(self,model,train_inputs,train_targets,optimizer,epocjs):
-        model.train()
+
+class RNN_trainer(object):
+    def __init__(self, model:nn.Module, train_loader: DataLoader,
+                 val_loader: DataLoader, 
+                 lr: float,weight_decay: float, epochs: int):
+        self.model = model
+        self.train_loader = train_loader
+        self.val_loader = val_loader
+        # self.device = device
+        self.epochs = epochs
+        # self.model_save_path = model_save_path
+        self.lr = lr
+        self.weight_decay = weight_decay
+
+         # Optimizer and scheduler
+        self.optimizer = torch.optim.Adam(model.parameters(), lr=self.lr,weight_decay=self.weight_decay)
+        # self.t_total = len(train_loader) * epochs
+        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer,mode='min',factor=0.5,patience=5)
+        self.loss_fn = nn.SmoothL1Loss(beta=10.0)
+        
+    
+    def train(self):
+        print("======================== Begin Training model ========================")
+        avg_losses = []
+        for epoch in range(self.epochs):
+            self.model.train()
+            losses = []
+            all_preds=[]
+            all_targets =[]
+            for idx, (x_batch,y_batch) in enumerate(self.train_loader):
+                # print(type(x_batch))
+                # print(len(x_batch))
+                # print(type(x_batch[0]), x_batch[0].shape)
+
+                # x_batch = x_batch.to(self.device)
+                # y_batch = y_batch.to(self.device)
+                self.optimizer.zero_grad()
+                pred_rul = self.model(x_batch)
+                loss = self.loss_fn(pred_rul,y_batch)
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(),1.0)
+                self.optimizer.step()
+
+                print("pred_rul:",pred_rul)
+                all_preds.append(pred_rul.detach().cpu())
+                all_targets.append(y_batch.detach().cpu())
+                print("true_rul:",y_batch)
+                losses.append(loss.item())
+                print("loss:",loss.item())
+                
+
+            avg_loss = float(np.mean(losses))
+            avg_losses.append(avg_loss)
+            print("Pred mean:", pred_rul.mean(), "True mean:", y_batch.mean())
+        return avg_losses
+
+        
 
 
-        pass
 
     def validation(self):
         pass
@@ -253,22 +315,27 @@ if __name__ == "__main__":
     merged_data = data.Merged_with_RUL(df_train)
     # plot_egine_cycles(df_train,index_names = ['unit_number', 'time_cycles'])
     win_size =20
-    input_seqs= data.create_input_sequnces(merged_data,win_size)
+    input_seqs,target_rul= data.create_input_sequnces(merged_data,win_size)
     print("input_seqs_shape:",input_seqs.shape)
+    print("target_rul_shape:",target_rul.shape)
 
     # X = torch.tensor(input_seqs, dtype=torch.float32)
     # print("X_tshape:",X.shape)
-    X = CMAPSS_Dataset(input_seqs)
-    print("X_length:",X.__len__())
+    train_dataset = CMAPSS_Dataset(input_seqs,target_rul)
+    print("train_dataset_length:",train_dataset.__len__())
     # print("X_item:",X.__getitem__(0))
-    train_dataloader = X.get_data_loader(batch_size=32)
 
-    print("train_datatloader:",len(train_dataloader))
-    iter_train_loader = next(iter(train_dataloader))
-    # print("X_batch:",X.shape)
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+    # train_dataloader = train_dataset.get_data_loader(batch_size=32)
+    print("train_datatloader:",len(train_loader))
+    iter_train_loader = next(iter(train_loader))
+    # print("iter_train_loader:",iter_train_loader[0])
 
-    model= RNN_model(input_size=25, hidden_size=32, fc_sizes=[32, 16, 8], dropout_prob=0.3)
-    model.init_weights()
-    output = model.forward(iter_train_loader)
-    print("output:",output.detach().numpy())
 
+    model= RNN_model(input_size=24, hidden_size=32, fc_sizes=[64, 32, 16], dropout_prob=0.3)
+    # model.init_weights()
+    # output = model.forward(train_loader)
+    # print("output:",output.detach().numpy())
+
+    trainer = RNN_trainer(model, train_loader, train_loader, lr=1e-3, weight_decay=1e-4, epochs=50)
+    trainer.train()
