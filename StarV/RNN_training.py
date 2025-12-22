@@ -2,6 +2,7 @@
 Recurrent Layer Class
 Qing Liu, 12/05/2025
 """
+import random
 from scipy.io import loadmat
 import os
 import pandas as pd
@@ -29,7 +30,7 @@ class RNN_dataset(object):
 
         index_names = ['unit_number', 'time_cycles']
         operational_names = ['OP_1', 'OP_2', 'OP_3']
-        sensor_names = ['var_{}'.format(i+1) for i in range(0,21)]
+        sensor_names = [f'var_{i+1}' for i in range(0,21)]
         col_names = index_names + operational_names + sensor_names
 
         df_train = pd.read_csv(data_path + '/train_FD001.txt',sep='\s+',header=None,index_col=False,names=col_names)
@@ -69,6 +70,7 @@ class RNN_dataset(object):
         return df_merged_data
 
 
+
     def create_input_sequnces(self,engine_data, window_size):
        
         """
@@ -83,25 +85,49 @@ class RNN_dataset(object):
             y: target RUL value
         """
 
-        num_vars = [
+        all_vars = [
         'OP_1', 'OP_2', 'OP_3'
         ] + [f'var_{i}' for i in range(1, 22)]
 
         # 24 features: 3 operations + 21 sensors 
 
-        X = []
-        y = []
+        X_train = []
+        y_train = []
+
+        X_val = []
+        y_val =[]
 
         # group by engine unit
         grouped_engine_data = engine_data.groupby("unit_number")
         print("grouped_engine_data.size:",grouped_engine_data.size())
+        print("type of grouped_engine_data:",type(grouped_engine_data))
+
+        # split data into training and validation sets
+        engine_ids = engine_data["unit_number"].unique()
+        print("engine_ids:",engine_ids)
+        val_engines = set(random.sample(list(engine_ids), 20))
+        train_engines =  set(engine_ids) - val_engines
+
+        print("Validation engines:", sorted(val_engines))
+        print("Training engines:", sorted(train_engines))
+
+        assert len(val_engines) == 20
+        assert len(train_engines) == 80
+        assert len(val_engines.intersection(train_engines)) == 0
+
+        # skip some conctant features
+        stds = engine_data[all_vars].std()
+        skip_vars= stds[stds < 1e-12]
+        selected_vars = [c for c in all_vars if c not in skip_vars]
+
+
+        print("Dropped features:", skip_vars)
+        print("Remaining features:", selected_vars)
+        print("Number of remaining features:", len(selected_vars))
 
         for unit, group in grouped_engine_data:
 
-            # print(f"--- Group: {unit} ---\n")
-            # print(group) # print all rows in that group
-
-            features = group[num_vars].values # all features in each engine, each feature is the optional setting(3)+ sensor measurements(21)
+            features = group[selected_vars].values # all features in each engine, each feature is the optional setting(3)+ sensor measurements(21)
 
             # print("optional setting + sensor measurements:",features)          
             rul = group["RUL"].values                       
@@ -111,24 +137,31 @@ class RNN_dataset(object):
             # generate input sequences for each engine
             input_seqs =[]
             rul_value=[]
+
+
             for start in range(num_cycles - window_size + 1):
                 end = start + window_size
                 each_window = features[start:end]    
                 target_rul = rul[end-1]
                 # print("each_window:",each_window)   
-                # print("target_rul_for_cycle{} in engine{}:{}".format(start+window_size,unit,target_rul))    
-                input_seqs.append(each_window)
+                # print(f"target_rul_for_cycle{start+window_size} in engine{unit}:{target_rul}")    
+                input_seqs.append(each_window) 
                 rul_value.append(target_rul)
-            # print("number of input seqs for engine {}:{}".format(unit,len(input_seqs)))
 
-            X.extend(input_seqs) # including RUL
-            y.extend(rul_value)
-        print(f"X:{X[0]}")
-        print(f"y:{y[0]}")
-        print("number of input seqs for all engines:{}".format(len(X)))
+                print(f"number of input seqs for engine {unit}:{len(input_seqs)}")
+ 
+            if unit in val_engines: # validation set
+                X_val.extend(input_seqs)
+                y_val.extend(rul_value)
+            else:   # training set
+                X_train.extend(input_seqs)
+                y_train.extend(rul_value)
 
-        return np.array(X), np.array(y)
-    
+
+        print(f"number of input seqs for training: {len(X_train)}")
+        print(f"number of input seqs for validation: {len(X_val)}")
+
+        return np.array(X_train), np.array(y_train), np.array(X_val), np.array(y_val),len(selected_vars)
 
 class CMAPSS_Dataset(Dataset):
     def __init__(self, X,y):
@@ -206,13 +239,13 @@ class RNN_model(nn.Module):
     def forward(self, x):
         print(f"input_shape in forward:{x.shape}")
         rnn_out, h = self.rnn(x) # output: tensor of shape (L,D∗Hout)(L,D∗Hout​)  h: tensor of shape (D*num_layers,Hout​), D = 2 if bidirectional=True otherwise 1
-        print(f"rnn_output:{rnn_out.shape}, hidden_state:{h}")
+        # print(f"rnn_output:{rnn_out.shape}, hidden_state:{h}")
         last_hidden_state = h[-1]       
-        print(f"last_hidden_state_shape:{last_hidden_state.shape}")
+        # print(f"last_hidden_state_shape:{last_hidden_state.shape}")
         h_dropped = self.last_hidden_layer_dropout(last_hidden_state)
-        print(f"hidden_state_after_dropout_shape:{h_dropped.shape}")
+        # print(f"hidden_state_after_dropout_shape:{h_dropped.shape}")
         output = self.fc(h_dropped)
-        print(f"output_shape:{output.shape}")
+        # print(f"output_shape:{output.shape}")
         output = output.squeeze(-1)        
         return output
 
@@ -230,7 +263,7 @@ class RNN_trainer(object):
         self.lr = lr
         self.weight_decay = weight_decay
 
-         # Optimizer and scheduler
+        # Optimizer and scheduler
         self.optimizer = torch.optim.Adam(model.parameters(), lr=self.lr,weight_decay=self.weight_decay)
         # self.t_total = len(train_loader) * epochs
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer,mode='min',factor=0.5,patience=5)
@@ -238,7 +271,7 @@ class RNN_trainer(object):
         
     
     def train(self):
-        print("======================== Begin Training model ========================")
+        print("======================== Begin Training ========================")
         avg_losses = []
         for epoch in range(self.epochs):
             self.model.train()
@@ -252,32 +285,60 @@ class RNN_trainer(object):
 
                 # x_batch = x_batch.to(self.device)
                 # y_batch = y_batch.to(self.device)
-                self.optimizer.zero_grad()
                 pred_rul = self.model(x_batch)
+                print("pred_rul type:",type(pred_rul))
                 loss = self.loss_fn(pred_rul,y_batch)
+                print(f"pred_rul: {pred_rul}")
+                print(f"true_rul: {y_batch}")
+
+                self.optimizer.zero_grad()
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(),1.0)
+
                 self.optimizer.step()
 
-                print("pred_rul:",pred_rul)
                 all_preds.append(pred_rul.detach().cpu())
                 all_targets.append(y_batch.detach().cpu())
-                print("true_rul:",y_batch)
+              
+
                 losses.append(loss.item())
-                print("loss:",loss.item())
-                
+                # print("loss:",loss.item())
+                                
+            all_preds = torch.cat(all_preds, dim=0)
+            all_targets = torch.cat(all_targets, dim=0)
+            mae  = torch.mean(torch.abs(all_preds - all_targets)).item()
+            rmse = torch.sqrt(torch.mean((all_preds - all_targets) ** 2)).item()
+            avg_loss = np.mean(losses)
 
-            avg_loss = float(np.mean(losses))
+            print(f"Epoch {epoch+1}/{self.epochs} - Train Loss {avg_loss:.3f} | MAE {mae:.2f} | RMSE {rmse:.2f}")
+
             avg_losses.append(avg_loss)
-            print("Pred mean:", pred_rul.mean(), "True mean:", y_batch.mean())
+            self.scheduler.step(avg_loss) 
+            # print("Pred mean:", pred_rul.mean(), "True mean:", y_batch.mean())
         return avg_losses
-
-        
-
 
 
     def validation(self):
-        pass
+        print("======================== Begin Validation ========================")
+        avg_losses = []
+        for epoch in range(self.epochs):
+            self.model.eval()
+            losses = []
+            all_preds=[]
+            all_targets =[]
+            with torch.no_grad():
+                for idx, (x_batch,y_batch) in enumerate(self.val_loader):
+                    pred_rul = self.model(x_batch)
+                    loss = self.loss_fn(pred_rul,y_batch)
+                    losses.append(loss.item())
+                    all_preds.append(pred_rul.detach().cpu())
+                    all_targets.append(y_batch.detach().cpu())
+                    print(f"pred_rul: {pred_rul}")
+                    print(f"true_rul: {y_batch}")
+            avg_loss = np.mean(losses)
+            print(f"Epoch {epoch+1}/{self.epochs} - Val Loss: {avg_loss:.4f}")
+            avg_losses.append(avg_loss)
+        return avg_losses
 
     # def predict():
     #     pass
@@ -307,7 +368,8 @@ def set_seed(seed=42):
 
 if __name__ == "__main__":
 
-    np.set_printoptions(formatter={'float': '{: 0.3f}'.format})
+    np.set_printoptions(precision=3)
+    torch.set_printoptions(precision=3)
 
     set_seed(25) 
     data = RNN_dataset()
@@ -315,27 +377,29 @@ if __name__ == "__main__":
     merged_data = data.Merged_with_RUL(df_train)
     # plot_egine_cycles(df_train,index_names = ['unit_number', 'time_cycles'])
     win_size =20
-    input_seqs,target_rul= data.create_input_sequnces(merged_data,win_size)
-    print("input_seqs_shape:",input_seqs.shape)
-    print("target_rul_shape:",target_rul.shape)
+    X_train,y_train,X_val,y_val,num_vars= data.create_input_sequnces(merged_data,win_size)
+    print("input_seqs_shape:",X_train.shape)
+    print("target_rul_shape:",y_train.shape)
 
     # X = torch.tensor(input_seqs, dtype=torch.float32)
     # print("X_tshape:",X.shape)
-    train_dataset = CMAPSS_Dataset(input_seqs,target_rul)
+    train_dataset = CMAPSS_Dataset(X_train,y_train)
+    val_dataset = CMAPSS_Dataset(X_val,y_val)
     print("train_dataset_length:",train_dataset.__len__())
     # print("X_item:",X.__getitem__(0))
 
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-    # train_dataloader = train_dataset.get_data_loader(batch_size=32)
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=False)
+    val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
     print("train_datatloader:",len(train_loader))
     iter_train_loader = next(iter(train_loader))
     # print("iter_train_loader:",iter_train_loader[0])
 
 
-    model= RNN_model(input_size=24, hidden_size=32, fc_sizes=[64, 32, 16], dropout_prob=0.3)
+    model= RNN_model(input_size=num_vars, hidden_size=32, fc_sizes=[64, 32, 16], dropout_prob=0.3)
     # model.init_weights()
     # output = model.forward(train_loader)
     # print("output:",output.detach().numpy())
 
-    trainer = RNN_trainer(model, train_loader, train_loader, lr=1e-3, weight_decay=1e-4, epochs=50)
+    trainer = RNN_trainer(model, train_loader, val_loader, lr=2e-5, weight_decay=1e-4, epochs=50)
     trainer.train()
+    trainer.validation()
