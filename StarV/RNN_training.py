@@ -84,26 +84,54 @@ class RNN_dataset(object):
             X: input sequences for all engines
             y: target RUL value
         """
-
         all_vars = [
         'OP_1', 'OP_2', 'OP_3'
-        ] + [f'var_{i}' for i in range(1, 22)]
+        ] + [f'var_{i}' for i in range(1, 22)] # 24 features: 3 operations + 21 sensors 
 
-        # 24 features: 3 operations + 21 sensors 
+        engine_data_1 = engine_data.deepcopy()
+
+        # skip the most correlated features
+
+        engine_data_corr = engine_data_1[all_vars].corr().abs()
+        upper_tri = engine_data_corr.where(np.triu(np.ones(engine_data_corr.shape),k=1).astype(bool))
+        corr_features = [column for column in upper_tri.columns if any(upper_tri[column] > 0.95)]
+        print("corr_features:", corr_features)
+        engine_data_1.drop(corr_features,axis=1,inplace=True)
+
+        reamining_vars = [var for var in all_vars if var not in corr_features]
+        print("Remaining features after dropping correlated ones:", reamining_vars)
+
+
+        # skip some conctant features, not useful for RUL prediction, not correalted with RUL
+        const_vars = []
+        for feature in reamining_vars:
+            if engine_data_1[feature].min() == engine_data_1[feature].max():
+                const_vars.append(feature)
+                engine_data_1.drop(feature,axis=1,inplace=True)
+        selected_vars = [var for var in reamining_vars if var not in const_vars]
+
+        print("Dropped features with constant values:", const_vars)
+        print("Remaining features:", selected_vars)
+        print("Number of remaining features after dropping correlated ones and const ones:", len(selected_vars))
+
+        print("Dropped engine data shape:",engine_data.shape)
+
+    
 
         X_train = []
         y_train = []
 
         X_val = []
         y_val =[]
+        
 
         # group by engine unit
-        grouped_engine_data = engine_data.groupby("unit_number")
+        grouped_engine_data = engine_data_1.groupby("unit_number")
         print("grouped_engine_data.size:",grouped_engine_data.size())
         print("type of grouped_engine_data:",type(grouped_engine_data))
 
         # split data into training and validation sets
-        engine_ids = engine_data["unit_number"].unique()
+        engine_ids = engine_data_1["unit_number"].unique()
         print("engine_ids:",engine_ids)
         val_engines = set(random.sample(list(engine_ids), 20))
         train_engines =  set(engine_ids) - val_engines
@@ -115,19 +143,10 @@ class RNN_dataset(object):
         assert len(train_engines) == 80
         assert len(val_engines.intersection(train_engines)) == 0
 
-        # skip some conctant features
-        stds = engine_data[all_vars].std()
-        skip_vars= stds[stds < 1e-12]
-        selected_vars = [c for c in all_vars if c not in skip_vars]
-
-
-        print("Dropped features:", skip_vars)
-        print("Remaining features:", selected_vars)
-        print("Number of remaining features:", len(selected_vars))
 
         for unit, group in grouped_engine_data:
 
-            features = group[selected_vars].values # all features in each engine, each feature is the optional setting(3)+ sensor measurements(21)
+            features = group[selected_vars].values # selected features in each engine
 
             # print("optional setting + sensor measurements:",features)          
             rul = group["RUL"].values                       
@@ -308,9 +327,18 @@ class RNN_trainer(object):
             all_targets = torch.cat(all_targets, dim=0)
             mae  = torch.mean(torch.abs(all_preds - all_targets)).item()
             rmse = torch.sqrt(torch.mean((all_preds - all_targets) ** 2)).item()
+
+            y_train_mean = torch.mean(all_targets)
+            rmse_baseline = torch.sqrt(torch.mean((all_targets - y_train_mean)**2))
+            mae_baseline = torch.mean(torch.abs(all_targets - y_train_mean))
+            
             avg_loss = np.mean(losses)
 
-            print(f"Epoch {epoch+1}/{self.epochs} - Train Loss {avg_loss:.3f} | MAE {mae:.2f} | RMSE {rmse:.2f}")
+
+            print(f"========================Epoch {epoch+1}/{self.epochs} - Train Loss {avg_loss:.3f} | MAE_baseline {mae_baseline:.2f} | RMSE_baseline {rmse_baseline:.2f}==========================")
+
+
+            print(f"=========================== Epoch {epoch+1}/{self.epochs} - Train Loss {avg_loss:.3f} | MAE {mae:.2f} | RMSE {rmse:.2f}=========================")
 
             avg_losses.append(avg_loss)
             self.scheduler.step(avg_loss) 
@@ -376,7 +404,7 @@ if __name__ == "__main__":
     df_train,_,_=data.load_data()
     merged_data = data.Merged_with_RUL(df_train)
     # plot_egine_cycles(df_train,index_names = ['unit_number', 'time_cycles'])
-    win_size =20
+    win_size =15
     X_train,y_train,X_val,y_val,num_vars= data.create_input_sequnces(merged_data,win_size)
     print("input_seqs_shape:",X_train.shape)
     print("target_rul_shape:",y_train.shape)
