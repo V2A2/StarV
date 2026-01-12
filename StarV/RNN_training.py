@@ -5,12 +5,14 @@ Qing Liu, 12/05/2025
 import random
 from scipy.io import loadmat
 import os
+import seaborn as sns
 import pandas as pd
 import numpy as np
 import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
 from torch.utils.data import Dataset, DataLoader
+from sklearn.preprocessing import StandardScaler
 
 
 
@@ -45,30 +47,32 @@ class RNN_dataset(object):
         # pd.set_option('display.max_column', 30)
         # print("train_data_samples:",train_samples)/
 
+
         return df_train,df_test,y_test
 
 
     def Merged_with_RUL(self, df_data):
 
-        ''' Add additinal column for RUL for each engine unit cycle'''
+        ''' Add a column 'RUL' for each row: RUL = (max cycle of that engine) - (current cycle)'''
 
-        total_cycles_per_engine = (df_data.groupby("unit_number")["time_cycles"].max())
-        cycles_per_engine = total_cycles_per_engine.reset_index().rename(columns={"time_cycles": "total_cycles"})
-        print("Number of cycles for each engine:")
-        print(cycles_per_engine)
+        data = df_data.copy()
 
-        df_merged_data = df_data.merge(cycles_per_engine, on="unit_number", how="left")
+        max_cycles_per_engine = (data.groupby("unit_number")["time_cycles"].max()).rename("max_cycles")
 
-        df_merged_data["RUL"] = df_merged_data["total_cycles"] - df_merged_data["time_cycles"]
+        # cycles_per_engine = max_cycles_per_engine.reset_index().rename(columns={"time_cycles": "total_cycles"})
+        # print("Number of cycles for each engine:")
+        # print(cycles_per_engine)
 
-        df_merged_data = df_merged_data.drop("total_cycles", axis=1) 
+        df_merged_data = data.join(max_cycles_per_engine, on="unit_number", how="left")
+
+        df_merged_data["RUL"] = df_merged_data["max_cycles"] - df_merged_data["time_cycles"]
+        df_merged_data['RUL'] = df_merged_data['RUL'].clip(upper=125)
+        df_merged_data.drop(columns=["max_cycles"], inplace=True)
         
-        # df_merged_data = df_merged_data.drop("total_cycles", axis=1) 
 
         print("\n Merged data with RUL:",df_merged_data)
 
         return df_merged_data
-
 
 
     def create_input_sequnces(self,engine_data, window_size):
@@ -84,21 +88,19 @@ class RNN_dataset(object):
             X: input sequences for all engines
             y: target RUL value
         """
-        all_vars = [
-        'OP_1', 'OP_2', 'OP_3'
-        ] + [f'var_{i}' for i in range(1, 22)] # 24 features: 3 operations + 21 sensors 
 
-        engine_data_1 = engine_data.deepcopy()
+        engine_data_1 = engine_data.copy()
+
+        all_features = list(engine_data_1.columns[2:-1]) # 24 features: 3 operations + 21 sensors 
+
 
         # skip the most correlated features
-
-        engine_data_corr = engine_data_1[all_vars].corr().abs()
+        engine_data_corr = engine_data_1[all_features].corr().abs()
         upper_tri = engine_data_corr.where(np.triu(np.ones(engine_data_corr.shape),k=1).astype(bool))
-        corr_features = [column for column in upper_tri.columns if any(upper_tri[column] > 0.95)]
+        corr_features = [column for column in upper_tri.columns if any(upper_tri[column] > 0.85)]
         print("corr_features:", corr_features)
-        engine_data_1.drop(corr_features,axis=1,inplace=True)
-
-        reamining_vars = [var for var in all_vars if var not in corr_features]
+        engine_data_1.drop(corr_features, axis=1, inplace=True)
+        reamining_vars = [var for var in all_features if var not in corr_features]
         print("Remaining features after dropping correlated ones:", reamining_vars)
 
 
@@ -107,22 +109,27 @@ class RNN_dataset(object):
         for feature in reamining_vars:
             if engine_data_1[feature].min() == engine_data_1[feature].max():
                 const_vars.append(feature)
-                engine_data_1.drop(feature,axis=1,inplace=True)
-        selected_vars = [var for var in reamining_vars if var not in const_vars]
+                engine_data_1.drop(feature,axis=1, inplace=True)
 
+        selected_vars = [var for var in reamining_vars if var not in const_vars]
         print("Dropped features with constant values:", const_vars)
         print("Remaining features:", selected_vars)
         print("Number of remaining features after dropping correlated ones and const ones:", len(selected_vars))
+        print("Dropped engine data shape:",engine_data_1.shape)
+        engine_data_1.info()
 
-        print("Dropped engine data shape:",engine_data.shape)
 
-    
+        scaler = StandardScaler()
+        scaled_data = scaler.fit_transform(engine_data_1[selected_vars])
+        engine_data_1[selected_vars] = scaled_data
+
+        print("Scaled engine data samples:")
+        print(engine_data_1.head())
 
         X_train = []
         y_train = []
-
-        X_val = []
-        y_val =[]
+        # X_val = []
+        # y_val =[]
         
 
         # group by engine unit
@@ -130,28 +137,29 @@ class RNN_dataset(object):
         print("grouped_engine_data.size:",grouped_engine_data.size())
         print("type of grouped_engine_data:",type(grouped_engine_data))
 
-        # split data into training and validation sets
-        engine_ids = engine_data_1["unit_number"].unique()
-        print("engine_ids:",engine_ids)
-        val_engines = set(random.sample(list(engine_ids), 20))
-        train_engines =  set(engine_ids) - val_engines
 
-        print("Validation engines:", sorted(val_engines))
-        print("Training engines:", sorted(train_engines))
+        # # split data into training and validation sets
+        # engine_ids = engine_data_1["unit_number"].unique()
+        # print("engine_ids:",engine_ids)
+        # val_engines = set(random.sample(list(engine_ids), 20))
+        # train_engines =  set(engine_ids) - val_engines
 
-        assert len(val_engines) == 20
-        assert len(train_engines) == 80
-        assert len(val_engines.intersection(train_engines)) == 0
+        # print("Validation engines:", sorted(val_engines))
+        # print("Training engines:", sorted(train_engines))
+
+        # assert len(val_engines) == 20
+        # assert len(train_engines) == 80
+        # assert len(val_engines.intersection(train_engines)) == 0
 
 
         for unit, group in grouped_engine_data:
 
-            features = group[selected_vars].values # selected features in each engine
+            engine_cycles = group[selected_vars].values # selected features in each engine
 
             # print("optional setting + sensor measurements:",features)          
             rul = group["RUL"].values                       
 
-            num_cycles = len(features) # num_cycles for each engine
+            num_cycles = len(engine_cycles) # num_cycles for each engine
 
             # generate input sequences for each engine
             input_seqs =[]
@@ -160,27 +168,28 @@ class RNN_dataset(object):
 
             for start in range(num_cycles - window_size + 1):
                 end = start + window_size
-                each_window = features[start:end]    
+                each_window = engine_cycles[start:end]    
                 target_rul = rul[end-1]
                 # print("each_window:",each_window)   
                 # print(f"target_rul_for_cycle{start+window_size} in engine{unit}:{target_rul}")    
                 input_seqs.append(each_window) 
                 rul_value.append(target_rul)
 
-                print(f"number of input seqs for engine {unit}:{len(input_seqs)}")
+                # print(f"number of input seqs for engine {unit}:{len(input_seqs)}")
  
-            if unit in val_engines: # validation set
-                X_val.extend(input_seqs)
-                y_val.extend(rul_value)
-            else:   # training set
-                X_train.extend(input_seqs)
-                y_train.extend(rul_value)
+            # if unit in val_engines: # validation set
+            #     X_val.extend(input_seqs)
+            #     y_val.extend(rul_value)
+            # else:   # training set
+            X_train.extend(input_seqs)
+            y_train.extend(rul_value)
 
 
         print(f"number of input seqs for training: {len(X_train)}")
-        print(f"number of input seqs for validation: {len(X_val)}")
+        # print(f"number of input seqs for validation: {len(X_val)}")
 
-        return np.array(X_train), np.array(y_train), np.array(X_val), np.array(y_val),len(selected_vars)
+        return np.array(X_train), np.array(y_train),len(selected_vars)
+
 
 class CMAPSS_Dataset(Dataset):
     def __init__(self, X,y):
@@ -324,18 +333,19 @@ class RNN_trainer(object):
                 # print("loss:",loss.item())
                                 
             all_preds = torch.cat(all_preds, dim=0)
+           
             all_targets = torch.cat(all_targets, dim=0)
             mae  = torch.mean(torch.abs(all_preds - all_targets)).item()
             rmse = torch.sqrt(torch.mean((all_preds - all_targets) ** 2)).item()
 
-            y_train_mean = torch.mean(all_targets)
-            rmse_baseline = torch.sqrt(torch.mean((all_targets - y_train_mean)**2))
-            mae_baseline = torch.mean(torch.abs(all_targets - y_train_mean))
+            # y_train_mean = torch.mean(all_targets)
+            # rmse_baseline = torch.sqrt(torch.mean((all_targets - y_train_mean)**2))
+            # mae_baseline = torch.mean(torch.abs(all_targets - y_train_mean))
             
             avg_loss = np.mean(losses)
 
 
-            print(f"========================Epoch {epoch+1}/{self.epochs} - Train Loss {avg_loss:.3f} | MAE_baseline {mae_baseline:.2f} | RMSE_baseline {rmse_baseline:.2f}==========================")
+            # print(f"========================Epoch {epoch+1}/{self.epochs} - Train Loss {avg_loss:.3f} | MAE_baseline {mae_baseline:.2f} | RMSE_baseline {rmse_baseline:.2f}==========================")
 
 
             print(f"=========================== Epoch {epoch+1}/{self.epochs} - Train Loss {avg_loss:.3f} | MAE {mae:.2f} | RMSE {rmse:.2f}=========================")
@@ -386,6 +396,16 @@ def plot_egine_cycles(df_train,index_names):
         plt.tight_layout()
         plt.show()
 
+def plot_corelation_heatmap(df_train):
+    plt.figure(figsize=(12,10))
+    threshold = 0.85
+    corr = df_train.corr()
+    mask = corr.where((abs(corr) >= threshold)).isna()
+    sns.heatmap(corr, annot=True, fmt=".2f", cmap='coolwarm', cbar=True, mask=mask,linewidths=0.2, 
+            linecolor='lightgrey').set_facecolor('white')
+    plt.title('Feature Correlation Heatmap', fontsize=16)
+    plt.show()
+
 def set_seed(seed=42):
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -403,27 +423,32 @@ if __name__ == "__main__":
     data = RNN_dataset()
     df_train,_,_=data.load_data()
     merged_data = data.Merged_with_RUL(df_train)
+    merged_data.info()
+
     # plot_egine_cycles(df_train,index_names = ['unit_number', 'time_cycles'])
-    win_size =15
-    X_train,y_train,X_val,y_val,num_vars= data.create_input_sequnces(merged_data,win_size)
+    plot_corelation_heatmap(df_train)
+
+    win_size =20
+    X_train,y_train,num_features = data.create_input_sequnces(merged_data,win_size)
     print("input_seqs_shape:",X_train.shape)
+    print("input_seqs_feature_type:",type(X_train))
     print("target_rul_shape:",y_train.shape)
 
     # X = torch.tensor(input_seqs, dtype=torch.float32)
     # print("X_tshape:",X.shape)
     train_dataset = CMAPSS_Dataset(X_train,y_train)
-    val_dataset = CMAPSS_Dataset(X_val,y_val)
+    # val_dataset = CMAPSS_Dataset(X_val,y_val)
     print("train_dataset_length:",train_dataset.__len__())
     # print("X_item:",X.__getitem__(0))
 
     train_loader = DataLoader(train_dataset, batch_size=32, shuffle=False)
-    val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
+    # val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
     print("train_datatloader:",len(train_loader))
     iter_train_loader = next(iter(train_loader))
     # print("iter_train_loader:",iter_train_loader[0])
 
 
-    model= RNN_model(input_size=num_vars, hidden_size=32, fc_sizes=[64, 32, 16], dropout_prob=0.3)
+    model= RNN_model(input_size=num_features, hidden_size=32, fc_sizes=[64, 32, 16], dropout_prob=0.3)
     # model.init_weights()
     # output = model.forward(train_loader)
     # print("output:",output.detach().numpy())
