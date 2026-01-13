@@ -151,7 +151,9 @@ class RNN_dataset(object):
         # assert len(train_engines) == 80
         # assert len(val_engines.intersection(train_engines)) == 0
 
-
+        engine_ids_per_window = []
+        num_windows_per_engine = [] 
+        engine_order = [] 
         for unit, group in grouped_engine_data:
 
             engine_cycles = group[selected_vars].values # selected features in each engine
@@ -165,7 +167,6 @@ class RNN_dataset(object):
             input_seqs =[]
             rul_value=[]
 
-
             for start in range(num_cycles - window_size + 1):
                 end = start + window_size
                 each_window = engine_cycles[start:end]    
@@ -174,6 +175,10 @@ class RNN_dataset(object):
                 # print(f"target_rul_for_cycle{start+window_size} in engine{unit}:{target_rul}")    
                 input_seqs.append(each_window) 
                 rul_value.append(target_rul)
+                engine_ids_per_window.append(unit)
+                
+            num_windows_per_engine.append(len(input_seqs))
+            engine_order.append(unit)
 
                 # print(f"number of input seqs for engine {unit}:{len(input_seqs)}")
  
@@ -188,7 +193,7 @@ class RNN_dataset(object):
         print(f"number of input seqs for training: {len(X_train)}")
         # print(f"number of input seqs for validation: {len(X_val)}")
 
-        return np.array(X_train), np.array(y_train),len(selected_vars)
+        return np.array(X_train), np.array(y_train),len(selected_vars),np.array(engine_ids_per_window),np.array(num_windows_per_engine),np.array(engine_order)
 
 
 class CMAPSS_Dataset(Dataset):
@@ -294,93 +299,79 @@ class RNN_trainer(object):
         # Optimizer and scheduler
         self.optimizer = torch.optim.Adam(model.parameters(), lr=self.lr,weight_decay=self.weight_decay)
         # self.t_total = len(train_loader) * epochs
-        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer,mode='min',factor=0.5,patience=5)
-        self.loss_fn = nn.SmoothL1Loss(beta=10.0)
+        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer,mode='min',factor=0.2,patience=4)
+        # self.loss_fn = nn.SmoothL1Loss(beta=10.0)
+        self.loss_fn = nn.RMSELoss()
         
     
     def train(self):
         print("======================== Begin Training ========================")
-        avg_losses = []
-        for epoch in range(self.epochs):
-            self.model.train()
-            losses = []
-            all_preds=[]
-            all_targets =[]
-            for idx, (x_batch,y_batch) in enumerate(self.train_loader):
-                # print(type(x_batch))
-                # print(len(x_batch))
-                # print(type(x_batch[0]), x_batch[0].shape)
+        self.model.train()
+        losses = []
+        all_preds=[]
+        all_targets =[]
+        for idx, (x_batch,y_batch) in enumerate(self.train_loader):
+            # print(type(x_batch))
+            # print(len(x_batch))
+            # print(type(x_batch[0]), x_batch[0].shape)
 
-                # x_batch = x_batch.to(self.device)
-                # y_batch = y_batch.to(self.device)
-                pred_rul = self.model(x_batch)
-                print("pred_rul type:",type(pred_rul))
-                loss = self.loss_fn(pred_rul,y_batch)
-                print(f"pred_rul: {pred_rul}")
-                print(f"true_rul: {y_batch}")
+            # x_batch = x_batch.to(self.device)
+            # y_batch = y_batch.to(self.device)
+            pred_rul = self.model(x_batch)
+            print("pred_rul type:",type(pred_rul))
+            loss = self.loss_fn(pred_rul,y_batch)
+            print(f"pred_rul: {pred_rul}")
+            print(f"true_rul: {y_batch}")
 
-                self.optimizer.zero_grad()
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(),1.0)
+            self.optimizer.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(),1.0)
 
-                self.optimizer.step()
+            self.optimizer.step()
 
-                all_preds.append(pred_rul.detach().cpu())
-                all_targets.append(y_batch.detach().cpu())
-              
-
-                losses.append(loss.item())
-                # print("loss:",loss.item())
-                                
-            all_preds = torch.cat(all_preds, dim=0)
-           
-            all_targets = torch.cat(all_targets, dim=0)
-            mae  = torch.mean(torch.abs(all_preds - all_targets)).item()
-            rmse = torch.sqrt(torch.mean((all_preds - all_targets) ** 2)).item()
-
-            # y_train_mean = torch.mean(all_targets)
-            # rmse_baseline = torch.sqrt(torch.mean((all_targets - y_train_mean)**2))
-            # mae_baseline = torch.mean(torch.abs(all_targets - y_train_mean))
+            all_preds.append(pred_rul.detach().cpu())
+            all_targets.append(y_batch.detach().cpu())
             
-            avg_loss = np.mean(losses)
 
+            losses.append(loss.item())
+            print("loss:",loss.item())
+                                
+        avg_loss = np.mean(losses)
+        self.scheduler.step()
+        print("Learning rate:", self.optimizer.param_groups[0]['lr'])
 
-            # print(f"========================Epoch {epoch+1}/{self.epochs} - Train Loss {avg_loss:.3f} | MAE_baseline {mae_baseline:.2f} | RMSE_baseline {rmse_baseline:.2f}==========================")
-
-
-            print(f"=========================== Epoch {epoch+1}/{self.epochs} - Train Loss {avg_loss:.3f} | MAE {mae:.2f} | RMSE {rmse:.2f}=========================")
-
-            avg_losses.append(avg_loss)
-            self.scheduler.step(avg_loss) 
-            # print("Pred mean:", pred_rul.mean(), "True mean:", y_batch.mean())
-        return avg_losses
+        return avg_loss
 
 
     def validation(self):
         print("======================== Begin Validation ========================")
-        avg_losses = []
-        for epoch in range(self.epochs):
-            self.model.eval()
-            losses = []
-            all_preds=[]
-            all_targets =[]
-            with torch.no_grad():
-                for idx, (x_batch,y_batch) in enumerate(self.val_loader):
-                    pred_rul = self.model(x_batch)
-                    loss = self.loss_fn(pred_rul,y_batch)
-                    losses.append(loss.item())
-                    all_preds.append(pred_rul.detach().cpu())
-                    all_targets.append(y_batch.detach().cpu())
-                    print(f"pred_rul: {pred_rul}")
-                    print(f"true_rul: {y_batch}")
-            avg_loss = np.mean(losses)
-            print(f"Epoch {epoch+1}/{self.epochs} - Val Loss: {avg_loss:.4f}")
-            avg_losses.append(avg_loss)
-        return avg_losses
+        self.model.eval()
+        losses = []
+        all_preds=[]
+        all_targets =[]
+        with torch.no_grad():
+            for idx, (x_batch,) in enumerate(self.val_loader):
+                pred_rul = self.model(x_batch)
+                # loss = self.loss_fn(pred_rul,y_batch)
+                # losses.append(loss.item())
+                all_preds.append(pred_rul.detach().cpu())
+                # all_targets.append(y_batch.detach().cpu())
+                # print(f"pred_rul: {pred_rul}")
+                # print(f"true_rul: {y_batch}")
+        avg_loss = np.mean(losses)
+        print(f"=========================== - Val Loss {avg_loss:.3f} =========================")
+        return  avg_loss
 
-    # def predict():
-    #     pass
+    def save_model(self):
+        for e in range(self.epochs):
+            print(f"======== Epoch {e+1}/{self.epochs} ========")
+            avg_train_losses = self.train()
+            avg_test_losses = self.validation()
+            print(f"=========================== - Train Loss {avg_train_losses:.3f} =========================")
+            print(f"=========================== - Test Loss {avg_test_losses:.3f} =========================")
 
+            # Save model checkpoint
+            # torch.save(self.model.state_dict(), f"model_epoch_{e}.pth")
 
 def plot_egine_cycles(df_train,index_names):
 
@@ -426,7 +417,7 @@ if __name__ == "__main__":
     merged_data.info()
 
     # plot_egine_cycles(df_train,index_names = ['unit_number', 'time_cycles'])
-    plot_corelation_heatmap(df_train)
+    # plot_corelation_heatmap(df_train)
 
     win_size =20
     X_train,y_train,num_features = data.create_input_sequnces(merged_data,win_size)
