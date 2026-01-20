@@ -293,21 +293,23 @@ class RNN_dataset(object):
 
 
 class CMAPSS_Dataset(Dataset): 
-    def __init__(self, X,y):
+    def __init__(self, X,y=None):
         self.X = torch.tensor(X, dtype=torch.float32)
-        self.y = torch.tensor(y, dtype=torch.float32)
+        self.y = None if y is None else torch.tensor(y, dtype=torch.float32)  
+
 
     def __len__(self):
         return len(self.X)
 
     def __getitem__(self, idx):
         inputs = self.X[idx].squeeze(0)
-        rul = self.y[idx].squeeze(0)
-        return inputs, rul
+        if self.y is None:
+            return input
+        return inputs, self.y[idx].squeeze(0)
 
 
 class RNN_model(nn.Module):
-    def __init__(self, input_size: int, hidden_size:int, fc_sizes:list,dropout_prob:float):
+    def __init__(self, input_size: int, hidden_size:int, fc_sizes:list,rnn_dropout_prob:float,fc_dropout_prob:float):
 
         super().__init__()
     
@@ -321,17 +323,20 @@ class RNN_model(nn.Module):
             dropout=0
         )
 
+        self.rnn_dropout_prob = rnn_dropout_prob
+
         # apply dropout to the last hidden layer
-        self.last_hidden_layer_dropout = nn.Dropout(dropout_prob)
+        self.last_hidden_layer_dropout = nn.Dropout(self.rnn_dropout_prob)
 
         # Fully connected layers with ReLu
+        self.fc_dropout_prob = fc_dropout_prob
         self.fc_layers = []
         prev_layer = hidden_size
         self.fc_sizes = fc_sizes
         for s in self.fc_sizes:
             self.fc_layers.append(nn.Linear(prev_layer, s))
             self.fc_layers.append(nn.ReLU())   
-            self.fc_layers.append(nn.Dropout(0.2))  # FC dropout layer
+            self.fc_layers.append(nn.Dropout(self.fc_dropout_prob))  # FC dropout layer
             prev_layer = s
 
         output_layer = nn.Linear(prev_layer, 1)  # output RUL
@@ -467,13 +472,17 @@ class RNN_trainer(object):
             print("Created model directory:", self.model_dir)
     
         current_val_loss = float("inf")
-        best_model_path = self.model_dir + f"/best_RNN_model.pth"
+        best_model_path = self.model_dir + f"/best_RNN_model_SmoothL1Loss.pth"
         wait = 0
+        train_losses = []
+        val_losses = []
         for e in range(self.epochs):
             print(f"======== Epoch {e+1}/{self.epochs} ========")
             train_loss = self.train()
             val_loss = self.validate()
             self.scheduler.step(val_loss)
+            train_losses.append(train_loss)
+            val_losses.append(val_loss)
             print(f"Epoch {e+1} | "
                         f"Train {train_loss:.3f} | "
                         f"Val {val_loss:.3f} | "
@@ -487,7 +496,8 @@ class RNN_trainer(object):
                     "input_size": self.model.rnn.input_size,
                     "hidden_size": self.model.rnn.hidden_size,
                     "fc_sizes": self.model.fc_sizes,  
-                    "dropout_prob": self.model.last_hidden_layer_dropout.p,
+                    "rnn_dropout_prob": self.model.rnn_dropout_prob,
+                    "fc_dropout_prob": self.model.fc_dropout_prob,
                     "selected_vars": self.selected_vars,
                     "scaler_mean": self.scaler.mean_,
                     "scaler_scale": self.scaler.scale_,
@@ -500,7 +510,7 @@ class RNN_trainer(object):
                     print(f"Early stopping at epoch {e+1}")
                     break
 
-        return best_model_path
+        return best_model_path,train_losses,val_losses
         
 
 
@@ -547,6 +557,17 @@ def plot_corelation_heatmap(df_train):
     plt.title('Feature Correlation Heatmap', fontsize=16)
     plt.show()
 
+def plot_loss_curve(train_losses, val_losses):
+    plt.figure(figsize=(10, 6))
+    plt.plot(train_losses, label='Train Loss')
+    plt.plot(val_losses, label='Validation Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.title('Training and Validation Loss Curve')
+    plt.legend()
+    plt.grid()
+    plt.show()
+
 def set_seed(seed=42):
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -588,7 +609,7 @@ if __name__ == "__main__":
     print("test_datatloader:",len(val_loader))
 
     # Define model and trainer
-    model= RNN_model(input_size=num_features, hidden_size=32, fc_sizes=[64, 32, 16], dropout_prob=0.2)
+    model= RNN_model(input_size=num_features, hidden_size=32, fc_sizes=[64, 32, 16], rnn_dropout_prob=0.2, fc_dropout_prob=0.2)
     # model.init_weights()
     # output = model.forward(train_loader)
     # print("output:",output.detach().numpy())
@@ -602,7 +623,8 @@ if __name__ == "__main__":
         os.makedirs(model_dir)
         print("Created model directory:", model_dir)
     trainer = RNN_trainer(model, train_loader, val_loader, lr=1e-3, weight_decay=1e-4, epochs=15,model_dir = model_dir, selected_vars=selected_var, scaler=scaler, patience=5)
-    save_model_path = trainer.save_model()
+    save_model_path, train_losses, val_losses = trainer.save_model()
+    plot_loss_curve(train_losses, val_losses)
 
     # Load the saved model and evaluate on test set
     print("\n======================== Load the saved model and evaluate on test set ========================")
@@ -611,7 +633,8 @@ if __name__ == "__main__":
         input_size=checkpoint["input_size"],
         hidden_size=checkpoint["hidden_size"],
         fc_sizes=checkpoint["fc_sizes"],
-        dropout_prob=checkpoint["dropout_prob"],
+        rnn_dropout_prob=checkpoint["rnn_dropout_prob"],
+        fc_dropout_prob=checkpoint["fc_dropout_prob"],
     )
     model.load_state_dict(checkpoint["model_state_dict"], strict=False)
     print("Model loaded.")
