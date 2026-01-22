@@ -12,7 +12,7 @@ import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
 from torch.utils.data import Dataset, DataLoader,TensorDataset
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler,MinMaxScaler
 from sklearn.metrics import mean_squared_error
 
 
@@ -127,12 +127,13 @@ class RNN_dataset(object):
         # final_dropped_features = feature_dropped + ['unit_number']
 
         # scale features
-        scaler = StandardScaler()
+        # scaler = StandardScaler(use_mean=True, with_std=True)
+        scaler = MinMaxScaler(feature_range=(0, 1))
         scaled_data = scaler.fit_transform(train_data_1[selected_vars])
         train_data_1[selected_vars] = scaled_data
 
         print("Scaled train data samples:")
-        print(train_data_1.head())
+        print(train_data_1.head(20))
         print("type of train data:",type(train_data_1))
 
         cols_to_save = ["unit_number", "time_cycles"] + selected_vars 
@@ -443,10 +444,10 @@ class RNN_trainer(object):
             # x_batch = x_batch.to(self.device)
             # y_batch = y_batch.to(self.device)
             pred_rul = self.model(x_batch)
-            print("pred_rul type:",type(pred_rul))
+            # print("pred_rul type:",type(pred_rul))
             loss = self.loss_fn(pred_rul,y_batch)
-            print(f"pred_rul: {pred_rul}")
-            print(f"true_rul: {y_batch}")
+            # print(f"pred_rul: {pred_rul}")
+            # print(f"true_rul: {y_batch}")
 
             self.optimizer.zero_grad()
             loss.backward()
@@ -459,7 +460,7 @@ class RNN_trainer(object):
             
 
             losses.append(loss.item())
-            print("loss:",loss.item())
+            # print("loss:",loss.item())
                                 
         avg_loss = np.mean(losses)
         # self.scheduler.step(avg_loss)
@@ -520,8 +521,7 @@ class RNN_trainer(object):
                     "rnn_dropout_prob": self.model.rnn_dropout_prob,
                     "fc_dropout_prob": self.model.fc_dropout_prob,
                     "selected_vars": self.selected_vars,
-                    "scaler_mean": self.scaler.mean_,
-                    "scaler_scale": self.scaler.scale_,
+                    "scaler": self.scaler,
                 }, best_model_path)
 
                 print("Saved best model to:", best_model_path)
@@ -573,18 +573,17 @@ def test_RNN_model(save_model_path,data,win_size):
     for name, param_tensor in model.state_dict().items():
         print(name, "\t", model.state_dict()[name])
         parameters[name] = param_tensor.detach().numpy()
-    np.savez_compressed(save_model_path + "/RNN_model_parameters.npz", **parameters)
-    print("Saved model parameters to:", save_model_path + "/RNN_model_parameters.npz")
+    save_parameters_path = os.path.dirname(os.path.abspath(__file__)) + "/util/data/CMAPSS/saved_models"
+    np.savez_compressed(save_parameters_path + "/RNN_model_parameters.npz", **parameters)
+    print("Saved model parameters to:", save_parameters_path + "/RNN_model_parameters.npz")
     print("Model architecture:", model)
     print("Model parameters:", sum(p.numel() for p in model.parameters()))
 
     model.eval()
 
     # Recreate the scaler
-    scaler = StandardScaler()
-    scaler.mean_ = checkpoint["scaler_mean"]
+    scaler = MinMaxScaler()
     scaler.scale_ = checkpoint["scaler_scale"]
-    scaler.var_ = scaler.scale_ ** 2
     scaler.n_features_in_ = len(checkpoint["selected_vars"])
 
     # Prepare test data
@@ -665,90 +664,86 @@ if __name__ == "__main__":
     # plot_egine_cycles(df_train,index_names = ['unit_number', 'time_cycles'])
     # plot_corelation_heatmap(df_train)
     win_size = 20
-    # X_train,y_train,X_val,y_val,selected_var,num_features,scaler= data.create_train_input_sequnces(merged_train_data,win_size)
-    # # X_test,engine_ids_per_window,num_win_per_engine,all_windows = data.create_test_input_sequnces(df_test,win_size,selected_var,scaler)
-    # print("input_train_seqs_shape:",X_train.shape)
-    # print("input_seqs_feature_type:",type(X_train))
-    # print("target_rul_shape:",y_train.shape)
-    # # X = torch.tensor(input_seqs, dtype=torch.float32)
-    # # print("X_tshape:",X.shape)
-    # train_dataset = CMAPSS_Dataset(X_train,y_train)
-    # val_dataset = CMAPSS_Dataset(X_val,y_val)
-    # print("train_dataset_length:",train_dataset.__len__())
-    # # print("X_item:",X.__getitem__(0))
-    # train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-    # val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
-    # print("train_datatloader:",len(train_loader))
-    # iter_train_loader = next(iter(train_loader))
-    # # print("iter_train_loader:",iter_train_loader[0])
-    # print("test_datatloader:",len(val_loader))
+    X_train,y_train,X_val,y_val,selected_var,num_features,scaler= data.create_train_input_sequnces(merged_train_data,win_size)
+    # X_test,engine_ids_per_window,num_win_per_engine,all_windows = data.create_test_input_sequnces(df_test,win_size,selected_var,scaler)
+    print("input_train_seqs_shape:",X_train.shape)
+    print("input_seqs_feature_type:",type(X_train))
+    print("target_rul_shape:",y_train.shape)
+    # X = torch.tensor(input_seqs, dtype=torch.float32)
+    # print("X_tshape:",X.shape)
+    train_dataset = CMAPSS_Dataset(X_train,y_train)
+    val_dataset = CMAPSS_Dataset(X_val,y_val)
+    print("train_dataset_length:",train_dataset.__len__())
+    # print("X_item:",X.__getitem__(0))
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
+    print("train_datatloader:",len(train_loader))
+    iter_train_loader = next(iter(train_loader))
+    # print("iter_train_loader:",iter_train_loader[0])
+    print("test_datatloader:",len(val_loader))
 
-    # # Define model and trainer
-    # model= RNN_model(input_size=num_features, hidden_size=32, fc_sizes=[64, 32, 16], rnn_dropout_prob=0.2, fc_dropout_prob=0.2)
+    # Define model and trainer
+    model= RNN_model(input_size=num_features, hidden_size=32, fc_sizes=[64, 32, 16], rnn_dropout_prob=0.2, fc_dropout_prob=0.2)
 
     # # Train and save the model
     script_path = os.path.abspath(__file__)
     print(f"Full path: {script_path}")
     scrip_dir = os.path.dirname(script_path)
     model_dir = scrip_dir + "/util/data/CMAPSS/saved_models"
-    # if not os.path.exists(model_dir):
-    #     os.makedirs(model_dir)
-    #     print("Created model directory:", model_dir)
-    # trainer = RNN_trainer(model, train_loader, val_loader, lr=1e-3, weight_decay=1e-4, epochs=15,model_dir = model_dir, selected_vars=selected_var, scaler=scaler, patience=5)
-    # save_model_path, train_losses, val_losses = trainer.save_model()
-    # plot_loss_curve(train_losses, val_losses,model_dir)
+
+    if not os.path.exists(model_dir):
+        os.makedirs(model_dir)
+        print("Created model directory:", model_dir)
+    trainer = RNN_trainer(model, train_loader, val_loader, lr=1e-3, weight_decay=1e-4, epochs=15,model_dir = model_dir, selected_vars=selected_var, scaler=scaler, patience=5)
+    save_model_path, train_losses, val_losses = trainer.save_model()
+    plot_loss_curve(train_losses, val_losses,model_dir)
     
 
     # Test the saved model using test FD001 data
-    save_model_path = model_dir + "/best_RNN_model_SmoothL1Loss_1_21.pth"
-    test_preds, rmse = test_RNN_model(save_model_path,data,win_size)
-    print("Final Test RMSE:", rmse)
-    print("Test predictions for all engines:", test_preds)
+    # test_preds, rmse = test_RNN_model(save_model_path,data,win_size)
+    # print("Final Test RMSE:", rmse)
+    # print("Test predictions for all engines:", test_preds)
 
 
-    # # Load the saved model and evaluate on test set
-    # print("\n======================== Load the saved model and evaluate on test set ========================")
-    # checkpoint = torch.load(save_model_path, map_location=torch.device('cpu'),weights_only=False)
-    # model = RNN_model(
-    #     input_size=checkpoint["input_size"],
-    #     hidden_size=checkpoint["hidden_size"],
-    #     fc_sizes=checkpoint["fc_sizes"],
-    #     rnn_dropout_prob=checkpoint["rnn_dropout_prob"],
-    #     fc_dropout_prob=checkpoint["fc_dropout_prob"],
-    # )
-    # model.load_state_dict(checkpoint["model_state_dict"], strict=False)
-    # print("Model loaded.")
-    # print("Model's state_dict (weights and bias for each layer):")
-    # parameters = {}
-    # for name,param_tensor in model.state_dict():
-    #     print(param_tensor, "\t", model.state_dict()[param_tensor])
-    #     parameters[name] = param_tensor.detach().numpy()
-    # np.savez_compressed(model_dir + "/RNN_model_parameters.npz", **parameters)
-    # print("Saved model parameters to:", model_dir + "/RNN_model_parameters.npz")
-    # print("Model architecture:", model)
-    # print("Model parameters:", sum(p.numel() for p in model.parameters()))
+    # Load the saved model and evaluate on test set
+    print("\n======================== Load the saved model and evaluate on test set ========================")
+    checkpoint = torch.load(save_model_path, map_location=torch.device('cpu'),weights_only=False)
+    model = RNN_model(
+        input_size=checkpoint["input_size"],
+        hidden_size=checkpoint["hidden_size"],
+        fc_sizes=checkpoint["fc_sizes"],
+        rnn_dropout_prob=checkpoint["rnn_dropout_prob"],
+        fc_dropout_prob=checkpoint["fc_dropout_prob"],
+    )
+    model.load_state_dict(checkpoint["model_state_dict"], strict=False)
+    print("Model loaded.")
+    print("Model's state_dict (weights and bias for each layer):")
+    parameters = {}
+    for name,param_tensor in model.state_dict().items():
+        print(name, "\t", model.state_dict()[name])
+        parameters[name] = param_tensor.detach().numpy()
+    np.savez_compressed(model_dir + "/RNN_model_parameters.npz", **parameters)
+    print("Saved model parameters to:", model_dir + "/RNN_model_parameters.npz")
+    print("Model architecture:", model)
+    print("Model parameters:", sum(p.numel() for p in model.parameters()))
 
-    # model.eval()
+    model.eval()
 
-    # # Recreate the scaler
-    # scaler = StandardScaler()
-    # scaler.mean_ = checkpoint["scaler_mean"]
-    # scaler.scale_ = checkpoint["scaler_scale"]
-    # scaler.var_ = scaler.scale_ ** 2
-    # scaler.n_features_in_ = len(checkpoint["selected_vars"])
+    # Recreate the scaler
+    saved_scaler= checkpoint["scaler"]
 
-    # # Prepare test data
-    # selected_vars = checkpoint["selected_vars"]
-    # X_test,engine_ids_per_window,num_win_per_engine,all_windows = data.create_test_input_sequnces(df_test,win_size,selected_vars,scaler)
-    # print("input_test_seqs_shape:",X_test.shape)
-    # print("input_seqs_feature_type:",type(X_test))
-    # print("======== test set info:==========",len(num_win_per_engine), sum(num_win_per_engine), len(X_test))
+    # Prepare test data
+    selected_vars = checkpoint["selected_vars"]
+    X_test,engine_ids_per_window,num_win_per_engine,all_windows = data.create_test_input_sequnces(df_test,win_size,selected_vars,saved_scaler)
+    print("input_test_seqs_shape:",X_test.shape)
+    print("input_seqs_feature_type:",type(X_test))
+    print("======== test set info:==========",len(num_win_per_engine), sum(num_win_per_engine), len(X_test))
 
-    # # Predict on test set
-    # preds = predict(model, X_test)
-    # print("preds_shape:",preds.shape)     
-    # pred_for_engine = pred_last_win_for_each_engine(preds, num_win_per_engine)
-    # print("pred_for_engine:",pred_for_engine)
-    # true_rul = y_test["RUL"].values.reshape(-1)  # 100 engine
-    # rmse = np.sqrt(mean_squared_error(true_rul, pred_for_engine))
-    # print("Test RMSE:", rmse)
+    # Predict on test set
+    preds = predict(model, X_test)
+    print("preds_shape:",preds.shape)     
+    pred_for_engine = pred_last_win_for_each_engine(preds, num_win_per_engine)
+    print("pred_for_engine:",pred_for_engine)
+    true_rul = y_test["RUL"].values.reshape(-1)  # 100 engine
+    rmse = np.sqrt(mean_squared_error(true_rul, pred_for_engine))
+    print("Test RMSE:", rmse)
