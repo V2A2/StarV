@@ -3,7 +3,50 @@ import os
 import numpy as np
 from StarV.set.star import Star
 from StarV.set.probstar import ProbStar
+import pandas as pd
 
+def load_porcessed_data():
+        ''' Load Data '''
+        directory = os.path.dirname(os.path.abspath(__file__))
+        print("current directory:",directory)
+        data_path = directory + "/data/CMAPSS/CMAPSS_processed"
+        print("current data path:",data_path)
+        rul_path = directory + "/data/CMAPSS/CMAPSSData"
+
+        # col_names = index_names + operational_names + sensor_names
+
+        train_processed = pd.read_csv(data_path + '/train_FD001_processed_4f.csv',sep=',',header=0,index_col=False)
+        test_processed = pd.read_csv(data_path + '/test_FD001_processed_4f.csv',sep=',',header=0,index_col=False)
+        y_test = pd.read_csv(rul_path + '/RUL_FD001.txt',sep='\s+',header=None,index_col=False,names=['RUL'])
+
+        print("all_train_data_shape:",train_processed.shape)
+        print("all_test_data_shape:",test_processed.shape)
+        print("all_test_URL_shape:",y_test.shape)
+
+        train_samples = train_processed.head(10)
+        test_samples = test_processed.head(10)
+        print("train_data_samples:",train_samples)
+        print("test_data_samples:",test_samples)
+        # pd.set_option('display.max_column', 30)
+        # print("train_data_samples:",train_samples)
+
+
+        # group by engine unit
+        grouped_engine_data = test_processed.groupby("unit_number")
+        print("grouped_engine_data.size:",grouped_engine_data.size())
+        print("type of grouped_engine_data:",type(grouped_engine_data))
+        print("grouped_engine_data groups:",grouped_engine_data.first())   
+
+
+        ''' Load Weights and Biases '''  
+        params_path = directory + "/data/CMAPSS/saved_models/RNN_model_parameters.npz"
+        params = np.load(params_path)
+        for key in params:
+            print("Parameter name:", key, " shape:", params[key].shape)
+            print("Parameter values:", params[key])
+      
+
+        return train_processed,test_processed,y_test
 
 
 def load_simple_rnn(dtype=float):
@@ -77,4 +120,7 @@ def get_ProbStar_set(col_point, eps,Ti):
         X.append(S_probstar)
    
     return X
+
+if __name__ == "__main__":
+    load_porcessed_data()
    

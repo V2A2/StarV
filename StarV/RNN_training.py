@@ -16,6 +16,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error
 
 
+pd.set_option("display.float_format", "{:.4f}".format)
 
 class RNN_dataset(object):
 
@@ -134,8 +135,18 @@ class RNN_dataset(object):
         print(train_data_1.head())
         print("type of train data:",type(train_data_1))
 
-        final_selected_vars = ['time_cycles'] + selected_vars 
-        print("Final selected vars:", final_selected_vars)
+        cols_to_save = ["unit_number", "time_cycles"] + selected_vars 
+        train_processed = train_data_1[cols_to_save].copy()
+        save_processed_train_path = os.path.dirname(os.path.abspath(__file__)) + "/util/data/CMAPSS/CMAPSS_processed"
+        if not os.path.exists(save_processed_train_path):
+            os.makedirs(save_processed_train_path)
+            print("Created processed data directory:", save_processed_train_path)
+     
+        train_processed.to_csv(save_processed_train_path + "/train_FD001_processed_4f.csv", index=False,header=cols_to_save,float_format='%.4f')
+
+
+        # final_selected_vars = ['time_cycles'] + selected_vars
+        # print("Final selected vars:", final_selected_vars)
 
         X_train = []
         y_train = []
@@ -237,10 +248,20 @@ class RNN_dataset(object):
 
         print("Scaled test data samples:")
         print(test_data_1.head())
+        
+        cols_to_save = ["unit_number", "time_cycles"] + selected_vars 
+        test_processed = test_data_1[cols_to_save].copy()
+        save_processed_test_path = os.path.dirname(os.path.abspath(__file__)) + "/util/data/CMAPSS/CMAPSS_processed"
+        if not os.path.exists(save_processed_test_path):
+            os.makedirs(save_processed_test_path)
+            print("Created processed data directory:", save_processed_test_path)
+     
+        test_processed.to_csv(save_processed_test_path + "/test_FD001_processed_4f.csv", index=False,header=cols_to_save,float_format='%.4f')
 
 
         final_selected_vars = ['time_cycles'] + selected_vars
         print("Final selected vars:", final_selected_vars)
+
 
         X_test = []
         # X_val = []
@@ -472,7 +493,7 @@ class RNN_trainer(object):
             print("Created model directory:", self.model_dir)
     
         current_val_loss = float("inf")
-        best_model_path = self.model_dir + f"/best_RNN_model_SmoothL1Loss.pth"
+        best_model_path = self.model_dir + f"/best_RNN_model_SmoothL1Loss_1_21.pth"
         wait = 0
         train_losses = []
         val_losses = []
@@ -533,6 +554,58 @@ def pred_last_win_for_each_engine( preds, num_windows):
     # mean_pred_per_engine = []
     return np.array([p[-1] for p in per_engine], dtype=np.float32)
 
+def test_RNN_model(save_model_path,data,win_size):
+    print("\n======================== Begin Testing ========================")
+    # Load the saved model and evaluate on test set
+    print("\n======================== Load the saved model and evaluate on test set ========================")
+    checkpoint = torch.load(save_model_path, map_location=torch.device('cpu'),weights_only=False)
+    model = RNN_model(
+        input_size=checkpoint["input_size"],
+        hidden_size=checkpoint["hidden_size"],
+        fc_sizes=checkpoint["fc_sizes"],
+        rnn_dropout_prob=checkpoint["rnn_dropout_prob"],
+        fc_dropout_prob=checkpoint["fc_dropout_prob"],
+    )
+    model.load_state_dict(checkpoint["model_state_dict"], strict=False)
+    print("Model loaded.")
+    print("Model's state_dict (weights and bias for each layer):")
+    parameters = {}
+    for name, param_tensor in model.state_dict().items():
+        print(name, "\t", model.state_dict()[name])
+        parameters[name] = param_tensor.detach().numpy()
+    np.savez_compressed(save_model_path + "/RNN_model_parameters.npz", **parameters)
+    print("Saved model parameters to:", save_model_path + "/RNN_model_parameters.npz")
+    print("Model architecture:", model)
+    print("Model parameters:", sum(p.numel() for p in model.parameters()))
+
+    model.eval()
+
+    # Recreate the scaler
+    scaler = StandardScaler()
+    scaler.mean_ = checkpoint["scaler_mean"]
+    scaler.scale_ = checkpoint["scaler_scale"]
+    scaler.var_ = scaler.scale_ ** 2
+    scaler.n_features_in_ = len(checkpoint["selected_vars"])
+
+    # Prepare test data
+    selected_vars = checkpoint["selected_vars"]
+    df_test,y_test = data.load_data()[1:]
+    X_test,engine_ids_per_window,num_win_per_engine,all_windows = data.create_test_input_sequnces(df_test,win_size,selected_vars,scaler)
+    print("input_test_seqs_shape:",X_test.shape)
+    print("input_seqs_feature_type:",type(X_test))
+    print("======== test set info:==========",len(num_win_per_engine), sum(num_win_per_engine), len(X_test))
+
+    # Predict on test set
+    preds = predict(model, X_test)
+    # print("preds_shape:",preds.shape)     
+    pred_for_engine = pred_last_win_for_each_engine(preds, num_win_per_engine)
+    # print("pred_for_engine:",pred_for_engine)
+    true_rul = y_test["RUL"].values.reshape(-1)  # 100 engine
+    rmse = np.sqrt(mean_squared_error(true_rul, pred_for_engine))
+    # print("Test RMSE:", rmse)
+    return pred_for_engine,rmse
+
+
 def plot_egine_cycles(df_train,index_names):
 
         max_time_cycles=df_train[index_names].groupby('unit_number').max()
@@ -557,7 +630,7 @@ def plot_corelation_heatmap(df_train):
     plt.title('Feature Correlation Heatmap', fontsize=16)
     plt.show()
 
-def plot_loss_curve(train_losses, val_losses):
+def plot_loss_curve(train_losses, val_losses,save_path="./"):
     plt.figure(figsize=(10, 6))
     plt.plot(train_losses, label='Train Loss')
     plt.plot(val_losses, label='Validation Loss')
@@ -566,7 +639,9 @@ def plot_loss_curve(train_losses, val_losses):
     plt.title('Training and Validation Loss Curve')
     plt.legend()
     plt.grid()
+    plt.savefig(save_path + '/loss_curve_RNN.png')
     plt.show()
+    
 
 def set_seed(seed=42):
     np.random.seed(seed)
@@ -578,8 +653,8 @@ def set_seed(seed=42):
 
 if __name__ == "__main__":
 
-    np.set_printoptions(precision=3)
-    torch.set_printoptions(precision=3)
+    np.set_printoptions(precision=4)
+    torch.set_printoptions(precision=4)
     set_seed(25) 
 
     # Load and preprocess training data
@@ -590,81 +665,90 @@ if __name__ == "__main__":
     # plot_egine_cycles(df_train,index_names = ['unit_number', 'time_cycles'])
     # plot_corelation_heatmap(df_train)
     win_size = 20
-    X_train,y_train,X_val,y_val,selected_var,num_features,scaler= data.create_train_input_sequnces(merged_train_data,win_size)
-    # X_test,engine_ids_per_window,num_win_per_engine,all_windows = data.create_test_input_sequnces(df_test,win_size,selected_var,scaler)
-    print("input_train_seqs_shape:",X_train.shape)
-    print("input_seqs_feature_type:",type(X_train))
-    print("target_rul_shape:",y_train.shape)
-    # X = torch.tensor(input_seqs, dtype=torch.float32)
-    # print("X_tshape:",X.shape)
-    train_dataset = CMAPSS_Dataset(X_train,y_train)
-    val_dataset = CMAPSS_Dataset(X_val,y_val)
-    print("train_dataset_length:",train_dataset.__len__())
-    # print("X_item:",X.__getitem__(0))
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
-    print("train_datatloader:",len(train_loader))
-    iter_train_loader = next(iter(train_loader))
-    # print("iter_train_loader:",iter_train_loader[0])
-    print("test_datatloader:",len(val_loader))
+    # X_train,y_train,X_val,y_val,selected_var,num_features,scaler= data.create_train_input_sequnces(merged_train_data,win_size)
+    # # X_test,engine_ids_per_window,num_win_per_engine,all_windows = data.create_test_input_sequnces(df_test,win_size,selected_var,scaler)
+    # print("input_train_seqs_shape:",X_train.shape)
+    # print("input_seqs_feature_type:",type(X_train))
+    # print("target_rul_shape:",y_train.shape)
+    # # X = torch.tensor(input_seqs, dtype=torch.float32)
+    # # print("X_tshape:",X.shape)
+    # train_dataset = CMAPSS_Dataset(X_train,y_train)
+    # val_dataset = CMAPSS_Dataset(X_val,y_val)
+    # print("train_dataset_length:",train_dataset.__len__())
+    # # print("X_item:",X.__getitem__(0))
+    # train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+    # val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
+    # print("train_datatloader:",len(train_loader))
+    # iter_train_loader = next(iter(train_loader))
+    # # print("iter_train_loader:",iter_train_loader[0])
+    # print("test_datatloader:",len(val_loader))
 
-    # Define model and trainer
-    model= RNN_model(input_size=num_features, hidden_size=32, fc_sizes=[64, 32, 16], rnn_dropout_prob=0.2, fc_dropout_prob=0.2)
-    # model.init_weights()
-    # output = model.forward(train_loader)
-    # print("output:",output.detach().numpy())
+    # # Define model and trainer
+    # model= RNN_model(input_size=num_features, hidden_size=32, fc_sizes=[64, 32, 16], rnn_dropout_prob=0.2, fc_dropout_prob=0.2)
 
-    # Train and save the model
+    # # Train and save the model
     script_path = os.path.abspath(__file__)
     print(f"Full path: {script_path}")
     scrip_dir = os.path.dirname(script_path)
-    model_dir = scrip_dir + "/saved_models"
-    if not os.path.exists(model_dir):
-        os.makedirs(model_dir)
-        print("Created model directory:", model_dir)
-    trainer = RNN_trainer(model, train_loader, val_loader, lr=1e-3, weight_decay=1e-4, epochs=15,model_dir = model_dir, selected_vars=selected_var, scaler=scaler, patience=5)
-    save_model_path, train_losses, val_losses = trainer.save_model()
-    plot_loss_curve(train_losses, val_losses)
+    model_dir = scrip_dir + "/util/data/CMAPSS/saved_models"
+    # if not os.path.exists(model_dir):
+    #     os.makedirs(model_dir)
+    #     print("Created model directory:", model_dir)
+    # trainer = RNN_trainer(model, train_loader, val_loader, lr=1e-3, weight_decay=1e-4, epochs=15,model_dir = model_dir, selected_vars=selected_var, scaler=scaler, patience=5)
+    # save_model_path, train_losses, val_losses = trainer.save_model()
+    # plot_loss_curve(train_losses, val_losses,model_dir)
+    
 
-    # Load the saved model and evaluate on test set
-    print("\n======================== Load the saved model and evaluate on test set ========================")
-    checkpoint = torch.load(save_model_path, map_location=torch.device('cpu'),weights_only=False)
-    model = RNN_model(
-        input_size=checkpoint["input_size"],
-        hidden_size=checkpoint["hidden_size"],
-        fc_sizes=checkpoint["fc_sizes"],
-        rnn_dropout_prob=checkpoint["rnn_dropout_prob"],
-        fc_dropout_prob=checkpoint["fc_dropout_prob"],
-    )
-    model.load_state_dict(checkpoint["model_state_dict"], strict=False)
-    print("Model loaded.")
-    print("Model's state_dict (weights and bias for each layer):")
-    for param_tensor in model.state_dict():
-        print(param_tensor, "\t", model.state_dict()[param_tensor])
-    print("Model architecture:", model)
-    print("Model parameters:", sum(p.numel() for p in model.parameters()))
+    # Test the saved model using test FD001 data
+    save_model_path = model_dir + "/best_RNN_model_SmoothL1Loss_1_21.pth"
+    test_preds, rmse = test_RNN_model(save_model_path,data,win_size)
+    print("Final Test RMSE:", rmse)
+    print("Test predictions for all engines:", test_preds)
 
-    model.eval()
 
-    # Recreate the scaler
-    scaler = StandardScaler()
-    scaler.mean_ = checkpoint["scaler_mean"]
-    scaler.scale_ = checkpoint["scaler_scale"]
-    scaler.var_ = scaler.scale_ ** 2
-    scaler.n_features_in_ = len(checkpoint["selected_vars"])
+    # # Load the saved model and evaluate on test set
+    # print("\n======================== Load the saved model and evaluate on test set ========================")
+    # checkpoint = torch.load(save_model_path, map_location=torch.device('cpu'),weights_only=False)
+    # model = RNN_model(
+    #     input_size=checkpoint["input_size"],
+    #     hidden_size=checkpoint["hidden_size"],
+    #     fc_sizes=checkpoint["fc_sizes"],
+    #     rnn_dropout_prob=checkpoint["rnn_dropout_prob"],
+    #     fc_dropout_prob=checkpoint["fc_dropout_prob"],
+    # )
+    # model.load_state_dict(checkpoint["model_state_dict"], strict=False)
+    # print("Model loaded.")
+    # print("Model's state_dict (weights and bias for each layer):")
+    # parameters = {}
+    # for name,param_tensor in model.state_dict():
+    #     print(param_tensor, "\t", model.state_dict()[param_tensor])
+    #     parameters[name] = param_tensor.detach().numpy()
+    # np.savez_compressed(model_dir + "/RNN_model_parameters.npz", **parameters)
+    # print("Saved model parameters to:", model_dir + "/RNN_model_parameters.npz")
+    # print("Model architecture:", model)
+    # print("Model parameters:", sum(p.numel() for p in model.parameters()))
 
-    # Prepare test data
-    selected_vars = checkpoint["selected_vars"]
-    X_test,engine_ids_per_window,num_win_per_engine,all_windows = data.create_test_input_sequnces(df_test,win_size,selected_vars,scaler)
-    print("input_test_seqs_shape:",X_test.shape)
-    print("input_seqs_feature_type:",type(X_test))
-    print("======== test set info:==========",len(num_win_per_engine), sum(num_win_per_engine), len(X_test))
+    # model.eval()
 
-    # Predict on test set
-    preds = predict(model, X_test)
-    print("preds_shape:",preds.shape)     
-    pred_for_engine = pred_last_win_for_each_engine(preds, num_win_per_engine)
-    print("pred_for_engine:",pred_for_engine)
-    true_rul = y_test["RUL"].values.reshape(-1)  # 100 engine
-    rmse = np.sqrt(mean_squared_error(true_rul, pred_for_engine))
-    print("Test RMSE:", rmse)
+    # # Recreate the scaler
+    # scaler = StandardScaler()
+    # scaler.mean_ = checkpoint["scaler_mean"]
+    # scaler.scale_ = checkpoint["scaler_scale"]
+    # scaler.var_ = scaler.scale_ ** 2
+    # scaler.n_features_in_ = len(checkpoint["selected_vars"])
+
+    # # Prepare test data
+    # selected_vars = checkpoint["selected_vars"]
+    # X_test,engine_ids_per_window,num_win_per_engine,all_windows = data.create_test_input_sequnces(df_test,win_size,selected_vars,scaler)
+    # print("input_test_seqs_shape:",X_test.shape)
+    # print("input_seqs_feature_type:",type(X_test))
+    # print("======== test set info:==========",len(num_win_per_engine), sum(num_win_per_engine), len(X_test))
+
+    # # Predict on test set
+    # preds = predict(model, X_test)
+    # print("preds_shape:",preds.shape)     
+    # pred_for_engine = pred_last_win_for_each_engine(preds, num_win_per_engine)
+    # print("pred_for_engine:",pred_for_engine)
+    # true_rul = y_test["RUL"].values.reshape(-1)  # 100 engine
+    # rmse = np.sqrt(mean_squared_error(true_rul, pred_for_engine))
+    # print("Test RMSE:", rmse)
