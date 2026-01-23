@@ -138,8 +138,10 @@ class Test(object):
         L1 = RecurrentLayer(Whx,Whh,bh,Woh,bo)
         mat= []
         for i in range(len(W_ff[0])):
+            print(f"w_ff[0]{i} shape:",W_ff[0][i].shape)
             W_b = [W_ff[0][i],b_ff[0][i].reshape(-1)]
             mat.append(W_b)
+            # print("W_b:",W_b[0].shape())
 
         L2 = FullyConnectedLayer(mat[0])
         L3 = ReLULayer()
@@ -175,7 +177,7 @@ class Test(object):
                 RS1 = net.layers[j].reach(RS, method = "exact", lp_solver='gurobi', pool=None, RF=0.0, DR=0)
                 print("\nnumer of Output sets after layer {} : {}".format(j+1,len(RS1)))
                 print("output set types after layer {} : {}".format(j+1,type(RS1)))
-                print("output set[0] types after layer {} : {}".format(j+1,type(RS1[0])))
+                print("output set[0] types after layer {} : {}{}".format(j+1,type(RS1[0]),RS1[0]))
                 print("num of output set[0]  after layer {} : {}".format(j+1,len(RS1[0])))
                 RS = RS1
                 Layer_RS.append(RS1)
@@ -525,6 +527,31 @@ class Test(object):
             # else:
             #     print('Test Successfull!')
 
+    def test_probstar(self):
+        np.random.seed(42)
+        X =Star.rand(4)
+        print("First Star info:",X)
+        mu = 0.5*(X.pred_ub + X.pred_lb) 
+        a  = 3
+        sig= (X.pred_ub-mu )/a
+        epsilon = 1e-10
+        sig = np.maximum(sig, epsilon)
+        Sig = np.diag(np.square(sig))
+        P = ProbStar(X.V,X.C,X.d, mu, Sig,X.pred_lb,X.pred_ub)
+        print("ProbStar info:",P,"probility:",P.estimateProbability())
+
+        lb_X = X.getRanges()[0]
+        ub_X = X.getRanges()[1]
+        print("Star lower bound:",lb_X," upper bound:",ub_X)
+
+        mu_1 = 0.5*(ub_X + lb_X)
+        sig= (ub_X - mu_1)/a
+        print("mu_1:",mu_1,"sig:",sig)
+        # sig = np.maximum(sig, epsilon)
+        Sig_1 = np.diag(np.square(sig))
+        P_1 = ProbStar(mu_1, Sig_1, lb_X, ub_X)
+        print("ProbStar_1 info:",P_1,"probility:",P_1.estimateProbability())
+            
 
 if __name__ == "__main__":
 
@@ -541,6 +568,7 @@ if __name__ == "__main__":
     test_RecurrentLayer.test_simple_rnn()
     # test_RecurrentLayer.test_multiRandomLayers()
     # test_RecurrentLayer.test_multiMinsum()
+    test_RecurrentLayer.test_probstar()
     print('\n========================\
     =================================\
     =================================\

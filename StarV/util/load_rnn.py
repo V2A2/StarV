@@ -5,7 +5,7 @@ from StarV.set.star import Star
 from StarV.set.probstar import ProbStar
 import pandas as pd
 
-def load_porcessed_data():
+def load_CMAPSS_data():
         ''' Load Data '''
         directory = os.path.dirname(os.path.abspath(__file__))
         print("current directory:",directory)
@@ -22,6 +22,7 @@ def load_porcessed_data():
         print("all_train_data_shape:",train_processed.shape)
         print("all_test_data_shape:",test_processed.shape)
         print("all_test_URL_shape:",y_test.shape)
+        print("test_data_info:",test_processed.describe())
 
         train_samples = train_processed.head(10)
         test_samples = test_processed.head(10)
@@ -39,7 +40,7 @@ def load_porcessed_data():
 
 
         ''' Load Weights and Biases '''  
-        params_path = directory + "/data/CMAPSS/saved_models/RNN_model_parameters.npz"
+        params_path = directory + "/data/CMAPSS/saved_models/RNN_model_parameters_1.npz"
         params = np.load(params_path)
         for key in params:
             print("Parameter name:", key, " shape:", params[key].shape)
@@ -122,5 +123,5 @@ def get_ProbStar_set(col_point, eps,Ti):
     return X
 
 if __name__ == "__main__":
-    load_porcessed_data()
+    load_CMAPSS_data()
    

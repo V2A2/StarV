@@ -143,7 +143,7 @@ class RNN_dataset(object):
             os.makedirs(save_processed_train_path)
             print("Created processed data directory:", save_processed_train_path)
      
-        train_processed.to_csv(save_processed_train_path + "/train_FD001_processed_4f.csv", index=False,header=cols_to_save,float_format='%.4f')
+        train_processed.to_csv(save_processed_train_path + "/train_FD001_processed_full_precision.csv", index=False,header=cols_to_save)
 
 
         # final_selected_vars = ['time_cycles'] + selected_vars
@@ -257,7 +257,7 @@ class RNN_dataset(object):
             os.makedirs(save_processed_test_path)
             print("Created processed data directory:", save_processed_test_path)
      
-        test_processed.to_csv(save_processed_test_path + "/test_FD001_processed_4f.csv", index=False,header=cols_to_save,float_format='%.4f')
+        test_processed.to_csv(save_processed_test_path + "/test_FD001_processed_full_precision.csv", index=False,header=cols_to_save)
 
 
         final_selected_vars = ['time_cycles'] + selected_vars
@@ -494,7 +494,7 @@ class RNN_trainer(object):
             print("Created model directory:", self.model_dir)
     
         current_val_loss = float("inf")
-        best_model_path = self.model_dir + f"/best_RNN_model_SmoothL1Loss_1_21.pth"
+        best_model_path = self.model_dir + f"/best_RNN_model_SmoothL1Loss_1_23.pth"
         wait = 0
         train_losses = []
         val_losses = []
@@ -582,9 +582,7 @@ def test_RNN_model(save_model_path,data,win_size):
     model.eval()
 
     # Recreate the scaler
-    scaler = MinMaxScaler()
-    scaler.scale_ = checkpoint["scaler_scale"]
-    scaler.n_features_in_ = len(checkpoint["selected_vars"])
+    scaler = checkpoint["scaler"]
 
     # Prepare test data
     selected_vars = checkpoint["selected_vars"]
@@ -694,7 +692,7 @@ if __name__ == "__main__":
     if not os.path.exists(model_dir):
         os.makedirs(model_dir)
         print("Created model directory:", model_dir)
-    trainer = RNN_trainer(model, train_loader, val_loader, lr=1e-3, weight_decay=1e-4, epochs=15,model_dir = model_dir, selected_vars=selected_var, scaler=scaler, patience=5)
+    trainer = RNN_trainer(model, train_loader, val_loader, lr=1e-3, weight_decay=1e-4, epochs=15,model_dir = model_dir, selected_vars=selected_var, scaler=scaler, patience=4)
     save_model_path, train_losses, val_losses = trainer.save_model()
     plot_loss_curve(train_losses, val_losses,model_dir)
     
@@ -722,8 +720,8 @@ if __name__ == "__main__":
     for name,param_tensor in model.state_dict().items():
         print(name, "\t", model.state_dict()[name])
         parameters[name] = param_tensor.detach().numpy()
-    np.savez_compressed(model_dir + "/RNN_model_parameters.npz", **parameters)
-    print("Saved model parameters to:", model_dir + "/RNN_model_parameters.npz")
+    np.savez_compressed(model_dir + "/RNN_model_parameters_1.npz", **parameters)
+    print("Saved model parameters to:", model_dir + "/RNN_model_parameters_1.npz")
     print("Model architecture:", model)
     print("Model parameters:", sum(p.numel() for p in model.parameters()))
 
