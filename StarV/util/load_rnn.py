@@ -5,7 +5,8 @@ from StarV.set.star import Star
 from StarV.set.probstar import ProbStar
 import pandas as pd
 
-def load_CMAPSS_data():
+
+def load_trained_CMAPSS_data():
         ''' Load Data '''
         directory = os.path.dirname(os.path.abspath(__file__))
         print("current directory:",directory)
@@ -39,15 +40,42 @@ def load_CMAPSS_data():
         print("grouped_engine_data groups:",grouped_engine_data.first())   
 
 
-        ''' Load Weights and Biases '''  
+        return train_processed,test_processed,y_test
+
+def load_trained_params():
+        ''' Load Weights and Biases ''' 
+        directory = os.path.dirname(os.path.abspath(__file__)) 
         params_path = directory + "/data/CMAPSS/saved_models/RNN_model_parameters_1.npz"
         params = np.load(params_path)
-        for key in params:
-            print("Parameter name:", key, " shape:", params[key].shape)
-            print("Parameter values:", params[key])
-      
+        W_hx = params["rnn.weight_ih_l0"]
+        W_hh = params["rnn.weight_hh_l0"]
+        b_hx = params["rnn.bias_ih_l0"]
+        b_hh = params["rnn.bias_hh_l0"]
+        W_oh = params["fc.0.weight"]
+        b_oh = params["fc.0.bias"]
+        fc_weights = []
+        fc_biases = []
 
-        return train_processed,test_processed,y_test
+        # sort keys to keep layer order
+        fc_weight_keys = sorted([k for k in params if k.startswith("fc.") and k.endswith(".weight")])
+        fc_bias_keys   = sorted([k for k in params if k.startswith("fc.") and k.endswith(".bias")])
+        fc_weight_keys = fc_weight_keys[1:]
+        fc_bias_keys   = fc_bias_keys[1:]
+
+        for w_key, b_key in zip(fc_weight_keys, fc_bias_keys):
+            fc_weights.append(params[w_key])
+            fc_biases.append(params[b_key])
+        
+        # print("fc_w:",fc_weights)
+        # print("type_of_fc_w:",len(fc_weights))
+        # print("fc_b:",fc_biases)
+
+        # for key in params:
+        #     print("Parameter name:", key, " shape:", params[key].shape)
+        #     print("Parameter values:", params[key])
+
+        return W_hx,b_hx,W_hh,b_hh,W_oh,b_oh,fc_weights,fc_biases
+
 
 
 def load_simple_rnn(dtype=float):
@@ -95,13 +123,89 @@ def get_Star_set(col_point, eps,Ti):
    
     return X
 
+def get_ProbStar_set_RNN(input_data, noises,feature_idx):
+
+
+    temperature_noise = noises[0]
+    pressure_noise = noises[1]
+    speed_noise = noises[2]
+
+    temperature_sensor_indices = feature_idx[0]
+    pressure_sensor_indices = feature_idx[1]
+    speed_sensor_indices = feature_idx[2]
+
+    transposed_input_data = input_data.T
+
+    # returns list of initial states bounds for each dimension, construct a ProbSatr for initial state
+    init_state_bounds_list = []
+    for i in range(transposed_input_data.shape[1]):
+        single_data_point = transposed_input_data[:, i]
+        single_data_points_bounds = []
+        # print("single_data_point:",single_data_point)
+        dims = single_data_point.shape[0]
+        for dim in range(dims):
+            if dim in temperature_sensor_indices:
+                # print("temp_dim:",dim)
+                # print("tempreture noise:",temperature_noise)
+                if temperature_noise <0:
+                    temperature_noise = -temperature_noise
+                lb = single_data_point[dim] - temperature_noise
+                ub = single_data_point[dim] + temperature_noise
+            elif dim in pressure_sensor_indices:
+                # print("pressure_dim:",dim)
+                # print("pressure noise:",pressure_noise)
+                if pressure_noise <0:
+                    pressure_noise = -pressure_noise
+                lb = single_data_point[dim] - pressure_noise
+                ub = single_data_point[dim] + pressure_noise   
+            elif dim in speed_sensor_indices:
+                if speed_noise <0:
+                    speed_noise = -speed_noise
+                lb = single_data_point[dim] - speed_noise
+                ub = single_data_point[dim] + speed_noise
+            elif dim in range(dims):
+                lb = ub = single_data_point[dim]       
+            else:  
+                raise ValueError("Dimension index out of range")
+            single_data_points_bounds.append((lb, ub))
+        # print("single_data_points_bounds:",single_data_points_bounds)
+        # print("shape of single_data_points_bounds:",len(single_data_points_bounds))
+        init_state_bounds_list.append(single_data_points_bounds)
+    # print("init_state_bounds_list:",init_state_bounds_list)
+    # print("shape of init_state_bounds_list:",len(init_state_bounds_list))
+
+    # create Star for initial state 
+    X = []
+    for bounds in init_state_bounds_list:
+        init_state_lb = np.array([b[0] for b in bounds])
+        # print("init_state_lb:",init_state_lb)
+        init_state_ub = np.array([b[1] for b in bounds])
+        X0 = Star(init_state_lb,init_state_ub)
+        X0.C = np.zeros([1,X0.nVars])  
+        X0.d = np.zeros([1])
+        mu = 0.5*(X0.pred_lb + X0.pred_ub) 
+        a  = 3
+        sig= (X0.pred_ub-mu )/a
+        epsilon = 1e-10
+        sig = np.maximum(sig, epsilon)
+        Sig = np.diag(np.square(sig))
+        X0_probstar = ProbStar(X0.V, X0.C, X0.d,mu, Sig,X0.pred_lb,X0.pred_ub)
+        print("initial probstar set:",X0_probstar)
+        X.append(X0_probstar)
+        # print("Input ProbStar set constructed:",X0_probstar)
+        # print("probability of the ProbStar set:",X0_probstar.estimateProbability())
+
+    return X
+
+
 def get_ProbStar_set(col_point, eps,Ti):
 
     input_points = []  
     col_points = []
     for _ in range(Ti) :        
         col_points.append(col_point) # repeating Ti times
-    input_points = np.hstack(col_points) 
+        input_points = np.hstack(col_points) 
+
     print("input_points-len:",len(input_points))
     print("input_points-shape:",input_points.shape)
     x = input_points
@@ -122,6 +226,8 @@ def get_ProbStar_set(col_point, eps,Ti):
    
     return X
 
+
 if __name__ == "__main__":
-    load_CMAPSS_data()
+    load_trained_CMAPSS_data()
+    load_trained_params()
    

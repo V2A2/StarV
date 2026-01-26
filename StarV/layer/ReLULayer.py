@@ -34,7 +34,7 @@ class ReLULayer(object):
             print("\nReLULayer reach function\n")
 
         if method == 'exact':
-            print(" taype of input set:", type(In))
+            print(" type of input set before exactReLu:", type(In))
             S = []
             for i in range(0, len(In)):
                 if isinstance(In[i],list):

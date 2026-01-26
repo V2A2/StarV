@@ -25,16 +25,20 @@ class RecurrentLayer(object):
             bo:  bias vector for output states
             fo: activation function for output nodes
     """
-    def __init__(self,Whx, Whh, bh, Woh, bo):
+    def __init__(self,Whx, Whh, bhx, Woh, bo,bhh=None):
         assert isinstance(Whh, np.ndarray), " Weights mat for hidden states to hiedden states should be a 2d numpy array"
-        assert isinstance(bh, np.ndarray), "Hidden layer bias vector should be a 1d numpy array"
+        assert isinstance(bhx, np.ndarray), "Input to hidden layer bias vector should be a 1d numpy array"
         assert isinstance(Whx, np.ndarray), "Weights_mat for input states should be a 2d numpy array"
+        if bhh is not None:
+            assert isinstance(bhh, np.ndarray), "Bias between hidden states should be a 1d numpy array"
         assert isinstance(Woh, np.ndarray), "Weight mat for hidden states to output states should be a 2d numpy array"
         assert isinstance(bo, np.ndarray), "Output later bias vector should be a 1d numpy array"
 
         self.Whx = Whx
         self.Whh = Whh
-        self.bhx = bh
+        self.bhx = bhx
+        if bhh is not None:
+            self.bhh = bhh
         self.Woh = Woh
         self.bo = bo
         self.in_dim = Whx.shape[1] 
@@ -164,8 +168,8 @@ class RecurrentLayer(object):
                 h_prev = H[t - 1]
                 # Remaining timesteps: h_t = ReLU(Whx * x_t + bhx + Whh * h_{t-1})
                 WIn = I.affineMap(self.Whx, self.bhx)
-                h_weight = h_prev.affineMap(self.Whh)
-                h_sum = h_weight.minKowskiSum(WIn)
+                h_recurrent = h_prev.affineMap(self.Whh,self.bhh)
+                h_sum = h_recurrent.minKowskiSum(WIn)
                 hidden_states = ReLULayer.reach(h_sum, method=method)
 
             # Save hidden state

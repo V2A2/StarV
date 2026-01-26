@@ -568,7 +568,7 @@ if __name__ == "__main__":
     test_RecurrentLayer.test_simple_rnn()
     # test_RecurrentLayer.test_multiRandomLayers()
     # test_RecurrentLayer.test_multiMinsum()
-    test_RecurrentLayer.test_probstar()
+    # test_RecurrentLayer.test_probstar()
     print('\n========================\
     =================================\
     =================================\
