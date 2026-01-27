@@ -610,6 +610,7 @@ class ProbStar(object):
 
         V1 = copy.deepcopy(self.V)
         V2 = copy.deepcopy(Y.V)
+        # print(f"shpe of V1:{V1.shape}, shpe of V2:{V2.shape}")
         V1[:, 0] = V1[:, 0] + V2[:, 0]
         V3 = np.delete(V2, 0, 1)
         V = np.hstack((V1, V3))
@@ -617,17 +618,29 @@ class ProbStar(object):
         pred_ub = np.concatenate((self.pred_ub, Y.pred_ub))
         mu = np.concatenate((self.mu, Y.mu))
         Sig = block_diag(self.Sig, Y.Sig)
-        C = block_diag(self.C, Y.C)
+
+        print("===before copy===\n self.C:",self.C)
+        if len(C) !=0:
+            print("===before copy===\n self.C_shape:",self.C.shape)
+        print("Y.C:",Y.C.shape)
+        C1 = copy.deepcopy(self.C)
+        C2 = copy.deepcopy(Y.C)
+        # print(f"====after =====\n shape of C1:{C1.shape}, shape of C2:{C2.shape}")
+        # print("Set:",Y)
+        C = block_diag(self.C,Y.C)
         d = np.concatenate((self.d, Y.d))
         if len(d) == 0:
             C = []
             d = []
+            print("===== after minsum=== V:",V.shape,"C:",C,"d:",d)
+        else:
+            print("===== after minsum 1=== V:",V.shape,"C:",C.shape,"d:",d)
+
         R = ProbStar(V, C, d, mu, Sig, pred_lb, pred_ub)
 
         return R
-        
-        
 
+    
     def isEmptySet(self, lp_solver='gurobi'):
         """Check if a probstar is an empty set"""
 

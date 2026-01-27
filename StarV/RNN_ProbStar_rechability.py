@@ -21,8 +21,8 @@ def construct_input_probstar(engine_id, time_step):
     train_processed,test_processed,y_test= load_trained_CMAPSS_data()
     # select one engine unit data for reachability analysis
     engine_data = test_processed.loc[test_processed['unit_number'] == engine_id]
-    print("engine_data shape:",engine_data.shape)
-    print("engine_data samples:",engine_data.head(5))       
+    # print("engine_data shape:",engine_data.shape)
+    # print("engine_data samples:",engine_data.head(5))       
     # select one time step data for reachability analysis
     # engine_data = engine_data.reset_index(drop=True)
     # input_data = engine_data[:time_step].values[:, 2:] # remove unit_number and time_cycles columns
@@ -30,8 +30,8 @@ def construct_input_probstar(engine_id, time_step):
         print(f"Engine {engine_id} has only {engine_data['time_cycles'].max()} time cycles, less than the specified time step {time_step}.")
     else:
         input_data = engine_data[engine_data["time_cycles"] <= time_step].values[:, 2:]
-        print("input_data shape:",input_data.shape)
-        print("input_data:",input_data)
+        # print("input_data shape:",input_data.shape)
+        # print("input_data:",input_data)
 
     # add standard gaussian noise to the input data for sertain feature, pressures, speed, temperature sensors
     all_noises = []
@@ -58,7 +58,7 @@ def construct_input_probstar(engine_id, time_step):
     feature_idx.append(speed_sensor_indices)
 
     X = get_ProbStar_set_RNN(noisy_input_data,noises = all_noises,feature_idx= feature_idx)
-    print("number of ProbStar set constructed for engine id {}: {}".format(engine_id, len(X)))
+    # print("number of ProbStar set constructed for engine id {}: {}".format(engine_id, len(X)))
 
     return X
 
@@ -72,14 +72,14 @@ def reachability_with_RNN(X):
     mat =[]
     for i in range(len(fc_w)):
         W_fc = fc_w[i]
-        print(f"w_fc{i}:",W_fc)
-        print(f"w_fc{i} shape:",W_fc.shape)
+        # print(f"w_fc{i}:",W_fc)
+        # print(f"w_fc{i} shape:",W_fc.shape)
         b_fc = np.array(fc_b[i])
-        print("b_fc:",b_fc)
-        print(f"b_fc{i} shape:",b_fc.shape)
+        # print("b_fc:",b_fc)
+        # print(f"b_fc{i} shape:",b_fc.shape)
         paramas =[W_fc,b_fc]
         mat.append(paramas)
-        print(f"mat{i}:{mat[i]}")
+        # print(f"mat{i}:{mat[i]}")
 
     L2 = FullyConnectedLayer(mat[0])
     L3 = ReLULayer()
@@ -100,19 +100,17 @@ def reachability_with_RNN(X):
         print(f"=========processing layer{j+1}=============")
         layers[j].info()
         RS1 = net.layers[j].reach(RS, method = "exact", lp_solver='gurobi', pool=None, RF=0.0, DR=0)
-        print("\n number of Output sets after layer {} : {}".format(j+1,len(RS1)))
-        print("output set types after layer {} : {}".format(j+1,type(RS1)))
-        print("output set[0] types after layer {} : {}{}".format(j+1,type(RS1[0]),RS1[0]))
-        print("num of output set[0]  after layer {} : {}".format(j+1,len(RS1[0])))
+        # print("\n number of Output sets after layer {} : {}".format(j+1,len(RS1)))
+        # print("output set types after layer {} : {}".format(j+1,type(RS1)))
+        # print("output set[0] types after layer {} : {}{}".format(j+1,type(RS1[0]),RS1[0]))
+        # print("num of output set[0]  after layer {} : {}".format(j+1,len(RS1[0])))
         Layer_RS.append(RS1)
         RS = RS1
     final_layer_output =Layer_RS[-1]
     print("len of final output sets:",len(final_layer_output))
     for i in range(len(RS)):
-        print("final_output_set:",final_layer_output[i][0])
+        # print("final_output_set:",final_layer_output[i][0])
         print("final_output_set_prob:",final_layer_output[i][0].estimateProbability())
-
-
 
 
 if __name__ == "__main__":

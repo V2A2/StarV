@@ -23,12 +23,12 @@ def load_trained_CMAPSS_data():
         print("all_train_data_shape:",train_processed.shape)
         print("all_test_data_shape:",test_processed.shape)
         print("all_test_URL_shape:",y_test.shape)
-        print("test_data_info:",test_processed.describe())
+        # print("test_data_info:",test_processed.describe())
 
         train_samples = train_processed.head(10)
         test_samples = test_processed.head(10)
-        print("train_data_samples:",train_samples)
-        print("test_data_samples:",test_samples)
+        # print("train_data_samples:",train_samples)
+        # print("test_data_samples:",test_samples)
         # pd.set_option('display.max_column', 30)
         # print("train_data_samples:",train_samples)
 
@@ -78,7 +78,7 @@ def load_trained_params():
 
 
 
-def load_simple_rnn(dtype=float):
+def load_simple_rnn(dtype=np.float64):
     """Load RNN model"""
 
     cur_path = os.path.dirname(os.path.abspath(__file__))
@@ -163,8 +163,9 @@ def get_ProbStar_set_RNN(input_data, noises,feature_idx):
                     speed_noise = -speed_noise
                 lb = single_data_point[dim] - speed_noise
                 ub = single_data_point[dim] + speed_noise
-            elif dim in range(dims):
-                lb = ub = single_data_point[dim]       
+            elif dim in range(dims): # add some small noise o oather sensor
+                lb = single_data_point[dim] 
+                ub = single_data_point[dim] 
             else:  
                 raise ValueError("Dimension index out of range")
             single_data_points_bounds.append((lb, ub))
@@ -176,24 +177,46 @@ def get_ProbStar_set_RNN(input_data, noises,feature_idx):
 
     # create Star for initial state 
     X = []
+    np.set_printoptions(precision=12, suppress=False)
+
     for bounds in init_state_bounds_list:
         init_state_lb = np.array([b[0] for b in bounds])
         # print("init_state_lb:",init_state_lb)
         init_state_ub = np.array([b[1] for b in bounds])
+
+        # mu = 0.5*(init_state_lb+init_state_ub)
+        # a = 3
+        # sig = (mu-init_state_lb)/a
+        # print("sig====:",sig)
+        # epsilon = 1e-6
+        # sig = np.maximum(sig, epsilon,).astype(np.float64)
+        # print("sig_max:",sig)
+        # Sig = np.diag(np.square(sig)).astype(np.float64)
+        # print("Sig==============:",Sig)
+        # X0_probstar = ProbStar(mu, Sig,init_state_lb,init_state_ub)
+        # # X0_probstar.C = np.zeros([1,X0_probstar.nVars])  
+        # # X0_probstar.d = np.zeros([1])
+        # print("initial probstar set:",X0_probstar)
+        # X.append(X0_probstar)
+        # # print("Input ProbStar set constructed:",X0_probstar)
+        # print("probability of the initial ProbStar set:",X0_probstar.estimateProbability())
+        
+        
         X0 = Star(init_state_lb,init_state_ub)
-        X0.C = np.zeros([1,X0.nVars])  
-        X0.d = np.zeros([1])
+        # X0.C = np.empty([1,X0.nVars])  
+        # X0.d = np.empty([1])
+        print("X0:",X0)
         mu = 0.5*(X0.pred_lb + X0.pred_ub) 
         a  = 3
-        sig= (X0.pred_ub-mu )/a
-        epsilon = 1e-10
+        sig= (mu - X0.pred_lb)/a
+        epsilon = 1e-6
         sig = np.maximum(sig, epsilon)
         Sig = np.diag(np.square(sig))
         X0_probstar = ProbStar(X0.V, X0.C, X0.d,mu, Sig,X0.pred_lb,X0.pred_ub)
         print("initial probstar set:",X0_probstar)
         X.append(X0_probstar)
         # print("Input ProbStar set constructed:",X0_probstar)
-        # print("probability of the ProbStar set:",X0_probstar.estimateProbability())
+        print("probability of the initial ProbStar set:",X0_probstar.estimateProbability())
 
     return X
 
