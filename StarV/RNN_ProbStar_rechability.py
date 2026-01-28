@@ -20,7 +20,7 @@ def construct_input_probstar(engine_id, time_step):
 
     train_processed,test_processed,y_test= load_trained_CMAPSS_data()
     # select one engine unit data for reachability analysis
-    engine_data = test_processed.loc[test_processed['unit_number'] == engine_id]
+    engine_data = train_processed.loc[train_processed['unit_number'] == engine_id]
     # print("engine_data shape:",engine_data.shape)
     # print("engine_data samples:",engine_data.head(5))       
     # select one time step data for reachability analysis
@@ -28,6 +28,7 @@ def construct_input_probstar(engine_id, time_step):
     # input_data = engine_data[:time_step].values[:, 2:] # remove unit_number and time_cycles columns
     if engine_data["time_cycles"].max() < time_step:
         print(f"Engine {engine_id} has only {engine_data['time_cycles'].max()} time cycles, less than the specified time step {time_step}.")
+        input_data = engine_data.values[:, 2:]
     else:
         input_data = engine_data[engine_data["time_cycles"] <= time_step].values[:, 2:]
         # print("input_data shape:",input_data.shape)
@@ -86,10 +87,10 @@ def reachability_with_RNN(X):
     L4 = FullyConnectedLayer(mat[1])
     L5 = ReLULayer()
     L6 = FullyConnectedLayer(mat[2])
-    L7 = ReLULayer()
+    # L7 = ReLULayer()
 
 
-    layers = [L1,L2,L3,L4,L5,L6,L7]
+    layers = [L1,L2,L3,L4,L5,L6]
     net = NeuralNetwork(layers=layers)
 
 
@@ -98,7 +99,7 @@ def reachability_with_RNN(X):
     RS = X
     for j in range(0,Numlayers):
         print(f"=========processing layer{j+1}=============")
-        layers[j].info()
+        # layers[j].info()
         RS1 = net.layers[j].reach(RS, method = "exact", lp_solver='gurobi', pool=None, RF=0.0, DR=0)
         # print("\n number of Output sets after layer {} : {}".format(j+1,len(RS1)))
         # print("output set types after layer {} : {}".format(j+1,type(RS1)))
@@ -106,12 +107,17 @@ def reachability_with_RNN(X):
         # print("num of output set[0]  after layer {} : {}".format(j+1,len(RS1[0])))
         Layer_RS.append(RS1)
         RS = RS1
-    final_layer_output =Layer_RS[-1]
+    final_layer_output = Layer_RS[-1]
     print("len of final output sets:",len(final_layer_output))
-    for i in range(len(RS)):
-        # print("final_output_set:",final_layer_output[i][0])
-        print("final_output_set_prob:",final_layer_output[i][0].estimateProbability())
-
+    # for i in range(len(X)):
+    #     # print("final_output_set:",final_layer_output[i][0])
+    #     print("final_output_set_prob:",final_layer_output[i][0].estimateProbability())
+   
+    for i, step in enumerate(final_layer_output):
+        print(f"\n Step {i}: number of sets = {len(step)}")
+        for j, S in enumerate(step):
+            p = S.estimateProbability()
+            print(f"  Set {j}: probability = {p}")
 
 if __name__ == "__main__":
     np.random.seed(25)

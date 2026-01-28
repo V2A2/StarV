@@ -45,7 +45,7 @@ def load_trained_CMAPSS_data():
 def load_trained_params():
         ''' Load Weights and Biases ''' 
         directory = os.path.dirname(os.path.abspath(__file__)) 
-        params_path = directory + "/data/CMAPSS/saved_models/RNN_model_parameters_1.npz"
+        params_path = directory + "/data/CMAPSS/saved_models/RNN_model_parameters_1_28_win25.npz"
         params = np.load(params_path)
         W_hx = params["rnn.weight_ih_l0"]
         W_hh = params["rnn.weight_hh_l0"]
@@ -164,8 +164,8 @@ def get_ProbStar_set_RNN(input_data, noises,feature_idx):
                 lb = single_data_point[dim] - speed_noise
                 ub = single_data_point[dim] + speed_noise
             elif dim in range(dims): # add some small noise o oather sensor
-                lb = single_data_point[dim] 
-                ub = single_data_point[dim] 
+                lb = single_data_point[dim] -0.001
+                ub = single_data_point[dim] +0.001
             else:  
                 raise ValueError("Dimension index out of range")
             single_data_points_bounds.append((lb, ub))
@@ -179,32 +179,35 @@ def get_ProbStar_set_RNN(input_data, noises,feature_idx):
     X = []
     np.set_printoptions(precision=12, suppress=False)
 
-    for bounds in init_state_bounds_list:
+    for i,bounds in enumerate(init_state_bounds_list):
         init_state_lb = np.array([b[0] for b in bounds])
         # print("init_state_lb:",init_state_lb)
         init_state_ub = np.array([b[1] for b in bounds])
 
-        # mu = 0.5*(init_state_lb+init_state_ub)
+        # X0 = Star(init_state_lb,init_state_ub)
+        # lb_X0 = X0.getRanges()[0]
+        # ub_X0 = X0.getRanges()[1]
+        # print("==== get ranges LB======:",lb_X0)
+        # print("==== get ranges UB ======:",ub_X0)
+
+        # mu = 0.5*(lb_X0+ub_X0)
         # a = 3
-        # sig = (mu-init_state_lb)/a
-        # print("sig====:",sig)
-        # epsilon = 1e-6
-        # sig = np.maximum(sig, epsilon,).astype(np.float64)
-        # print("sig_max:",sig)
+        # sig = (mu-lb_X0)/a
+        # epsilon = 1e-12
+        # sig = np.maximum(sig, epsilon).astype(np.float64)
         # Sig = np.diag(np.square(sig)).astype(np.float64)
-        # print("Sig==============:",Sig)
-        # X0_probstar = ProbStar(mu, Sig,init_state_lb,init_state_ub)
+        # X0_probstar = ProbStar(mu, Sig,lb_X0,ub_X0)
         # # X0_probstar.C = np.zeros([1,X0_probstar.nVars])  
         # # X0_probstar.d = np.zeros([1])
-        # print("initial probstar set:",X0_probstar)
+        # print(f"initial probstar set {i}:{X0_probstar}")
+        # print(f"probability of the initial ProbStar set {i}:{X0_probstar.estimateProbability()}")
         # X.append(X0_probstar)
-        # # print("Input ProbStar set constructed:",X0_probstar)
-        # print("probability of the initial ProbStar set:",X0_probstar.estimateProbability())
         
         
         X0 = Star(init_state_lb,init_state_ub)
-        # X0.C = np.empty([1,X0.nVars])  
-        # X0.d = np.empty([1])
+        # print("X0_d.shape[0]:",X0.d.shape[0])
+        X0.C = np.empty([X0.d.shape[0],X0.nVars])  
+        X0.d = np.empty([X0.d.shape[0]])
         print("X0:",X0)
         mu = 0.5*(X0.pred_lb + X0.pred_ub) 
         a  = 3
@@ -213,10 +216,10 @@ def get_ProbStar_set_RNN(input_data, noises,feature_idx):
         sig = np.maximum(sig, epsilon)
         Sig = np.diag(np.square(sig))
         X0_probstar = ProbStar(X0.V, X0.C, X0.d,mu, Sig,X0.pred_lb,X0.pred_ub)
-        print("initial probstar set:",X0_probstar)
+        # print(f"initial probstar set {i}:{X0_probstar}")
+        print(f"probability of the initial ProbStar set {i}:{X0_probstar.estimateProbability()}")
         X.append(X0_probstar)
         # print("Input ProbStar set constructed:",X0_probstar)
-        print("probability of the initial ProbStar set:",X0_probstar.estimateProbability())
 
     return X
 
