@@ -494,7 +494,7 @@ class RNN_trainer(object):
             print("Created model directory:", self.model_dir)
     
         current_val_loss = float("inf")
-        best_model_path = self.model_dir + f"/best_RNN_model_SmoothL1Loss_1_28_win25.pth"
+        best_model_path = self.model_dir + f"/best_RNN_model_SmoothL1Loss_1_29_win25_h_32_fc_6432_16.pth"
         wait = 0
         train_losses = []
         val_losses = []
@@ -554,53 +554,53 @@ def pred_last_win_for_each_engine( preds, num_windows):
     # mean_pred_per_engine = []
     return np.array([p[-1] for p in per_engine], dtype=np.float32)
 
-def test_RNN_model(save_model_path,data,win_size):
-    print("\n======================== Begin Testing ========================")
-    # Load the saved model and evaluate on test set
-    print("\n======================== Load the saved model and evaluate on test set ========================")
-    checkpoint = torch.load(save_model_path, map_location=torch.device('cpu'),weights_only=False)
-    model = RNN_model(
-        input_size=checkpoint["input_size"],
-        hidden_size=checkpoint["hidden_size"],
-        fc_sizes=checkpoint["fc_sizes"],
-        rnn_dropout_prob=checkpoint["rnn_dropout_prob"],
-        fc_dropout_prob=checkpoint["fc_dropout_prob"],
-    )
-    model.load_state_dict(checkpoint["model_state_dict"], strict=False)
-    print("Model loaded.")
-    print("Model's state_dict (weights and bias for each layer):")
-    parameters = {}
-    for name, param_tensor in model.state_dict().items():
-        print(name, "\t", model.state_dict()[name])
-        parameters[name] = param_tensor.detach().numpy()
-    save_parameters_path = os.path.dirname(os.path.abspath(__file__)) + "/util/data/CMAPSS/saved_models"
-    np.savez_compressed(save_parameters_path + "/RNN_model_parameters.npz", **parameters)
-    print("Saved model parameters to:", save_parameters_path + "/RNN_model_parameters.npz")
-    print("Model architecture:", model)
-    print("Model parameters:", sum(p.numel() for p in model.parameters()))
+# def test_RNN_model(save_model_path,data,win_size):
+#     print("\n======================== Begin Testing ========================")
+#     # Load the saved model and evaluate on test set
+#     print("\n======================== Load the saved model and evaluate on test set ========================")
+#     checkpoint = torch.load(save_model_path, map_location=torch.device('cpu'),weights_only=False)
+#     model = RNN_model(
+#         input_size=checkpoint["input_size"],
+#         hidden_size=checkpoint["hidden_size"],
+#         fc_sizes=checkpoint["fc_sizes"],
+#         rnn_dropout_prob=checkpoint["rnn_dropout_prob"],
+#         fc_dropout_prob=checkpoint["fc_dropout_prob"],
+#     )
+#     model.load_state_dict(checkpoint["model_state_dict"], strict=False)
+#     print("Model loaded.")
+#     print("Model's state_dict (weights and bias for each layer):")
+#     parameters = {}
+#     for name, param_tensor in model.state_dict().items():
+#         print(name, "\t", model.state_dict()[name])
+#         parameters[name] = param_tensor.detach().numpy()
+#     save_parameters_path = os.path.dirname(os.path.abspath(__file__)) + "/util/data/CMAPSS/saved_models"
+#     np.savez_compressed(save_parameters_path + "/RNN_model_parameters_1_29_win15_h_16_fc_32_16.npz", **parameters)
+#     print("Saved model parameters to:", save_parameters_path + "/RNN_model_parameters_1_29_win15_h_16_fc_32_16.npz")
+#     print("Model architecture:", model)
+#     print("Model parameters:", sum(p.numel() for p in model.parameters()))
 
-    model.eval()
+#     model.eval()
 
-    # Recreate the scaler
-    scaler = checkpoint["scaler"]
+#     # Recreate the scaler
+#     scaler = checkpoint["scaler"]
 
-    # Prepare test data
-    selected_vars = checkpoint["selected_vars"]
-    df_test,y_test = data.load_data()[1:]
-    X_test,engine_ids_per_window,num_win_per_engine,all_windows = data.create_test_input_sequnces(df_test,win_size,selected_vars,scaler)
-    print("input_test_seqs_shape:",X_test.shape)
-    print("input_seqs_feature_type:",type(X_test))
-    print("======== test set info:==========",len(num_win_per_engine), sum(num_win_per_engine), len(X_test))
+#     # Prepare test data
+#     selected_vars = checkpoint["selected_vars"]
+#     df_test,y_test = data.load_data()[1:]
+#     X_test,engine_ids_per_window,num_win_per_engine,all_windows = data.create_test_input_sequnces(df_test,win_size,selected_vars,scaler)
+#     print("input_test_seqs_shape:",X_test.shape)
+#     print("input_seqs_feature_type:",type(X_test))
+#     print("======== test set info:==========",len(num_win_per_engine), sum(num_win_per_engine), len(X_test))
 
-    # Predict on test set
-    preds = predict(model, X_test)
-    # print("preds_shape:",preds.shape)     
-    pred_for_engine = pred_last_win_for_each_engine(preds, num_win_per_engine)
-    # print("pred_for_engine:",pred_for_engine)
-    true_rul = y_test["RUL"].values.reshape(-1)  # 100 engine
-    rmse = np.sqrt(mean_squared_error(true_rul, pred_for_engine))
-    # print("Test RMSE:", rmse)
-    return pred_for_engine,rmse
+#     # Predict on test set
+#     preds = predict(model, X_test)
+#     # print("preds_shape:",preds.shape)     
+#     pred_for_engine = pred_last_win_for_each_engine(preds, num_win_per_engine)
+#     # print("pred_for_engine:",pred_for_engine)
+#     true_rul = y_test["RUL"].values.reshape(-1)  # 100 engine
+#     rmse = np.sqrt(mean_squared_error(true_rul, pred_for_engine))
+#     # print("Test RMSE:", rmse)
+#     return pred_for_engine,rmse
 
 
 def plot_egine_cycles(df_train,index_names):
@@ -638,7 +638,7 @@ def plot_loss_curve(train_losses, val_losses,save_path="./"):
     plt.grid()
     plt.savefig(save_path + '/loss_curve_RNN.png')
     plt.show()
-    plt.close()
+    # plt.close()
     
 
 def set_seed(seed=42):
@@ -662,7 +662,7 @@ if __name__ == "__main__":
     merged_train_data.info()
     # plot_egine_cycles(df_train,index_names = ['unit_number', 'time_cycles'])
     # plot_corelation_heatmap(merged_train_data)
-    win_size = 25
+    win_size = 20
     X_train,y_train,X_val,y_val,selected_var,num_features,scaler= data.create_train_input_sequnces(merged_train_data,win_size)
     # X_test,engine_ids_per_window,num_win_per_engine,all_windows = data.create_test_input_sequnces(df_test,win_size,selected_var,scaler)
     print("input_train_seqs_shape:",X_train.shape)
@@ -682,7 +682,9 @@ if __name__ == "__main__":
     print("test_datatloader:",len(val_loader))
 
     # Define model and trainer
-    model= RNN_model(input_size=num_features, hidden_size=32, fc_sizes=[64, 32, 16], rnn_dropout_prob=0.2, fc_dropout_prob=0.2)
+    # model= RNN_model(input_size=num_features, hidden_size=32, fc_sizes=[64, 32, 16], rnn_dropout_prob=0.2, fc_dropout_prob=0.2)
+    model= RNN_model(input_size=num_features, hidden_size=32, fc_sizes=[64, 32,16], rnn_dropout_prob=0.2, fc_dropout_prob=0.2)
+
 
     # # Train and save the model
     script_path = os.path.abspath(__file__)
@@ -695,7 +697,7 @@ if __name__ == "__main__":
         print("Created model directory:", model_dir)
     trainer = RNN_trainer(model, train_loader, val_loader, lr=1e-3, weight_decay=1e-4, epochs=15,model_dir = model_dir, selected_vars=selected_var, scaler=scaler, patience=4)
     save_model_path, train_losses, val_losses = trainer.save_model()
-    # plot_loss_curve(train_losses, val_losses,model_dir)
+    plot_loss_curve(train_losses, val_losses,model_dir)
     
 
     # Test the saved model using test FD001 data
@@ -721,8 +723,8 @@ if __name__ == "__main__":
     for name,param_tensor in model.state_dict().items():
         print(name, "\t", model.state_dict()[name])
         parameters[name] = param_tensor.detach().numpy()
-    np.savez_compressed(model_dir + "/RNN_model_parameters_1_28_win25.npz", **parameters)
-    print("Saved model parameters to:", model_dir + "/RNN_model_parameters_1_28_win25.npz.npz")
+    np.savez_compressed(model_dir + "/RNN_model_parameters_1_29_win25_h32_f64.npz", **parameters)
+    print("Saved model parameters to:", model_dir + "/RNN_model_parameters_1_20_win25_h32_f64.npz")
     print("Model architecture:", model)
     print("Model parameters:", sum(p.numel() for p in model.parameters()))
 

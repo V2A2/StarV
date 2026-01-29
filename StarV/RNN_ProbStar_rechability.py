@@ -21,8 +21,8 @@ def construct_input_probstar(engine_id, time_step):
     train_processed,test_processed,y_test= load_trained_CMAPSS_data()
     # select one engine unit data for reachability analysis
     engine_data = train_processed.loc[train_processed['unit_number'] == engine_id]
-    # print("engine_data shape:",engine_data.shape)
-    # print("engine_data samples:",engine_data.head(5))       
+    print("engine_data shape:",engine_data.shape)
+    print("engine_data samples:",engine_data.head(5))       
     # select one time step data for reachability analysis
     # engine_data = engine_data.reset_index(drop=True)
     # input_data = engine_data[:time_step].values[:, 2:] # remove unit_number and time_cycles columns
@@ -31,8 +31,8 @@ def construct_input_probstar(engine_id, time_step):
         input_data = engine_data.values[:, 2:]
     else:
         input_data = engine_data[engine_data["time_cycles"] <= time_step].values[:, 2:]
-        # print("input_data shape:",input_data.shape)
-        # print("input_data:",input_data)
+        print("input_data shape:",input_data.shape)
+        print("input_data:",input_data)
 
     # add standard gaussian noise to the input data for sertain feature, pressures, speed, temperature sensors
     all_noises = []
@@ -40,14 +40,13 @@ def construct_input_probstar(engine_id, time_step):
     pressure_noise_std = 0.005
     speed_noise_std = 0.0025
     temperature_noise_std = 0.0075
-    temperature_noise = np.random.normal(noise_mean, temperature_noise_std)
-    pressure_noise = np.random.normal(noise_mean, pressure_noise_std)
-    speed_noise = np.random.normal(noise_mean, speed_noise_std)
+    temperature_noise = np.round(np.random.normal(noise_mean, temperature_noise_std),decimals=4)
+    pressure_noise = np.round(np.random.normal(noise_mean, pressure_noise_std),decimals=4)
+    speed_noise = np.round(np.random.normal(noise_mean, speed_noise_std),decimals=4)
     all_noises.append(temperature_noise)
     all_noises.append(pressure_noise)
     all_noises.append(speed_noise)
 
-    noisy_input_data = input_data.copy()
 
     feature_idx = []
     temperature_sensor_indices = [2,3,4]
@@ -58,7 +57,7 @@ def construct_input_probstar(engine_id, time_step):
     feature_idx.append(pressure_sensor_indices,)
     feature_idx.append(speed_sensor_indices)
 
-    X = get_ProbStar_set_RNN(noisy_input_data,noises = all_noises,feature_idx= feature_idx)
+    X = get_ProbStar_set_RNN(input_data,noises = all_noises,feature_idx= feature_idx)
     # print("number of ProbStar set constructed for engine id {}: {}".format(engine_id, len(X)))
 
     return X
@@ -117,10 +116,10 @@ def reachability_with_RNN(X):
         print(f"\n Step {i}: number of sets = {len(step)}")
         for j, S in enumerate(step):
             p = S.estimateProbability()
-            print(f"  Set {j}: probability = {p}")
+            print(f" Set {j}:{step[j]}, \n nVars:{step[j].nVars} ,probability = {p}")
 
 if __name__ == "__main__":
     np.random.seed(25)
-    X=construct_input_probstar(engine_id=1, time_step=20)
+    X=construct_input_probstar(engine_id=1, time_step=25)
     reachability_with_RNN(X)
         

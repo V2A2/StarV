@@ -45,7 +45,7 @@ def load_trained_CMAPSS_data():
 def load_trained_params():
         ''' Load Weights and Biases ''' 
         directory = os.path.dirname(os.path.abspath(__file__)) 
-        params_path = directory + "/data/CMAPSS/saved_models/RNN_model_parameters_1_28_win25.npz"
+        params_path = directory + "/data/CMAPSS/saved_models/RNN_model_parameters_1_29_win25_h32_f64.npz"
         params = np.load(params_path)
         W_hx = params["rnn.weight_ih_l0"]
         W_hh = params["rnn.weight_hh_l0"]
@@ -130,16 +130,22 @@ def get_ProbStar_set_RNN(input_data, noises,feature_idx):
     pressure_noise = noises[1]
     speed_noise = noises[2]
 
+    print(f"all added noises:{noises}")
+
     temperature_sensor_indices = feature_idx[0]
     pressure_sensor_indices = feature_idx[1]
     speed_sensor_indices = feature_idx[2]
 
-    transposed_input_data = input_data.T
+    print(f"input data shape:{input_data.shape},\n input data head 20:{input_data}")
+
+    # transposed_input_data = input_data.T
+
+    # print(f"transposed input data shape:{transposed_input_data.shape}")
 
     # returns list of initial states bounds for each dimension, construct a ProbSatr for initial state
     init_state_bounds_list = []
-    for i in range(transposed_input_data.shape[1]):
-        single_data_point = transposed_input_data[:, i]
+    for i in range(input_data.shape[0]):
+        single_data_point = input_data[i, :]
         single_data_points_bounds = []
         # print("single_data_point:",single_data_point)
         dims = single_data_point.shape[0]
@@ -164,15 +170,15 @@ def get_ProbStar_set_RNN(input_data, noises,feature_idx):
                 lb = single_data_point[dim] - speed_noise
                 ub = single_data_point[dim] + speed_noise
             elif dim in range(dims): # add some small noise o oather sensor
-                lb = single_data_point[dim] -0.001
-                ub = single_data_point[dim] +0.001
+                lb = single_data_point[dim] 
+                ub = single_data_point[dim] 
             else:  
                 raise ValueError("Dimension index out of range")
             single_data_points_bounds.append((lb, ub))
         # print("single_data_points_bounds:",single_data_points_bounds)
         # print("shape of single_data_points_bounds:",len(single_data_points_bounds))
         init_state_bounds_list.append(single_data_points_bounds)
-    # print("init_state_bounds_list:",init_state_bounds_list)
+    print("init_state_bounds_list:",init_state_bounds_list)
     # print("shape of init_state_bounds_list:",len(init_state_bounds_list))
 
     # create Star for initial state 
@@ -208,7 +214,7 @@ def get_ProbStar_set_RNN(input_data, noises,feature_idx):
         # print("X0_d.shape[0]:",X0.d.shape[0])
         X0.C = np.empty([X0.d.shape[0],X0.nVars])  
         X0.d = np.empty([X0.d.shape[0]])
-        print("X0:",X0)
+        # print("X0:",X0)
         mu = 0.5*(X0.pred_lb + X0.pred_ub) 
         a  = 3
         sig= (mu - X0.pred_lb)/a
