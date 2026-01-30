@@ -42,7 +42,8 @@ def construct_input_probstar(engine_id, time_step):
     temperature_noise_std = 0.0075
     temperature_noise = np.round(np.random.normal(noise_mean, temperature_noise_std),decimals=4)
     pressure_noise = np.round(np.random.normal(noise_mean, pressure_noise_std),decimals=4)
-    speed_noise = np.round(np.random.normal(noise_mean, speed_noise_std),decimals=4)
+    # speed_noise = np.round(np.random.normal(noise_mean, speed_noise_std),decimals=4)
+    speed_noise = np.random.normal(noise_mean, speed_noise_std)
     all_noises.append(temperature_noise)
     all_noises.append(pressure_noise)
     all_noises.append(speed_noise)
@@ -116,10 +117,10 @@ def reachability_with_RNN(X):
         print(f"\n Step {i}: number of sets = {len(step)}")
         for j, S in enumerate(step):
             p = S.estimateProbability()
-            print(f" Set {j}:{step[j]}, \n nVars:{step[j].nVars} ,probability = {p}")
+            print(f" Set {j}: \n nVars:{step[j].nVars} ,probability = {p}")
 
 if __name__ == "__main__":
     np.random.seed(25)
-    X=construct_input_probstar(engine_id=1, time_step=25)
+    X=construct_input_probstar(engine_id=1, time_step=20)
     reachability_with_RNN(X)
         

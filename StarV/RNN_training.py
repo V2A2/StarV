@@ -494,7 +494,7 @@ class RNN_trainer(object):
             print("Created model directory:", self.model_dir)
     
         current_val_loss = float("inf")
-        best_model_path = self.model_dir + f"/best_RNN_model_SmoothL1Loss_1_29_win25_h_32_fc_6432_16.pth"
+        best_model_path = self.model_dir + f"/best_RNN_model_SmoothL1Loss_1_30_win25_h_32_fc_6432_16.pth"
         wait = 0
         train_losses = []
         val_losses = []
@@ -723,8 +723,8 @@ if __name__ == "__main__":
     for name,param_tensor in model.state_dict().items():
         print(name, "\t", model.state_dict()[name])
         parameters[name] = param_tensor.detach().numpy()
-    np.savez_compressed(model_dir + "/RNN_model_parameters_1_29_win25_h32_f64.npz", **parameters)
-    print("Saved model parameters to:", model_dir + "/RNN_model_parameters_1_20_win25_h32_f64.npz")
+    np.savez_compressed(model_dir + "/RNN_model_parameters_1_30_win25_h32_f64.npz", **parameters)
+    print("Saved model parameters to:", model_dir + "/RNN_model_parameters_1_30_win25_h32_f64.npz")
     print("Model architecture:", model)
     print("Model parameters:", sum(p.numel() for p in model.parameters()))
 

@@ -126,11 +126,11 @@ def get_Star_set(col_point, eps,Ti):
 def get_ProbStar_set_RNN(input_data, noises,feature_idx):
 
 
-    temperature_noise = noises[0]
+    temperature_noise= noises[0]
     pressure_noise = noises[1]
     speed_noise = noises[2]
 
-    print(f"all added noises:{noises}")
+    print(f"all added noises pct:{noises}")
 
     temperature_sensor_indices = feature_idx[0]
     pressure_sensor_indices = feature_idx[1]
@@ -153,29 +153,36 @@ def get_ProbStar_set_RNN(input_data, noises,feature_idx):
             if dim in temperature_sensor_indices:
                 # print("temp_dim:",dim)
                 # print("tempreture noise:",temperature_noise)
-                if temperature_noise <0:
-                    temperature_noise = -temperature_noise
-                lb = single_data_point[dim] - temperature_noise
-                ub = single_data_point[dim] + temperature_noise
+                # if temperature_noise <0:
+                #     temperature_noise = -temperature_noise
+                sig = temperature_noise * np.abs(single_data_point[dim])
+                sig = np.maximum(sig, 1e-6)
+                delta = 3 * sig
+                lb = single_data_point[dim] - delta
+                ub = single_data_point[dim] + delta
             elif dim in pressure_sensor_indices:
                 # print("pressure_dim:",dim)
                 # print("pressure noise:",pressure_noise)
-                if pressure_noise <0:
-                    pressure_noise = -pressure_noise
-                lb = single_data_point[dim] - pressure_noise
-                ub = single_data_point[dim] + pressure_noise   
+                # if pressure_noise <0:
+                #     pressure_noise = -pressure_noise
+                sig = pressure_noise * np.abs(single_data_point[dim])
+                sig = np.maximum(sig, 1e-6)
+                delta = 3 * sig
+                lb = single_data_point[dim] - delta
+                ub = single_data_point[dim] + delta 
             elif dim in speed_sensor_indices:
-                if speed_noise <0:
-                    speed_noise = -speed_noise
-                lb = single_data_point[dim] - speed_noise
-                ub = single_data_point[dim] + speed_noise
-            elif dim in range(dims): # add some small noise o oather sensor
+                sig = speed_noise * np.abs(single_data_point[dim])
+                sig = np.maximum(sig, 1e-6)
+                delta = 3 * sig
+                lb = single_data_point[dim] - delta
+                ub = single_data_point[dim] + delta
+            elif dim in range(dims):
                 lb = single_data_point[dim] 
                 ub = single_data_point[dim] 
             else:  
                 raise ValueError("Dimension index out of range")
             single_data_points_bounds.append((lb, ub))
-        # print("single_data_points_bounds:",single_data_points_bounds)
+        print("single_data_points_bounds:",single_data_points_bounds)
         # print("shape of single_data_points_bounds:",len(single_data_points_bounds))
         init_state_bounds_list.append(single_data_points_bounds)
     print("init_state_bounds_list:",init_state_bounds_list)
