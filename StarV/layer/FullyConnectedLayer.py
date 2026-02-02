@@ -135,12 +135,13 @@ class FullyConnectedLayer(object):
     #         if  self.fo == 'relu':
     #             S = ReLULayer.reach(S, method)
     #         return S
+    
     def reachExactMultiInput(self, In):
         S = []
         for i in range(len(In)):
             weighted_sum = In[i].affineMap(self.W, self.b)
             S.append(weighted_sum)
-            return S
+        return S
     
             
             
@@ -176,7 +177,7 @@ class FullyConnectedLayer(object):
 
         else:
             S = self.reachExactSingleInput(inputSet,method)
-                
+
         return S
     
     

@@ -7,12 +7,14 @@ from scipy.io import loadmat
 import os
 import mat73
 import numpy as np
+import matplotlib as plt
 from StarV.set.star import Star
 from StarV.set.probstar import ProbStar
 from StarV.layer.ReLULayer import ReLULayer
 from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
 from StarV.layer.RecurrentLayer import RecurrentLayer
-from StarV.net.network import NeuralNetwork
+from StarV.net.network import NeuralNetwork, reachApproxBFS
+from StarV.util.plot import plot_probstar_signal,plot_probstar
 from StarV.util.load_rnn import load_trained_CMAPSS_data,get_ProbStar_set_RNN,load_trained_params
 
 
@@ -85,42 +87,66 @@ def reachability_with_RNN(X):
     L2 = FullyConnectedLayer(mat[0])
     L3 = ReLULayer()
     L4 = FullyConnectedLayer(mat[1])
-    L5 = ReLULayer()
-    L6 = FullyConnectedLayer(mat[2])
+    # L5 = ReLULayer()
+    # L6 = FullyConnectedLayer(mat[2])
     # L7 = ReLULayer()
 
 
-    layers = [L1,L2,L3,L4,L5,L6]
+    # layers = [L1,L2,L3,L4,L5,L6]
+    layers = [L1,L2,L3,L4]
     net = NeuralNetwork(layers=layers)
 
 
     Numlayers = len(layers)
     Layer_RS = []
     RS = X
-    for j in range(0,Numlayers):
-        print(f"=========processing layer{j+1}=============")
-        # layers[j].info()
-        RS1 = net.layers[j].reach(RS, method = "exact", lp_solver='gurobi', pool=None, RF=0.0, DR=0)
-        # print("\n number of Output sets after layer {} : {}".format(j+1,len(RS1)))
-        # print("output set types after layer {} : {}".format(j+1,type(RS1)))
-        # print("output set[0] types after layer {} : {}{}".format(j+1,type(RS1[0]),RS1[0]))
-        # print("num of output set[0]  after layer {} : {}".format(j+1,len(RS1[0])))
-        Layer_RS.append(RS1)
-        RS = RS1
-    final_layer_output = Layer_RS[-1]
-    print("len of final output sets:",len(final_layer_output))
-    # for i in range(len(X)):
-    #     # print("final_output_set:",final_layer_output[i][0])
-    #     print("final_output_set_prob:",final_layer_output[i][0].estimateProbability())
-   
-    for i, step in enumerate(final_layer_output):
-        print(f"\n Step {i}: number of sets = {len(step)}")
-        for j, S in enumerate(step):
-            p = S.estimateProbability()
-            print(f" Set {j}: \n nVars:{step[j].nVars} ,probability = {p}")
+    S,p_ignored = reachApproxBFS(net, RS, p_filter=0.001, lp_solver='gurobi', pool=None, show=True)
+    # for j in range(0,Numlayers):
+    #     print(f"=========processing layer{j+1}=============")
+    #     layers[j].info()
+    #     RS1 = net.layers[j].reach(RS, method = "exact", lp_solver='gurobi', pool=None, RF=0.0, DR=0)
+    #     for i in range(20):
+    #         X = RS1
+    #         print("\n number of Output sets after layer {} at each step{}: {}".format(j+1,i,len(X[i])))
+    #     # # print("output set types after layer {} : {}".format(j+1,type(RS1)))
+    #     # # print("output set[0] types after layer {} : {}{}".format(j+1,type(RS1[0]),RS1[0]))
+    #     # print("num of output set[14]  after layer {} : {}".format(j+1,len(RS1[14])))
+    #     Layer_RS.append(RS1)
+    #     RS = RS1
+    # final_layer_output = Layer_RS[-1]
 
+    final_layer_output = S
+    print(f"number of final layer output set:{len(S)}")
+    # map_mat = np.array([[0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]])
+    map_mat = np.array([[0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]])
+
+    All_map_sets=[]
+    for i, S1 in enumerate(final_layer_output):
+        print(f"\n Step {i}: number of sets = {len(S1)}")
+        print(f"len of output set at each time step:{len(S1)}")
+        print(f"type of output set at each time step:{type(S1)}")
+        for j, S2 in enumerate(S1):
+            p = S2.estimateProbability()
+            Map_set = S2.affineMap(map_mat)
+            # p = Map_set.estimateProbability()
+            print(f" Set {i}{j}: \n nVars:{Map_set.nVars}, dims:{Map_set.dim},\n V:{Map_set.V} \n probability = {p}")
+            # print(f" Set {j}: \n nVars:{step[j].nVars}, dims:{step[j].dim},\n V:{step[j].V} \n probability = {p}")
+            All_map_sets.append(Map_set)
+            # p = S1.estimateProbability()
+            # Map_set = S1.affineMap(map_mat)
+            # # p = Map_set.estimateProbability()
+            # print(f" Set {i}{j}: \n nVars:{Map_set.nVars}, dims:{Map_set.dim},\n V:{Map_set.V} \n probability = {p}")
+            # # print(f" Set {j}: \n nVars:{step[j].nVars}, dims:{step[j].dim},\n V:{step[j].V} \n probability = {p}")
+            # All_map_sets.append(Map_set)
+
+
+    plot_probstar(All_map_sets[1])
+    # plot_probstar_signal(All_map_sets)
+    
 if __name__ == "__main__":
     np.random.seed(25)
-    X=construct_input_probstar(engine_id=1, time_step=20)
-    reachability_with_RNN(X)
+    for i in range(1,2):
+        print(f"======================== Process the first 20 cycles of {i}th engine ========================")
+        X = construct_input_probstar(engine_id=i, time_step=20)
+        reachability_with_RNN(X)
         

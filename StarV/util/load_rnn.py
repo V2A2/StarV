@@ -4,6 +4,7 @@ import numpy as np
 from StarV.set.star import Star
 from StarV.set.probstar import ProbStar
 import pandas as pd
+from StarV.util.plot import plot_probstar,plot_2D_Star
 
 
 def load_trained_CMAPSS_data():
@@ -34,7 +35,7 @@ def load_trained_CMAPSS_data():
 
 
         # group by engine unit
-        grouped_engine_data = test_processed.groupby("unit_number")
+        grouped_engine_data = train_processed.groupby("unit_number")
         print("grouped_engine_data.size:",grouped_engine_data.size())
         print("type of grouped_engine_data:",type(grouped_engine_data))
         print("grouped_engine_data groups:",grouped_engine_data.first())   
@@ -182,10 +183,10 @@ def get_ProbStar_set_RNN(input_data, noises,feature_idx):
             else:  
                 raise ValueError("Dimension index out of range")
             single_data_points_bounds.append((lb, ub))
-        print("single_data_points_bounds:",single_data_points_bounds)
+        # print("single_data_points_bounds:",single_data_points_bounds)
         # print("shape of single_data_points_bounds:",len(single_data_points_bounds))
         init_state_bounds_list.append(single_data_points_bounds)
-    print("init_state_bounds_list:",init_state_bounds_list)
+    # print("init_state_bounds_list:",init_state_bounds_list)
     # print("shape of init_state_bounds_list:",len(init_state_bounds_list))
 
     # create Star for initial state 
@@ -216,7 +217,7 @@ def get_ProbStar_set_RNN(input_data, noises,feature_idx):
         # print(f"probability of the initial ProbStar set {i}:{X0_probstar.estimateProbability()}")
         # X.append(X0_probstar)
         
-        
+        # map_mat = np.array([[0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]])
         X0 = Star(init_state_lb,init_state_ub)
         # print("X0_d.shape[0]:",X0.d.shape[0])
         X0.C = np.empty([X0.d.shape[0],X0.nVars])  
@@ -232,6 +233,11 @@ def get_ProbStar_set_RNN(input_data, noises,feature_idx):
         # print(f"initial probstar set {i}:{X0_probstar}")
         print(f"probability of the initial ProbStar set {i}:{X0_probstar.estimateProbability()}")
         X.append(X0_probstar)
+
+        # star_set = X0.affineMap(map_mat)
+        # # plot_probstar(set)
+        # plot_2D_Star(star_set)
+
         # print("Input ProbStar set constructed:",X0_probstar)
 
     return X
