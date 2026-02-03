@@ -92,10 +92,10 @@ class RecurrentLayer(object):
 
         for t, I in enumerate(In):
             print(f"\n----- Processing timestep {t} -----")
+            print(f"=========== number of input sets in step {t}:{len(I)}==========")
 
             if t == 0:
                 # First timestep: h0 = ReLU(Whx * x + bhx)
-                print(f"===========number of input sets in step {t}:{len(I)}==========")
         
                 WIn = I.affineMap(self.Whx, self.bhx)
                 h_out  = ReLULayer.reach([WIn], method=method)
@@ -105,17 +105,29 @@ class RecurrentLayer(object):
                 # Subsequent timesteps: h_t = ReLU(Whx * x_t + bhx + Whh * h_{t-1})
                 hidden_states = []
                 prev_hidden = H[t - 1]
+                # print("===== first affine for initial input set ========")
                 WIn = I.affineMap(self.Whx, self.bhx)
+                # print(f" for minsum === \n WIn{t}: V_shape:{WIn.V.shape}, C:{WIn.C},C_shape:{WIn.C.shape}d:{WIn.d}")
 
-                for h_prev in prev_hidden:
-                    h_recurrent = h_prev.affineMap(self.Whh)
+                for k, h_prev in enumerate(prev_hidden):
+                    # print("==== second affine for h_recurrent====")
+                    if self.bhh is not None:
+                        h_recurrent = h_prev.affineMap(self.Whh,self.bhh)
+                    else:
+                        h_recurrent = h_prev.affineMap(self.Whh)
+                    # print("\n====== end affine======")
+
+                    # if len(h_recurrent.C) == 0 :
+                        # print(f"\n h_recurrent  V_type:{(type(h_recurrent.V))}, V_shape:{h_recurrent.V.shape},\n C_type:{type(h_recurrent.C)},C: {h_recurrent.C}d:{h_recurrent.d},h_pred_lb:{h_recurrent.pred_lb}")
+                    # else:
+                        # print(f"\n h_recurrent  V_type:{(type(h_recurrent.V))}, V_shape:{h_recurrent.V.shape},\n C_type:{type(h_recurrent.C.shape)},C: {h_recurrent.C}d:{h_recurrent.d},h_pred_lb:{h_recurrent.pred_lb}")
+
                     summed = h_recurrent.minKowskiSum(WIn)
-
                     # Apply ReLU
                     h_out = ReLULayer.reach([summed], method=method)
-                    print(f"Number of h_out sets after relu in step {t}:{len(h_out)}")
+                    # print(f"Number of h_out sets after relu in step {t}:{len(h_out)}")
                     hidden_states.extend(h_out)
-                print(f"Number of hidden_states sets after minsum in step {t}:{len(hidden_states)}")
+                # print(f"Number of hidden_states sets after minsum in step {t}:{len(hidden_states)}")
 
             # Save hidden states
             H.append(hidden_states)
@@ -129,6 +141,8 @@ class RecurrentLayer(object):
 
         print("\n===== Reachability analysis using exactReach complete =====")
         print(f"Total timesteps: {len(O)}")
+
+
         return O
 
 
@@ -168,7 +182,10 @@ class RecurrentLayer(object):
                 h_prev = H[t - 1]
                 # Remaining timesteps: h_t = ReLU(Whx * x_t + bhx + Whh * h_{t-1})
                 WIn = I.affineMap(self.Whx, self.bhx)
-                h_recurrent = h_prev.affineMap(self.Whh,self.bhh)
+                if self.bhh is not None:
+                    h_recurrent = h_prev.affineMap(self.Whh,self.bhh)
+                else:
+                    h_recurrent = h_prev.affineMap(self.Whh)
                 h_sum = h_recurrent.minKowskiSum(WIn)
                 hidden_states = ReLULayer.reach(h_sum, method=method)
 
