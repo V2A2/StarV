@@ -619,23 +619,12 @@ class ProbStar(object):
         mu = np.concatenate((self.mu, Y.mu))
         Sig = block_diag(self.Sig, Y.Sig)
 
-        print("===before copy===\n self.C:",self.C)
-        if len(C) !=0:
-            print("===before copy===\n self.C_shape:",self.C.shape)
-        print("Y.C:",Y.C.shape)
-        C1 = copy.deepcopy(self.C)
-        C2 = copy.deepcopy(Y.C)
-        # print(f"====after =====\n shape of C1:{C1.shape}, shape of C2:{C2.shape}")
-        # print("Set:",Y)
         C = block_diag(self.C,Y.C)
         d = np.concatenate((self.d, Y.d))
         if len(d) == 0:
             C = []
             d = []
-            print("===== after minsum=== V:",V.shape,"C:",C,"d:",d)
-        else:
-            print("===== after minsum 1=== V:",V.shape,"C:",C.shape,"d:",d)
-
+            
         R = ProbStar(V, C, d, mu, Sig, pred_lb, pred_ub)
 
         return R
