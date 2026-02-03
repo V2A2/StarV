@@ -143,7 +143,8 @@ class RNN_dataset(object):
             os.makedirs(save_processed_train_path)
             print("Created processed data directory:", save_processed_train_path)
      
-        train_processed.to_csv(save_processed_train_path + "/train_FD001_processed_full_precision.csv", index=False,header=cols_to_save)
+        # train_processed.to_csv(save_processed_train_path + "/train_FD001_processed_full_precision.csv", index=False,header=cols_to_save)
+        train_processed.to_csv(save_processed_train_path + "/train_FD001_processed_4f.csv", index=False,header=cols_to_save,float_format='%.4f')
 
 
         # final_selected_vars = ['time_cycles'] + selected_vars
@@ -257,7 +258,8 @@ class RNN_dataset(object):
             os.makedirs(save_processed_test_path)
             print("Created processed data directory:", save_processed_test_path)
      
-        test_processed.to_csv(save_processed_test_path + "/test_FD001_processed_full_precision.csv", index=False,header=cols_to_save)
+        # test_processed.to_csv(save_processed_test_path + "/test_FD001_processed_full_precision.csv", index=False,header=cols_to_save)
+        test_processed.to_csv(save_processed_test_path + "/train_FD001_processed_4f.csv", index=False,header=cols_to_save,float_format='%.4f')
 
 
         final_selected_vars = ['time_cycles'] + selected_vars
