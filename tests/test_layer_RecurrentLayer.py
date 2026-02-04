@@ -12,7 +12,7 @@ from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
 from StarV.layer.ReLULayer import ReLULayer
 from StarV.net.network import NeuralNetwork
 from StarV.util.load_rnn import load_simple_rnn, get_Star_set,get_ProbStar_set
-from StarV.util.plot import plot_2D_Star
+from StarV.util.plot import plot_2D_Star,plot_probstar_signal,plot_probstar
 import matplotlib.pyplot as plt
 
 
@@ -527,9 +527,9 @@ class Test(object):
             # else:
             #     print('Test Successfull!')
 
-    def test_probstar(self):
+    def test_probstar_construct(self):
         np.random.seed(42)
-        X =Star.rand(4)
+        X =Star.rand(8)
         print("First Star info:",X)
         mu = 0.5*(X.pred_ub + X.pred_lb) 
         a  = 3
@@ -545,12 +545,55 @@ class Test(object):
         print("Star lower bound:",lb_X," upper bound:",ub_X)
 
         mu_1 = 0.5*(ub_X + lb_X)
-        sig= (ub_X - mu_1)/a
+        sig_1= (ub_X - mu_1)/a
         print("mu_1:",mu_1,"sig:",sig)
-        # sig = np.maximum(sig, epsilon)
-        Sig_1 = np.diag(np.square(sig))
+        sig_1 = np.maximum(sig_1, epsilon)
+        Sig_1 = np.diag(np.square(sig_1))
+        print("Sig_1:",Sig_1)
         P_1 = ProbStar(mu_1, Sig_1, lb_X, ub_X)
-        print("ProbStar_1 info:",P_1,"probility:",P_1.estimateProbability())
+        print("ProbStar_1 info:",P_1,"probility_1:",P_1.estimateProbability())
+
+
+    def test_probstar_combine(self):
+        # np.random.seed(42)
+        lb = np.array([0,1])
+        ub = np.array([1.5,2.5])
+        # X = Star.rand(2)
+        X = Star(lb,ub)
+        print("First Star info:",X)
+        mu = 0.5*(X.pred_ub + X.pred_lb) 
+        a  = 3
+        sig= (X.pred_ub-mu )/a
+        epsilon = 1e-10
+        sig = np.maximum(sig, epsilon)
+        Sig = np.diag(np.square(sig))
+        P = ProbStar(X.V,X.C,X.d, mu, Sig,X.pred_lb,X.pred_ub)
+        print("ProbStar info:",P,"probility:",P.estimateProbability())
+        plot_probstar(P)
+        
+        # X1 =Star.rand(2)
+        lb1 = np.array([-1,0])
+        ub2 = np.array([0.5,1.5])
+        # X = Star.rand(2)
+        X1 = Star(lb1
+                  ,ub2)
+        print("Second Star info:",X1)
+        mu = 0.5*(X1.pred_ub + X1.pred_lb) 
+        a  = 3
+        sig= (X1.pred_ub-mu )/a
+        epsilon = 1e-10
+        sig = np.maximum(sig, epsilon)
+        Sig = np.diag(np.square(sig))
+        P1 = ProbStar(X1.V,X1.C,X1.d, mu, Sig,X1.pred_lb,X1.pred_ub)
+        print("ProbStar info:",P1,"probility:",P1.estimateProbability())
+        plot_probstar(P1)
+
+        Combine_P = P.Combine(P1)
+
+        plot_probstar_signal([P,P1])
+        # plot_2D_Star(S)
+        plot_probstar(Combine_P)
+
             
 
 if __name__ == "__main__":
@@ -565,10 +608,11 @@ if __name__ == "__main__":
     # test_RecurrentLayer.test_reachExact()
     # test_RecurrentLayer.test_reachApprox()
     # test_RecurrentLayer.test_reach()
-    test_RecurrentLayer.test_simple_rnn()
+    # test_RecurrentLayer.test_simple_rnn()
     # test_RecurrentLayer.test_multiRandomLayers()
     # test_RecurrentLayer.test_multiMinsum()
-    # test_RecurrentLayer.test_probstar()
+    # test_RecurrentLayer.test_probstar_construct()
+    test_RecurrentLayer.test_probstar_combine()
     print('\n========================\
     =================================\
     =================================\

@@ -14,17 +14,18 @@ from StarV.layer.ReLULayer import ReLULayer
 from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
 from StarV.layer.RecurrentLayer import RecurrentLayer
 from StarV.net.network import NeuralNetwork, reachApproxBFS
+from StarV.verifier.verifier import checkSafetyProbStar
 from StarV.util.plot import plot_probstar_signal,plot_probstar
 from StarV.util.load_rnn import load_trained_CMAPSS_data,get_ProbStar_set_RNN,load_trained_params
 
 
-def construct_input_probstar(engine_id, time_step):
+def construct_input_probstar(engine_id, time_step,shifts):
 
     train_processed,test_processed,y_test= load_trained_CMAPSS_data()
     # select one engine unit data for reachability analysis
     engine_data = train_processed.loc[train_processed['unit_number'] == engine_id]
-    print("engine_data shape:",engine_data.shape)
-    print("engine_data samples:",engine_data.head(5))       
+    print(f"engine {engine_id} data shape:{engine_data.shape}")
+    print(f"engine {engine_id} data samples:{engine_data.head(10)}")       
     # select one time step data for reachability analysis
     # engine_data = engine_data.reset_index(drop=True)
     # input_data = engine_data[:time_step].values[:, 2:] # remove unit_number and time_cycles columns
@@ -32,7 +33,7 @@ def construct_input_probstar(engine_id, time_step):
         print(f"Engine {engine_id} has only {engine_data['time_cycles'].max()} time cycles, less than the specified time step {time_step}.")
         input_data = engine_data.values[:, 2:]
     else:
-        input_data = engine_data[engine_data["time_cycles"] <= time_step].values[:, 2:]
+        input_data = engine_data.values[shifts-1:shifts+time_step, 2:]
         print("input_data shape:",input_data.shape)
         print("input_data:",input_data)
 
@@ -97,10 +98,11 @@ def reachability_with_RNN(X):
     net = NeuralNetwork(layers=layers)
 
 
-    Numlayers = len(layers)
-    Layer_RS = []
     RS = X
     S,p_ignored = reachApproxBFS(net, RS, p_filter=0.001, lp_solver='gurobi', pool=None, show=True)
+    
+    # Numlayers = len(layers)
+    # Layer_RS = []
     # for j in range(0,Numlayers):
     #     print(f"=========processing layer{j+1}=============")
     #     layers[j].info()
@@ -125,28 +127,91 @@ def reachability_with_RNN(X):
         print(f"\n Step {i}: number of sets = {len(S1)}")
         print(f"len of output set at each time step:{len(S1)}")
         print(f"type of output set at each time step:{type(S1)}")
+        map_sets=[]
         for j, S2 in enumerate(S1):
             p = S2.estimateProbability()
             Map_set = S2.affineMap(map_mat)
             # p = Map_set.estimateProbability()
-            print(f" Set {i}{j}: \n nVars:{Map_set.nVars}, dims:{Map_set.dim},\n V:{Map_set.V} \n probability = {p}")
-            # print(f" Set {j}: \n nVars:{step[j].nVars}, dims:{step[j].dim},\n V:{step[j].V} \n probability = {p}")
-            All_map_sets.append(Map_set)
-            # p = S1.estimateProbability()
-            # Map_set = S1.affineMap(map_mat)
-            # # p = Map_set.estimateProbability()
             # print(f" Set {i}{j}: \n nVars:{Map_set.nVars}, dims:{Map_set.dim},\n V:{Map_set.V} \n probability = {p}")
-            # # print(f" Set {j}: \n nVars:{step[j].nVars}, dims:{step[j].dim},\n V:{step[j].V} \n probability = {p}")
-            # All_map_sets.append(Map_set)
+            print(f" Set {j}: \n nVars:{S2.nVars}, dims:{S2.dim},\n V:{S2.V} \n probability = {p}")
+            map_sets.append(Map_set)
+            # map_sets.append(S2)
+
+        All_map_sets.append(map_sets)
+    
+    print(f"====plot original map reachable sets====")
+    plot_probstar_signal(All_map_sets[0])
+    S0 =All_map_sets[0][0]
+    S1 =All_map_sets[0][1]
+    print(f"S0:{S0} \n S1:{S1}")
+        
+    print(f"\n ====plot concat map reachable sets====")
+    combine_set = S0.Combine(S1)
+    plot_probstar(combine_set)
+
+    
+    
+    # verify output reachable sets
+    # unsafe_mat = np.array([[0,0,0,0,0,0,0,0,0,0,0,0,0,0,-1,0]])
+    # unsafe_vec = np.array([-5])
+    # P1, prob1 = checkSafetyProbStar(unsafe_mat, unsafe_vec, S2)
 
 
-    plot_probstar(All_map_sets[1])
+    # all_check_sets=[]
+    # all_check_prob=[]
+    # for i, S1 in enumerate(All_map_sets):
+    #     # print(f"type of S1:{type(S1)}")
+    #     # print(f" S1:{S1}")
+    #     P = []
+    #     prob = []
+    #     for j,S2 in enumerate(S1):
+    #         if len(S1) <= 1:
+    #             continue
+    #         else:
+    #             concat_set = S1[0]
+    #             for j in range(1, len(S1)):
+    #                 concat_set = concat_set.concatenate(S1[j])   
+    #             S2 = concat_set
+    #         P1, prob1 = checkSafetyProbStar(unsafe_mat, unsafe_vec, S2)
+    #         if isinstance(P1, ProbStar):
+    #             print(f"prob1 of S{i}{j}:{prob1}")
+    #             P.append(P1)
+    #             prob.append(prob1)
+    #         else:
+    #             print(f"S{i}{j} is an empty set, prob = 0.0")
+
+    #     if len(P) != 0:
+    #         all_check_sets.append(P)
+    #         all_check_prob.append(prob)
+
+
+        # for j, S2 in enumerate(S1):
+        #     # print(f"type of S2:{type(S2)}")
+        #     # print(f" S2:{S2}")
+        #     P1, prob1 = checkSafetyProbStar(unsafe_mat, unsafe_vec, S2)
+        #     if isinstance(P1, ProbStar):
+        #         print(f"prob1 of S{i}{j}:{prob1}")
+        #         P.append(P1)
+        #         prob.append(prob1)
+        #     else:
+        #         print(f"S{i}{j} is an empty set, prob = 0.0")
+
+        # if len(P) != 0:
+        #     all_check_sets.append(P)
+        #     all_check_prob.append(prob)
+    
+    # print(f"number of output set satisfy constraint:{len(all_check_sets)}")
+    # print(f"prob of output set satisfy constraint:{len(all_check_sets)},all_probs:{all_check_prob}")
+
+
+    # plot_probstar(All_map_sets[1][0])
+    # plot_probstar(All_map_sets[1])
     # plot_probstar_signal(All_map_sets)
     
 if __name__ == "__main__":
     np.random.seed(25)
     for i in range(1,2):
         print(f"======================== Process the first 20 cycles of {i}th engine ========================")
-        X = construct_input_probstar(engine_id=i, time_step=20)
+        X = construct_input_probstar(engine_id=i, time_step=20,shifts=5)
         reachability_with_RNN(X)
         

@@ -37,8 +37,8 @@ def load_trained_CMAPSS_data():
         # group by engine unit
         grouped_engine_data = train_processed.groupby("unit_number")
         print("grouped_engine_data.size:",grouped_engine_data.size())
-        print("type of grouped_engine_data:",type(grouped_engine_data))
-        print("grouped_engine_data groups:",grouped_engine_data.first())   
+        print("type of all grouped_engine_data :",type(grouped_engine_data))
+        print("grouped_engine_data first cycle in each groups:",grouped_engine_data.first())   
 
 
         return train_processed,test_processed,y_test
@@ -137,7 +137,7 @@ def get_ProbStar_set_RNN(input_data, noises,feature_idx):
     pressure_sensor_indices = feature_idx[1]
     speed_sensor_indices = feature_idx[2]
 
-    print(f"input data shape:{input_data.shape},\n input data head 20:{input_data}")
+    # print(f"input data shape:{input_data.shape},\n input data head 20:{input_data}")
 
     # transposed_input_data = input_data.T
 

@@ -17,6 +17,7 @@ from scipy.linalg import block_diag
 import glpk
 import polytope as pc
 from StarV.util.minimax_tilting_sampler import TruncatedMVN
+from StarV.set.star import Star
 
 
 import copy
@@ -624,10 +625,70 @@ class ProbStar(object):
         if len(d) == 0:
             C = []
             d = []
-            
+
         R = ProbStar(V, C, d, mu, Sig, pred_lb, pred_ub)
 
         return R
+    
+    def Combine(self, Y):
+        """Combine two probstars"""
+
+        assert isinstance(Y, ProbStar), 'error: input is not a probstar'
+        assert self.dim == Y.dim, 'error: inconsistent dimension between the input and the self object'
+
+        # new_lb =[]
+        # new_ub=[]
+        # lb,ub = self.getRanges()
+        # lb1,ub1 = Y.getRanges()
+        # print(f"lb:{lb}")
+        # print(f"ub:{ub}")
+        # print(f"lb1:{lb1}")
+        # print(f"ub1:{ub1}")
+        # for i in range(len(lb)):
+        #     print(f"lb_i:{lb[i]}")
+        #     if lb[i] <= lb1[i]:
+        #         new_lb.append(lb[i])
+        #     else:
+        #         new_lb.append(lb1[i])
+        #     print(f"add new lb :{new_lb}")
+        #     if ub[i] >= ub1[i]:
+        #         print(f"ub_i:{ub[i]}")
+        #         new_ub.append(ub[i])
+        #     else:
+        #         new_ub.append(ub1[i])
+        #     print(f"add new ub :{new_ub}")
+        # new_lb_arr = np.array(new_lb).flatten()
+        # new_ub_arr = np.array(new_ub).flatten()
+        # print(f"new_lb_arr:{new_lb_arr}")
+        # print(f"new_ub_arr:{new_ub_arr}")
+    
+        # mu = 0.5*(new_lb_arr + new_ub_arr) 
+        # a  = 3
+        # sig= (new_ub_arr-mu )/a
+        # epsilon = 1e-10
+        # sig = np.maximum(sig, epsilon)
+        # Sig = np.diag(np.square(sig))        
+        # R = ProbStar( mu, Sig, new_lb_arr,new_ub_arr)
+        
+        V1 = copy.deepcopy(self.V)
+        V2 = copy.deepcopy(Y.V)
+        V3 = np.delete(V2, 0, 1)
+        V = np.hstack((V1, V3))
+        pred_lb = np.concatenate((self.pred_lb, Y.pred_lb))
+        pred_ub = np.concatenate((self.pred_ub, Y.pred_ub))
+        mu = np.concatenate((self.mu, Y.mu))
+        Sig = block_diag(self.Sig, Y.Sig)
+
+        C = block_diag(self.C,Y.C)
+        d = np.concatenate((self.d, Y.d))
+        if len(d) == 0:
+            C = []
+            d = []
+        R = ProbStar(V, C, d, mu, Sig, pred_lb, pred_ub)
+
+
+        return R
+
 
     
     def isEmptySet(self, lp_solver='gurobi'):
