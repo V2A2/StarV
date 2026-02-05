@@ -166,7 +166,7 @@ class RecurrentLayer(object):
         print(f"\n~~~~~~~~ Using {method} method for reachability ~~~~~~~~")
 
         assert isinstance(In,list), 'error: input must be a list'
-        assert isinstance(In[0],Star), 'error: input set is not a Star set'
+        # assert isinstance(In[0],Star), 'error: input set is not a Star set'
 
         H = []  # Hidden state reachable sets
         O = []  # Output reachable sets
@@ -190,6 +190,7 @@ class RecurrentLayer(object):
                 hidden_states = ReLULayer.reach(h_sum, method=method)
 
             # Save hidden state
+            print(f"number of output sets in step {t} for hidden states:{len(hidden_states)}")
             H.append(hidden_states)
 
             # Compute output: y_t = Woh * h_t + bo
@@ -198,10 +199,49 @@ class RecurrentLayer(object):
 
         print("\n===== Approximate reachability analysis with reachApprox complete =====")
         print(f"Total timesteps: {len(O)}")
+        print(f"type of each out set:{type(O[0])}")
         return O
 
 
-    def reach(self,In, method = None, lp_solver='gurobi', pool=None, RF=0.0, DR=0):
+    def reachExactBranches(self, In, lp_solver="gurobi", pool=None):
+        """Exact reachability with branch tracking.
+
+        Returns a list of branch signals, where each branch is a list of ProbStars
+        (one per timestep). This preserves ReLU split dependencies across time.
+        """
+
+        assert isinstance(In, list), 'error: input must be a list'
+
+        branches = []  # list of (hidden_state, signal)
+
+        for t, I in enumerate(In):
+            if t == 0:
+                WIn = I.affineMap(self.Whx, self.bhx)
+                hidden_sets = ReLULayer.reach([WIn], method="exact", lp_solver=lp_solver, pool=pool, show=False)
+                new_branches = []
+                for h in hidden_sets:
+                    o = h.affineMap(self.Woh, self.bo)
+                    new_branches.append((h, [o]))
+                branches = new_branches
+            else:
+                WIn = I.affineMap(self.Whx, self.bhx)
+                new_branches = []
+                for h_prev, sig in branches:
+                    if self.bhh is not None:
+                        h_recurrent = h_prev.affineMap(self.Whh, self.bhh)
+                    else:
+                        h_recurrent = h_prev.affineMap(self.Whh)
+                    summed = h_recurrent.minKowskiSum(WIn)
+                    hidden_sets = ReLULayer.reach([summed], method="exact", lp_solver=lp_solver, pool=pool, show=False)
+                    for h in hidden_sets:
+                        o = h.affineMap(self.Woh, self.bo)
+                        new_branches.append((h, sig + [o]))
+                branches = new_branches
+
+        return [sig for _, sig in branches]
+    
+
+    def reach(self,In, method = "exact", lp_solver='gurobi', pool=None, RF=0.0, DR=0):
         if method is None:
             method = "exact"
         if method == "exact":

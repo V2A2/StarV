@@ -259,7 +259,7 @@ class RNN_dataset(object):
             print("Created processed data directory:", save_processed_test_path)
      
         # test_processed.to_csv(save_processed_test_path + "/test_FD001_processed_full_precision.csv", index=False,header=cols_to_save)
-        test_processed.to_csv(save_processed_test_path + "/train_FD001_processed_4f.csv", index=False,header=cols_to_save,float_format='%.4f')
+        test_processed.to_csv(save_processed_test_path + "/test_FD001_processed_4f.csv", index=False,header=cols_to_save,float_format='%.4f')
 
 
         final_selected_vars = ['time_cycles'] + selected_vars

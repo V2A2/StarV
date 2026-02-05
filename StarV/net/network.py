@@ -244,7 +244,7 @@ def reachExactBFS(net, inputSet, lp_solver='gurobi', pool=None, show=True):
 
 #         return I, p_ignored
 
-def reachApproxBFS(net, inputSet, p_filter=0.0, lp_solver='gurobi', pool=None, show=True):
+def reachApproxBFS(net, inputSet,method='exact', p_filter=0.0, lp_solver='gurobi', pool=None, show=True):
     """Compute Approximate Reachable Set layer-by-layer"""
 
     assert isinstance(net, NeuralNetwork), 'error: first input should be a NeuralNetwork object'
@@ -259,7 +259,7 @@ def reachApproxBFS(net, inputSet, p_filter=0.0, lp_solver='gurobi', pool=None, s
             if show:
                 print('================ Layer {} ================='.format(i))
                 print('Computing layer {} reachable set...'.format(i))
-            S = net.layers[i].reach(I, method='exact', lp_solver=lp_solver, pool=pool)
+            S = net.layers[i].reach(I, method=method, lp_solver=lp_solver, pool=pool)
             if show:
                 print('Number of probstars: {}'.format(len(S)))
                 print('Filtering probstars whose probabilities < {}...'.format(p_filter))

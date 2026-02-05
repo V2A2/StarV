@@ -45,7 +45,14 @@ class ReLULayer(object):
             return S
         
         elif method == 'approx':
-            return PosLin.reachApproxSingleInput(In=In, lp_solver=lp_solver, RF=RF, DR=DR, show=show)
+            if len(In) >1:
+                S =[]
+                for i in range(len(In)):
+                    S1 = PosLin.reachApproxSingleInput(In=In[i], lp_solver=lp_solver, RF=RF, DR=DR, show=show)
+                    S.append(S1)
+                return S
+            else:
+                return PosLin.reachApproxSingleInput(In=In, lp_solver=lp_solver, RF=RF, DR=DR, show=show)
         elif method == 'relax':
             return PosLin.reachApproxSingleInput(In=In, lp_solver=lp_solver, RF=RF, DR=DR, show=show)
         elif method == 'basic':

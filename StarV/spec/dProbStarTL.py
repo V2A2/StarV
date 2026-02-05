@@ -1166,6 +1166,45 @@ class DynamicFormula(object):
 
 
         return SAT, p_SAT_MAX, p_SAT_MIN, cdnf.length
+    
+
+    # def evaluate_for_RNN(self, probstar_sig):
+    #     'evaluate the satisfaction of the abtract-timed dyanmic formula on a probstar signal produced by RNN'
+
+    #     print('Realizing Abstract DNF specification on a ProbStar Signal...')
+    #     cdnf = self.realization(probstar_sig)
+    #     print('Length of Computable DNF = {}'.format(cdnf.length))
+
+    #     p_trace = cdnf.base_probstar.estimateProbability()  # probability of the probstar signal
+    #     SAT = []
+    #     p_SAT_MIN = 0.0
+    #     p_SAT_MAX = 0.0
+
+    #     if cdnf.length != 0:
+    #         for i in range(0, cdnf.length):
+    #            SAT.append(cdnf.estimateProbability((i,)))
+    #         if cdnf.length > 11:
+    #             print('*****WARNING*****: CDNF (len = {}) is too large for exact verification'.format(cdnf.length))
+    #             print('We ignore this CDNF, return the estimate probability uperbound')
+    #             p_SAT_MIN = max(SAT)
+    #             p_SAT_MAX = max(p_SAT_MIN, p_trace) # this eleminates the numerical issue in estimating probability
+    #         else:
+    #             N = range(0, cdnf.length)
+    #             print('Computing exact probability of satisfaction...')
+    #             for i in range(0, cdnf.length):
+    #                 print('i = {}/{}'.format(i, cdnf.length))
+    #                 SAT1 = 0.0
+    #                 # get combinations
+    #                 comb = combinations(N, i+1)   # get all combinations
+    #                 for j in list(comb):
+    #                     # compute probability of sub-combincation , i.e., Pj[1] AND Pj[2]
+    #                     prob = (-1)**i * cdnf.estimateProbability(j)
+    #                     SAT1 = SAT1 + prob
+    #                 p_SAT_MAX = p_SAT_MAX + SAT1
+    #             p_SAT_MIN = p_SAT_MAX 
+
+
+    #     return SAT, p_SAT_MAX, p_SAT_MIN, cdnf.length
 
 
     def evaluate2(self, probstar_sig, n_max):

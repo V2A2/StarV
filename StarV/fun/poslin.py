@@ -16,6 +16,7 @@ from StarV.set.sparseimagestar2dcsr import SparseImageStar2DCSR
 
 import numpy as np
 import scipy.sparse as sp
+from scipy.linalg import block_diag
 import copy
 import multiprocessing
 import ipyparallel
@@ -88,11 +89,15 @@ class PosLin(object):
         assert isinstance(I, ProbStar) or isinstance(I, Star), \
         'error: input is not a Star or ProbStar, type of input is {}'.format(type(I))
 
+        # print("\n stepReach at index:",index)
         xmin, xmax = I.estimateRange(index)
+        # print("xmin:",xmin,"xmax:",xmax)
         if xmin >= 0:
+            # print("xmin >0, keep the set")
             S = []
             S.append(I)
         elif xmax <= 0:
+            # print("xmax < 0, reset the index to 0")
             S = []
             S.append(I.resetRow(index))
         else:
@@ -106,6 +111,7 @@ class PosLin(object):
                     S = []
                     S.append(I)
                 else:
+                    # print("Splitting at index:",index)
                     C = np.zeros(I.dim,)
                     C[index] = 1.0
                     d = np.zeros(1,)
@@ -113,10 +119,15 @@ class PosLin(object):
                     S2 = copy.deepcopy(I)
                     S1.addConstraint(C, d)  # x <= 0
                     S1.resetRow(index)
+                    # print("S1_resetrow:",S1.V)
                     S2.addConstraint(-C, d)  # x >= 0
                     S = []
                     S.append(S1)
                     S.append(S2)
+                    # print("Number of sets after splitting:", len(S))
+                    # for i in range(len(S)):
+                    #     print("Set {}: {}".format(i, S[i].V))
+        # print("=============End stepReach=================\n")
         return S
 
     @staticmethod
@@ -148,6 +159,8 @@ class PosLin(object):
         for i in range(0, len(I)):
             S1 = PosLin.stepReach(I[i], index, lp_solver)
             S.extend(S1)
+            # print("number of input sets in multiStepReach:",len(S))
+            # print("output sets in multiStepReach:",S[i].V)
         return S
 
     @staticmethod
@@ -392,6 +405,23 @@ class PosLin(object):
 
         new_pred_lb = np.hstack([I.pred_lb, np.zeros(m, dtype=dtype)])
         new_pred_ub = np.hstack([I.pred_ub, u])
+
+        if isinstance(I, ProbStar):
+            if m == 0:
+                return I
+
+            # Default Gaussian for new predicate variables (independent)
+            # This is a heuristic to keep ProbStar well-formed after relaxation.
+            mu_new = 0.5 * u
+            sig_factor = 3
+            min_sig = 1e-10
+            sig_new = np.maximum(mu_new / sig_factor, min_sig)
+            Sig_new = np.diag(np.square(sig_new))
+
+            new_mu = np.hstack([I.mu, mu_new])
+            new_Sig = block_diag(I.Sig, Sig_new)
+            return ProbStar(new_V, new_C, new_d, new_mu, new_Sig, new_pred_lb, new_pred_ub)
+
         return Star(new_V, new_C, new_d, new_pred_lb, new_pred_ub)
 
 
@@ -869,7 +899,7 @@ class PosLin(object):
             # applying partial relaxation and partial LP solver
             I, l, u, map = PosLin.relax_by_area(I=I, l=l, u=u, lp_solver=lp_solver, RF=RF, show=show)
 
-        if isinstance(I, Star):
+        if isinstance(I, Star) or isinstance(I, ProbStar):
             return PosLin.addConstraints(I=I, map=map, l=l, u=u)
 
         
@@ -902,7 +932,7 @@ class PosLin(object):
         
         else:
             raise Exception(
-                    'error: approximate reachaiblity of \'relu\' or \'poslin\' supports Star, SparseStar'
+                    'error: approximate reachaiblity of \'relu\' or \'poslin\' supports Star, ProbStar, ImageStar, SparseStar, SparseImageStar'
                 )
 
     @staticmethod
@@ -918,10 +948,10 @@ class PosLin(object):
 
         Author: Sung Woo Choi, Date: 09/12/2023
         """
-        assert isinstance(In, Star) or isinstance(In, ImageStar) or \
+        assert isinstance(In, Star) or isinstance(In, ProbStar) or isinstance(In, ImageStar) or \
             isinstance(In, SparseStar) or isinstance(In, SparseImageStar) or \
             isinstance(In, SparseImageStar2DCOO) or isinstance(In, SparseImageStar2DCSR), \
-            f"error: approximate reachaiblity of \'relu\' or \'poslin\' supports Star, ImageStar, SparseStar, SparseImageStar but received In={type(In)}"
+            f"error: approximate reachaiblity of 'relu' or 'poslin' supports Star, ProbStar, ImageStar, SparseStar, SparseImageStar but received In={type(In)}"
 
         return PosLin.stepReachApprox(In=In, lp_solver=lp_solver, RF=RF, DR=0, show=show)
 

@@ -556,6 +556,20 @@ class ProbStar(object):
                 raise Exception('error: \
                 unknown lp solver, should be gurobi or linprog or glpk')
         return xmax
+    
+    def getMins(self, map, lp_solver='gurobi'):
+        n = len(map)
+        xmin = np.zeros(n)
+        for i in range(n):
+            xmin[i] = self.getMin(index=map[i], lp_solver=lp_solver)
+        return xmin
+
+    def getMaxs(self, map, lp_solver='gurobi'):
+        n = len(map)
+        xmax = np.zeros(n)
+        for i in range(n):
+            xmax[i] = self.getMax(index=map[i], lp_solver=lp_solver)
+        return xmax
 
     def getRanges(self, lp_solver='gurobi'):
         """get lower bound and upper bound by solving LP"""
@@ -868,6 +882,19 @@ class ProbStar(object):
                      self.pred_lb, self.pred_ub)
 
         return S
+
+    def resetRows(self, map):
+        """Reset rows with a map of indexes"""
+        for i in map:
+            if i < 0 or i > self.dim - 1:
+                raise Exception('error: invalid index, \
+                should be between {} and {}'.format(0, self.dim - 1))
+        if len(map) == 0:
+            raise Exception('error: map is empty, cannot reset rows')
+        V = self.V
+        V[map, :] = 0.0
+        return ProbStar(V, self.C, self.d, self.mu, self.Sig,
+                        self.pred_lb, self.pred_ub)
 
     def resetRowWithFactor(self, index, factor):
         """Reset a row with index and factor

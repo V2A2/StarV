@@ -166,8 +166,10 @@ class FullyConnectedLayer(object):
             if pool is None:
                 for i in range(0, len(inputSet)):
                     if isinstance(inputSet[i],list):
+                        print(f"In FF reach input is as list and a nested list")
                         S.append(self.reachExactMultiInput(inputSet[i]))
                     else:
+                        print(f"In FF reach input is as list, but not nested list")
                         S.append(self.reachExactSingleInput(inputSet[i]))
 
             elif isinstance(pool, multiprocessing.pool.Pool):
@@ -176,7 +178,7 @@ class FullyConnectedLayer(object):
                 raise Exception('error: unknown/unsupport pool type')         
 
         else:
-            S = self.reachExactSingleInput(inputSet,method)
+            S = self.reachExactSingleInput(inputSet)
 
         return S
     

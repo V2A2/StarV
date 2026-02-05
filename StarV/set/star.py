@@ -149,6 +149,7 @@ class Star(object):
 
             V = np.hstack((center, gens))
             self.V = V
+            # self.C = np.array([])
             self.C = np.array([])
             self.d = np.array([])
             self.pred_lb = -np.ones(nVars,)
@@ -652,7 +653,6 @@ class Star(object):
         if len(d) == 0:
             C = []
             d = []
-        
         R = Star(V, C, d, pred_lb, pred_ub)
 
         return R
@@ -1031,8 +1031,9 @@ class Star(object):
         """ Randomly generate a Star """
 
         assert dim > 0, 'error: invalid dimension'
-        lb = -np.random.rand(dim,)
-        ub = np.random.rand(dim,)
+        lb = np.random.rand(dim,) 
+        ub = lb + 0.001
+        print("ub:", ub, "lb:", lb)
         
         return Star(lb, ub)
     
