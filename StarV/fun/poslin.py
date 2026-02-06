@@ -412,7 +412,7 @@ class PosLin(object):
 
             # Default Gaussian for new predicate variables (independent)
             # This is a heuristic to keep ProbStar well-formed after relaxation.
-            mu_new = 0.5 * u
+            mu_new = 0.5 * (u +l)
             sig_factor = 3
             min_sig = 1e-10
             sig_new = np.maximum(mu_new / sig_factor, min_sig)
@@ -871,22 +871,31 @@ class PosLin(object):
         if show:
             print('Applying approximate reachability on \'poslin\' or \'relu\' activation function')
 
-        l, u = I.estimateRanges()
+        # NOTE:
+        # `l_all, u_all` are bounds for *all* neurons.
+        # The internal routines `approx` / `relax_by_area` return `l_u, u_u`
+        # only for *ambiguous* neurons (those with lb < 0 < ub), so these may
+        # legitimately be empty if no ambiguous neurons exist.
+        l_all, u_all = I.estimateRanges()
+        if show:
+            print(f"Estimated ranges (all neurons): |l|={l_all.shape}, |u|={u_all.shape}")
 
-        if (l > 0).all():
+        if (l_all > 0).all():
             return I
-        elif (u < 0).all():
+        elif (u_all < 0).all():
             return I.resetRows(np.arange(I.dim))
         
         if lp_solver == 'estimate':
             # approximation with estimate methods
-            I, l, u, map = PosLin.relax_by_area(I=I, l=l, u=u, lp_solver=lp_solver, RF=1.0, show=show)
+            I, l_u, u_u, map_amb = PosLin.relax_by_area(I=I, l=l_all, u=u_all, lp_solver=lp_solver, RF=1.0, show=show)
 
         # no relaxation; get bounds using LP solver
         elif RF == 0.0: # and lp_solver != 'estimate':
             if show:
                 print('Finding lower and upper bounds of neurons with LP solver')
-            I, l, u, map = PosLin.approx(I=I, l=l, u=u, lp_solver=lp_solver, show=show)
+            I, l_u, u_u, map_amb = PosLin.approx(I=I, l=l_all, u=u_all, lp_solver=lp_solver, show=show)
+            print(f"l and u in Poslin Approx, l:{l_u},u:{u_u}")
+
 
         # applying relaxation
         else:
@@ -897,15 +906,17 @@ class PosLin(object):
             'error: relaxation factor should be between 0.0 and 1.0, i.e. RF in [0.0, 1.0]' 
 
             # applying partial relaxation and partial LP solver
-            I, l, u, map = PosLin.relax_by_area(I=I, l=l, u=u, lp_solver=lp_solver, RF=RF, show=show)
+            I, l_u, u_u, map_amb = PosLin.relax_by_area(I=I, l=l_all, u=u_all, lp_solver=lp_solver, RF=RF, show=show)
 
         if isinstance(I, Star) or isinstance(I, ProbStar):
-            return PosLin.addConstraints(I=I, map=map, l=l, u=u)
+            if show:
+                print(f"Ambiguous neurons after bound tightening: {len(map_amb)} / {I.dim}")
+            return PosLin.addConstraints(I=I, map=map_amb, l=l_u, u=u_u)
 
         
         elif isinstance(I, ImageStar):
             S = I.toStar(copy_=False)
-            S = PosLin.addConstraints(I=S, map=map, l=l, u=u)
+            S = PosLin.addConstraints(I=S, map=map_amb, l=l_u, u=u_u)
             if I.V.ndim == 4:
                 new_V = S.V.reshape(I.height, I.width, I.num_channel, S.nVars + 1)
             else:
@@ -913,7 +924,7 @@ class PosLin(object):
             return ImageStar(new_V, S.C, S.d, S.pred_lb, S.pred_ub)
 
         elif isinstance(I, SparseStar):
-            S = PosLin.addConstraints_sparse(I=I, map=map, l=l, u=u)
+            S = PosLin.addConstraints_sparse(I=I, map=map_amb, l=l_u, u=u_u)
             if DR > 0:
                 if show:
                     if (S.pred_depth >= DR).any():
@@ -922,13 +933,13 @@ class PosLin(object):
             return S
         
         elif isinstance(I, SparseImageStar):
-            return PosLin.addConstraints_sparseimagestar(I=I, map=map, l=l, u=u)
+            return PosLin.addConstraints_sparseimagestar(I=I, map=map_amb, l=l_u, u=u_u)
         
         elif isinstance(I, SparseImageStar2DCOO):
-            return PosLin.addConstraints_sparseimagestar2d_coo(I=I, map=map, l=l, u=u)
+            return PosLin.addConstraints_sparseimagestar2d_coo(I=I, map=map_amb, l=l_u, u=u_u)
         
         elif isinstance(I, SparseImageStar2DCSR):
-            return PosLin.addConstraints_sparseimagestar2d_csr(I=I, map=map, l=l, u=u)
+            return PosLin.addConstraints_sparseimagestar2d_csr(I=I, map=map_amb, l=l_u, u=u_u)
         
         else:
             raise Exception(

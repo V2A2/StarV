@@ -1134,6 +1134,7 @@ class DynamicFormula(object):
 
         print('Realizing Abstract DNF specification on a ProbStar Signal...')
         cdnf = self.realization(probstar_sig)
+        print(f"======== cdnf=========:\n {cdnf.print()}")
         print('Length of Computable DNF = {}'.format(cdnf.length))
 
         p_trace = cdnf.base_probstar.estimateProbability()  # probability of the probstar signal

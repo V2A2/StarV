@@ -676,6 +676,7 @@ class ProbStar(object):
         # print(f"new_lb_arr:{new_lb_arr}")
         # print(f"new_ub_arr:{new_ub_arr}")
     
+
         # mu = 0.5*(new_lb_arr + new_ub_arr) 
         # a  = 3
         # sig= (new_ub_arr-mu )/a
@@ -684,8 +685,27 @@ class ProbStar(object):
         # Sig = np.diag(np.square(sig))        
         # R = ProbStar( mu, Sig, new_lb_arr,new_ub_arr)
         
+        # V1 = copy.deepcopy(self.V)
+        # V2 = copy.deepcopy(Y.V)
+        # V3 = np.delete(V2, 0, 1)
+        # V = np.hstack((V1, V3))
+        # pred_lb = np.concatenate((self.pred_lb, Y.pred_lb))
+        # pred_ub = np.concatenate((self.pred_ub, Y.pred_ub))
+        # mu = np.concatenate((self.mu, Y.mu))
+        # Sig = block_diag(self.Sig, Y.Sig)
+
+        # C = block_diag(self.C,Y.C)
+        # d = np.concatenate((self.d, Y.d))
+        # if len(d) == 0:
+        #     C = []
+        #     d = []
+        # R = ProbStar(V, C, d, mu, Sig, pred_lb, pred_ub)
+        
+        
         V1 = copy.deepcopy(self.V)
         V2 = copy.deepcopy(Y.V)
+        V1[:, 0] = (V1[:, 0] + V2[:, 0])/2
+        # c= (V1[:,0] + V2[:,0])/2
         V3 = np.delete(V2, 0, 1)
         V = np.hstack((V1, V3))
         pred_lb = np.concatenate((self.pred_lb, Y.pred_lb))
