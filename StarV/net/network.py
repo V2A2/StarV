@@ -264,28 +264,38 @@ def reachApproxBFS(net, inputSet,method='exact', p_filter=0.0, lp_solver='gurobi
                 print('Number of probstars: {}'.format(len(S)))
                 print('Filtering probstars whose probabilities < {}...'.format(p_filter))
             P = []
-            for S1 in S:
-                print(f"in reachapproxBFS s1 in S len:{len(S1)}")
+            prob1 = 0
+            IS = 0
+            for S1 in S: # checl all time step
+                print(f"in reachapproxBFS S1 in S len:{len(S1)}")
                 if isinstance(S1,list): # return by RNN a list of liat sets
-                    prob1 = 0
                     P1 =[]
-                    for j in range(len(S1)):
+                    prob2 =0
+                    for j in range(len(S1)): # each sets at each time step
                         P2, prob = filterProbStar(p_filter, S1[j])
-                        prob1 += prob
+                        prob2 += prob
                         if isinstance(P2, ProbStar):
                             P1.append(P2)
+                        num_IG = len(S1)-len(P1)
+                        print(f"after filter in reachapproxBFS the sets at each time step len:{len(P1)}")
+                        print(f'Number of ignored probstars at each time step: {num_IG}')
+                        print(f"the cumulative ignored prob for at time steps:{prob2}")
                     P.append(P1)
-                    print(f"after filter in reachapproxBFS P1 len:{len(P1)}")
+                    IS += num_IG 
+                    prob1 += prob2
+                    print(f"the cumulative ignored prob for all time steps:{prob1}")
+                    print(f"the cumulative number of ignored sets for all time steps:{IS}")
                 else:
                     P1, prob1 = filterProbStar(p_filter, S1)
                     if isinstance(P1, ProbStar):
                         P.append(P1)
                     p_ignored = p_ignored + prob1  # update the total probability of ignored sets
-
-            I = P            
-            if show:
-                print('Number of ignored probstars: {}'.format(len(S) - len(I)))
-                print('Number of remaining probstars: {}'.format(len(I)))
+            I = P  
+            p_ignored +=prob1   
+            print(f"the cumulative ignored prob for all time steps for all layers:{p_ignored}")      
+            # if show:
+            #     print('Number of ignored probstars: {}'.format(len(S) - len(I)))
+            #     print('Number of remaining probstars: {}'.format(len(I)))
 
             if len(I) == 0:
                 break

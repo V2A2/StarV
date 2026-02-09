@@ -18,7 +18,7 @@ class ReLULayer(object):
         return PosLin.evaluate(x)
     
     @staticmethod
-    def reach(In, method='exact', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
+    def reach(In, method='exact', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False, relu_approx_mode="heuristic_gaussian"):
         """main reachability method
            Args:
                @I: a list of input set (Star or ProbStar)
@@ -45,16 +45,16 @@ class ReLULayer(object):
             return S
         
         elif method == 'approx':
-            if len(In) >1:
-                S =[]
-                for i in range(len(In)):
-                    S1 = PosLin.reachApproxSingleInput(In=In[i], lp_solver=lp_solver, RF=RF, DR=DR, show=show)
-                    S.append(S1)
-                return S
-            else:
-                return PosLin.reachApproxSingleInput(In=In, lp_solver=lp_solver, RF=RF, DR=DR, show=show)
+            # if len(In) >1:
+            #     S =[]
+            #     for i in range(len(In)):
+            #         S1 = PosLin.reachApproxSingleInput(In=In[i], lp_solver=lp_solver, RF=RF, DR=DR, show=show, relu_approx_mode=relu_approx_mode)
+            #         S.append(S1)
+            #     return S
+            # else:
+            return PosLin.reachApproxSingleInput(In=In, lp_solver=lp_solver, RF=RF, DR=DR, show=show, relu_approx_mode=relu_approx_mode)
         elif method == 'relax':
-            return PosLin.reachApproxSingleInput(In=In, lp_solver=lp_solver, RF=RF, DR=DR, show=show)
+            return PosLin.reachApproxSingleInput(In=In, lp_solver=lp_solver, RF=RF, DR=DR, show=show, relu_approx_mode=relu_approx_mode)
         elif method == 'basic':
             return PosLin.reachApprox(In=In, lp_solver=lp_solver, show=show)
         else:

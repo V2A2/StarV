@@ -12,8 +12,10 @@ from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
 from StarV.layer.ReLULayer import ReLULayer
 from StarV.net.network import NeuralNetwork
 from StarV.util.load_rnn import load_simple_rnn, get_Star_set,get_ProbStar_set
-from StarV.util.plot import plot_2D_Star,plot_probstar_signal,plot_probstar
+from StarV.util.plot import plot_2D_Star,plot_probstar_signal,plot_probstar,plot_SAT_trace,plot_probstar_reachset_with_unsafeSpec
 import matplotlib.pyplot as plt
+from StarV.fun.poslin import PosLin
+from StarV.verifier.verifier import checkSafetyProbStar
 
 
 class Test(object):
@@ -594,6 +596,47 @@ class Test(object):
         # plot_2D_Star(S)
         plot_probstar(Combine_P)
 
+    def test_relu(self):
+        np.random.seed(42)
+        self.n_tests = self.n_tests + 1
+        # try:
+        I = ProbStar.rand(4)
+        map_mat = np.array([[0,0,1,0],[0,0,0,1]])
+        I_aff = I.affineMap(map_mat)
+        # a = 
+        # plot_2D_Star(I_aff)
+        plot_probstar(I_aff)
+        # S =[I1,I2,I3]
+        print(f"I:{I}, type:{type(I)}")
+        R = PosLin.reachExactSingleInput(I,'gurobi')
+        unsafe_mat = np.array([[0,0,-1,0]])
+        unsafe_vec = np.array([-0.6])
+
+        S =[]
+        SAT=[]
+        SAT_prob=[]
+        for i in range(len(R)):
+            if R[i].isEmptySet():
+                print(f"R{i}isEmpty")
+            else:
+                print(f"R{i}:{R[i]}, :prob after relu = {R[i].estimateProbability()}")
+                aff_set = R[i].affineMap(map_mat)
+                S.append(aff_set)
+                sat,prob = checkSafetyProbStar(unsafe_mat,unsafe_vec,R[i])
+                SAT_prob.append(prob)
+                SAT.append(sat)
+        plot_probstar_signal(S)
+        # sat,prob = checkSafetyProbStar(unsafe_mat,unsafe_vec,R[i])
+        print(f"prob for sat :{SAT_prob}")
+        # plot_SAT_trace(SAT,dir_mat=unsafe_mat,dir_vec=unsafe_vec)
+        # plot_probstar_signal(SAT,dir_mat=map_mat)
+        
+        # except Exception:
+        #     print('Test Fail!')
+        #     self.n_fails = self.n_fails + 1
+        # else:
+        #     print('Test Successfull!')
+
             
 
 if __name__ == "__main__":
@@ -612,7 +655,8 @@ if __name__ == "__main__":
     # test_RecurrentLayer.test_multiRandomLayers()
     # test_RecurrentLayer.test_multiMinsum()
     # test_RecurrentLayer.test_probstar_construct()
-    test_RecurrentLayer.test_probstar_combine()
+    # test_RecurrentLayer.test_probstar_combine()
+    test_RecurrentLayer.test_relu()
     print('\n========================\
     =================================\
     =================================\

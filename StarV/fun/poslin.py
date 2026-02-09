@@ -406,21 +406,32 @@ class PosLin(object):
         new_pred_lb = np.hstack([I.pred_lb, np.zeros(m, dtype=dtype)])
         new_pred_ub = np.hstack([I.pred_ub, u])
 
-        if isinstance(I, ProbStar):
-            if m == 0:
-                return I
+        # if isinstance(I, ProbStar):
+        #     if m == 0:
+        #         return I
 
-            # Default Gaussian for new predicate variables (independent)
-            # This is a heuristic to keep ProbStar well-formed after relaxation.
-            mu_new = 0.5 * (u +l)
-            sig_factor = 3
-            min_sig = 1e-10
-            sig_new = np.maximum(mu_new / sig_factor, min_sig)
-            Sig_new = np.diag(np.square(sig_new))
+        #     # Default Gaussian for new predicate variables (independent)
+        #     # This is a heuristic to keep ProbStar well-formed after relaxation.
+        #     # New variables correspond to relaxed ReLU outputs y with bounds [0, u].
+        #     if relu_approx_mode not in ("heuristic_gaussian", "constraints_only"):
+        #         raise Exception(
+        #             f"error: unknown relu_approx_mode={relu_approx_mode}, expected "
+        #             "'heuristic_gaussian' or 'constraints_only'"
+        #         )
 
-            new_mu = np.hstack([I.mu, mu_new])
-            new_Sig = block_diag(I.Sig, Sig_new)
-            return ProbStar(new_V, new_C, new_d, new_mu, new_Sig, new_pred_lb, new_pred_ub)
+        #     mu_new = 0.5 * u
+        #     sig_factor = 6  # ~99.7% within [0, u] if mean=u/2 and sigma=u/6
+        #     min_sig = 1e-10
+        #     sig_new = np.maximum(u / sig_factor, min_sig)
+        #     Sig_new = np.diag(np.square(sig_new))
+
+        #     new_mu = np.hstack([I.mu, mu_new])
+        #     new_Sig = block_diag(I.Sig, Sig_new)
+        #     S = ProbStar(new_V, new_C, new_d, new_mu, new_Sig, new_pred_lb, new_pred_ub)
+        #     if relu_approx_mode == "constraints_only":
+        #         # Mark probability as heuristic/unsafe for interpretation.
+        #         S.prob_mode = "constraints_only"
+        #     return S
 
         return Star(new_V, new_C, new_d, new_pred_lb, new_pred_ub)
 
@@ -895,7 +906,6 @@ class PosLin(object):
                 print('Finding lower and upper bounds of neurons with LP solver')
             I, l_u, u_u, map_amb = PosLin.approx(I=I, l=l_all, u=u_all, lp_solver=lp_solver, show=show)
             print(f"l and u in Poslin Approx, l:{l_u},u:{u_u}")
-
 
         # applying relaxation
         else:

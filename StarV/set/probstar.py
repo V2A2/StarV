@@ -8,6 +8,7 @@ Update: 12/20/2024 (Sung Woo Choi, merging)
 
 # !/usr/bin/python3
 import numpy as np
+import warnings
 import scipy.sparse as sp
 import gurobipy as gp
 from gurobipy import GRB
@@ -18,6 +19,7 @@ import glpk
 import polytope as pc
 from StarV.util.minimax_tilting_sampler import TruncatedMVN
 from StarV.set.star import Star
+from scipy.stats import multivariate_normal
 
 
 import copy
@@ -205,6 +207,27 @@ class ProbStar(object):
         P = pc.Polytope(self.C, self.d)
         print(P)
 
+
+    # def mvn_rect_prob(sef,lb,ub,mean, cov, *, allow_singular=True, abseps=1e-5, releps=1e-5):
+    #     """
+    #     Probability that a Gaussian N(mean, cov) lies in the hyper-rectangle [lb, ub].
+    #     Replacement for scipy.stats.mvn.mvnun(lb, ub, mean, cov).
+    #     """
+    #     lb = np.asarray(lb, dtype=float)
+    #     ub = np.asarray(ub, dtype=float)
+    #     mean = np.asarray(mean, dtype=float)
+    #     cov = np.asarray(cov, dtype=float)
+
+    #     return multivariate_normal.cdf(
+    #         ub,
+    #         mean=mean,
+    #         cov=cov,
+    #         lower_limit=lb,
+    #         allow_singular=allow_singular,
+    #         abseps=abseps,
+    #         releps=releps,
+    #     )
+
     def estimateProbability(self):
         """estimate probability of a probstar
            using Genz method, Botev method 
@@ -213,6 +236,7 @@ class ProbStar(object):
 
         if len(self.C) == 0:
             prob, _ = mvn.mvnun(self.pred_lb, self.pred_ub, self.mu, self.Sig)
+            # prob = self.mvn_rect_prob(self.pred_lb, self.pred_ub, self.mu, self.Sig)
             
         else:
             # C, d = self.getMinimizedConstraints()
@@ -229,6 +253,7 @@ class ProbStar(object):
                 new_mu = np.zeros(len(d),)          # new_mu = 0
                 new_Sig = np.matmul(np.matmul(C, self.Sig), np.transpose(C)) # new_Sig = A*Sig*A'
                 prob, _ = mvn.mvnun(new_lb, new_ub, new_mu, new_Sig)
+                # prob = self.mvn_rect_prob(new_lb, new_ub, np.zeros(len(d),), new_Sig)
 
             else:  # Need to introduce auxilary normal variables
                 # step 1: SVD decomposition
@@ -256,6 +281,7 @@ class ProbStar(object):
                 new_Sig = np.matmul(np.matmul(U, new_Sig), np.transpose(U))
 
                 prob, _ = mvn.mvnun(new_lb, new_ub, np.zeros(len(d),), new_Sig)
+                # prob = self.mvn_rect_prob(new_lb, new_ub, np.zeros(len(d),), new_Sig)
 
         return prob
 
@@ -617,6 +643,52 @@ class ProbStar(object):
             V[:, 0] += b
         return ProbStar(V, self.C, self.d, self.mu, self.Sig, self.pred_lb, self.pred_ub)
 
+    # def add(self, Y, check_distribution=True):
+    #     """Pointwise addition of two ProbStars that share the same predicate variables.
+
+    #     This computes the set:
+    #         Z = { x(a) + y(a) | a satisfies constraints },
+    #     i.e., both operands are interpreted as functions of the *same* random predicate
+    #     vector `a`.
+
+    #     NOTE:
+    #     - This is NOT the Minkowski sum when the predicate vectors are independent.
+    #       For independent uncertainties, use `minKowskiSum`.
+    #     """
+
+    #     assert isinstance(Y, ProbStar), 'error: input is not a probstar'
+    #     assert self.dim == Y.dim, 'error: inconsistent dimension between the input and the self object'
+    #     assert self.nVars == Y.nVars, 'error: two probstars do not share the same predicate space (nVars mismatch)'
+
+    #     if check_distribution:
+    #         assert self.mu.shape == Y.mu.shape and self.Sig.shape == Y.Sig.shape, \
+    #             'error: predicate distributions have different shapes'
+    #         assert self.pred_lb.shape == Y.pred_lb.shape and self.pred_ub.shape == Y.pred_ub.shape, \
+    #             'error: predicate bounds have different shapes'
+
+    #     V = copy.deepcopy(self.V)
+    #     V = V + Y.V
+
+    #     # Conjoin predicate constraints (intersection in predicate space).
+    #     if len(self.C) == 0 and len(Y.C) == 0:
+    #         C = np.empty((0, self.nVars))
+    #         d = np.empty((0,))
+    #     elif len(self.C) == 0:
+    #         C = copy.deepcopy(Y.C)
+    #         d = copy.deepcopy(Y.d)
+    #     elif len(Y.C) == 0:
+    #         C = copy.deepcopy(self.C)
+    #         d = copy.deepcopy(self.d)
+    #     else:
+    #         C = np.vstack((self.C, Y.C))
+    #         d = np.concatenate((self.d, Y.d))
+
+    #     # Prefer the tightest known predicate bounds (if they were tightened by constraint propagation).
+    #     pred_lb = np.maximum(self.pred_lb, Y.pred_lb) if self.pred_lb.size and Y.pred_lb.size else self.pred_lb
+    #     pred_ub = np.minimum(self.pred_ub, Y.pred_ub) if self.pred_ub.size and Y.pred_ub.size else self.pred_ub
+
+    #     return ProbStar(V, C, d, self.mu, self.Sig, pred_lb, pred_ub)
+
     def minKowskiSum(self, Y):
         """MinKowskiSum of two probstars"""
 
@@ -644,11 +716,11 @@ class ProbStar(object):
 
         return R
     
-    def Combine(self, Y):
-        """Combine two probstars"""
+    # def Combine(self, Y):
+    #     """Combine two probstars"""
 
-        assert isinstance(Y, ProbStar), 'error: input is not a probstar'
-        assert self.dim == Y.dim, 'error: inconsistent dimension between the input and the self object'
+    #     assert isinstance(Y, ProbStar), 'error: input is not a probstar'
+    #     assert self.dim == Y.dim, 'error: inconsistent dimension between the input and the self object'
 
         # new_lb =[]
         # new_ub=[]
@@ -702,26 +774,26 @@ class ProbStar(object):
         # R = ProbStar(V, C, d, mu, Sig, pred_lb, pred_ub)
         
         
-        V1 = copy.deepcopy(self.V)
-        V2 = copy.deepcopy(Y.V)
-        V1[:, 0] = (V1[:, 0] + V2[:, 0])/2
-        # c= (V1[:,0] + V2[:,0])/2
-        V3 = np.delete(V2, 0, 1)
-        V = np.hstack((V1, V3))
-        pred_lb = np.concatenate((self.pred_lb, Y.pred_lb))
-        pred_ub = np.concatenate((self.pred_ub, Y.pred_ub))
-        mu = np.concatenate((self.mu, Y.mu))
-        Sig = block_diag(self.Sig, Y.Sig)
+        # V1 = copy.deepcopy(self.V)
+        # V2 = copy.deepcopy(Y.V)
+        # V1[:, 0] = (V1[:, 0] + V2[:, 0])/2
+        # # c= (V1[:,0] + V2[:,0])/2
+        # V3 = np.delete(V2, 0, 1)
+        # V = np.hstack((V1, V3))
+        # pred_lb = np.concatenate((self.pred_lb, Y.pred_lb))
+        # pred_ub = np.concatenate((self.pred_ub, Y.pred_ub))
+        # mu = np.concatenate((self.mu, Y.mu))
+        # Sig = block_diag(self.Sig, Y.Sig)
 
-        C = block_diag(self.C,Y.C)
-        d = np.concatenate((self.d, Y.d))
-        if len(d) == 0:
-            C = []
-            d = []
-        R = ProbStar(V, C, d, mu, Sig, pred_lb, pred_ub)
+        # C = block_diag(self.C,Y.C)
+        # d = np.concatenate((self.d, Y.d))
+        # if len(d) == 0:
+        #     C = []
+        #     d = []
+        # R = ProbStar(V, C, d, mu, Sig, pred_lb, pred_ub)
 
 
-        return R
+        # return R
 
 
     

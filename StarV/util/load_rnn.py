@@ -245,109 +245,74 @@ def get_ProbStar_set_RNN(input_data, noises,feature_idx):
     return X
 
 
-# def get_ProbStar_set_RNN_global(input_data, noises, feature_idx):
-#     """
-#     Build a ProbStar signal where all time steps share a single global predicate vector.
-#     Each time step only uses its own block of predicate variables (block-diagonal Sig).
-#     """
+def get_ProbStar_set_RNN_global(input_data, noises, feature_idx):
+    """Option B: build a ProbStar signal with a single global predicate vector.
 
-#     temperature_noise = noises[0]
-#     pressure_noise = noises[1]
-#     speed_noise = noises[2]
+    We lift the entire input sequence into one predicate vector:
+        a = [a0, a1, ..., a(T-1)]
+    with block-diagonal covariance (independent blocks).
 
-#     print(f"all added noises pct:{noises}")
+    Each timestep's input ProbStar uses only its own block in the basis matrix,
+    but *shares* the same (mu, Sig, pred_lb, pred_ub) with all other timesteps.
 
-#     temperature_sensor_indices = feature_idx[0]
-#     pressure_sensor_indices = feature_idx[1]
-#     speed_sensor_indices = feature_idx[2]
+    This is the representation required for exact ProbStarTL evaluation over an
+    RNN signal with independent per-step uncertainties.
+    """
 
-#     init_state_bounds_list = []
-#     for i in range(input_data.shape[0]):
-#         single_data_point = input_data[i, :]
-#         single_data_points_bounds = []
-#         dims = single_data_point.shape[0]
-#         for dim in range(dims):
-#             if dim in temperature_sensor_indices:
-#                 sig = temperature_noise * np.abs(single_data_point[dim])
-#                 sig = np.maximum(sig, 1e-6)
-#                 delta = 3 * sig
-#                 lb = single_data_point[dim] - delta
-#                 ub = single_data_point[dim] + delta
-#             elif dim in pressure_sensor_indices:
-#                 sig = pressure_noise * np.abs(single_data_point[dim])
-#                 sig = np.maximum(sig, 1e-6)
-#                 delta = 3 * sig
-#                 lb = single_data_point[dim] - delta
-#                 ub = single_data_point[dim] + delta
-#             elif dim in speed_sensor_indices:
-#                 sig = speed_noise * np.abs(single_data_point[dim])
-#                 sig = np.maximum(sig, 1e-6)
-#                 delta = 3 * sig
-#                 lb = single_data_point[dim] - delta
-#                 ub = single_data_point[dim] + delta
-#             elif dim in range(dims):
-#                 lb = single_data_point[dim]
-#                 ub = single_data_point[dim]
-#             else:
-#                 raise ValueError("Dimension index out of range")
-#             single_data_points_bounds.append((lb, ub))
-#         init_state_bounds_list.append(single_data_points_bounds)
+    # Reuse the per-step construction to keep bounds/noise logic consistent.
+    local = get_ProbStar_set_RNN(input_data, noises=noises, feature_idx=feature_idx)
+    assert isinstance(local, list) and all(isinstance(s, ProbStar) for s in local), \
+        'error: expected get_ProbStar_set_RNN to return a list of ProbStars'
 
-#     # build per-step stars and record predicate info
-#     infos = []
-#     for bounds in init_state_bounds_list:
-#         init_state_lb = np.array([b[0] for b in bounds])
-#         init_state_ub = np.array([b[1] for b in bounds])
-#         X0 = Star(init_state_lb, init_state_ub)
-#         X0.C = np.empty([X0.d.shape[0], X0.nVars])
-#         X0.d = np.empty([X0.d.shape[0]])
-#         mu = 0.5 * (X0.pred_lb + X0.pred_ub)
-#         a = 3
-#         sig = (mu - X0.pred_lb) / a
-#         epsilon = 1e-6
-#         sig = np.maximum(sig, epsilon)
-#         Sig = np.diag(np.square(sig))
-#         infos.append({
-#             "V": X0.V,
-#             "C": X0.C,
-#             "d": X0.d,
-#             "mu": mu,
-#             "Sig": Sig,
-#             "pred_lb": X0.pred_lb,
-#             "pred_ub": X0.pred_ub,
-#             "nVars": X0.nVars,
-#         })
+    infos = []
+    for s in local:
+        infos.append({
+            "V": s.V,
+            "C": s.C,
+            "d": s.d,
+            "mu": s.mu,
+            "Sig": s.Sig,
+            "pred_lb": s.pred_lb,
+            "pred_ub": s.pred_ub,
+            "nVars": s.nVars,
+        })
 
-#     nVars_total = sum(info["nVars"] for info in infos)
-#     mu_global = np.concatenate([info["mu"] for info in infos]) if nVars_total > 0 else np.array([])
-#     Sig_global = block_diag(*[info["Sig"] for info in infos]) if nVars_total > 0 else np.array([])
-#     pred_lb_global = np.concatenate([info["pred_lb"] for info in infos]) if nVars_total > 0 else np.array([])
-#     pred_ub_global = np.concatenate([info["pred_ub"] for info in infos]) if nVars_total > 0 else np.array([])
+    nVars_total = int(sum(info["nVars"] for info in infos))
+    if nVars_total == 0:
+        return local
 
-#     X = []
-#     offset = 0
-#     for info in infos:
-#         V = info["V"]
-#         n_i = info["nVars"]
-#         V_global = np.zeros((V.shape[0], 1 + nVars_total))
-#         V_global[:, 0] = V[:, 0]
-#         if n_i > 0:
-#             V_global[:, 1 + offset:1 + offset + n_i] = V[:, 1:1 + n_i]
+    mu_global = np.concatenate([info["mu"] for info in infos])
+    Sig_global = block_diag(*[info["Sig"] for info in infos])
+    pred_lb_global = np.concatenate([info["pred_lb"] for info in infos])
+    pred_ub_global = np.concatenate([info["pred_ub"] for info in infos])
 
-#         if len(info["C"]) != 0:
-#             C_i = info["C"]
-#             C_global = np.zeros((C_i.shape[0], nVars_total))
-#             C_global[:, offset:offset + n_i] = C_i
-#             d_global = info["d"]
-#         else:
-#             C_global = np.array([])
-#             d_global = np.array([])
+    X = []
+    offset = 0
+    for info in infos:
+        V_local = info["V"]
+        n_i = int(info["nVars"])
 
-#         S = ProbStar(V_global, C_global, d_global, mu_global, Sig_global, pred_lb_global, pred_ub_global)
-#         X.append(S)
-#         offset += n_i
+        V_global = np.zeros((V_local.shape[0], 1 + nVars_total), dtype=V_local.dtype)
+        V_global[:, 0] = V_local[:, 0]
+        if n_i > 0:
+            V_global[:, 1 + offset:1 + offset + n_i] = V_local[:, 1:1 + n_i]
 
-#     return X
+        if len(info["C"]) != 0:
+            C_i = info["C"]
+            C_global = np.zeros((C_i.shape[0], nVars_total), dtype=C_i.dtype)
+            C_global[:, offset:offset + n_i] = C_i
+            d_global = info["d"]
+        else:
+            C_global = np.empty((0, nVars_total))
+            d_global = np.empty((0,))
+
+        S = ProbStar(V_global, C_global, d_global,
+                    mu_global, Sig_global,
+                    pred_lb_global, pred_ub_global)
+        X.append(S)
+        offset += n_i
+
+    return X
 
 
 def get_ProbStar_set(col_point, eps,Ti):

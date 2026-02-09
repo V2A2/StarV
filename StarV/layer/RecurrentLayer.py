@@ -187,7 +187,10 @@ class RecurrentLayer(object):
                 else:
                     h_recurrent = h_prev.affineMap(self.Whh)
                 h_sum = h_recurrent.minKowskiSum(WIn)
-                hidden_states = ReLULayer.reach(h_sum, method=method)
+                hidden_states = ReLULayer.reach(
+                    h_sum, method=method, lp_solver=lp_solver, pool=pool,
+                    RF=RF, DR=DR, show=False, relu_approx_mode=relu_approx_mode
+                )
 
             # Save hidden state
             print(f"number of output sets in step {t} for hidden states:{len(hidden_states)}")
@@ -203,42 +206,106 @@ class RecurrentLayer(object):
         return O
 
 
-    # def reachExactBranches(self, In, lp_solver="gurobi", pool=None):
-        # """Exact reachability with branch tracking.
+    # def reachExactBranches(self, In, post_layers=None, lp_solver="gurobi", pool=None,
+    #                        p_filter=None, show=False):
+    #     """Exact reachability with branch tracking (for ProbStarTL).
 
-        # Returns a list of branch signals, where each branch is a list of ProbStars
-        # (one per timestep). 
-        # """
+    #     This returns *branch signals* instead of per-time unions:
+    #         branch_k = [Y0, Y1, ..., Y(T-1)]
 
-        # assert isinstance(In, list), 'error: input must be a list'
+    #     Key assumptions for correctness (Method 1):
+    #     - `In` is a list of ProbStars that all share the same global predicate vector
+    #       (same nVars, mu, Sig, pred_lb, pred_ub).
+    #     - ReLU is handled with the exact split method (no new predicate variables).
+    #     - Any additional ReLU layers in `post_layers` will also be tracked as branches,
+    #       and their predicate constraints will be propagated forward by restricting
+    #       the hidden state with the same predicate constraints.
+    #     """
 
-        # branches = []  # list of (hidden_state, signal)
+    #     assert isinstance(In, list), 'error: input must be a list'
+    #     assert len(In) > 0, 'error: input is empty'
+    #     assert all(isinstance(s, ProbStar) for s in In), 'error: input must be a list of ProbStars'
 
-        # for t, I in enumerate(In):
-        #     if t == 0:
-        #         WIn = I.affineMap(self.Whx, self.bhx)
-        #         hidden_sets = ReLULayer.reach([WIn], method="exact", lp_solver=lp_solver, pool=pool, show=False)
-        #         new_branches = []
-        #         for h in hidden_sets:
-        #             o = h.affineMap(self.Woh, self.bo)
-        #             new_branches.append((h, [o]))
-        #         branches = new_branches
-        #     else:
-        #         WIn = I.affineMap(self.Whx, self.bhx)
-        #         new_branches = []
-        #         for h_prev, sig in branches:
-        #             if self.bhh is not None:
-        #                 h_recurrent = h_prev.affineMap(self.Whh, self.bhh)
-        #             else:
-        #                 h_recurrent = h_prev.affineMap(self.Whh)
-        #             summed = h_recurrent.minKowskiSum(WIn)
-        #             hidden_sets = ReLULayer.reach([summed], method="exact", lp_solver=lp_solver, pool=pool, show=False)
-        #             for h in hidden_sets:
-        #                 o = h.affineMap(self.Woh, self.bo)
-        #                 new_branches.append((h, sig + [o]))
-        #         branches = new_branches
+    #     if post_layers is None:
+    #         post_layers = []
+    #     assert isinstance(post_layers, list), 'error: post_layers must be a list'
 
-        # return [sig for _, sig in branches]
+    #     # All time steps must live in the same predicate space.
+    #     nVars0 = In[0].nVars
+    #     for i, s in enumerate(In):
+    #         assert s.nVars == nVars0, f'error: In[{i}].nVars={s.nVars} differs from In[0].nVars={nVars0}'
+
+    #     def _apply_post_layers_exact(sets):
+    #         """Apply post_layers to a list of ProbStars at one timestep (exact, with splitting)."""
+    #         cur = sets
+    #         for layer in post_layers:
+    #             if isinstance(layer, FullyConnectedLayer):
+    #                 nxt = []
+    #                 for S in cur:
+    #                     nxt.append(S.affineMap(layer.W, layer.b))
+    #                 cur = nxt
+    #             elif isinstance(layer, ReLULayer):
+    #                 # ReLULayer expects a list input and returns a list output in exact mode.
+    #                 cur = ReLULayer.reach(cur, method="exact", lp_solver=lp_solver, pool=pool, RF=0.0, DR=0, show=False)
+    #             else:
+    #                 # fallback: use the layer's reach API (if any)
+    #                 if hasattr(layer, "reach"):
+    #                     cur = layer.reach(cur, method="exact", lp_solver=lp_solver, pool=pool, RF=0.0, DR=0, show=False)
+    #                 else:
+    #                     raise Exception(f"error: unsupported post layer type: {type(layer)}")
+    #         return cur
+
+    #     def _restrict_hidden_by_output(h, y):
+    #         """Propagate branch constraints to hidden state for future time steps."""
+    #         if len(y.C) == 0:
+    #             return h
+    #         return ProbStar(h.V, y.C, y.d, h.mu, h.Sig, y.pred_lb, y.pred_ub)
+
+    #     branches = []  # list of (hidden_state, signal)
+
+    #     for t, I in enumerate(In):
+    #         if show:
+    #             print(f"[reachExactBranches] timestep {t}: {len(branches) if t > 0 else 0} active branches")
+
+    #         if t == 0:
+    #             # h0 = ReLU(Whx*x0 + bhx)
+    #             WIn = I.affineMap(self.Whx, self.bhx)
+    #             hidden_sets = ReLULayer.reach([WIn], method="exact", lp_solver=lp_solver, pool=pool, show=False)
+
+    #             new_branches = []
+    #             for h in hidden_sets:
+    #                 o0 = h.affineMap(self.Woh, self.bo)
+    #                 outs = _apply_post_layers_exact([o0])
+    #                 for y in outs:
+    #                     h_next = _restrict_hidden_by_output(h, y)
+    #                     if p_filter is not None and h_next.estimateProbability() < p_filter:
+    #                         continue
+    #                     new_branches.append((h_next, [y]))
+    #             branches = new_branches
+    #         else:
+    #             WIn = I.affineMap(self.Whx, self.bhx)
+    #             new_branches = []
+    #             for h_prev, sig in branches:
+    #                 # h_t = ReLU(Whx*x_t + bhx + Whh*h_{t-1} + bhh)
+    #                 if self.bhh is not None:
+    #                     h_recurrent = h_prev.affineMap(self.Whh, self.bhh)
+    #                 else:
+    #                     h_recurrent = h_prev.affineMap(self.Whh)
+
+    #                 # IMPORTANT: `add` is pointwise addition in the same predicate space (global predicates).
+    #                 summed = h_recurrent.add(WIn)
+    #                 hidden_sets = ReLULayer.reach([summed], method="exact", lp_solver=lp_solver, pool=pool, show=False)
+    #                 for h in hidden_sets:
+    #                     ot = h.affineMap(self.Woh, self.bo)
+    #                     outs = _apply_post_layers_exact([ot])
+    #                     for y in outs:
+    #                         h_next = _restrict_hidden_by_output(h, y)
+    #                         if p_filter is not None and h_next.estimateProbability() < p_filter:
+    #                             continue
+    #                         new_branches.append((h_next, sig + [y]))
+    #             branches = new_branches
+
+    #     return [sig for _, sig in branches]
 
     
 

@@ -1031,8 +1031,8 @@ class Star(object):
         """ Randomly generate a Star """
 
         assert dim > 0, 'error: invalid dimension'
-        lb = np.random.rand(dim,) 
-        ub = lb + 0.001
+        lb = -np.random.rand(dim,) 
+        ub = np.random.rand(dim,) 
         print("ub:", ub, "lb:", lb)
         
         return Star(lb, ub)

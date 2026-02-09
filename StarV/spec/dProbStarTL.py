@@ -1084,6 +1084,21 @@ class DynamicFormula(object):
         constraints = []
         base_probstar = copy.deepcopy(probstar_sig[0])
         nVars = base_probstar.nVars
+
+        # def _pad_V_to(V, nVars_target):
+        #     """Pad a basis matrix V to have (nVars_target+1) columns by appending zeros.
+
+        #     This lets us interpret all time steps in a shared predicate space.
+        #     """
+        #     cur_nVars = V.shape[1] - 1
+        #     if cur_nVars == nVars_target:
+        #         return V
+        #     if cur_nVars > nVars_target:
+        #         # Shouldn't happen if base is chosen as max, but be defensive.
+        #         return V[:, :nVars_target + 1]
+        #     pad = np.zeros((V.shape[0], nVars_target - cur_nVars), dtype=V.dtype)
+        #     return np.hstack((V, pad))
+
         for P in self.F:
             H = []
             C = None
@@ -1094,12 +1109,13 @@ class DynamicFormula(object):
                     d = None
                     break
                 else:  
+                    Vt = _pad_V_to(probstar_sig[Pi.t].V, nVars)
                     if C is None:
-                        d = Pi.b - np.matmul(Pi.A, probstar_sig[Pi.t].V[:,0])
-                        C = np.matmul(Pi.A, probstar_sig[Pi.t].V[:, 1:nVars+1])
+                        d = Pi.b - np.matmul(Pi.A, Vt[:, 0])
+                        C = np.matmul(Pi.A, Vt[:, 1:nVars+1])
                     else:
-                        d1 = Pi.b - np.matmul(Pi.A, probstar_sig[Pi.t].V[:,0])
-                        C1 = np.matmul(Pi.A, probstar_sig[Pi.t].V[:, 1:nVars+1])
+                        d1 = Pi.b - np.matmul(Pi.A, Vt[:, 0])
+                        C1 = np.matmul(Pi.A, Vt[:, 1:nVars+1])
 
                         C = np.vstack((C, C1))
                         d = np.concatenate((d, d1))
