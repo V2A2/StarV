@@ -17,16 +17,11 @@ from StarV.layer.RecurrentLayer import RecurrentLayer
 from StarV.net.network import NeuralNetwork
 from StarV.verifier.verifier import checkSafetyProbStar, reachExactBFS,reachApproxBFS
 from StarV.util.plot import plot_probstar_signal,plot_probstar
-from StarV.util.load_rnn import (
-    load_trained_CMAPSS_data,
-    get_ProbStar_set_RNN,
-    get_ProbStar_set_RNN_global,
-    load_trained_params,
-)
+from StarV.util.load_rnn import load_trained_CMAPSS_data, get_ProbStar_set_RNN, load_trained_params
 from StarV.spec.dProbStarTL import _ALWAYS_, _EVENTUALLY_, AtomicPredicate, Formula, _LeftBracket_, _RightBracket_, _AND_,_OR_
 
 
-def construct_input_probstar(engine_id, time_step, shifts, global_predicates=False):
+def construct_input_probstar(engine_id, time_step, shifts):
 
     train_processed,test_processed,y_test= load_trained_CMAPSS_data()
     # select one engine unit data for reachability analysis
@@ -52,8 +47,9 @@ def construct_input_probstar(engine_id, time_step, shifts, global_predicates=Fal
     temperature_noise_std = 0.0075
     temperature_noise = np.round(np.random.normal(noise_mean, temperature_noise_std),decimals=4)
     pressure_noise = np.round(np.random.normal(noise_mean, pressure_noise_std),decimals=4)
-    # speed_noise = np.round(np.random.normal(noise_mean, speed_noise_std),decimals=4)
-    speed_noise = np.random.normal(noise_mean, speed_noise_std)
+    speed_noise = np.round(np.random.normal(noise_mean, speed_noise_std),decimals=4)
+    # speed_noise = np.random.normal(noise_mean, speed_noise_std)
+    print(f"temperature_noise:{temperature_noise}, pressure_noise:{pressure_noise}, speed_noise:{speed_noise}")
     all_noises.append(temperature_noise)
     all_noises.append(pressure_noise)
     all_noises.append(speed_noise)
@@ -68,10 +64,7 @@ def construct_input_probstar(engine_id, time_step, shifts, global_predicates=Fal
     feature_idx.append(pressure_sensor_indices,)
     feature_idx.append(speed_sensor_indices)
 
-    if global_predicates:
-        X = get_ProbStar_set_RNN_global(input_data, noises=all_noises, feature_idx=feature_idx)
-    else:
-        X = get_ProbStar_set_RNN(input_data, noises=all_noises, feature_idx=feature_idx)
+    X = get_ProbStar_set_RNN(input_data, noises=all_noises, feature_idx=feature_idx)
     # print("number of ProbStar set constructed for engine id {}: {}".format(engine_id, len(X)))
 
     return X
@@ -87,18 +80,14 @@ def _map_branch_signals(branch_signals, map_mat=None, map_vec=None):
     return mapped
 
 
-def verify_tl_over_branches(branch_signals, spec, clip_eps=1e-9):
-    """Evaluate dProbStarTL on each exact branch and sum probabilities.
-
-    Returns:
-        p_total: summed satisfaction probability (clipped to 1 if small numerical overshoot)
-        p_per_branch: list of per-branch satisfaction probabilities
-    """
+def verify_tl_over_branches(branch_signals, spec, map_mat=None, map_vec=None, clip_eps=1e-9):
+    """Evaluate dProbStarTL on each exact branch and sum probabilities."""
     DNF_spec = spec.getDynamicFormula()
+    branch_signals = _map_branch_signals(branch_signals, map_mat=map_mat, map_vec=map_vec)
     p_total = 0.0
     p_per_branch = []
-    for k, sig in enumerate(branch_signals):
-        _, p_max, _, _ = DNF_spec.evaluate(sig)
+    for sig in branch_signals:
+        _, p_max, _, _ = DNF_spec.evaluate_for_RNN(sig)
         p_per_branch.append(p_max)
         p_total += p_max
     if p_total > 1.0 + clip_eps:
@@ -107,40 +96,21 @@ def verify_tl_over_branches(branch_signals, spec, clip_eps=1e-9):
     return p_total, p_per_branch
 
 
-def reachability_with_RNN_exact_branches(X_global, lp_solver="gurobi", p_filter=None, show=True):
-    """Method 1 (Accurate): Global predicates + exact branch signals.
-
-    Args:
-        X_global: list of ProbStars constructed by get_ProbStar_set_RNN_global (Option B).
-        lp_solver: LP solver for exact ReLU splitting checks.
-        p_filter: optional probability threshold to prune tiny branches (None keeps exactness).
-    Returns:
-        branch_signals: list of branches; each branch is a list of ProbStars (one per timestep).
-    """
-    assert isinstance(X_global, list) and len(X_global) > 0, "error: X_global must be a non-empty list"
-    assert all(isinstance(s, ProbStar) for s in X_global), "error: X_global must be a list of ProbStars"
-    if len(X_global) > 1 and X_global[0].nVars <= X_global[0].dim:
-        raise Exception(
-            "error: X_global does not look like a global-predicate input signal. "
-            "Please construct inputs with get_ProbStar_set_RNN_global(...)."
-        )
-
+def reachability_with_RNN_exact_branches(X, lp_solver="gurobi", p_filter=None, show=True):
+    """Exact branches for RNN + post layers, for sound TL verification."""
     Whx, bhx, Whh, bhh, Woh, boh, fc_w, fc_b = load_trained_params()
 
-    # Layer 1 includes the first FC (Woh,boh) in this project setup.
     L1 = RecurrentLayer(Whx, Whh, bhx, Woh, boh, bhh)
-
     mat = []
     for i in range(len(fc_w)):
         mat.append([fc_w[i], np.array(fc_b[i])])
 
-    # Remaining feedforward head
     L2 = FullyConnectedLayer(mat[0])
     L3 = ReLULayer()
     L4 = FullyConnectedLayer(mat[1])
 
     branch_signals = L1.reachExactBranches(
-        X_global,
+        X,
         post_layers=[L2, L3, L4],
         lp_solver=lp_solver,
         pool=None,
@@ -203,7 +173,7 @@ def reachability_with_RNN(X, relu_method="exact", lp_solver="gurobi", RF=0.0, DR
     # for j in range(0,Numlayers):
     #     print(f"=========processing layer{j+1}=============")
     #     layers[j].info()
-    #     RS1 = net.layers[j].reach(RS, method = "approx", lp_solver='gurobi', pool=None, RF=0.0, DR=0,relu_approx_mode="heuristic_gaussian")  # or "heuristic_gaussian"
+    #     RS1 = net.layers[j].reach(RS, method=relu_method, lp_solver=lp_solver, pool=None, RF=RF, DR=DR)
     #     # print(f"RS at layer {j}:{RS1[0]}")
     #     for i in range(20):
     #         X = RS1
@@ -231,7 +201,8 @@ def reachability_with_RNN(X, relu_method="exact", lp_solver="gurobi", RF=0.0, DR
                 p = S2.estimateProbability()
                 Map_set = S2.affineMap(map_mat)
                 # plot_probstar(Map_set)
-                print(f" Set {i}{j}: \n nVars:{Map_set.nVars}, dims:{Map_set.dim},\n V:{Map_set.V} \n probability = {p}")
+                print(f" Set {i}{j}: \n nVars:{S2.nVars},\nC:{S2.C}{S2.C.shape}, \ndims:{S2.dim},\n V:{S2.V}, \nd:{S2.d}, \n probability = {p}")
+                # print(f" Set {i}{j}: \n nVars:{Map_set.nVars},\nC:{Map_set.C.shape}, \ndims:{Map_set.dim},\n V:{Map_set.V}, \nd:{Map_set.d}, \n probability = {p}")
                 map_sets.append(Map_set)
                 # map_sets.append(S2)
 
@@ -240,7 +211,8 @@ def reachability_with_RNN(X, relu_method="exact", lp_solver="gurobi", RF=0.0, DR
             p = S1.estimateProbability()
             Map_set = S1.affineMap(map_mat)
             # plot_probstar(Map_set)
-            print(f" Set {i}: \n nVars:{Map_set.nVars}, dims:{Map_set.dim},\n V:{Map_set.V} \n probability = {p}")
+            print(f" Set {i}{j}: \n nVars:{S1.nVars},\nC:\nC:{Map_set.C}{Map_set.C.shape}, \ndims:{Map_set.dim},\n V:{Map_set.V}, \nd:{Map_set.d}, \n probability = {p}")
+            # print(f" Set {i}: \n nVars:{Map_set.nVars},\nC:{Map_set.C.shape}, \ndims:{Map_set.dim},\n V:{Map_set.V}\nd:{Map_set.d}, \n probability = {p}")
             All_map_sets.append(Map_set)
     
     # plot map sets
@@ -298,81 +270,102 @@ def reachability_with_RNN(X, relu_method="exact", lp_solver="gurobi", RF=0.0, DR
     #         all_check_prob.append(prob)
 
 
-        # for j, S2 in enumerate(S1):
-        #     # print(f"type of S2:{type(S2)}")
-        #     # print(f" S2:{S2}")
-        #     P1, prob1 = checkSafetyProbStar(unsafe_mat, unsafe_vec, S2)
-        #     if isinstance(P1, ProbStar):
-        #         print(f"prob1 of S{i}{j}:{prob1}")
-        #         P.append(P1)
-        #         prob.append(prob1)
-        #     else:
-        #         print(f"S{i}{j} is an empty set, prob = 0.0")
-
-        # if len(P) != 0:
-        #     all_check_sets.append(P)
-        #     all_check_prob.append(prob)
-    
-    # print(f"number of output set satisfy constraint:{len(all_check_sets)}")
-    # print(f"prob of output set satisfy constraint:{len(all_check_sets)},all_probs:{all_check_prob}")
-
-
     # create temporal specifications
-    AND = _AND_()
-    OR = _OR_()                                        
-    lb = _LeftBracket_()
-    rb = _RightBracket_()
+    # AND = _AND_()
+    # OR = _OR_()                                        
+    # lb = _LeftBracket_()
+    # rb = _RightBracket_()
 
-    A1 = np.array([-1., 0.])
-    b1 = np.array([-20])
-    P1 = AtomicPredicate(A1,b1)
+    # A1 = np.array([-1., 0.])
+    # b1 = np.array([-20])
+    # P1 = AtomicPredicate(A1,b1)
 
-    A2 = np.array([0,-1])
-    b2 = np.array([-15])
-    P2 = AtomicPredicate(A2,b2)
+    # A2 = np.array([0,-1])
+    # b2 = np.array([-15])
+    # P2 = AtomicPredicate(A2,b2)
 
-    EVOT =_EVENTUALLY_(0,20)
-    AWOT = _ALWAYS_(11,15)
-    EVOT1 =_EVENTUALLY_(5,15)
-    AWOT1 = _ALWAYS_(0,5)
+    # EVOT =_EVENTUALLY_(0,20)
+    # AWOT = _ALWAYS_(11,15)
+    # EVOT1 =_EVENTUALLY_(5,15)
+    # AWOT1 = _ALWAYS_(0,5)
     
 
-    specs =[]
-    spec = Formula([EVOT,P1])
-    spec1 = Formula([AWOT,lb,P2,rb])
-    spec2 = Formula([EVOT1,lb,P1,OR,lb,AWOT1,P2,rb,rb])
-    specs =[spec,spec1,spec2]
+    # specs =[]
+    # spec = Formula([EVOT,P1])
+    # spec1 = Formula([AWOT,lb,P2,rb])
+    # spec2 = Formula([EVOT1,lb,P1,OR,lb,AWOT1,P2,rb,rb])
+    # specs =[spec,spec1,spec2]
 
-    checking_time = []
-    data=[]
+    # checking_time = []
+    # data=[]
 
-    # verification using ProbSatrTL
-    print(f"\n========Start Verification TL===================")
-    for i in range(0,len(specs)):
-        check_start = time.time()
-        spec = specs[i]
-        print('\n==================Specification{}====================: '.format(i))
-        spec.print()
-        DNF_spec = spec.getDynamicFormula()
-        print(f"====== Dynamic Formula=======\n {DNF_spec.print()}")
-        Nadnf = DNF_spec.length
-        print('Length of abstract DNF_spec = {}'.format(DNF_spec.length))
-        _,p_max, p_min,Ncdnf = DNF_spec.evaluate(All_map_sets)
-        end = time.time()
-        checking_time = end -check_start 
-        print("p_min:",p_min)
-        print("p_max:",p_max) 
-        print(f"check_TL_spces_time:{checking_time}")
+    # # verification using ProbSatrTL
+    # print(f"\n========Start Verification TL===================")
+    # for i in range(0,len(specs)):
+    #     check_start = time.time()
+    #     spec = specs[i]
+    #     print('\n==================Specification{}====================: '.format(i))
+    #     spec.print()
+    #     DNF_spec = spec.getDynamicFormula()
+    #     print(f"====== Dynamic Formula=======\n {DNF_spec.print()}")
+    #     Nadnf = DNF_spec.length
+    #     print('Length of abstract DNF_spec = {}'.format(DNF_spec.length))
+    #     _,p_max, p_min,Ncdnf = DNF_spec.evaluate(All_map_sets)
+    #     end = time.time()
+    #     checking_time = end -check_start 
+    #     print("p_min:",p_min)
+    #     print("p_max:",p_max) 
+    #     print(f"check_TL_spces_time:{checking_time}")
         # verify_time=checking_time + reach_time_duration    
 
     
 if __name__ == "__main__":
     np.random.seed(25)
     for i in range(1,2):
-        print(f"======================== Process the first cycles of {i}th engine ========================")
-        X = construct_input_probstar(engine_id=i, time_step=20, shifts=5, global_predicates=True)
+        print(f"======================== Process the first 20 cycles of {i}th engine ========================")
+        X = construct_input_probstar(engine_id=i, time_step=20, shifts=5)
+
+        # Exact branch-based TL verification (sound with multiple sets per step)
         branches = reachability_with_RNN_exact_branches(X, lp_solver="gurobi", p_filter=None, show=True)
 
- 
+        # Example specs (uncomment and edit as needed)
+        AND = _AND_()
+        OR = _OR_()
+        lb = _LeftBracket_()
+        rb = _RightBracket_()
 
+        A1 = np.array([-1., 0.])
+        b1 = np.array([-20])
+        P1 = AtomicPredicate(A1, b1)
+
+        A2 = np.array([0, -1])
+        b2 = np.array([-15])
+        P2 = AtomicPredicate(A2, b2)
+
+        EVOT = _EVENTUALLY_(0, 20)
+        AWOT = _ALWAYS_(11, 15)
+        EVOT1 = _EVENTUALLY_(5, 15)
+        AWOT1 = _ALWAYS_(0, 5)
+
+        spec = Formula([EVOT, P1])
+        spec1 = Formula([AWOT, lb, P2, rb])
+        spec2 = Formula([EVOT1, lb, P1, OR, lb, AWOT1, P2, rb, rb])
+        specs = [spec, spec1, spec2]
+
+        # Optional output mapping (uncomment if you need to project outputs)
+        # map_mat = np.array([[0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0],
+        #                     [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]])
+        # map_vec = None
+        map_mat = None
+        map_vec = None
+
+        for k, spec in enumerate(specs):
+            print(f"\n==================Branch TL Spec {k}====================")
+            spec.print()
+            p_total, p_per_branch = verify_tl_over_branches(branches, spec, map_mat=map_mat, map_vec=map_vec)
+            print(f"p_total: {p_total}")
+            print(f"p_per_branch (len={len(p_per_branch)}): {p_per_branch}")
+
+        # If you still want the old approximate reachability path:
+        # reachability_with_RNN(X, relu_method="exact", lp_solver="gurobi", RF=0.0, p_filter=0.001, show=True)
         

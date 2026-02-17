@@ -1109,13 +1109,13 @@ class DynamicFormula(object):
                     d = None
                     break
                 else:  
-                    Vt = _pad_V_to(probstar_sig[Pi.t].V, nVars)
+                    # Vt = _pad_V_to(probstar_sig[Pi.t].V, nVars)
                     if C is None:
-                        d = Pi.b - np.matmul(Pi.A, Vt[:, 0])
-                        C = np.matmul(Pi.A, Vt[:, 1:nVars+1])
+                        d = Pi.b - np.matmul(Pi.A, base_probstar.V[:, 0])
+                        C = np.matmul(Pi.A, base_probstar.V[:, 1:nVars+1])
                     else:
-                        d1 = Pi.b - np.matmul(Pi.A, Vt[:, 0])
-                        C1 = np.matmul(Pi.A, Vt[:, 1:nVars+1])
+                        d1 = Pi.b - np.matmul(Pi.A, base_probstar.V[:, 0])
+                        C1 = np.matmul(Pi.A, base_probstar.V[:, 1:nVars+1])
 
                         C = np.vstack((C, C1))
                         d = np.concatenate((d, d1))
@@ -1140,6 +1140,120 @@ class DynamicFormula(object):
 
         cdnf = CDNF(constraints, base_probstar)
 
+        return cdnf
+
+    def realization_with_timestep_V(self, probstar_sig, use_signal_constraints=True, use_base_constraints=False):
+        """Realization for signals where each timestep has its own basis V.
+
+        This is needed for RNN signals with independent per-step inputs (global
+        predicate vector), where each timestep's reachable set uses a different
+        basis matrix over the same predicate variables.
+
+        Args:
+            probstar_sig: list of ProbStar (one per timestep)
+            use_signal_constraints: include each timestep's constraints (C, d)
+            use_base_constraints: include base_probstar constraints (shared)
+        """
+
+        assert isinstance(probstar_sig, list), 'error: probstar signal should be a list'
+        T = len(probstar_sig)
+        if T == 0:
+            return CDNF([], ProbStar())
+
+        # choose a base probstar with the largest predicate dimension
+        nVarMax = 0
+        nVarMaxID = 0
+        for i, ps in enumerate(probstar_sig):
+            if ps.nVars > nVarMax:
+                nVarMax = ps.nVars
+                nVarMaxID = i
+
+        base_probstar = copy.deepcopy(probstar_sig[nVarMaxID])
+        nVars = base_probstar.nVars
+        if not use_base_constraints and len(base_probstar.C) != 0:
+            base_probstar.C = np.empty((0, nVars))
+            base_probstar.d = np.empty((0,))
+
+        def _pad_C_to(C, target_nvars):
+            if C is None:
+                return None
+            if len(C) == 0:
+                return C
+            if len(C.shape) == 1:
+                C = C.reshape(1, C.shape[0])
+            m = C.shape[1]
+            if m == target_nvars:
+                return C
+            if m < target_nvars:
+                pad = np.zeros((C.shape[0], target_nvars - m), dtype=C.dtype)
+                return np.hstack((C, pad))
+            # defensive: truncate if larger (should not happen)
+            return C[:, :target_nvars]
+
+        def _pad_V_to(V, target_nvars):
+            cur_nvars = V.shape[1] - 1
+            if cur_nvars == target_nvars:
+                return V
+            if cur_nvars < target_nvars:
+                pad = np.zeros((V.shape[0], target_nvars - cur_nvars), dtype=V.dtype)
+                return np.hstack((V, pad))
+            # defensive: truncate if larger (should not happen)
+            return V[:, :target_nvars + 1]
+
+        constraints = []
+
+        for P in self.F:
+            C = None
+            d = None
+            for Pi in P:
+                if Pi.t >= T:
+                    C = None
+                    d = None
+                    break
+
+                PS_t = probstar_sig[Pi.t]
+                Vt = PS_t.V
+                nVars_t = PS_t.nVars
+
+                d1 = Pi.b - np.matmul(Pi.A, Vt[:, 0])
+                C1 = np.matmul(Pi.A, Vt[:, 1:nVars_t + 1])
+
+                if len(C1.shape) == 1:
+                    C1 = C1.reshape(1, nVars_t)
+
+                C1 = _pad_C_to(C1, nVars)
+
+                if use_signal_constraints and len(PS_t.C) != 0:
+                    C_step = _pad_C_to(PS_t.C, nVars)
+                    d_step = PS_t.d
+                    C1 = np.vstack((C1, C_step))
+                    d1 = np.concatenate((d1, d_step))
+
+                if C is None:
+                    C = C1
+                    d = d1
+                else:
+                    C = np.vstack((C, C1))
+                    d = np.concatenate((d, d1))
+
+            if C is not None:
+                if use_base_constraints and len(base_probstar.C) != 0:
+                    C_base = _pad_C_to(base_probstar.C, nVars)
+                    d_base = base_probstar.d
+                    C = np.vstack((C, C_base))
+                    d = np.concatenate((d, d_base))
+
+                if len(C.shape) == 1:
+                    C = C.reshape(1, nVars)
+
+                Vb = _pad_V_to(base_probstar.V, nVars)
+                S1 = ProbStar(Vb, C, d, base_probstar.mu, base_probstar.Sig,
+                              base_probstar.pred_lb, base_probstar.pred_ub)
+
+                if not S1.isEmptySet():
+                    constraints.append([C, d])
+
+        cdnf = CDNF(constraints, base_probstar)
         return cdnf
 
 
@@ -1222,6 +1336,45 @@ class DynamicFormula(object):
 
 
     #     return SAT, p_SAT_MAX, p_SAT_MIN, cdnf.length
+
+    def evaluate_for_RNN(self, probstar_sig, use_signal_constraints=True, use_base_constraints=False):
+        'evaluate the satisfaction of the abtract-timed dynamic formula on an RNN probstar signal'
+
+        print('Realizing Abstract DNF specification on a ProbStar Signal (RNN mode)...')
+        cdnf = self.realization_with_timestep_V(
+            probstar_sig,
+            use_signal_constraints=use_signal_constraints,
+            use_base_constraints=use_base_constraints,
+        )
+        print('Length of Computable DNF = {}'.format(cdnf.length))
+
+        p_trace = cdnf.base_probstar.estimateProbability()
+        SAT = []
+        p_SAT_MIN = 0.0
+        p_SAT_MAX = 0.0
+
+        if cdnf.length != 0:
+            for i in range(0, cdnf.length):
+                SAT.append(cdnf.estimateProbability((i,)))
+            if cdnf.length > 11:
+                print('*****WARNING*****: CDNF (len = {}) is too large for exact verification'.format(cdnf.length))
+                print('We ignore this CDNF, return the estimate probability uperbound')
+                p_SAT_MIN = max(SAT)
+                p_SAT_MAX = max(p_SAT_MIN, p_trace)
+            else:
+                N = range(0, cdnf.length)
+                print('Computing exact probability of satisfaction...')
+                for i in range(0, cdnf.length):
+                    print('i = {}/{}'.format(i, cdnf.length))
+                    SAT1 = 0.0
+                    comb = combinations(N, i+1)
+                    for j in list(comb):
+                        prob = (-1)**i * cdnf.estimateProbability(j)
+                        SAT1 = SAT1 + prob
+                    p_SAT_MAX = p_SAT_MAX + SAT1
+                p_SAT_MIN = p_SAT_MAX
+
+        return SAT, p_SAT_MAX, p_SAT_MIN, cdnf.length
 
 
     def evaluate2(self, probstar_sig, n_max):

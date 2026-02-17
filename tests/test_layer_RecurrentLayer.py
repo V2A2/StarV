@@ -4,7 +4,9 @@ Author: Qing Liu
 Date: 9/28/2025
 """
 
+from curses.ascii import RS
 import numpy as np
+from StarV.RNN_ProbStar_rechability import reachability_with_RNN_exact_branches, verify_tl_over_branches
 from StarV.set.star import Star
 from StarV.set.probstar import ProbStar
 from StarV.layer.RecurrentLayer import RecurrentLayer
@@ -16,6 +18,8 @@ from StarV.util.plot import plot_2D_Star,plot_probstar_signal,plot_probstar,plot
 import matplotlib.pyplot as plt
 from StarV.fun.poslin import PosLin
 from StarV.verifier.verifier import checkSafetyProbStar
+from StarV.spec.dProbStarTL import _ALWAYS_, _EVENTUALLY_, AtomicPredicate, Formula, _LeftBracket_, _RightBracket_, _AND_,_OR_
+from StarV.layer.RecurrentLayer import RecurrentLayer
 
 
 class Test(object):
@@ -577,8 +581,7 @@ class Test(object):
         lb1 = np.array([-1,0])
         ub2 = np.array([0.5,1.5])
         # X = Star.rand(2)
-        X1 = Star(lb1
-                  ,ub2)
+        X1 = Star(lb1,ub2)
         print("Second Star info:",X1)
         mu = 0.5*(X1.pred_ub + X1.pred_lb) 
         a  = 3
@@ -637,7 +640,214 @@ class Test(object):
         # else:
         #     print('Test Successfull!')
 
+ 
+    def test_ProbSatrTL(self):
+        np.random.seed(42)
+        self.n_tests = self.n_tests + 1
+        # try:
+        L = RecurrentLayer.rand(4, 4)
+        In = []
+        for i in range(5):
+            X0 = Star.rand(4)
+            print("X0:",X0)
+            mu = 0.5*(X0.pred_lb + X0.pred_ub) 
+            a  = 3
+            sig= (mu - X0.pred_lb)/a
+            epsilon = 1e-6
+            sig = np.maximum(sig, epsilon)
+            Sig = np.diag(np.square(sig))
+            X0_probstar = ProbStar(X0.V, X0.C, X0.d,mu, Sig,X0.pred_lb,X0.pred_ub)
+            print(f"Input ProbStar {i}:",X0_probstar)
+            In.append(X0_probstar)
+        RS = L.reach(In, method="exact")
+        print("Number of output sets after RecurrentLayer:",len(RS))
+        print("Output set types after RecurrentLayer:",type(RS))
+        if len(RS) > 0 and isinstance(RS[0], list):
+            RS1=[]
+            for j in range(len(RS)):
+                print('\n=======================')
+                print(f"Output set {j} is a list of sets, number of sets in output set {j}: {len(RS[j])}")
+                if len(RS[j]) == 1:
+                    RS1.append(RS[j][0])
+                else:
+                    for i, set in enumerate(RS[j]):
+                        print(f"\nSet {i} in output set {j}: {set}, probability: {set.estimateProbability()}")
+            if len(RS1) > 0:
+                for i in range(len(RS1)):
+                    print(f"\nSet {i} in RS1: {RS1[i]}, probability: {RS1[i].estimateProbability()}")
+                print("lens of RS1:",len(RS1))
+                RS =RS1
+        else:
+            print("Output set[0] is a single ProbStar, probability:",RS[0].estimateProbability())
+
+
+        # create temporal specifications
+        AND = _AND_()
+        OR = _OR_()                                        
+        lb = _LeftBracket_()
+        rb = _RightBracket_()
+
+        A1 = np.array([-1., 0.,0,0])
+        b1 = np.array([-6])
+        P1 = AtomicPredicate(A1,b1)
+
+        A2 = np.array([0,-1,0,0])
+        b2 = np.array([-13])
+        P2 = AtomicPredicate(A2,b2)
+
+        EVOT =_EVENTUALLY_(0,5)
+        AWOT = _ALWAYS_(2,3)
+        EVOT1 =_EVENTUALLY_(5,15)
+        AWOT1 = _ALWAYS_(0,5)
+        
+
+        specs =[]
+        spec = Formula([EVOT,P1])
+        spec1 = Formula([AWOT,lb,P2,rb])
+        spec2 = Formula([EVOT1,lb,P1,OR,lb,AWOT1,P2,rb,rb])
+        specs =[spec]
+
+        #mapping
+        mat_mat= np.array([[1,0,0,0],[0,1,0,0]])
+        All_map_sets=[]
+        for i in range(len(RS)):
+            Aff_RS= RS[i].affineMap(mat_mat)
+            All_map_sets.append(Aff_RS)
+        
+        # plot_probstar(All_map_sets[1])
+
+
+        print(f"\n========Start Verification Ca<=b===================")        
+        # verify output reachable sets 
+        unsafe_mat = np.array([[-1,0]])
+        unsafe_vec = np.array([-6])
+
+        all_check_sets=[]
+        all_check_prob=[]
+        for i, S1 in enumerate(All_map_sets):
+            P = []
+            prob = []
+            if len(S1) > 1:
+                for j,S2 in enumerate(S1):
+                    P1, prob1 = checkSafetyProbStar(unsafe_mat, unsafe_vec, S2)
+                    if isinstance(P1, ProbStar):
+                        print(f"prob1 of S{i}{j} = {prob1}")
+                        P.append(P1)
+                        prob.append(prob1)
+                    else:
+                        print(f"S{i}{j} is an empty set, prob = 0.0")
+            else:
+                P1, prob1 = checkSafetyProbStar(unsafe_mat, unsafe_vec, S1)
+                if isinstance(P1, ProbStar):
+                    print(f"prob1 of S{i} = {prob1}")
+                    P.append(P1)
+                    prob.append(prob1)
+                else:
+                    print(f"S{i} is an empty set, prob = 0.0")
+
+        
+            if len(P) != 0:
+                all_check_sets.append(P)
+                all_check_prob.append(prob)
+
+
+        # verification using ProbSatrTL
+        print(f"\n========Start Verification TL===================")
+        for i in range(0,len(specs)):
+            spec = specs[i]
+            print('\n==================Specification{}====================: '.format(i))
+            spec.print()
+            DNF_spec = spec.getDynamicFormula()
+            print(f"====== Dynamic Formula=======\n {DNF_spec.print()}")
+            Nadnf = DNF_spec.length
+            print('Length of abstract DNF_spec = {}'.format(DNF_spec.length))
+            _,p_max, p_min,Ncdnf = DNF_spec.evaluate_for_RNN(RS)
+            print("p_min:",p_min)
+            print("p_max:",p_max) 
+            # verify_time=checking_time + reach_time_duration    
+              
+    def test_ProbStar_TL_verification(self):
+        np.random.seed(42)
+        self.n_tests = self.n_tests + 1
+        # try:
+        L = RecurrentLayer.rand(4, 4)
+        In = []
+        for i in range(5):
+            X0 = Star.rand(4)
+            print("X0:",X0)
+            mu = 0.5*(X0.pred_lb + X0.pred_ub) 
+            a  = 3
+            sig= (mu - X0.pred_lb)/a
+            epsilon = 1e-6
+            sig = np.maximum(sig, epsilon)
+            Sig = np.diag(np.square(sig))
+            X0_probstar = ProbStar(X0.V, X0.C, X0.d,mu, Sig,X0.pred_lb,X0.pred_ub)
+            print(f"Input ProbStar {i}:",X0_probstar)
+            In.append(X0_probstar)
+
+        branches = L.reachExactBranches(
+            In,
+            post_layers=None,
+            lp_solver="gurobi",
+            pool=None,
+            p_filter=None,
+            show=True,
+        )
+        print("\n\nNumber of branches after RecurrentLayer:",len(branches))
+        print("Branch types after RecurrentLayer:",type(branches))
+        print("Branch 0 type:",type(branches[0]))
+        print(f"Branch 0 number of sets: {len(branches[0])}")
+        for i in range(len(branches[0])):
+            print(f"Branch 0 set {i} type: {type(branches[0][i])}")
+            print(f"Branch 0 set {i} probability: {branches[0][i].estimateProbability()}")
+            print(f"Branch 0 set {i} info: {branches[0][i]}")
             
+        # Example specs (uncomment and edit as needed)
+          # create temporal specifications
+        AND = _AND_()
+        OR = _OR_()                                        
+        lb = _LeftBracket_()
+        rb = _RightBracket_()
+
+        A1 = np.array([-1., 0.,0,0])
+        b1 = np.array([-0])
+        P1 = AtomicPredicate(A1,b1)
+
+        A2 = np.array([0,-1,0,0])
+        b2 = np.array([-25])
+        P2 = AtomicPredicate(A2,b2)
+
+        EVOT =_EVENTUALLY_(0,5)
+        AWOT = _ALWAYS_(2,3)
+        EVOT1 =_EVENTUALLY_(5,15)
+        AWOT1 = _ALWAYS_(0,5)
+        
+
+        specs =[]
+        spec = Formula([EVOT,P1])
+        spec1 = Formula([AWOT,lb,P2,rb])
+        spec2 = Formula([EVOT1,lb,P1,OR,lb,AWOT1,P2,rb,rb])
+        specs =[spec]
+
+
+        #mapping
+        # mat_mat= np.array([[1,0,0,0],[0,1,0,0]])
+        # All_map_sets=[]
+        # for i in range(len(RS)):
+        #     Aff_RS= RS[i].affineMap(mat_mat)
+        #     All_map_sets.append(Aff_RS)
+        
+        # plot_probstar(All_map_sets[1])
+
+        map_mat =None
+        
+
+        for k, spec in enumerate(specs):
+            print(f"\n==================Branch TL Spec {k}====================")
+            spec.print()
+            p_total, p_per_branch = verify_tl_over_branches(branches, spec, map_mat=map_mat, map_vec=None)
+            print(f"p_total: {p_total}")
+            print(f"p_per_branch (len={len(p_per_branch)}): {p_per_branch}")
 
 if __name__ == "__main__":
 
@@ -656,7 +866,9 @@ if __name__ == "__main__":
     # test_RecurrentLayer.test_multiMinsum()
     # test_RecurrentLayer.test_probstar_construct()
     # test_RecurrentLayer.test_probstar_combine()
-    test_RecurrentLayer.test_relu()
+    # test_RecurrentLayer.test_relu()
+    # test_RecurrentLayer.test_ProbSatrTL()
+    test_RecurrentLayer.test_ProbStar_TL_verification()
     print('\n========================\
     =================================\
     =================================\
