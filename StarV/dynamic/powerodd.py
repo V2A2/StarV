@@ -1,0 +1,296 @@
+"""
+Odd power operater
+Zhuoyang Zhou, 02/06/2026
+"""
+
+import numpy as np
+import scipy.sparse as sp
+from StarV.set.star import Star
+
+class PowerOdd(object):
+    """
+    PowerOdd Class for reachability   
+    Author: Zhuoyang Zhou
+    Date: 02/05/2026 Update: 02/13/2026
+    """
+    @staticmethod
+    def f(x, n):
+        """PowerEven function"""
+        return np.power(x, n)
+    
+    @staticmethod
+    def df(x, n):
+        """Derivative of PowerOdd function"""
+        return n * np.power(x, n - 1)
+    
+    def reachApprox_star(I, n, opt=True, lp_solver='gurobi', RF=0.0):
+        assert isinstance(I, Star), 'error: input set must be a Star set'
+        
+        N = I.dim
+        l, u = I.getRanges(lp_solver=lp_solver, RF=RF)
+        yl, yu = PowerOdd.f(l, n), PowerOdd.f(u, n)
+        dyl, dyu = PowerOdd.df(l, n), PowerOdd.df(u, n)  
+
+        ## l != u
+        map0 = np.where(l != u)[0]
+        m = len(map0)
+        V0 = np.zeros((N, m))
+        for i in range(m):
+            V0[map0[i], i] = 1
+            
+        new_V = np.hstack([np.zeros([N, 1]), np.zeros([N, I.nVars]), V0])
+
+        map1 = np.where(l == u)[0]
+        if len(map1):
+            new_V[map1, 0] = yl[map1]
+            new_V[map1, 1:] = 0
+
+        nv = I.nVars + m
+        
+        ## l > 0 & l != u            
+        map1 = np.where(l[map0] >= 0)[0]
+        if len(map1):
+            map_ = map0[map1]
+            l_, u_ = l[map_], u[map_]
+            yl_, yu_ = yl[map_], yu[map_]
+            dyl_, dyu_ = dyl[map_], dyu[map_]
+            
+            c1, V1 = I.V[map_, 0], I.V[map_, 1:]
+            V2 = V0[map_, :]
+
+            # broadcasting-safe diagonals
+            dyl_diag = np.diag(dyl_.flatten())
+            dyu_diag = np.diag(dyu_.flatten())
+
+            # constraint 1: y >= y'(l) * (x - l) + y(l)
+            C11 = np.hstack([dyl_diag @ V1, -V2])
+            d11 = -dyl_ * (c1 - l_) - yl_
+
+            # constraint 2: y >= y'(u) * (x - u) + y(u)
+            C12 = np.hstack([dyu_diag @ V1, -V2])
+            d12 = -dyu_ * (c1 - u_) - yu_
+
+            # constraint 3: y <= (y(u) - y(l)) * (x - l) / (u - l) + y(l)
+            g = (yu_ - yl_) / (u_ - l_)
+            g_diag = np.diag(g.flatten())
+            C13 = np.hstack([-g_diag @ V1, V2])
+            d13 = g * (c1 - l_) + yl_
+
+            # constraint 4: y >= y'(xo) * (x - xo) + y(xo)
+            xo = 0.5 * (u_ + l_)
+            dyo = PowerOdd.df(xo, n)          # <-- if your df needs n, use: PowerOdd.df(xo, n)
+            dyo_diag = np.diag(dyo.flatten())
+            C14 = np.hstack([dyo_diag @ V1, -V2])
+            d14 = -dyo * (c1 - xo) - PowerOdd.f(xo, n)   # <-- if your f needs n, use: PowerOdd.f(xo, n)
+
+            C1 = np.vstack((C11, C12, C13, C14))
+            d1 = np.hstack((d11, d12, d13, d14))
+        else:
+            C1 = np.empty((0, nv))
+            d1 = np.empty((0,))
+            
+        # u < 0 & l != u    
+        map1 = np.where(u[map0] <= 0)[0]
+        if len(map1):
+            map_ = map0[map1]                      # map back to original dims
+            l_, u_ = l[map_], u[map_]              # bounds (both <= 0)
+            yl_, yu_ = yl[map_], yu[map_]          # f(l), f(u)
+            dyl_, dyu_ = dyl[map_], dyu[map_]      # f'(l), f'(u)
+
+            c1, V1 = I.V[map_, 0], I.V[map_, 1:]   # x = c1 + V1*alpha
+            V2 = V0[map_, :]                       # y = V2*beta  (new predicates)
+
+            # diagonalize slopes to avoid broadcasting issues
+            dyl_diag = np.diag(dyl_.flatten())
+            dyu_diag = np.diag(dyu_.flatten())
+
+            # constraint 1 (tangent at l):  y <= y'(l) * (x - l) + y(l)
+            # => y - y'(l)*x <= -y'(l)*l + y(l)
+            C21 = np.hstack([-dyl_diag @ V1, V2])
+            d21 = dyl_ * (c1 - l_) + yl_
+
+            # constraint 2 (tangent at u):  y <= y'(u) * (x - u) + y(u)
+            C22 = np.hstack([-dyu_diag @ V1, V2])
+            d22 = dyu_ * (c1 - u_) + yu_
+
+            # constraint 3 (secant lower bound): y >= (y(u)-y(l))*(x-l)/(u-l) + y(l)
+            g = (yu_ - yl_) / (u_ - l_)            # secant slope
+            g_diag = np.diag(g.flatten())
+            C23 = np.hstack([g_diag @ V1, -V2])
+            d23 = -g * (c1 - l_) - yl_
+
+            # constraint 4 (tangent at midpoint xo): y <= y'(xo)*(x - xo) + y(xo)
+            xo = 0.5 * (u_ + l_)
+            dyo = PowerOdd.df(xo, n)
+            dyo_diag = np.diag(dyo.flatten())
+            C24 = np.hstack([-dyo_diag @ V1, V2])
+            d24 = dyo * (c1 - xo) + PowerOdd.f(xo, n)
+
+            C2 = np.vstack((C21, C22, C23, C24))
+            d2 = np.hstack((d21, d22, d23, d24))
+        else:
+            C2 = np.empty((0, nv))
+            d2 = np.empty((0,))
+            
+        ## l < 0 & u > 0 (zero-crossing region processing)
+        # For odd power across zero: use 2 supporting tangents (global lower/upper) + 2 constant bounds
+        map1 = np.where((l[map0] < 0) & (u[map0] > 0))[0]
+        if len(map1):
+            map_ = map0[map1]
+            l_, u_ = l[map_], u[map_]
+            yl_, yu_ = yl[map_], yu[map_]
+
+            c1, V1 = I.V[map_, 0], I.V[map_, 1:]
+            V2 = V0[map_, :]
+
+            eps = 1e-12  # avoid evaluating exactly at 0
+
+            # --- solve for a<0: tangent at a passes through (u, f(u)) ---
+            # eq(a) = f(a) + f'(a)*(u - a) - f(u) = 0
+            def eq_a(a, uu):
+                return PowerOdd.f(a, n) + PowerOdd.df(a, n) * (uu - a) - PowerOdd.f(uu, n)
+
+            a = np.zeros_like(l_)
+            for i in range(len(l_)):
+                lo = l_[i]
+                hi = -eps
+                flo = eq_a(lo, u_[i])
+                fhi = eq_a(hi, u_[i])
+                # bisection if bracketed, else fallback to midpoint
+                if flo * fhi <= 0:
+                    a_i_lo, a_i_hi = lo, hi
+                    for _ in range(80):
+                        mid = 0.5 * (a_i_lo + a_i_hi)
+                        fmid = eq_a(mid, u_[i])
+                        if fmid == 0:
+                            a_i_lo = a_i_hi = mid
+                            break
+                        if flo * fmid <= 0:
+                            a_i_hi = mid
+                            fhi = fmid
+                        else:
+                            a_i_lo = mid
+                            flo = fmid
+                    a[i] = 0.5 * (a_i_lo + a_i_hi)
+                else:
+                    a[i] = 0.5 * (lo + hi)
+
+            sa = PowerOdd.df(a, n)          # slope at a
+            fa = PowerOdd.f(a, n)           # f(a)
+            sa_diag = np.diag(sa.flatten())
+
+            # --- solve for b>0: tangent at b passes through (l, f(l)) ---
+            # eq(b) = f(b) + f'(b)*(l - b) - f(l) = 0
+            def eq_b(b, ll):
+                return PowerOdd.f(b, n) + PowerOdd.df(b, n) * (ll - b) - PowerOdd.f(ll, n)
+
+            b = np.zeros_like(u_)
+            for i in range(len(u_)):
+                lo = eps
+                hi = u_[i]
+                flo = eq_b(lo, l_[i])
+                fhi = eq_b(hi, l_[i])
+                if flo * fhi <= 0:
+                    b_i_lo, b_i_hi = lo, hi
+                    for _ in range(80):
+                        mid = 0.5 * (b_i_lo + b_i_hi)
+                        fmid = eq_b(mid, l_[i])
+                        if fmid == 0:
+                            b_i_lo = b_i_hi = mid
+                            break
+                        if flo * fmid <= 0:
+                            b_i_hi = mid
+                            fhi = fmid
+                        else:
+                            b_i_lo = mid
+                            flo = fmid
+                    b[i] = 0.5 * (b_i_lo + b_i_hi)
+                else:
+                    b[i] = 0.5 * (lo + hi)
+
+            sb = PowerOdd.df(b, n)          # slope at b
+            fb = PowerOdd.f(b, n)           # f(b)
+            sb_diag = np.diag(sb.flatten())
+
+            # ---------------------------------------------------------
+            # constraint 1 (global lower): y >= sb*(x - b) + f(b)
+            # -> sb*x - y <= sb*b - f(b)
+            C31 = np.hstack([sb_diag @ V1, -V2])
+            d31 = -sb * (c1 - b) - fb
+
+            # constraint 2 (global upper): y <= sa*(x - a) + f(a)
+            # -> -sa*x + y <= -sa*a + f(a)
+            C32 = np.hstack([-sa_diag @ V1, V2])
+            d32 = sa * (c1 - a) + fa
+
+            # constraint 3 (constant upper): y <= f(u) = yu_
+            # -> y <= yu_
+            Z = np.zeros_like(V1)
+            C33 = np.hstack([Z, V2])
+            d33 = yu_
+
+            # constraint 4 (constant lower): y >= f(l) = yl_
+            # -> -y <= -yl_
+            C34 = np.hstack([Z, -V2])
+            d34 = -yl_
+
+            C3 = np.vstack((C31, C32, C33, C34))
+            d3 = np.hstack((d31, d32, d33, d34))
+
+        else:
+            C3 = np.empty((0, nv))
+            d3 = np.empty((0,))
+            
+        n_constraints = I.C.shape[0]
+        if len(I.d):
+            C0 = np.hstack([I.C, np.zeros([n_constraints, m])])
+            d0 = I.d
+        else:
+            C0 = np.empty([0, I.nVars + m])
+            d0 = np.empty([0])
+
+        new_C = np.vstack((C0, C1, C2, C3))
+        new_d = np.hstack((d0, d1, d2, d3))
+
+        # new_pred_lb = np.hstack((I.pred_lb, yl[map0]))
+        # new_pred_ub = np.hstack((I.pred_ub, yu[map0]))
+        
+        l0 = l[map0]
+        u0 = u[map0]
+
+        # endpoint values (keep these for convenience)
+        fl = PowerOdd.f(l0, n)
+        fu = PowerOdd.f(u0, n)
+
+        # init
+        y_lb = np.minimum(fl, fu)
+        y_ub = np.maximum(fl, fu)
+
+        l0 = l[map0]
+        u0 = u[map0]
+        fl = PowerOdd.f(l0, n)
+        fu = PowerOdd.f(u0, n)
+
+        # odd power is monotone increasing -> min at l0, max at u0
+        y_lb = fl
+        y_ub = fu
+
+
+        new_pred_lb = np.hstack((I.pred_lb, y_lb))
+        new_pred_ub = np.hstack((I.pred_ub, y_ub))
+
+        return Star(new_V, new_C, new_d, new_pred_lb, new_pred_ub)
+    
+    @staticmethod
+    def reach(I, n, opt=False, delta=0.98, lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
+        if isinstance(I, Star):
+            return PowerOdd.reachApprox_star(I, n=n, opt=opt, lp_solver=lp_solver, RF=RF)
+        # elif isinstance(I, SparseStar):
+        #     return PowerOdd.reachApprox_sparse(I=I, n=n, opt=opt, delta=delta, lp_solver=lp_solver, RF=RF, DR=DR, show=show)
+        # elif isinstance(I, ImageStar):
+        #     shape = I.shape()
+        #     S = PowerOdd.reachApprox_star(I.toStar(), n=n, opt=opt, lp_solver=lp_solver, RF=RF)
+        #     return S.toImageStar(image_shape=shape, copy_=False)
+        else:
+            raise Exception('error: unknown input set')
+
