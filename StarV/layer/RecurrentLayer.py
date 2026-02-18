@@ -149,7 +149,6 @@ class RecurrentLayer(object):
 
 
 
-
     def reachApprox(self, In, method="approx", lp_solver="gurobi", pool=None, RF=0.0, DR=0):
         """
         Perform approximate reachability analysis of an RNN with ReLU activation.
@@ -218,7 +217,7 @@ class RecurrentLayer(object):
         Notes for RNNs with predicate growth:
         - Each timestep may introduce new predicate variables via minKowskiSum.
         - Branch consistency is preserved by propagating constraints through time.
-        - For TL evaluation, use the last set of each branch as the base distribution.
+        - For TL evaluation, use the last set of each branch as the base probstar.
         """
 
         assert isinstance(In, list), 'error: input must be a list'
@@ -229,8 +228,7 @@ class RecurrentLayer(object):
             post_layers = []
         assert isinstance(post_layers, list), 'error: post_layers must be a list'
 
-        def _apply_post_layers_exact(sets):
-            """Apply post_layers to a list of ProbStars at one timestep (exact, with splitting)."""
+        def apply_post_layers_exact(sets):
             cur = sets
             for layer in post_layers:
                 if isinstance(layer, FullyConnectedLayer):
@@ -247,8 +245,7 @@ class RecurrentLayer(object):
                         raise Exception(f"error: unsupported post layer type: {type(layer)}")
             return cur
 
-        def _restrict_hidden_by_output(h, y):
-            """Propagate branch constraints to hidden state for future time steps."""
+        def restrict_hidden_state_by_output(h, y):
             if len(y.C) == 0:
                 return h
             return ProbStar(h.V, y.C, y.d, h.mu, h.Sig, h.pred_lb, h.pred_ub)
@@ -262,13 +259,13 @@ class RecurrentLayer(object):
             if t == 0:
                 WIn = I.affineMap(self.Whx, self.bhx)
                 hidden_sets = ReLULayer.reach([WIn], method="exact", lp_solver=lp_solver, pool=pool, show=False)
-
+                print(f"number of output sets in step {t} for hidden states:{len(hidden_sets)}")
                 new_branches = []
                 for h in hidden_sets:
                     o0 = h.affineMap(self.Woh, self.bo)
-                    outs = _apply_post_layers_exact([o0])
+                    outs = apply_post_layers_exact([o0])
                     for y in outs:
-                        h_next = _restrict_hidden_by_output(h, y)
+                        h_next = restrict_hidden_state_by_output(h, y)
                         # if p_filter is not None and h_next.estimateProbability() < p_filter:
                         #     continue
                         new_branches.append((h_next, [y]))
@@ -276,6 +273,7 @@ class RecurrentLayer(object):
             else:
                 WIn = I.affineMap(self.Whx, self.bhx)
                 new_branches = []
+                h_s= []
                 for h_prev, sig in branches:
                     if self.bhh is not None:
                         h_recurrent = h_prev.affineMap(self.Whh, self.bhh)
@@ -283,20 +281,31 @@ class RecurrentLayer(object):
                         h_recurrent = h_prev.affineMap(self.Whh)
 
                     summed = h_recurrent.minKowskiSum(WIn)
+
                     hidden_sets = ReLULayer.reach([summed], method="exact", lp_solver=lp_solver, pool=pool, show=False)
+                    h_s.extend(hidden_sets)
                     for h in hidden_sets:
                         ot = h.affineMap(self.Woh, self.bo)
-                        outs = _apply_post_layers_exact([ot])
+                        outs = apply_post_layers_exact([ot])
                         for y in outs:
-                            h_next = _restrict_hidden_by_output(h, y)
+                            h_next = restrict_hidden_state_by_output(h, y)
                             # if p_filter is not None and h_next.estimateProbability() < p_filter:
                             #     continue
-                            new_branches.append((h_next, sig + [y]))
+                            new_sig = sig.copy()
+                            new_sig.extend([y])
+                            new_branches.append((h_next, new_sig))
                 branches = new_branches
+                print(f"number of output sets in step {t} for hidden states:{len(h_s)}")
 
-        return [sig for _, sig in branches]
+        print(f"Total branches after {len(In)} steps: {len(branches)}")
+        branch_signals = []
+        for _, sig in branches:
+            print(f"each branch signal length: {len(sig)}")
+            branch_signals.append(sig)
 
-    
+        return branch_signals
+
+
 
     def reach(self,In, method = "exact", lp_solver='gurobi', pool=None, RF=0.0, DR=0):
         if method is None:

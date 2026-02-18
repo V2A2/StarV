@@ -82,8 +82,8 @@ class ProbStar(object):
                 constraint vector should be a 1D numpy array'
                 assert V.shape[1] == C.shape[1] + 1, 'error: \
                 Inconsistency between basic matrix and constraint matrix'
-                assert C.shape[0] == d.shape[0], 'error: \
-                Inconsistency between constraint matrix and constraint vector'
+                assert C.shape[0] == d.shape[0], f'error: \
+                Inconsistency between constraint matrix and constraint vector, but it is {C.shape[0]} and {d.shape[0]}'
                 assert C.shape[1] == pred_lb.shape[0] and \
                     C.shape[1] == pred_ub.shape[0], 'error: \
                     Inconsistency between number of predicate variables and \
@@ -706,12 +706,31 @@ class ProbStar(object):
         mu = np.concatenate((self.mu, Y.mu))
         Sig = block_diag(self.Sig, Y.Sig)
 
-        C = block_diag(self.C,Y.C)
-        d = np.concatenate((self.d, Y.d))
+        # print(f"self.C shape : {self.C.shape}, self.d shape : {self.d.shape},slef:{self}")
+        # print(f"Y.C shape : {Y.C.shape}, Y.d shape : {Y.d.shape},Y:{Y}")
+        
+                
+        if len(Y.C) == 0 and len(self.C) !=0:
+            Y1=copy.deepcopy(Y)
+            print(f"In minKowskiSum, Y.C is empty")
+            print(f"self.C : {self.C}, c-shape: {self.C.shape}")
+            Y1.C = np.zeros((self.C.shape[0], Y.nVars))
+            print(f"After setting, Y1.C : {Y1.C},Y1.C_shape: {Y1.C.shape}")
+            C = np.hstack((self.C, Y1.C))
+            print(f"C after hstack : {C.shape[0]}")
+            d = self.d
+            print(f"d shape : {d.shape[0]},d:{d}")
+        else:
+            print(f"In minKowskiSum, Y.C is not empty OR self.C and Y.C both are empty")
+            C = block_diag(self.C,Y.C)
+            d = np.concatenate((self.d, Y.d))
+
         if len(d) == 0:
+            print(f"In minKowskiSum, self.C d and Y.C d both are empty")
             C = []
             d = []
 
+        # print(f"C before probsatr : {C.shape[0]},C:{C}")
         R = ProbStar(V, C, d, mu, Sig, pred_lb, pred_ub)
 
         return R
@@ -1102,7 +1121,10 @@ class ProbStar(object):
         V = np.random.rand(dim, nVars + 1)
         if len(args) != 4:    
             pred_lb = -np.random.rand(nVars,)
-            pred_ub = np.random.rand(nVars,)
+            pred_ub = np.random.rand(nVars,) 
+        
+        # print(f"pred_lb:{pred_lb}")
+        # print(f"pred_ub:{pred_ub}")
             
         mu = 0.5*(pred_lb + pred_ub)
         a = 3.0

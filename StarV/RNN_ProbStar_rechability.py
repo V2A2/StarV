@@ -70,7 +70,7 @@ def construct_input_probstar(engine_id, time_step, shifts):
     return X
 
 
-def _map_branch_signals(branch_signals, map_mat=None, map_vec=None):
+def map_branch_signals(branch_signals, map_mat=None, map_vec=None):
     """Apply an affine map to every ProbStar in every branch signal."""
     if map_mat is None and map_vec is None:
         return branch_signals
@@ -83,16 +83,17 @@ def _map_branch_signals(branch_signals, map_mat=None, map_vec=None):
 def verify_tl_over_branches(branch_signals, spec, map_mat=None, map_vec=None, clip_eps=1e-9):
     """Evaluate dProbStarTL on each exact branch and sum probabilities."""
     DNF_spec = spec.getDynamicFormula()
-    branch_signals = _map_branch_signals(branch_signals, map_mat=map_mat, map_vec=map_vec)
+    print(f"====== Dynamic Formula for TL Spec =======\n {DNF_spec.print()}")
+    branch_signals = map_branch_signals(branch_signals, map_mat=map_mat, map_vec=map_vec)
     p_total = 0.0
     p_per_branch = []
     for sig in branch_signals:
         _, p_max, _, _ = DNF_spec.evaluate_for_RNN(sig)
         p_per_branch.append(p_max)
         p_total += p_max
-    if p_total > 1.0 + clip_eps:
-        print(f"WARNING: summed branch probability {p_total} > 1, clipping to 1.0 (numerical integration error)")
-        p_total = 1.0
+    # if p_total > 1.0 + clip_eps:
+    #     print(f"WARNING: summed branch probability {p_total} > 1, clipping to 1.0 (numerical integration error)")
+    #     p_total = 1.0
     return p_total, p_per_branch
 
 

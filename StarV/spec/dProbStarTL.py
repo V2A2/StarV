@@ -1109,7 +1109,6 @@ class DynamicFormula(object):
                     d = None
                     break
                 else:  
-                    # Vt = _pad_V_to(probstar_sig[Pi.t].V, nVars)
                     if C is None:
                         d = Pi.b - np.matmul(Pi.A, base_probstar.V[:, 0])
                         C = np.matmul(Pi.A, base_probstar.V[:, 1:nVars+1])
@@ -1143,11 +1142,7 @@ class DynamicFormula(object):
         return cdnf
 
     def realization_with_timestep_V(self, probstar_sig, use_signal_constraints=True, use_base_constraints=False):
-        """Realization for signals where each timestep has its own basis V.
-
-        This is needed for RNN signals with independent per-step inputs (global
-        predicate vector), where each timestep's reachable set uses a different
-        basis matrix over the same predicate variables.
+        """Realization for RNN signals where each timestep has independent input set.
 
         Args:
             probstar_sig: list of ProbStar (one per timestep)
@@ -1206,6 +1201,7 @@ class DynamicFormula(object):
             C = None
             d = None
             for Pi in P:
+                print(f'======={Pi.print()}')
                 if Pi.t >= T:
                     C = None
                     d = None
@@ -1264,7 +1260,7 @@ class DynamicFormula(object):
 
         print('Realizing Abstract DNF specification on a ProbStar Signal...')
         cdnf = self.realization(probstar_sig)
-        print(f"======== cdnf=========:\n {cdnf.print()}")
+        # print(f"======== cdnf=========:\n {cdnf.print()}")
         print('Length of Computable DNF = {}'.format(cdnf.length))
 
         p_trace = cdnf.base_probstar.estimateProbability()  # probability of the probstar signal
@@ -1346,6 +1342,7 @@ class DynamicFormula(object):
             use_signal_constraints=use_signal_constraints,
             use_base_constraints=use_base_constraints,
         )
+        # print(f"======== cdnf=========:\n {cdnf.print()}")
         print('Length of Computable DNF = {}'.format(cdnf.length))
 
         p_trace = cdnf.base_probstar.estimateProbability()

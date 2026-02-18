@@ -603,34 +603,54 @@ class Test(object):
         np.random.seed(42)
         self.n_tests = self.n_tests + 1
         # try:
-        I = ProbStar.rand(4)
-        map_mat = np.array([[0,0,1,0],[0,0,0,1]])
-        I_aff = I.affineMap(map_mat)
+        # I = ProbStar.rand(2)
+        I = Star.rand(2)
+        # map_mat = np.array([[0,0,1,0],[0,0,0,1]])
+        # I_aff = I.affineMap(map_mat)
         # a = 
         # plot_2D_Star(I_aff)
-        plot_probstar(I_aff)
+        # plot_probstar(I_aff)
         # S =[I1,I2,I3]
         print(f"I:{I}, type:{type(I)}")
         R = PosLin.reachExactSingleInput(I,'gurobi')
-        unsafe_mat = np.array([[0,0,-1,0]])
+        print(f"\n==============Number of sets after relu: {len(R)}\n")
+        for i in range(len(R)):
+            if i ==0:
+                R1 = R[i]
+            if i == 1:
+                R2 = R[i]
+            if i == 2:
+                R3 = R[i]
+            if i == 3:
+                R4 = R[i]
+        result =[]
+        result1 = R1.intersectStar(R2)
+        result.append(result1)
+        result2 = R2.intersectStar(R3)
+        result.append(result2)
+        result3 = R1.intersectStar(R3)
+        result.append(result3)
+        print(f"result of intersecting the two sets after relu: {result}")
+
+        unsafe_mat = np.array([[0,-1]])
         unsafe_vec = np.array([-0.6])
 
-        S =[]
-        SAT=[]
-        SAT_prob=[]
-        for i in range(len(R)):
-            if R[i].isEmptySet():
-                print(f"R{i}isEmpty")
-            else:
-                print(f"R{i}:{R[i]}, :prob after relu = {R[i].estimateProbability()}")
-                aff_set = R[i].affineMap(map_mat)
-                S.append(aff_set)
-                sat,prob = checkSafetyProbStar(unsafe_mat,unsafe_vec,R[i])
-                SAT_prob.append(prob)
-                SAT.append(sat)
-        plot_probstar_signal(S)
+        # S =[]
+        # SAT=[]
+        # SAT_prob=[]
+        # for i in range(len(R)):
+        #     if R[i].isEmptySet():
+        #         print(f"R{i}isEmpty")
+        #     else:
+        #         print(f"R{i}:{R[i]}, :prob after relu = {R[i].estimateProbability()}")
+        #         # aff_set = R[i].affineMap(map_mat)
+        #         # S.append(aff_set)
+        #         sat,prob = checkSafetyProbStar(unsafe_mat,unsafe_vec,R[i])
+        #         SAT_prob.append(prob)
+        #         SAT.append(sat)
+        # plot_probstar_signal(S)
         # sat,prob = checkSafetyProbStar(unsafe_mat,unsafe_vec,R[i])
-        print(f"prob for sat :{SAT_prob}")
+        # print(f"prob for sat :{SAT_prob}")
         # plot_SAT_trace(SAT,dir_mat=unsafe_mat,dir_vec=unsafe_vec)
         # plot_probstar_signal(SAT,dir_mat=map_mat)
         
@@ -645,7 +665,7 @@ class Test(object):
         np.random.seed(42)
         self.n_tests = self.n_tests + 1
         # try:
-        L = RecurrentLayer.rand(4, 4)
+        L1 = RecurrentLayer.rand(4, 4)
         In = []
         for i in range(5):
             X0 = Star.rand(4)
@@ -659,19 +679,28 @@ class Test(object):
             X0_probstar = ProbStar(X0.V, X0.C, X0.d,mu, Sig,X0.pred_lb,X0.pred_ub)
             print(f"Input ProbStar {i}:",X0_probstar)
             In.append(X0_probstar)
-        RS = L.reach(In, method="exact")
+
+        RS = L1.reach(In, method="exact")
         print("Number of output sets after RecurrentLayer:",len(RS))
         print("Output set types after RecurrentLayer:",type(RS))
         if len(RS) > 0 and isinstance(RS[0], list):
             RS1=[]
             for j in range(len(RS)):
                 print('\n=======================')
-                print(f"Output set {j} is a list of sets, number of sets in output set {j}: {len(RS[j])}")
+                print(f"Output set {j} is a list of sets, number of sets in output set RS{j}: {len(RS[j])}")
                 if len(RS[j]) == 1:
                     RS1.append(RS[j][0])
                 else:
                     for i, set in enumerate(RS[j]):
-                        print(f"\nSet {i} in output set {j}: {set}, probability: {set.estimateProbability()}")
+                        print(f"\nSet {i} in output set RS{j}: {set}, probability: {set.estimateProbability()}")
+                        print(f"output set:{RS[j][i]}")
+                        # mat_mat= np.array([[0,0,1,0],[0,0,0,1]])
+                        # All_map_sets=[]
+                    #     for i in range(len(RS[j])):
+                    #         Aff_RS= RS[j][i].affineMap(mat_mat)
+                    #         All_map_sets.append(Aff_RS)
+                        
+                    # plot_probstar_signal(All_map_sets)
             if len(RS1) > 0:
                 for i in range(len(RS1)):
                     print(f"\nSet {i} in RS1: {RS1[i]}, probability: {RS1[i].estimateProbability()}")
@@ -770,7 +799,12 @@ class Test(object):
         np.random.seed(42)
         self.n_tests = self.n_tests + 1
         # try:
-        L = RecurrentLayer.rand(4, 4)
+        L1 = RecurrentLayer.rand(4, 4)
+        L2 = FullyConnectedLayer.rand(4, 4)
+        L3 = ReLULayer()
+        L4 = FullyConnectedLayer.rand(4, 4)
+        
+
         In = []
         for i in range(5):
             X0 = Star.rand(4)
@@ -785,9 +819,9 @@ class Test(object):
             print(f"Input ProbStar {i}:",X0_probstar)
             In.append(X0_probstar)
 
-        branches = L.reachExactBranches(
+        branches = L1.reachExactBranches(
             In,
-            post_layers=None,
+            post_layers=[L2,L3,L4],
             lp_solver="gurobi",
             pool=None,
             p_filter=None,
@@ -810,11 +844,11 @@ class Test(object):
         rb = _RightBracket_()
 
         A1 = np.array([-1., 0.,0,0])
-        b1 = np.array([-0])
+        b1 = np.array([-600])
         P1 = AtomicPredicate(A1,b1)
 
         A2 = np.array([0,-1,0,0])
-        b2 = np.array([-25])
+        b2 = np.array([-50])
         P2 = AtomicPredicate(A2,b2)
 
         EVOT =_EVENTUALLY_(0,5)
@@ -826,8 +860,8 @@ class Test(object):
         specs =[]
         spec = Formula([EVOT,P1])
         spec1 = Formula([AWOT,lb,P2,rb])
-        spec2 = Formula([EVOT1,lb,P1,OR,lb,AWOT1,P2,rb,rb])
-        specs =[spec]
+        spec2 = Formula([EVOT,lb,P1,OR,lb,AWOT,P2,rb,rb])
+        specs =[spec2]
 
 
         #mapping
