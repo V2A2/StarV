@@ -125,7 +125,15 @@ def get_Star_set(col_point, eps,Ti):
    
     return X
 
-def get_ProbStar_set_RNN(input_data, noises,feature_idx):
+def get_ProbStar_set_RNN(
+    input_data,
+    noises,
+    feature_idx,
+    per_step_mu=None,
+    per_step_Sig=None,
+    per_step_pred_lb=None,
+    per_step_pred_ub=None,
+):
 
 
     temperature_noise= noises[0]
@@ -196,8 +204,9 @@ def get_ProbStar_set_RNN(input_data, noises,feature_idx):
 
     for i,bounds in enumerate(init_state_bounds_list):
         init_state_lb = np.array([b[0] for b in bounds])
-        # print("init_state_lb:",init_state_lb)
+        print("init_state_lb:",init_state_lb)
         init_state_ub = np.array([b[1] for b in bounds])
+        print("init_state_ub:",init_state_ub)
 
         # X0 = Star(init_state_lb,init_state_ub)
         # lb_X0 = X0.getRanges()[0]
@@ -212,25 +221,46 @@ def get_ProbStar_set_RNN(input_data, noises,feature_idx):
         # sig = np.maximum(sig, epsilon).astype(np.float64)
         # Sig = np.diag(np.square(sig)).astype(np.float64)
         # X0_probstar = ProbStar(mu, Sig,lb_X0,ub_X0)
-        # # X0_probstar.C = np.zeros([1,X0_probstar.nVars])  
-        # # X0_probstar.d = np.zeros([1])
+        # mu = 0.5*(init_state_lb+init_state_ub)
+        # a = 5
+        # sig = (mu-init_state_lb)/a
+        # epsilon = 1e-10
+        # sig = np.maximum(sig, epsilon).astype(np.float64)
+        # Sig = np.diag(np.square(sig)).astype(np.float64)
+        # X0_probstar = ProbStar(mu, Sig,init_state_lb,init_state_ub)
+        # # X0_probstar.C = np.empty([1,X0_probstar.nVars])  
+        # # X0_probstar.d = np.empty([1])
         # print(f"initial probstar set {i}:{X0_probstar}")
         # print(f"probability of the initial ProbStar set {i}:{X0_probstar.estimateProbability()}")
         # X.append(X0_probstar)
         
         # map_mat = np.array([[0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]])
         X0 = Star(init_state_lb,init_state_ub)
-        # print("X0_d.shape[0]:",X0.d.shape[0])
-        X0.C = np.empty([X0.d.shape[0],X0.nVars])  
-        X0.d = np.empty([X0.d.shape[0]])
-        # print("X0:",X0)
-        mu = 0.5*(X0.pred_lb + X0.pred_ub) 
-        a  = 3
-        sig= (mu - X0.pred_lb)/a
+        print("X0_V_shape:",X0.V.shape)
+        # X0.C = np.empty([X0.d.shape[0],X0.nVars])  
+        # X0.d = np.empty([X0.d.shape[0]])
+        print("X0_C:",X0.C)
+        # Default canonical predicate distribution (same shape each step).
+        mu = 0.5*(X0.pred_lb + X0.pred_ub)
+        a = 3
+        sig = (mu - X0.pred_lb)/a
         epsilon = 1e-6
         sig = np.maximum(sig, epsilon)
         Sig = np.diag(np.square(sig))
-        X0_probstar = ProbStar(X0.V, X0.C, X0.d,mu, Sig,X0.pred_lb,X0.pred_ub)
+        pred_lb = X0.pred_lb
+        pred_ub = X0.pred_ub
+
+        # # Optional per-step overrides.
+        # if per_step_mu is not None:
+        #     mu = np.asarray(per_step_mu[i], dtype=float)
+        # if per_step_Sig is not None:
+        #     Sig = np.asarray(per_step_Sig[i], dtype=float)
+        # if per_step_pred_lb is not None:
+        #     pred_lb = np.asarray(per_step_pred_lb[i], dtype=float)
+        # if per_step_pred_ub is not None:
+        #     pred_ub = np.asarray(per_step_pred_ub[i], dtype=float)
+
+        X0_probstar = ProbStar(X0.V, X0.C, X0.d, mu, Sig, pred_lb, pred_ub)
         # print(f"initial probstar set {i}:{X0_probstar}")
         # print(f"each initial probsatrset V:{X0_probstar.V}, C:{X0_probstar.C},d:{X0_probstar.d}")
         print(f"probability of the initial ProbStar set {i}:{X0_probstar.estimateProbability()}")
@@ -241,76 +271,6 @@ def get_ProbStar_set_RNN(input_data, noises,feature_idx):
         # plot_2D_Star(star_set)
 
         # print("Input ProbStar set constructed:",X0_probstar)
-
-    return X
-
-
-def get_ProbStar_set_RNN_global(input_data, noises, feature_idx):
-    """Option B: build a ProbStar signal with a single global predicate vector.
-
-    We lift the entire input sequence into one predicate vector:
-        a = [a0, a1, ..., a(T-1)]
-    with block-diagonal covariance (independent blocks).
-
-    Each timestep's input ProbStar uses only its own block in the basis matrix,
-    but *shares* the same (mu, Sig, pred_lb, pred_ub) with all other timesteps.
-
-    This is the representation required for exact ProbStarTL evaluation over an
-    RNN signal with independent per-step uncertainties.
-    """
-
-    # Reuse the per-step construction to keep bounds/noise logic consistent.
-    local = get_ProbStar_set_RNN(input_data, noises=noises, feature_idx=feature_idx)
-    assert isinstance(local, list) and all(isinstance(s, ProbStar) for s in local), \
-        'error: expected get_ProbStar_set_RNN to return a list of ProbStars'
-
-    infos = []
-    for s in local:
-        infos.append({
-            "V": s.V,
-            "C": s.C,
-            "d": s.d,
-            "mu": s.mu,
-            "Sig": s.Sig,
-            "pred_lb": s.pred_lb,
-            "pred_ub": s.pred_ub,
-            "nVars": s.nVars,
-        })
-
-    nVars_total = int(sum(info["nVars"] for info in infos))
-    if nVars_total == 0:
-        return local
-
-    mu_global = np.concatenate([info["mu"] for info in infos])
-    Sig_global = block_diag(*[info["Sig"] for info in infos])
-    pred_lb_global = np.concatenate([info["pred_lb"] for info in infos])
-    pred_ub_global = np.concatenate([info["pred_ub"] for info in infos])
-
-    X = []
-    offset = 0
-    for info in infos:
-        V_local = info["V"]
-        n_i = int(info["nVars"])
-
-        V_global = np.zeros((V_local.shape[0], 1 + nVars_total), dtype=V_local.dtype)
-        V_global[:, 0] = V_local[:, 0]
-        if n_i > 0:
-            V_global[:, 1 + offset:1 + offset + n_i] = V_local[:, 1:1 + n_i]
-
-        if len(info["C"]) != 0:
-            C_i = info["C"]
-            C_global = np.zeros((C_i.shape[0], nVars_total), dtype=C_i.dtype)
-            C_global[:, offset:offset + n_i] = C_i
-            d_global = info["d"]
-        else:
-            C_global = np.empty((0, nVars_total))
-            d_global = np.empty((0,))
-
-        S = ProbStar(V_global, C_global, d_global,
-                    mu_global, Sig_global,
-                    pred_lb_global, pred_ub_global)
-        X.append(S)
-        offset += n_i
 
     return X
 

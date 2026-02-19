@@ -844,7 +844,7 @@ class Test(object):
         rb = _RightBracket_()
 
         A1 = np.array([-1., 0.,0,0])
-        b1 = np.array([-600])
+        b1 = np.array([-10])
         P1 = AtomicPredicate(A1,b1)
 
         A2 = np.array([0,-1,0,0])
@@ -861,7 +861,7 @@ class Test(object):
         spec = Formula([EVOT,P1])
         spec1 = Formula([AWOT,lb,P2,rb])
         spec2 = Formula([EVOT,lb,P1,OR,lb,AWOT,P2,rb,rb])
-        specs =[spec2]
+        specs =[spec]
 
 
         #mapping
@@ -879,9 +879,12 @@ class Test(object):
         for k, spec in enumerate(specs):
             print(f"\n==================Branch TL Spec {k}====================")
             spec.print()
-            p_total, p_per_branch = verify_tl_over_branches(branches, spec, map_mat=map_mat, map_vec=None)
-            print(f"p_total: {p_total}")
-            print(f"p_per_branch (len={len(p_per_branch)}): {p_per_branch}")
+            Sat, p_max_branchs, p_min_branchs, cdnf_len_branchs,p_total_max, p_total_min = verify_tl_over_branches(branches, spec, map_mat=map_mat, map_vec=None)
+            print(f"p_max: {p_max_branchs}")
+            print(f"p_min: {p_min_branchs}")
+            print(f"cdnf_len: {cdnf_len_branchs}")
+            print(f"p_total_max: {p_total_max}")
+            print(f"p_total_min: {p_total_min}")
 
 if __name__ == "__main__":
 

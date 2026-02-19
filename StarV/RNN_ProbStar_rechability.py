@@ -72,22 +72,20 @@ def construct_input_probstar(engine_id, time_step, shifts):
 
 def map_branch_signals(branch_signals, map_mat=None, map_vec=None):
     """Apply an affine map to every ProbStar in every branch signal."""
-    if map_mat is None and map_vec is None:
-        return branch_signals
-    mapped = []
+    mapped_branches = []
     for sig in branch_signals:
-        mapped.append([S.affineMap(map_mat, map_vec) for S in sig])
-    return mapped
+        mapped_branches.append([S.affineMap(map_mat, map_vec) for S in sig])
+    return mapped_branches
 
 
 def verify_tl_over_branches(branch_signals, spec, map_mat=None, map_vec=None, clip_eps=1e-9):
     """Evaluate dProbStarTL on each exact branch and sum probabilities."""
     DNF_spec = spec.getDynamicFormula()
-    print(f"====== Dynamic Formula for TL Spec =======\n {DNF_spec.print()}")
-    branch_signals = map_branch_signals(branch_signals, map_mat=map_mat, map_vec=map_vec)
+    # print(f"====== Dynamic Formula for TL Spec =======\n {DNF_spec.print()}")
     p_total = 0.0
     p_per_branch = []
-    for sig in branch_signals:
+    for i, sig in enumerate(branch_signals):
+        print(f"Evaluating TL spec for {i}th branches...")
         _, p_max, _, _ = DNF_spec.evaluate_for_RNN(sig)
         p_per_branch.append(p_max)
         p_total += p_max
@@ -327,7 +325,11 @@ if __name__ == "__main__":
         X = construct_input_probstar(engine_id=i, time_step=20, shifts=5)
 
         # Exact branch-based TL verification (sound with multiple sets per step)
-        branches = reachability_with_RNN_exact_branches(X, lp_solver="gurobi", p_filter=None, show=True)
+        branches,hidden_output_all_steps =reachability_with_RNN_exact_branches(X, lp_solver="gurobi", p_filter=None, show=True)
+        print(f"hidden_output_all_steps length:{len(hidden_output_all_steps[10])}")
+        # for s in hidden_output_all_steps[10]:
+        #     print(f"hidden output set at step 10: nVars:{s.nVars}, C shape:{s.C.shape}, dim:{s.dim}, V:{s.V}, d:{s.d}, {s.Sig}, {s.mu}, prob:{s.estimateProbability()}")
+        
 
         # Example specs (uncomment and edit as needed)
         AND = _AND_()
@@ -353,20 +355,22 @@ if __name__ == "__main__":
         spec2 = Formula([EVOT1, lb, P1, OR, lb, AWOT1, P2, rb, rb])
         specs = [spec, spec1, spec2]
 
-        # Optional output mapping (uncomment if you need to project outputs)
-        # map_mat = np.array([[0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0],
-        #                     [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]])
-        # map_vec = None
-        map_mat = None
+        # Map 16D output to 2D so AP vectors A1/A2 (length=2) are dimension-consistent.
+        map_mat = np.array([[0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0],
+                            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]])
         map_vec = None
+        mapped_branch_signals = map_branch_signals(branches,map_mat=map_mat, map_vec=map_vec)
 
         for k, spec in enumerate(specs):
             print(f"\n==================Branch TL Spec {k}====================")
             spec.print()
-            p_total, p_per_branch = verify_tl_over_branches(branches, spec, map_mat=map_mat, map_vec=map_vec)
-            print(f"p_total: {p_total}")
-            print(f"p_per_branch (len={len(p_per_branch)}): {p_per_branch}")
+            Sat, p_max_branchs, p_min_branchs, cdnf_len_branchs, p_total_max, p_total_min = \
+                verify_tl_over_branches(mapped_branch_signals, spec, map_mat=map_mat, map_vec=map_vec)
+            print(f"SAT terms: {Sat}")
+            print(f"p_max_branchs: {p_max_branchs}")
+            print(f"p_min_branchs: {p_min_branchs}")
+            print(f"cdnf_len_branchs: {cdnf_len_branchs}")
+            print(f"p_total_max: {p_total_max}")
+            print(f"p_total_min: {p_total_min}")
 
-        # If you still want the old approximate reachability path:
-        # reachability_with_RNN(X, relu_method="exact", lp_solver="gurobi", RF=0.0, p_filter=0.001, show=True)
         

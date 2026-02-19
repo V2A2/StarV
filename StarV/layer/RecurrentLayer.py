@@ -228,82 +228,101 @@ class RecurrentLayer(object):
             post_layers = []
         assert isinstance(post_layers, list), 'error: post_layers must be a list'
 
-        def apply_post_layers_exact(sets):
-            cur = sets
+        def propagate_hidden_through_post_layers(h, h_out):
+            """Apply post layers to one RNN output and return (h_next, y) pairs."""
+
+            current = [h_out]
             for layer in post_layers:
                 if isinstance(layer, FullyConnectedLayer):
                     nxt = []
-                    for S in cur:
+                    for S in current:
                         nxt.append(S.affineMap(layer.W, layer.b))
-                    cur = nxt
+                    current = nxt
                 elif isinstance(layer, ReLULayer):
-                    cur = ReLULayer.reach(cur, method="exact", lp_solver=lp_solver, pool=pool, RF=0.0, DR=0, show=False)
+                    current = ReLULayer.reach(
+                        current,
+                        method="exact",
+                        lp_solver=lp_solver,
+                        pool=pool,
+                        RF=0.0,
+                        DR=0,
+                        show=False,
+                    )
                 else:
-                    if hasattr(layer, "reach"):
-                        cur = layer.reach(cur, method="exact", lp_solver=lp_solver, pool=pool, RF=0.0, DR=0, show=False)
-                    else:
-                        raise Exception(f"error: unsupported post layer type: {type(layer)}")
-            return cur
+                    raise Exception(f"error: unsupported post layer type: {type(layer)}")
 
-        def restrict_hidden_state_by_output(h, y):
-            if len(y.C) == 0:
-                return h
-            return ProbStar(h.V, y.C, y.d, h.mu, h.Sig, h.pred_lb, h.pred_ub)
+            h_pairs = []
+            for net_out in current:
+                if len(net_out.C) == 0:
+                    h_next_set = h
+                else:
+                    h_next_set = ProbStar(h.V, net_out.C, net_out.d, h.mu, h.Sig, h.pred_lb, h.pred_ub)
+                h_pairs.append((h_next_set, net_out))
+            return h_pairs
 
         branches = []  # list of (hidden_state, signal)
+        hidden_states_all_steps = []
+        hidden_output_all_steps = []
 
         for t, I in enumerate(In):
             if show:
                 print(f"[reachExactBranches] timestep {t}: {len(branches) if t > 0 else 0} active branches")
-
+            new_branches = []
+            hidden_sets_step = []
+            hidden_output_step = []
             if t == 0:
                 WIn = I.affineMap(self.Whx, self.bhx)
                 hidden_sets = ReLULayer.reach([WIn], method="exact", lp_solver=lp_solver, pool=pool, show=False)
-                print(f"number of output sets in step {t} for hidden states:{len(hidden_sets)}")
-                new_branches = []
+                hidden_sets_step.extend(hidden_sets)
+                if show:
+                    print(f"number of output sets in step {t} for hidden states:{len(hidden_sets)}")
                 for h in hidden_sets:
-                    o0 = h.affineMap(self.Woh, self.bo)
-                    outs = apply_post_layers_exact([o0])
-                    for y in outs:
-                        h_next = restrict_hidden_state_by_output(h, y)
-                        # if p_filter is not None and h_next.estimateProbability() < p_filter:
-                        #     continue
+                    h_out = h.affineMap(self.Woh, self.bo)
+                    hidden_output_step.append(h_out)
+                    h_pairs = propagate_hidden_through_post_layers(h, h_out)
+                    for h_next, y in h_pairs:
+                        if p_filter is not None and h_next.estimateProbability() < p_filter:
+                            continue
                         new_branches.append((h_next, [y]))
                 branches = new_branches
             else:
                 WIn = I.affineMap(self.Whx, self.bhx)
-                new_branches = []
-                h_s= []
-                for h_prev, sig in branches:
+                for h_prev_post, trace in branches:
                     if self.bhh is not None:
-                        h_recurrent = h_prev.affineMap(self.Whh, self.bhh)
+                        h_recurrent = h_prev_post.affineMap(self.Whh, self.bhh)
                     else:
-                        h_recurrent = h_prev.affineMap(self.Whh)
-
+                        h_recurrent = h_prev_post.affineMap(self.Whh)
                     summed = h_recurrent.minKowskiSum(WIn)
-
                     hidden_sets = ReLULayer.reach([summed], method="exact", lp_solver=lp_solver, pool=pool, show=False)
-                    h_s.extend(hidden_sets)
+                    hidden_sets_step.extend(hidden_sets)
                     for h in hidden_sets:
-                        ot = h.affineMap(self.Woh, self.bo)
-                        outs = apply_post_layers_exact([ot])
-                        for y in outs:
-                            h_next = restrict_hidden_state_by_output(h, y)
-                            # if p_filter is not None and h_next.estimateProbability() < p_filter:
-                            #     continue
-                            new_sig = sig.copy()
-                            new_sig.extend([y])
-                            new_branches.append((h_next, new_sig))
+                        h_out = h.affineMap(self.Woh, self.bo)
+                        hidden_output_step.append(h_out)
+                        h_pairs = propagate_hidden_through_post_layers(h, h_out)
+                        for h_next, y in h_pairs:
+                            if p_filter is not None and h_next.estimateProbability() < p_filter:
+                                continue
+                            new_trace = trace.copy()
+                            new_trace.append(y)
+                            new_branches.append((h_next, new_trace))
                 branches = new_branches
-                print(f"number of output sets in step {t} for hidden states:{len(h_s)}")
+                if show:
+                    print(f"number of output sets in step {t} for hidden states:{len(hidden_sets_step)}")
 
-        print(f"Total branches after {len(In)} steps: {len(branches)}")
+            hidden_states_all_steps.append(hidden_sets_step)
+            hidden_output_all_steps.append(hidden_output_step)
+
+        self.hidden_states_all_steps = hidden_states_all_steps
+        self.hidden_output_all_steps = hidden_output_all_steps
+        if show:
+            print(f"Total branches after {len(In)} steps: {len(branches)}")
         branch_signals = []
         for _, sig in branches:
-            print(f"each branch signal length: {len(sig)}")
+            if show:
+                print(f"each branch signal length (number of sets): {len(sig)}")
             branch_signals.append(sig)
 
-        return branch_signals
+        return branch_signals,hidden_output_all_steps
 
 
 
