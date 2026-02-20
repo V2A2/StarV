@@ -819,7 +819,7 @@ class Test(object):
             print(f"Input ProbStar {i}:",X0_probstar)
             In.append(X0_probstar)
 
-        branches = L1.reachExactBranches(
+        branches,_ = L1.reachExactBranches(
             In,
             post_layers=[L2,L3,L4],
             lp_solver="gurobi",
@@ -844,14 +844,14 @@ class Test(object):
         rb = _RightBracket_()
 
         A1 = np.array([-1., 0.,0,0])
-        b1 = np.array([-10])
+        b1 = np.array([-0])
         P1 = AtomicPredicate(A1,b1)
 
         A2 = np.array([0,-1,0,0])
         b2 = np.array([-50])
         P2 = AtomicPredicate(A2,b2)
 
-        EVOT =_EVENTUALLY_(0,5)
+        EVOT =_EVENTUALLY_(0,20)
         AWOT = _ALWAYS_(2,3)
         EVOT1 =_EVENTUALLY_(5,15)
         AWOT1 = _ALWAYS_(0,5)
@@ -879,10 +879,8 @@ class Test(object):
         for k, spec in enumerate(specs):
             print(f"\n==================Branch TL Spec {k}====================")
             spec.print()
-            Sat, p_max_branchs, p_min_branchs, cdnf_len_branchs,p_total_max, p_total_min = verify_tl_over_branches(branches, spec, map_mat=map_mat, map_vec=None)
-            print(f"p_max: {p_max_branchs}")
-            print(f"p_min: {p_min_branchs}")
-            print(f"cdnf_len: {cdnf_len_branchs}")
+            p_total_max, p_total_min, p_per_branch = verify_tl_over_branches(branches, spec,use_signal_constraints=False, use_base_constraints=True)
+            print(f"p_per_branch: {p_per_branch}")
             print(f"p_total_max: {p_total_max}")
             print(f"p_total_min: {p_total_min}")
 

@@ -314,8 +314,8 @@ class RecurrentLayer(object):
 
         self.hidden_states_all_steps = hidden_states_all_steps
         self.hidden_output_all_steps = hidden_output_all_steps
-        if show:
-            print(f"Total branches after {len(In)} steps: {len(branches)}")
+        # if show:
+        #     print(f"Total branches after {len(In)} steps: {len(branches)}")
         branch_signals = []
         for _, sig in branches:
             if show:

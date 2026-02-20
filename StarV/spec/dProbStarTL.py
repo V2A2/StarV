@@ -1141,7 +1141,7 @@ class DynamicFormula(object):
 
         return cdnf
 
-    def realization_for_RNN(self, branch_signal, use_signal_constraints=True, use_base_constraints=False):
+    def realization_for_RNN(self, branch_signal, use_signal_constraints=None, use_base_constraints=None):
         """Realization for RNN branch_signal where each timestep has independent  set as input set.
 
         Args:
@@ -1308,6 +1308,7 @@ class DynamicFormula(object):
         print('Length of Computable DNF = {} for branch signal'.format(cdnf.length))
 
         p_base = cdnf.base_probstar.estimateProbability()
+        print(f"base probstar probability = {p_base}")
         SAT = []
         p_SAT_MIN = 0.0
         p_SAT_MAX = 0.0
@@ -1318,6 +1319,7 @@ class DynamicFormula(object):
                 print('*****WARNING*****: CDNF (len = {}) is too large for exact verification'.format(cdnf.length))
                 print('We ignore this CDNF, return the estimate probability uperbound')
                 p_SAT_MIN = max(SAT)
+                print(f"p_sat_MIN in cdnf > 11 = {p_SAT_MIN}")
                 p_SAT_MAX = max(p_SAT_MIN, p_base)
             else:
                 N = range(0, cdnf.length)

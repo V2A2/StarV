@@ -74,25 +74,41 @@ def map_branch_signals(branch_signals, map_mat=None, map_vec=None):
     """Apply an affine map to every ProbStar in every branch signal."""
     mapped_branches = []
     for sig in branch_signals:
-        mapped_branches.append([S.affineMap(map_mat, map_vec) for S in sig])
+        sig_map=[]
+        for S in sig:
+            S1 = S.affineMap(map_mat, map_vec)
+            sig_map.append(S1)
+        mapped_branches.append(sig_map)
     return mapped_branches
 
 
-def verify_tl_over_branches(branch_signals, spec, map_mat=None, map_vec=None, clip_eps=1e-9):
+def verify_tl_over_branches(branch_signals, spec,use_signal_constraints=True, use_base_constraints=False):
     """Evaluate dProbStarTL on each exact branch and sum probabilities."""
     DNF_spec = spec.getDynamicFormula()
     # print(f"====== Dynamic Formula for TL Spec =======\n {DNF_spec.print()}")
-    p_total = 0.0
+    p_total_max = 0.0
     p_per_branch = []
+    p_total_min = 0.0
     for i, sig in enumerate(branch_signals):
         print(f"Evaluating TL spec for {i}th branches...")
-        _, p_max, _, _ = DNF_spec.evaluate_for_RNN(sig)
-        p_per_branch.append(p_max)
-        p_total += p_max
+        _, p_max, p_min, _ = DNF_spec.evaluate_for_RNN(sig, use_signal_constraints=use_signal_constraints, use_base_constraints=use_base_constraints)
+        tol = 0
+        if abs(p_max) < tol:
+            p_max = 0.0
+        if abs(p_min) < tol: 
+            p_min = 0.0
+        # p_max = min(max(p_max, 0.0), 1.0)
+        # p_min = min(max(p_min, 0.0), 1.0)
+
+        p_pair = (p_max, p_min)
+        p_per_branch.append(p_pair)
+        p_total_max += p_max
+        p_total_min += p_min  
+        print(f"Branch {i}: p_max = {p_max}, p_min = {p_min}")
     # if p_total > 1.0 + clip_eps:
     #     print(f"WARNING: summed branch probability {p_total} > 1, clipping to 1.0 (numerical integration error)")
     #     p_total = 1.0
-    return p_total, p_per_branch
+    return p_total_max, p_total_min, p_per_branch
 
 
 def reachability_with_RNN_exact_branches(X, lp_solver="gurobi", p_filter=None, show=True):
@@ -107,18 +123,22 @@ def reachability_with_RNN_exact_branches(X, lp_solver="gurobi", p_filter=None, s
     L2 = FullyConnectedLayer(mat[0])
     L3 = ReLULayer()
     L4 = FullyConnectedLayer(mat[1])
+    L5 = ReLULayer()
+    L6 = FullyConnectedLayer(mat[2])
+    # L7 = ReLULayer()
+
 
     branch_signals = L1.reachExactBranches(
         X,
-        post_layers=[L2, L3, L4],
+        post_layers=[L2, L3, L4, L5, L6],
         lp_solver=lp_solver,
         pool=None,
         p_filter=p_filter,
         show=show,
     )
 
-    if show:
-        print(f"Total exact branches: {len(branch_signals)}")
+    # if show:
+    #     print(f"Total exact branches: {len(branch_signals)}")
     return branch_signals
 
 
@@ -322,11 +342,11 @@ if __name__ == "__main__":
     np.random.seed(25)
     for i in range(1,2):
         print(f"======================== Process the first 20 cycles of {i}th engine ========================")
-        X = construct_input_probstar(engine_id=i, time_step=20, shifts=5)
+        X = construct_input_probstar(engine_id=i, time_step=20, shifts=1)
 
         # Exact branch-based TL verification (sound with multiple sets per step)
         branches,hidden_output_all_steps =reachability_with_RNN_exact_branches(X, lp_solver="gurobi", p_filter=None, show=True)
-        print(f"hidden_output_all_steps length:{len(hidden_output_all_steps[10])}")
+        print(f"total branches after reachability:{len(branches)}")
         # for s in hidden_output_all_steps[10]:
         #     print(f"hidden output set at step 10: nVars:{s.nVars}, C shape:{s.C.shape}, dim:{s.dim}, V:{s.V}, d:{s.d}, {s.Sig}, {s.mu}, prob:{s.estimateProbability()}")
         
@@ -337,15 +357,15 @@ if __name__ == "__main__":
         lb = _LeftBracket_()
         rb = _RightBracket_()
 
-        A1 = np.array([-1., 0.])
-        b1 = np.array([-20])
+        A1 = np.array([-1.])
+        b1 = np.array([-100])
         P1 = AtomicPredicate(A1, b1)
 
         A2 = np.array([0, -1])
         b2 = np.array([-15])
         P2 = AtomicPredicate(A2, b2)
 
-        EVOT = _EVENTUALLY_(0, 20)
+        EVOT = _EVENTUALLY_(0, 10)
         AWOT = _ALWAYS_(11, 15)
         EVOT1 = _EVENTUALLY_(5, 15)
         AWOT1 = _ALWAYS_(0, 5)
@@ -353,23 +373,19 @@ if __name__ == "__main__":
         spec = Formula([EVOT, P1])
         spec1 = Formula([AWOT, lb, P2, rb])
         spec2 = Formula([EVOT1, lb, P1, OR, lb, AWOT1, P2, rb, rb])
-        specs = [spec, spec1, spec2]
+        specs = [spec]
 
-        # Map 16D output to 2D so AP vectors A1/A2 (length=2) are dimension-consistent.
         map_mat = np.array([[0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0],
                             [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]])
         map_vec = None
-        mapped_branch_signals = map_branch_signals(branches,map_mat=map_mat, map_vec=map_vec)
+        # mapped_branch_signals = map_branch_signals(branches,map_mat=map_mat, map_vec=map_vec)
+
 
         for k, spec in enumerate(specs):
             print(f"\n==================Branch TL Spec {k}====================")
             spec.print()
-            Sat, p_max_branchs, p_min_branchs, cdnf_len_branchs, p_total_max, p_total_min = \
-                verify_tl_over_branches(mapped_branch_signals, spec, map_mat=map_mat, map_vec=map_vec)
-            print(f"SAT terms: {Sat}")
-            print(f"p_max_branchs: {p_max_branchs}")
-            print(f"p_min_branchs: {p_min_branchs}")
-            print(f"cdnf_len_branchs: {cdnf_len_branchs}")
+            p_total_max, p_total_min, p_per_branch = verify_tl_over_branches(branches, spec,use_signal_constraints=False, use_base_constraints=True)
+            print(f"p_per_branch: {p_per_branch}")
             print(f"p_total_max: {p_total_max}")
             print(f"p_total_min: {p_total_min}")
 
