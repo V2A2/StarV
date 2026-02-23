@@ -345,7 +345,7 @@ if __name__ == "__main__":
         X = construct_input_probstar(engine_id=i, time_step=20, shifts=1)
 
         # Exact branch-based TL verification (sound with multiple sets per step)
-        branches,hidden_output_all_steps =reachability_with_RNN_exact_branches(X, lp_solver="gurobi", p_filter=None, show=True)
+        branches,hidden_output_all_steps = reachability_with_RNN_exact_branches(X, lp_solver="gurobi", p_filter=None, show=True)
         print(f"total branches after reachability:{len(branches)}")
         print("\n\nNumber of branches after RecurrentLayer:",len(branches))
         print("Branches types after RecurrentLayer:",type(branches))
