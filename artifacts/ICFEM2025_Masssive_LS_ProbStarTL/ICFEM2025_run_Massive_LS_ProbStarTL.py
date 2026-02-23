@@ -60,6 +60,7 @@ def run_harmonic( use_arnoldi =True,use_init_space=False):
     sig_U = np.maximum(sig_U, epsilon)
     Sig_U = np.diag(np.square(sig_U))
     X0_probstar = ProbStar(X0.V, X0.C, X0.d,mu_U, Sig_U,X0.pred_lb,X0.pred_ub)
+    print(f"X0_probstar:{X0_probstar}")
 
     # parameters
     h = math.pi/4
@@ -118,6 +119,7 @@ def run_harmonic( use_arnoldi =True,use_init_space=False):
         DNF_spec = spec.getDynamicFormula()
         Nadnf = DNF_spec.length
         print('Length of abstract DNF_spec = {}'.format(DNF_spec.length))
+        print(f"reachable set:{R[3]}")
         _,p_max, p_min,Ncdnf = DNF_spec.evaluate(R)
         end = time.time()
         checking_time = end -check_start 
