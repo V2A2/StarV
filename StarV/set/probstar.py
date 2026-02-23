@@ -625,7 +625,7 @@ class ProbStar(object):
             assert isinstance(A, np.ndarray), \
             'error: mapping matrix should be an 2D numpy array'
             assert A.shape[1] == self.dim, \
-            'error: inconsistency between mapping matrix and ProbStar dimension'
+            f'error: inconsistency between mapping matrix and ProbStar dimension, but it is {A.shape[1]} and {self.dim}'
 
         if b is not None:
             assert isinstance(b, np.ndarray), \
@@ -643,51 +643,7 @@ class ProbStar(object):
             V[:, 0] += b
         return ProbStar(V, self.C, self.d, self.mu, self.Sig, self.pred_lb, self.pred_ub)
 
-    # def add(self, Y, check_distribution=True):
-    #     """Pointwise addition of two ProbStars that share the same predicate variables.
 
-    #     This computes the set:
-    #         Z = { x(a) + y(a) | a satisfies constraints },
-    #     i.e., both operands are interpreted as functions of the *same* random predicate
-    #     vector `a`.
-
-    #     NOTE:
-    #     - This is NOT the Minkowski sum when the predicate vectors are independent.
-    #       For independent uncertainties, use `minKowskiSum`.
-    #     """
-
-    #     assert isinstance(Y, ProbStar), 'error: input is not a probstar'
-    #     assert self.dim == Y.dim, 'error: inconsistent dimension between the input and the self object'
-    #     assert self.nVars == Y.nVars, 'error: two probstars do not share the same predicate space (nVars mismatch)'
-
-    #     if check_distribution:
-    #         assert self.mu.shape == Y.mu.shape and self.Sig.shape == Y.Sig.shape, \
-    #             'error: predicate distributions have different shapes'
-    #         assert self.pred_lb.shape == Y.pred_lb.shape and self.pred_ub.shape == Y.pred_ub.shape, \
-    #             'error: predicate bounds have different shapes'
-
-    #     V = copy.deepcopy(self.V)
-    #     V = V + Y.V
-
-    #     # Conjoin predicate constraints (intersection in predicate space).
-    #     if len(self.C) == 0 and len(Y.C) == 0:
-    #         C = np.empty((0, self.nVars))
-    #         d = np.empty((0,))
-    #     elif len(self.C) == 0:
-    #         C = copy.deepcopy(Y.C)
-    #         d = copy.deepcopy(Y.d)
-    #     elif len(Y.C) == 0:
-    #         C = copy.deepcopy(self.C)
-    #         d = copy.deepcopy(self.d)
-    #     else:
-    #         C = np.vstack((self.C, Y.C))
-    #         d = np.concatenate((self.d, Y.d))
-
-    #     # Prefer the tightest known predicate bounds (if they were tightened by constraint propagation).
-    #     pred_lb = np.maximum(self.pred_lb, Y.pred_lb) if self.pred_lb.size and Y.pred_lb.size else self.pred_lb
-    #     pred_ub = np.minimum(self.pred_ub, Y.pred_ub) if self.pred_ub.size and Y.pred_ub.size else self.pred_ub
-
-    #     return ProbStar(V, C, d, self.mu, self.Sig, pred_lb, pred_ub)
 
     def minKowskiSum(self, Y):
         """MinKowskiSum of two probstars"""
@@ -706,114 +662,23 @@ class ProbStar(object):
         mu = np.concatenate((self.mu, Y.mu))
         Sig = block_diag(self.Sig, Y.Sig)
 
-        # print(f"self.C shape : {self.C.shape}, self.d shape : {self.d.shape},slef:{self}")
-        # print(f"Y.C shape : {Y.C.shape}, Y.d shape : {Y.d.shape},Y:{Y}")
-        
                 
-        if len(Y.C) == 0 and len(self.C) !=0:
+        if len(Y.C) == 0 and len(self.C) !=0:  # used for RNN, where Xt.C is empyty but ht.C is not empty
             Y1=copy.deepcopy(Y)
-            print(f"In minKowskiSum, Y.C is empty")
-            print(f"self.C : {self.C}, c-shape: {self.C.shape}")
             Y1.C = np.zeros((self.C.shape[0], Y.nVars))
-            print(f"After setting, Y1.C : {Y1.C},Y1.C_shape: {Y1.C.shape}")
             C = np.hstack((self.C, Y1.C))
-            print(f"C after hstack : {C.shape[0]}")
             d = self.d
-            print(f"d shape : {d.shape[0]},d:{d}")
         else:
-            print(f"In minKowskiSum, Y.C is not empty OR self.C and Y.C both are empty")
             C = block_diag(self.C,Y.C)
             d = np.concatenate((self.d, Y.d))
 
         if len(d) == 0:
-            print(f"In minKowskiSum, self.C d and Y.C d both are empty")
             C = []
             d = []
 
-        # print(f"C before probsatr : {C.shape[0]},C:{C}")
         R = ProbStar(V, C, d, mu, Sig, pred_lb, pred_ub)
 
         return R
-    
-    # def Combine(self, Y):
-    #     """Combine two probstars"""
-
-    #     assert isinstance(Y, ProbStar), 'error: input is not a probstar'
-    #     assert self.dim == Y.dim, 'error: inconsistent dimension between the input and the self object'
-
-        # new_lb =[]
-        # new_ub=[]
-        # lb,ub = self.getRanges()
-        # lb1,ub1 = Y.getRanges()
-        # print(f"lb:{lb}")
-        # print(f"ub:{ub}")
-        # print(f"lb1:{lb1}")
-        # print(f"ub1:{ub1}")
-        # for i in range(len(lb)):
-        #     print(f"lb_i:{lb[i]}")
-        #     if lb[i] <= lb1[i]:
-        #         new_lb.append(lb[i])
-        #     else:
-        #         new_lb.append(lb1[i])
-        #     print(f"add new lb :{new_lb}")
-        #     if ub[i] >= ub1[i]:
-        #         print(f"ub_i:{ub[i]}")
-        #         new_ub.append(ub[i])
-        #     else:
-        #         new_ub.append(ub1[i])
-        #     print(f"add new ub :{new_ub}")
-        # new_lb_arr = np.array(new_lb).flatten()
-        # new_ub_arr = np.array(new_ub).flatten()
-        # print(f"new_lb_arr:{new_lb_arr}")
-        # print(f"new_ub_arr:{new_ub_arr}")
-    
-
-        # mu = 0.5*(new_lb_arr + new_ub_arr) 
-        # a  = 3
-        # sig= (new_ub_arr-mu )/a
-        # epsilon = 1e-10
-        # sig = np.maximum(sig, epsilon)
-        # Sig = np.diag(np.square(sig))        
-        # R = ProbStar( mu, Sig, new_lb_arr,new_ub_arr)
-        
-        # V1 = copy.deepcopy(self.V)
-        # V2 = copy.deepcopy(Y.V)
-        # V3 = np.delete(V2, 0, 1)
-        # V = np.hstack((V1, V3))
-        # pred_lb = np.concatenate((self.pred_lb, Y.pred_lb))
-        # pred_ub = np.concatenate((self.pred_ub, Y.pred_ub))
-        # mu = np.concatenate((self.mu, Y.mu))
-        # Sig = block_diag(self.Sig, Y.Sig)
-
-        # C = block_diag(self.C,Y.C)
-        # d = np.concatenate((self.d, Y.d))
-        # if len(d) == 0:
-        #     C = []
-        #     d = []
-        # R = ProbStar(V, C, d, mu, Sig, pred_lb, pred_ub)
-        
-        
-        # V1 = copy.deepcopy(self.V)
-        # V2 = copy.deepcopy(Y.V)
-        # V1[:, 0] = (V1[:, 0] + V2[:, 0])/2
-        # # c= (V1[:,0] + V2[:,0])/2
-        # V3 = np.delete(V2, 0, 1)
-        # V = np.hstack((V1, V3))
-        # pred_lb = np.concatenate((self.pred_lb, Y.pred_lb))
-        # pred_ub = np.concatenate((self.pred_ub, Y.pred_ub))
-        # mu = np.concatenate((self.mu, Y.mu))
-        # Sig = block_diag(self.Sig, Y.Sig)
-
-        # C = block_diag(self.C,Y.C)
-        # d = np.concatenate((self.d, Y.d))
-        # if len(d) == 0:
-        #     C = []
-        #     d = []
-        # R = ProbStar(V, C, d, mu, Sig, pred_lb, pred_ub)
-
-
-        # return R
-
 
     
     def isEmptySet(self, lp_solver='gurobi'):

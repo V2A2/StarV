@@ -190,61 +190,8 @@ def reachExactBFS(net, inputSet, lp_solver='gurobi', pool=None, show=True):
 
     return S
 
-# def reachApproxBFS(net, inputSet, p_filter=0.0, lp_solver='gurobi', pool=None, show=True):
-#     """Compute Approximate Reachable Set layer-by-layer"""
-
-#     assert isinstance(net, NeuralNetwork), 'error: first input should be a NeuralNetwork object'
-#     assert isinstance(inputSet, list) or isinstance(inputSet, Star), 'error: second input should be a list of Star/ProbStar set or just a Star set'
-
-#     # compute and filter reachable sets
-#     I = copy.deepcopy(inputSet)
-
-#     if isinstance(inputSet, list):
-#         p_ignored = 0.0
-#         for i in range(0, net.n_layers):
-#             if show:
-#                 print('================ Layer {} ================='.format(i))
-#                 print('Computing layer {} reachable set...'.format(i))
-#             S = net.layers[i].reach(I, method='exact', lp_solver=lp_solver, pool=pool)
-#             if show:
-#                 print('Number of probstars: {}'.format(len(S)))
-#                 print('Filtering probstars whose probabilities < {}...'.format(p_filter))
-#             P = []
-#             if pool is None:
-#                 for S1 in S:
-#                     print(f"in reachapproxBFS s1 in S len:{len(S1)}")
-#                     if len(S1) >1:
-#                         prob1 = 0
-#                         P1 =[]
-#                         for j in range(len(S1)):
-#                             P2, prob = filterProbStar(p_filter, S1[j])
-#                             prob1 += prob
-#                             if isinstance(P2, ProbStar):
-#                                 P1.append(P2)
-#                         P.append(P1)
-#                         print(f"after filter in reachapproxBFS P1 len:{len(P1)}")
-#                     else:
-#                         P1, prob1 = filterProbStar(p_filter, S1)
-#                     if isinstance(P1, ProbStar):
-#                         P.append(P1)
-#                     p_ignored = p_ignored + prob1  # update the total probability of ignored sets
-#             else:
-#                 S1 = pool.map(filterProbStar, zip([p_filter]*len(S), S))
-#                 for S2 in S1:
-#                     if isinstance(S2[0], ProbStar):
-#                         P.append(S2[0])
-#                     p_ignored = p_ignored + S2[1]
-#             I = P            
-#             if show:
-#                 print('Number of ignored probstars: {}'.format(len(S) - len(I)))
-#                 print('Number of remaining probstars: {}'.format(len(I)))
-
-#             if len(I) == 0:
-#                 break
-
-#         return I, p_ignored
-
-def reachApproxBFS(net, inputSet,method='exact', p_filter=0.0, lp_solver='gurobi', pool=None, show=True):
+    
+def reachApproxBFS(net, inputSet, p_filter=0.0, lp_solver='gurobi', pool=None, show=True):
     """Compute Approximate Reachable Set layer-by-layer"""
 
     assert isinstance(net, NeuralNetwork), 'error: first input should be a NeuralNetwork object'
@@ -259,43 +206,27 @@ def reachApproxBFS(net, inputSet,method='exact', p_filter=0.0, lp_solver='gurobi
             if show:
                 print('================ Layer {} ================='.format(i))
                 print('Computing layer {} reachable set...'.format(i))
-            S = net.layers[i].reach(I, method=method, lp_solver=lp_solver, pool=pool)
+            S = net.layers[i].reach(I, method='exact', lp_solver=lp_solver, pool=pool)
             if show:
                 print('Number of probstars: {}'.format(len(S)))
                 print('Filtering probstars whose probabilities < {}...'.format(p_filter))
             P = []
-            prob1 = 0
-            IS = 0
-            for S1 in S: # checl all time step
-                print(f"in reachapproxBFS S1 in S len:{len(S1)}")
-                if isinstance(S1,list): # return by RNN a list of liat sets
-                    P1 =[]
-                    prob2 =0
-                    for j in range(len(S1)): # each sets at each time step
-                        P2, prob = filterProbStar(p_filter, S1[j])
-                        prob2 += prob
-                        if isinstance(P2, ProbStar):
-                            P1.append(P2)
-                        num_IG = len(S1)-len(P1)
-                        print(f"after filter in reachapproxBFS the sets at each time step len:{len(P1)}")
-                        print(f'Number of ignored probstars at each time step: {num_IG}')
-                        print(f"the cumulative ignored prob for at time steps:{prob2}")
-                    P.append(P1)
-                    IS += num_IG 
-                    prob1 += prob2
-                    print(f"the cumulative ignored prob for all time steps:{prob1}")
-                    print(f"the cumulative number of ignored sets for all time steps:{IS}")
-                else:
+            if pool is None:
+                for S1 in S:
                     P1, prob1 = filterProbStar(p_filter, S1)
                     if isinstance(P1, ProbStar):
                         P.append(P1)
                     p_ignored = p_ignored + prob1  # update the total probability of ignored sets
-            I = P  
-            p_ignored +=prob1   
-            print(f"the cumulative ignored prob for all time steps for all layers:{p_ignored}")      
-            # if show:
-            #     print('Number of ignored probstars: {}'.format(len(S) - len(I)))
-            #     print('Number of remaining probstars: {}'.format(len(I)))
+            else:
+                S1 = pool.map(filterProbStar, zip([p_filter]*len(S), S))
+                for S2 in S1:
+                    if isinstance(S2[0], ProbStar):
+                        P.append(S2[0])
+                    p_ignored = p_ignored + S2[1]
+            I = P            
+            if show:
+                print('Number of ignored probstars: {}'.format(len(S) - len(I)))
+                print('Number of remaining probstars: {}'.format(len(I)))
 
             if len(I) == 0:
                 break

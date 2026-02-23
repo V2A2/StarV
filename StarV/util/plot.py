@@ -11,6 +11,7 @@ from matplotlib import cm
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.spatial import ConvexHull
 from scipy.stats import multivariate_normal
+import copy
 
 import pypoman
 import warnings

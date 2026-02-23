@@ -661,7 +661,7 @@ class Test(object):
         #     print('Test Successfull!')
 
  
-    def test_ProbSatrTL(self):
+    def test_ProbSatrTL_spec(self):
         np.random.seed(42)
         self.n_tests = self.n_tests + 1
         # try:
@@ -780,20 +780,20 @@ class Test(object):
                 all_check_prob.append(prob)
 
 
-        # verification using ProbSatrTL
-        print(f"\n========Start Verification TL===================")
-        for i in range(0,len(specs)):
-            spec = specs[i]
-            print('\n==================Specification{}====================: '.format(i))
-            spec.print()
-            DNF_spec = spec.getDynamicFormula()
-            print(f"====== Dynamic Formula=======\n {DNF_spec.print()}")
-            Nadnf = DNF_spec.length
-            print('Length of abstract DNF_spec = {}'.format(DNF_spec.length))
-            _,p_max, p_min,Ncdnf = DNF_spec.evaluate_for_RNN(RS)
-            print("p_min:",p_min)
-            print("p_max:",p_max) 
-            # verify_time=checking_time + reach_time_duration    
+        # # verification using ProbSatrTL
+        # print(f"\n========Start Verification TL===================")
+        # for i in range(0,len(specs)):
+        #     spec = specs[i]
+        #     print('\n==================Specification{}====================: '.format(i))
+        #     spec.print()
+        #     DNF_spec = spec.getDynamicFormula()
+        #     print(f"====== Dynamic Formula=======\n {DNF_spec.print()}")
+        #     Nadnf = DNF_spec.length
+        #     print('Length of abstract DNF_spec = {}'.format(DNF_spec.length))
+        #     _,p_max, p_min,Ncdnf = DNF_spec.evaluate_for_RNN(RS)
+        #     print("p_min:",p_min)
+        #     print("p_max:",p_max) 
+        #     # verify_time=checking_time + reach_time_duration    
               
     def test_ProbStar_TL_verification(self):
         np.random.seed(42)
@@ -828,13 +828,14 @@ class Test(object):
             show=True,
         )
         print("\n\nNumber of branches after RecurrentLayer:",len(branches))
-        print("Branch types after RecurrentLayer:",type(branches))
-        print("Branch 0 type:",type(branches[0]))
-        print(f"Branch 0 number of sets: {len(branches[0])}")
-        for i in range(len(branches[0])):
-            print(f"Branch 0 set {i} type: {type(branches[0][i])}")
-            print(f"Branch 0 set {i} probability: {branches[0][i].estimateProbability()}")
-            print(f"Branch 0 set {i} info: {branches[0][i]}")
+        print("Branches types after RecurrentLayer:",type(branches))
+        for i in range(len(branches)):
+            print("Branch {} type: {}".format(i,type(branches[i])))
+            print(f"Branch {i} number of sets: {len(branches[i])}")
+            for j in range(len(branches[i])):
+                print(f"Branch {i} set {j} type: {type(branches[i][j])}")
+                print(f"Branch {i} set {j} probability: {branches[i][j].estimateProbability()}")
+                # print(f"Branch {i} set {j} info: {branches[i][j]}")
             
         # Example specs (uncomment and edit as needed)
           # create temporal specifications
@@ -879,7 +880,7 @@ class Test(object):
         for k, spec in enumerate(specs):
             print(f"\n==================Branch TL Spec {k}====================")
             spec.print()
-            p_total_max, p_total_min, p_per_branch = verify_tl_over_branches(branches, spec,use_signal_constraints=False, use_base_constraints=True)
+            p_total_max, p_total_min, p_per_branch = verify_tl_over_branches(branches, spec)
             print(f"p_per_branch: {p_per_branch}")
             print(f"p_total_max: {p_total_max}")
             print(f"p_total_min: {p_total_min}")

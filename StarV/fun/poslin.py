@@ -89,15 +89,11 @@ class PosLin(object):
         assert isinstance(I, ProbStar) or isinstance(I, Star), \
         'error: input is not a Star or ProbStar, type of input is {}'.format(type(I))
 
-        # print("\n stepReach at index:",index)
         xmin, xmax = I.estimateRange(index)
-        # print("xmin:",xmin,"xmax:",xmax)
         if xmin >= 0:
-            # print("xmin >0, keep the set")
             S = []
             S.append(I)
         elif xmax <= 0:
-            # print("xmax < 0, reset the index to 0")
             S = []
             S.append(I.resetRow(index))
         else:
@@ -111,7 +107,6 @@ class PosLin(object):
                     S = []
                     S.append(I)
                 else:
-                    # print("Splitting at index:",index)
                     C = np.zeros(I.dim,)
                     C[index] = 1.0
                     d = np.zeros(1,)
@@ -119,15 +114,11 @@ class PosLin(object):
                     S2 = copy.deepcopy(I)
                     S1.addConstraint(C, d)  # x <= 0
                     S1.resetRow(index)
-                    # print("S1_resetrow:",S1.V)
                     S2.addConstraint(-C, d)  # x >= 0
                     S = []
                     S.append(S1)
                     S.append(S2)
-                    # print("Number of sets after splitting:", len(S))
-                    # for i in range(len(S)):
-                    #     print("Set {}: {}".format(i, S[i].V))
-        # print("=============End stepReach=================\n")
+                
         return S
 
     @staticmethod
@@ -159,8 +150,6 @@ class PosLin(object):
         for i in range(0, len(I)):
             S1 = PosLin.stepReach(I[i], index, lp_solver)
             S.extend(S1)
-            # print("number of input sets in multiStepReach:",len(S))
-            # print("output sets in multiStepReach:",S[i].V)
         return S
 
     @staticmethod
@@ -199,6 +188,7 @@ class PosLin(object):
             S1 = PosLin.stepReachMultiInputs(S1, i, lp_solver)
 
         S.extend(S1)
+       
 
         return S
 
@@ -243,8 +233,6 @@ class PosLin(object):
             for i in range(0, len(S1)):
                 S.extend(S1[i])
         elif isinstance(pool, ipyparallel.client.view.DirectView):
-            # S1 = pool.map(PosLin.reachExactSingleInput, zip(In, [lp_solver]*len(In)))
-            # print('S1 = {}'.format(S1))
             raise Exception('error: ipyparallel option is under testing...')
         else:
             raise Exception('error: unknown/unsupport pool type')    
@@ -406,32 +394,6 @@ class PosLin(object):
         new_pred_lb = np.hstack([I.pred_lb, np.zeros(m, dtype=dtype)])
         new_pred_ub = np.hstack([I.pred_ub, u])
 
-        # if isinstance(I, ProbStar):
-        #     if m == 0:
-        #         return I
-
-        #     # Default Gaussian for new predicate variables (independent)
-        #     # This is a heuristic to keep ProbStar well-formed after relaxation.
-        #     # New variables correspond to relaxed ReLU outputs y with bounds [0, u].
-        #     if relu_approx_mode not in ("heuristic_gaussian", "constraints_only"):
-        #         raise Exception(
-        #             f"error: unknown relu_approx_mode={relu_approx_mode}, expected "
-        #             "'heuristic_gaussian' or 'constraints_only'"
-        #         )
-
-        #     mu_new = 0.5 * u
-        #     sig_factor = 6  # ~99.7% within [0, u] if mean=u/2 and sigma=u/6
-        #     min_sig = 1e-10
-        #     sig_new = np.maximum(u / sig_factor, min_sig)
-        #     Sig_new = np.diag(np.square(sig_new))
-
-        #     new_mu = np.hstack([I.mu, mu_new])
-        #     new_Sig = block_diag(I.Sig, Sig_new)
-        #     S = ProbStar(new_V, new_C, new_d, new_mu, new_Sig, new_pred_lb, new_pred_ub)
-        #     if relu_approx_mode == "constraints_only":
-        #         # Mark probability as heuristic/unsafe for interpretation.
-        #         S.prob_mode = "constraints_only"
-        #     return S
 
         return Star(new_V, new_C, new_d, new_pred_lb, new_pred_ub)
 
@@ -918,7 +880,7 @@ class PosLin(object):
             # applying partial relaxation and partial LP solver
             I, l_u, u_u, map_amb = PosLin.relax_by_area(I=I, l=l_all, u=u_all, lp_solver=lp_solver, RF=RF, show=show)
 
-        if isinstance(I, Star) or isinstance(I, ProbStar):
+        if isinstance(I, Star):
             if show:
                 print(f"Ambiguous neurons after bound tightening: {len(map_amb)} / {I.dim}")
             return PosLin.addConstraints(I=I, map=map_amb, l=l_u, u=u_u)
@@ -969,10 +931,10 @@ class PosLin(object):
 
         Author: Sung Woo Choi, Date: 09/12/2023
         """
-        assert isinstance(In, Star) or isinstance(In, ProbStar) or isinstance(In, ImageStar) or \
+        assert isinstance(In, Star) or isinstance(In, ImageStar) or \
             isinstance(In, SparseStar) or isinstance(In, SparseImageStar) or \
             isinstance(In, SparseImageStar2DCOO) or isinstance(In, SparseImageStar2DCSR), \
-            f"error: approximate reachaiblity of 'relu' or 'poslin' supports Star, ProbStar, ImageStar, SparseStar, SparseImageStar but received In={type(In)}"
+            f"error: approximate reachaiblity of 'relu' or 'poslin' supports Star, ImageStar, SparseStar, SparseImageStar but received In={type(In)}"
 
         return PosLin.stepReachApprox(In=In, lp_solver=lp_solver, RF=RF, DR=0, show=show)
 

@@ -82,7 +82,7 @@ def map_branch_signals(branch_signals, map_mat=None, map_vec=None):
     return mapped_branches
 
 
-def verify_tl_over_branches(branch_signals, spec,use_signal_constraints=True, use_base_constraints=False):
+def verify_tl_over_branches(branch_signals, spec):
     """Evaluate dProbStarTL on each exact branch and sum probabilities."""
     DNF_spec = spec.getDynamicFormula()
     # print(f"====== Dynamic Formula for TL Spec =======\n {DNF_spec.print()}")
@@ -91,7 +91,7 @@ def verify_tl_over_branches(branch_signals, spec,use_signal_constraints=True, us
     p_total_min = 0.0
     for i, sig in enumerate(branch_signals):
         print(f"Evaluating TL spec for {i}th branches...")
-        _, p_max, p_min, _ = DNF_spec.evaluate_for_RNN(sig, use_signal_constraints=use_signal_constraints, use_base_constraints=use_base_constraints)
+        _, p_max, p_min, _ = DNF_spec.evaluate_for_RNN(sig)
         tol = 0
         if abs(p_max) < tol:
             p_max = 0.0
@@ -347,8 +347,15 @@ if __name__ == "__main__":
         # Exact branch-based TL verification (sound with multiple sets per step)
         branches,hidden_output_all_steps =reachability_with_RNN_exact_branches(X, lp_solver="gurobi", p_filter=None, show=True)
         print(f"total branches after reachability:{len(branches)}")
-        # for s in hidden_output_all_steps[10]:
-        #     print(f"hidden output set at step 10: nVars:{s.nVars}, C shape:{s.C.shape}, dim:{s.dim}, V:{s.V}, d:{s.d}, {s.Sig}, {s.mu}, prob:{s.estimateProbability()}")
+        print("\n\nNumber of branches after RecurrentLayer:",len(branches))
+        print("Branches types after RecurrentLayer:",type(branches))
+        for i in range(len(branches)):
+            print("Branch {} type: {}".format(i,type(branches[i])))
+            print(f"Branch {i} number of sets: {len(branches[i])}")
+            for j in range(len(branches[i])):
+                print(f"Branch {i} set {j} type: {type(branches[i][j])}")
+                print(f"Branch {i} set {j} probability: {branches[i][j].estimateProbability()}")
+                # print(f"Branch {i} set {j} info: {branches[i][j]}")
         
 
         # Example specs (uncomment and edit as needed)
@@ -384,7 +391,7 @@ if __name__ == "__main__":
         for k, spec in enumerate(specs):
             print(f"\n==================Branch TL Spec {k}====================")
             spec.print()
-            p_total_max, p_total_min, p_per_branch = verify_tl_over_branches(branches, spec,use_signal_constraints=False, use_base_constraints=True)
+            p_total_max, p_total_min, p_per_branch = verify_tl_over_branches(branches, spec)
             print(f"p_per_branch: {p_per_branch}")
             print(f"p_total_max: {p_total_max}")
             print(f"p_total_min: {p_total_min}")

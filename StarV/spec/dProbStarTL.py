@@ -1085,20 +1085,6 @@ class DynamicFormula(object):
         base_probstar = copy.deepcopy(probstar_sig[0])
         nVars = base_probstar.nVars
 
-        # def _pad_V_to(V, nVars_target):
-        #     """Pad a basis matrix V to have (nVars_target+1) columns by appending zeros.
-
-        #     This lets us interpret all time steps in a shared predicate space.
-        #     """
-        #     cur_nVars = V.shape[1] - 1
-        #     if cur_nVars == nVars_target:
-        #         return V
-        #     if cur_nVars > nVars_target:
-        #         # Shouldn't happen if base is chosen as max, but be defensive.
-        #         return V[:, :nVars_target + 1]
-        #     pad = np.zeros((V.shape[0], nVars_target - cur_nVars), dtype=V.dtype)
-        #     return np.hstack((V, pad))
-
         for P in self.F:
             H = []
             C = None
@@ -1141,13 +1127,11 @@ class DynamicFormula(object):
 
         return cdnf
 
-    def realization_for_RNN(self, branch_signal, use_signal_constraints=None, use_base_constraints=None):
+    def realization_for_RNN(self, branch_signal):
         """Realization for RNN branch_signal where each timestep has independent  set as input set.
 
         Args:
             branch_signal: list of ProbStar  sets(one per timestep)
-            use_signal_constraints: include each timestep's constraints (C, d)
-            use_base_constraints: include base_probstar constraints (shared)
         """
 
         assert isinstance(branch_signal, list), 'error: probstar signal should be a list'
@@ -1167,9 +1151,9 @@ class DynamicFormula(object):
         base_probstar = copy.deepcopy(branch_signal[nVarMaxID])
         print(f"=====================base_probstar info for RNN realization: C ={base_probstar.C}, d ={base_probstar.d}=====================\n")
         max_nVars = base_probstar.nVars
-        if not use_base_constraints and len(base_probstar.C) != 0:
-            base_probstar.C = np.empty((0, max_nVars))
-            base_probstar.d = np.empty((0,))
+        # if len(base_probstar.C) != 0:
+        #     base_probstar.C = np.empty((0, max_nVars))
+        #     base_probstar.d = np.empty((0,))
 
         def pad_target_C(C, target_nvars):
             if C is None:
@@ -1217,12 +1201,6 @@ class DynamicFormula(object):
 
                 C1 = pad_target_C(C1, max_nVars) # pad spec constraint to fit base_probstar predicate  dimension
 
-                if use_signal_constraints and len(Pi_t.C) != 0:
-                    C_step = pad_target_C(Pi_t.C, max_nVars) # pad probstar set constraint to fit fit base_probstar predicate dimension
-                    d_step = Pi_t.d
-                    C1 = np.vstack((C1, C_step)) # combine spec constraint and pribstar set constraint
-                    d1 = np.concatenate((d1, d_step))
-
                 if C is None:
                     C = C1
                     d = d1
@@ -1231,8 +1209,7 @@ class DynamicFormula(object):
                     d = np.concatenate((d, d1))
 
             if C is not None:
-                if use_base_constraints and len(base_probstar.C) != 0:
-                    print("\n ==== using base constraints for RNN realiaztaion ========\n")
+                if len(base_probstar.C) != 0:
                     C_base = pad_target_C(base_probstar.C, max_nVars)
                     d_base = base_probstar.d
                     C = np.vstack((C, C_base))
@@ -1241,8 +1218,7 @@ class DynamicFormula(object):
                 if len(C.shape) == 1:
                     C = C.reshape(1, max_nVars)
 
-                Vb = pad_target_V(base_probstar.V, max_nVars)
-                S1 = ProbStar(Vb, C, d, base_probstar.mu, base_probstar.Sig,
+                S1 = ProbStar(base_probstar.V, C, d, base_probstar.mu, base_probstar.Sig,
                               base_probstar.pred_lb, base_probstar.pred_ub)
 
                 if not S1.isEmptySet():
@@ -1294,16 +1270,12 @@ class DynamicFormula(object):
         return SAT, p_SAT_MAX, p_SAT_MIN, cdnf.length
     
 
-    def evaluate_for_RNN(self, branch_signal, use_signal_constraints=True, use_base_constraints=False):
+    def evaluate_for_RNN(self, branch_signal):
         'evaluate the satisfaction of the abtract-timed dynamic formula on an RNN probstar signal'
 
         print('Realizing Abstract DNF specification on a ProbStar Signal (RNN)...')
 
-        cdnf = self.realization_for_RNN(
-            branch_signal,
-            use_signal_constraints=use_signal_constraints,
-            use_base_constraints=use_base_constraints,
-        )
+        cdnf = self.realization_for_RNN(branch_signal)
         # print(f"======== cdnf=========:\n {cdnf.print()}")
         print('Length of Computable DNF = {} for branch signal'.format(cdnf.length))
 

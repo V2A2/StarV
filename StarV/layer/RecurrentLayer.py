@@ -212,12 +212,11 @@ class RecurrentLayer(object):
         """Exact reachability with branch tracking (for ProbStarTL).
 
         This returns *branch signals* instead of per-time unions:
-            branch_k = [Y0, Y1, ..., Y(T-1)]
+            branch_i = [O11, O21, ..., O(T-1)1] for the i-th branch, where O(tj) is the output set at time t for that branch.
 
         Notes for RNNs with predicate growth:
         - Each timestep may introduce new predicate variables via minKowskiSum.
         - Branch consistency is preserved by propagating constraints through time.
-        - For TL evaluation, use the last set of each branch as the base probstar.
         """
 
         assert isinstance(In, list), 'error: input must be a list'

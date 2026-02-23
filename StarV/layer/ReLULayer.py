@@ -34,7 +34,6 @@ class ReLULayer(object):
             print("\nReLULayer reach function\n")
 
         if method == 'exact':
-            print(" type of input set before exactReLu:", type(In))
             S = []
             for i in range(0, len(In)):
                 if isinstance(In[i],list):
@@ -45,13 +44,6 @@ class ReLULayer(object):
             return S
         
         elif method == 'approx':
-            # if len(In) >1:
-            #     S =[]
-            #     for i in range(len(In)):
-            #         S1 = PosLin.reachApproxSingleInput(In=In[i], lp_solver=lp_solver, RF=RF, DR=DR, show=show, relu_approx_mode=relu_approx_mode)
-            #         S.append(S1)
-            #     return S
-            # else:
             return PosLin.reachApproxSingleInput(In=In, lp_solver=lp_solver, RF=RF, DR=DR, show=show, relu_approx_mode=relu_approx_mode)
         elif method == 'relax':
             return PosLin.reachApproxSingleInput(In=In, lp_solver=lp_solver, RF=RF, DR=DR, show=show, relu_approx_mode=relu_approx_mode)
