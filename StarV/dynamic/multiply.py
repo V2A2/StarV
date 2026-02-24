@@ -16,7 +16,7 @@ class Multiply(object):
     """
 
     @staticmethod
-    def reachApprox_star(I, idx_x, idx_y, lp_solver='gurobi', RF=0.0, split=False, max_splits=0):
+    def reachApprox_star(I, idx_x, idx_y, lp_solver='gurobi', RF=0.0):
         """
         Compute reachable set approximation for z = x * y using McCormick over-approximation.
         
@@ -31,7 +31,7 @@ class Multiply(object):
         idx_y : int
             Index of second operand (y) in the state
         lp_solver : str
-            Linear programming solver ('gurobi', 'glpk', etc.)
+            Linear programming solver ('gurobi', 'linprog', etc.)
         RF : float
             Relaxation factor for range computation (0 to 1)
         
@@ -40,8 +40,7 @@ class Multiply(object):
         Star
             Output Star set with z = x*y appended as last dimension
         """
-        if split:
-            raise Exception("error: split is not implemented in dynamic.multiply yet")
+        
         assert isinstance(I, Star), 'error: input set must be a Star set'
         assert isinstance(idx_x, int), 'error: idx_x must be an integer'
         assert isinstance(idx_y, int), 'error: idx_y must be an integer'

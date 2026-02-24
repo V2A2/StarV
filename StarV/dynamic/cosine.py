@@ -2,13 +2,14 @@
 Cosine Class (Cosine function)
 
 Author: Zhuoyang Zhou
-Date: 02/09/2026 Update: 02/14/2026
+Date: 02/09/2026 Update: 02/22/2026
 """
 
 # !/usr/bin/python3
 import numpy as np
+import scipy.sparse as sp
 from StarV.set.star import Star
-from StarV.set.imagestar import ImageStar
+# from StarV.set.imagestar import ImageStar
 
 
 class Cosine(object):
@@ -42,7 +43,8 @@ class Cosine(object):
         """Derivative of cosine function: f'(x) = -sin(x)"""
         return -np.sin(x)
 
-    def reachApprox_star(I, opt=True, lp_solver='gurobi', RF =0.0):
+    @staticmethod
+    def _reachApprox_star_all_dims(I, opt=False, lp_solver='gurobi', RF =0.0):
 
         assert isinstance(I, Star), 'error: input set is not a Star set'
 
@@ -517,7 +519,79 @@ class Cosine(object):
         return Star(new_V, new_C, new_d, new_pred_lb, new_pred_ub)
 
     @staticmethod
-    def reach(I, opt=False, lp_solver='gurobi', RF=0.0):
+    def _append_cos_idx_shared(I, idx, opt=False, lp_solver='gurobi', RF=0.0):
+        """
+        New behavior: append y = cos(x_idx) as a new dimension with shared predicates.
+        """
+
+        assert isinstance(I, Star), 'error: input set is not a Star set'
+        assert isinstance(idx, int), 'error: idx must be an integer'
+        assert 0 <= idx < I.dim, f'error: idx {idx} is out of range [0, {I.dim - 1}]'
+
+        # Build 1-D Star that shares the same predicate variables a.
+        V1 = I.V[idx:idx + 1, :]
+        I1 = Star(V1, I.C, I.d, I.pred_lb, I.pred_ub)
+
+        # Reuse existing 1-D cosine envelope logic directly.
+        R1 = Cosine._reachApprox_star_all_dims(I1, opt=opt, lp_solver=lp_solver, RF=RF)
+
+        # R1 has one new beta variable. Append y-row to original state dimension.
+        new_V = np.zeros((I.dim + 1, I.nVars + 2), dtype=np.float64)
+        new_V[:I.dim, :I.nVars + 1] = I.V
+        new_V[I.dim, :] = R1.V[0, :]
+
+        # Split R1 constraints: [extended old C] + [new cosine envelope rows].
+        n_old = I.C.shape[0] if len(I.C) > 0 else 0
+        if len(R1.C) > 0 and R1.C.shape[0] > n_old:
+            C_env = R1.C[n_old:, :]
+            d_env = R1.d[n_old:]
+        else:
+            C_env = np.empty((0, I.nVars + 1), dtype=np.float64)
+            d_env = np.empty((0,), dtype=np.float64)
+
+        # Extend old constraints with zero on beta.
+        if len(I.C) > 0:
+            C0 = np.hstack([I.C, np.zeros((I.C.shape[0], 1), dtype=np.float64)])
+            d0 = I.d.copy()
+        else:
+            C0 = np.empty((0, I.nVars + 1), dtype=np.float64)
+            d0 = np.empty((0,), dtype=np.float64)
+
+        new_C = np.vstack([C0, C_env])
+        new_d = np.hstack([d0, d_env])
+
+        # Append new beta bounds; envelope constraints restrict actual y-range.
+        new_pred_lb = np.hstack([I.pred_lb, -1.0])
+        new_pred_ub = np.hstack([I.pred_ub, 1.0])
+
+        return Star(new_V, new_C, new_d, new_pred_lb, new_pred_ub)
+
+    @staticmethod
+    def reachApprox_star(I, idx=None, opt=False, lp_solver='gurobi', RF=0.0, split=False, max_splits=0):
+        """
+        Compute reachable set approximation for cosine activation using Star sets.
+
+        Modes:
+        - idx is None: original behavior (apply cosine to all dimensions).
+        - idx is int : append y = cos(x_idx) as a new dimension (shared predicates).
+        """
+
+        if split:
+            raise NotImplementedError('error: split=True is not implemented for cosine idx mode yet')
+        _ = max_splits
+
+        # Backward compatibility: old positional usage reachApprox_star(I, opt, ...)
+        if isinstance(idx, (bool, np.bool_)):
+            opt = bool(idx)
+            idx = None
+
+        if idx is None:
+            return Cosine._reachApprox_star_all_dims(I, opt=opt, lp_solver=lp_solver, RF=RF)
+
+        return Cosine._append_cos_idx_shared(I, idx=idx, opt=opt, lp_solver=lp_solver, RF=RF)
+
+    @staticmethod
+    def reach(I, idx=None, opt=False, lp_solver='gurobi', RF=0.0, split=False, max_splits=0):
         """
         Main entry point for reachability analysis with sine activation
 
@@ -538,10 +612,10 @@ class Cosine(object):
             Output reachable set
         """
         if isinstance(I, Star):
-            return Cosine.reachApprox_star(I, opt=opt, lp_solver=lp_solver, RF=RF)
-        elif isinstance(I, ImageStar):
-            shape = I.shape()
-            S = Cosine.reachApprox_star(I.toStar(), opt=opt, lp_solver=lp_solver, RF=RF)
-            return S.toImageStar(image_shape=shape, copy_=False)
+            return Cosine.reachApprox_star(I, idx=idx, opt=opt, lp_solver=lp_solver, RF=RF, split=split, max_splits=max_splits)
+        # elif ImageStar is not None and isinstance(I, ImageStar):
+            # shape = I.shape()
+            # S = Cosine.reachApprox_star(I.toStar(), idx=idx, opt=opt, lp_solver=lp_solver, RF=RF, split=split, max_splits=max_splits)
+            # return S.toImageStar(image_shape=shape, copy_=False)
         else:
             raise Exception('error: unknown input set type')

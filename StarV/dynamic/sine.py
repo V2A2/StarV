@@ -1,7 +1,7 @@
 """
 Sine Class (Sine function): f(x) = sin(x)
 Author: Zhuoyang Zhou
-Date: 02/07/2026 Update: 02/14/2026
+Date: 02/07/2026 Update: 02/22/2026
 """
 
 # !/usr/bin/python3
@@ -43,25 +43,9 @@ class Sine(object):
         return np.cos(x)
 
     @staticmethod
-    def reachApprox_star(I, opt=True, lp_solver='gurobi', RF=0.0):
+    def _reachApprox_star_all_dims(I, opt=False, lp_solver='gurobi', RF=0.0):
         """
-        Compute reachable set approximation for sine activation using Star sets
-
-        Parameters:
-        -----------
-        I : Star
-            Input Star set
-        opt : bool
-            Whether to use optimal approximation (reserved for future use)
-        lp_solver : str
-            Linear programming solver to use ('gurobi', 'linprog', etc.)
-        RF : float
-            Relaxation factor for range computation
-
-        Returns:
-        --------
-        Star
-            Output Star set after sine activation
+        Original behavior: apply sine over-approx to all dimensions.
         """
 
         assert isinstance(I, Star), 'error: input set is not a Star set'
@@ -70,21 +54,21 @@ class Sine(object):
 
         # Get input ranges for each dimension
         l, u = I.getRanges(lp_solver=lp_solver, RF=RF)
-        
+
         # ------------------------------------------------------------------------
         # Periodic range normalization for sine:
         # Shift each interval [l_i, u_i] by 2π*k_i so that it falls into
         # the base window [A, B] = [-π, 3π/2].
         # ------------------------------------------------------------------------
         A = -np.pi
-        B =  3.0 * np.pi / 2.0
-        T =  2.0 * np.pi
+        B = 3.0 * np.pi / 2.0
+        T = 2.0 * np.pi
 
         # Compute integer k such that:
         #   l - T*k >= A  and  u - T*k <= B
         # => k <= (l - A)/T  and  k >= (u - B)/T
-        k_low  = np.ceil((u - B) / T)     # minimal k to push u down into <= B
-        k_high = np.floor((l - A) / T)    # maximal k to keep l above >= A
+        k_low = np.ceil((u - B) / T)  # minimal k to push u down into <= B
+        k_high = np.floor((l - A) / T)  # maximal k to keep l above >= A
 
         # pick k = k_low (should be feasible under width<=B-A)
         k = k_low.astype(np.int64)
@@ -132,7 +116,7 @@ class Sine(object):
         # Convexity: CONVEX (f'' > 0)
         # Constraints: Upper = secant, Lower = tangents
         # ========================================================================
-        map1 = np.where((l[map0] >= -np.pi) & (u[map0] <= -np.pi/2))[0]
+        map1 = np.where((l[map0] >= -np.pi) & (u[map0] <= -np.pi / 2))[0]
         if len(map1):
             map_ = map0[map1]
             l_, u_ = l[map_], u[map_]
@@ -179,7 +163,7 @@ class Sine(object):
         # Convexity: CONVEX (f'' > 0)
         # Strategy: Use tangent method similar to crossing zero, but with minimum
         # ========================================================================
-        map1 = np.where((l[map0] >= -np.pi) & (l[map0] < -np.pi/2) & (u[map0] > -np.pi/2) & (u[map0] <= 0))[0]
+        map1 = np.where((l[map0] >= -np.pi) & (l[map0] < -np.pi / 2) & (u[map0] > -np.pi / 2) & (u[map0] <= 0))[0]
         if len(map1):
             map_ = map0[map1]
             l_, u_ = l[map_], u[map_]
@@ -221,7 +205,7 @@ class Sine(object):
         # Convexity: CONVEX (f'' > 0)
         # Constraints: Upper = secant, Lower = tangents
         # ========================================================================
-        map1 = np.where((l[map0] >= -np.pi/2) & (u[map0] <= 0))[0]
+        map1 = np.where((l[map0] >= -np.pi / 2) & (u[map0] <= 0))[0]
         if len(map1):
             map_ = map0[map1]
             l_, u_ = l[map_], u[map_]
@@ -262,12 +246,12 @@ class Sine(object):
         # ========================================================================
         # Region 4: -π/2 < lb < 0 < ub < π/2 (crossing zero, changing convexity)
         # ========================================================================
-        map1 = np.where((l[map0] >= -np.pi / 2) & (l[map0] < 0) & (u[map0] > 0) & (u[map0] <= np.pi/2))[0]
+        map1 = np.where((l[map0] >= -np.pi / 2) & (l[map0] < 0) & (u[map0] > 0) & (u[map0] <= np.pi / 2))[0]
         if len(map1):
             map_ = map0[map1]
             l_, u_ = l[map_], u[map_]
-            yl_, yu_ = yl[map_], yu[map_]          # yl_=sin(l_), yu_=sin(u_)
-            dyl_, dyu_ = dyl[map_], dyu[map_]      # dyl_=cos(l_), dyu_=cos(u_)
+            yl_, yu_ = yl[map_], yu[map_]  # yl_=sin(l_), yu_=sin(u_)
+            dyl_, dyu_ = dyl[map_], dyu[map_]  # dyl_=cos(l_), dyu_=cos(u_)
             c1, V1 = I.V[map_, 0], I.V[map_, 1:]
             V2 = V0[map_, :]
 
@@ -283,12 +267,12 @@ class Sine(object):
             C42 = np.hstack([-dmin_diag @ V1, V2])
             d42 = dmin * (c1 - u_) + yu_
 
-            if opt == True:
+            if opt is True:
                 # You must implement these for Sine, otherwise set opt=False
                 xou = Sine.optimal_iter_approx_upper(l_, u_)
                 xol = Sine.optimal_iter_approx_lower(l_, u_)
-                dxou = Sine.df(xou)   # cos(xou)
-                dxol = Sine.df(xol)   # cos(xol)
+                dxou = Sine.df(xou)  # cos(xou)
+                dxol = Sine.df(xol)  # cos(xol)
 
                 dxol_diag = np.diag(dxol.flatten())
                 dxou_diag = np.diag(dxou.flatten())
@@ -302,9 +286,6 @@ class Sine(object):
                 d44 = dxou * (c1 - xou) + Sine.f(xou)
 
             else:
-                # Non-optimal branch (direct port)
-                # eps = 1e-12
-                # denom = np.maximum(1 - dmin, eps)
                 denom = 1 - dmin
 
                 gux = (yu_ - dmin * u_) / denom
@@ -333,14 +314,13 @@ class Sine(object):
             C4 = np.empty((0, nv))
             d4 = np.empty((0))
 
-
         # ========================================================================
         # Region 5: 0 < lb < ub < π/2 (increasing, concave)
         # Monotonicity: INCREASING
         # Convexity: CONCAVE (f'' < 0)
         # Constraints: Upper = tangents, Lower = secant
         # ========================================================================
-        map1 = np.where((l[map0] >= 0) & (u[map0] <= np.pi/2))[0]
+        map1 = np.where((l[map0] >= 0) & (u[map0] <= np.pi / 2))[0]
         if len(map1):
             map_ = map0[map1]
             l_, u_ = l[map_], u[map_]
@@ -384,7 +364,7 @@ class Sine(object):
         # Convexity: CONCAVE (f'' < 0)
         # Strategy: Upper bound must include maximum value 1
         # ========================================================================
-        map1 = np.where((l[map0] >= 0) & (l[map0] < np.pi/2) & (u[map0] > np.pi/2) & (u[map0] <= np.pi))[0]
+        map1 = np.where((l[map0] >= 0) & (l[map0] < np.pi / 2) & (u[map0] > np.pi / 2) & (u[map0] <= np.pi))[0]
         if len(map1):
             map_ = map0[map1]
             l_, u_ = l[map_], u[map_]
@@ -426,7 +406,7 @@ class Sine(object):
         # Convexity: CONCAVE (f'' < 0)
         # Constraints: Upper = tangents, Lower = secant
         # ========================================================================
-        map1 = np.where((l[map0] >= np.pi/2) & (u[map0] <= np.pi))[0]
+        map1 = np.where((l[map0] >= np.pi / 2) & (u[map0] <= np.pi))[0]
         if len(map1):
             map_ = map0[map1]
             l_, u_ = l[map_], u[map_]
@@ -463,16 +443,16 @@ class Sine(object):
         else:
             C7 = np.empty((0, nv))
             d7 = np.empty((0))
-        
+
         # ========================================================================
         # Region 8: π/2 < lb < π < ub (crossing zero, changing convexity)
-        # ========================================================================    
-        map1 = np.where((l[map0] > np.pi/2) & (l[map0] < np.pi) & (u[map0] > np.pi) & (u[map0] < 3*np.pi/2))[0]
+        # ========================================================================
+        map1 = np.where((l[map0] > np.pi / 2) & (l[map0] < np.pi) & (u[map0] > np.pi) & (u[map0] < 3 * np.pi / 2))[0]
         if len(map1):
             map_ = map0[map1]
             l_, u_ = l[map_], u[map_]
-            yl_, yu_ = yl[map_], yu[map_]          # sin(l_), sin(u_)
-            dyl_, dyu_ = dyl[map_], dyu[map_]      # cos(l_), cos(u_) (negative in this region)
+            yl_, yu_ = yl[map_], yu[map_]  # sin(l_), sin(u_)
+            dyl_, dyu_ = dyl[map_], dyu[map_]  # cos(l_), cos(u_) (negative in this region)
             c1, V1 = I.V[map_, 0], I.V[map_, 1:]
             V2 = V0[map_, :]
 
@@ -488,7 +468,7 @@ class Sine(object):
             C82 = np.hstack([-dmin_diag @ V1, V2])
             d82 = dmin * (c1 - u_) + yu_
 
-            if opt == True:
+            if opt is True:
                 # If you ever implement these for sine, you can use them here too
                 xou = Sine.optimal_iter_approx_upper(l_, u_)
                 xol = Sine.optimal_iter_approx_lower(l_, u_)
@@ -508,8 +488,6 @@ class Sine(object):
 
             else:
                 # Non-optimal branch: mirror of Region-4 (y=x) replaced by y = -x + π
-                # Intersections of the line y = dmin*(x-u)+yu with y = -x + π
-                # Solve: -x + π = dmin*(x-u) + yu  ->  (1 + dmin)x = π - yu + dmin*u
                 denom = 1 + dmin
 
                 gux = (np.pi - yu_ + dmin * u_) / denom
@@ -554,17 +532,14 @@ class Sine(object):
         new_C = np.vstack((C0, C1, C2, C3, C4, C5, C6, C7, C8))
         new_d = np.hstack((d0, d1, d2, d3, d4, d5, d6, d7, d8))
 
-        # new_pred_lb = np.hstack((I.pred_lb, yl[map0]))
-        # new_pred_ub = np.hstack((I.pred_ub, yu[map0]))
-
         # ---- Robust β-predicate bounds for all regions (single pass) ----
-        idx = map0  # Only set bounds for the newly added m β dimensions
-        yL = np.minimum(yl[idx], yu[idx])  # Get min/max by endpoint
-        yU = np.maximum(yl[idx], yu[idx])
+        idx_ = map0  # Only set bounds for the newly added m β dimensions
+        yL = np.minimum(yl[idx_], yu[idx_])  # Get min/max by endpoint
+        yU = np.maximum(yl[idx_], yu[idx_])
 
         # If the interval passes through the global minimum/maximum point, clip it to -1/+1
-        cross_min = (l[idx] < -np.pi / 2) & (u[idx] > -np.pi / 2)  # Passing sin minimum -1
-        cross_max = (l[idx] < np.pi / 2) & (u[idx] > np.pi / 2)  # Passing sin maximum +1
+        cross_min = (l[idx_] < -np.pi / 2) & (u[idx_] > -np.pi / 2)  # Passing sin minimum -1
+        cross_max = (l[idx_] < np.pi / 2) & (u[idx_] > np.pi / 2)  # Passing sin maximum +1
         if np.any(cross_min):
             yL[cross_min] = -1.0
         if np.any(cross_max):
@@ -576,31 +551,87 @@ class Sine(object):
         return Star(new_V, new_C, new_d, new_pred_lb, new_pred_ub)
 
     @staticmethod
-    def reach(I, opt=False, lp_solver='gurobi', RF=0.0):
+    def _append_sin_idx_shared(I, idx, opt=False, lp_solver='gurobi', RF=0.0):
         """
-        Main entry point for reachability analysis with sine activation
+        New behavior: append y = sin(x_idx) as a new dimension with shared predicates.
+        """
 
-        Parameters:
-        -----------
-        I : Star or ImageStar
-            Input set
-        opt : bool
-            Whether to use optimal approximation (reserved)
-        lp_solver : str
-            Linear programming solver
-        RF : float
-            Relaxation factor
+        assert isinstance(I, Star), 'error: input set is not a Star set'
+        assert isinstance(idx, int), 'error: idx must be an integer'
+        assert 0 <= idx < I.dim, f'error: idx {idx} is out of range [0, {I.dim - 1}]'
 
-        Returns:
-        --------
-        Star or ImageStar
-            Output reachable set
+        # Build 1-D Star that shares the same predicate variables a.
+        # This preserves correlation in the envelope constraints C(a, beta) <= d.
+        V1 = I.V[idx:idx + 1, :]
+        I1 = Star(V1, I.C, I.d, I.pred_lb, I.pred_ub)
+
+        # Reuse existing 1-D sine envelope logic directly.
+        R1 = Sine._reachApprox_star_all_dims(I1, opt=opt, lp_solver=lp_solver, RF=RF)
+
+        # R1 has one new beta variable. Append y-row to original state dimension.
+        new_V = np.zeros((I.dim + 1, I.nVars + 2))
+        new_V[:I.dim, :I.nVars + 1] = I.V
+        new_V[I.dim, :] = R1.V[0, :]
+
+        # Split R1 constraints: [extended old C] + [new sine envelope rows].
+        n_old = I.C.shape[0] if len(I.C) > 0 else 0
+        if len(R1.C) > 0 and R1.C.shape[0] > n_old:
+            C_env = R1.C[n_old:, :]
+            d_env = R1.d[n_old:]
+        else:
+            C_env = np.empty((0, I.nVars + 1))
+            d_env = np.empty((0,))
+
+        # Extend old constraints with zero on beta.
+        if len(I.C) > 0:
+            C0 = np.hstack([I.C, np.zeros((I.C.shape[0], 1))])
+            d0 = I.d.copy()
+        else:
+            C0 = np.empty((0, I.nVars + 1))
+            d0 = np.empty((0,))
+
+        new_C = np.vstack([C0, C_env])
+        new_d = np.hstack([d0, d_env])
+
+        new_pred_lb = np.hstack([I.pred_lb, R1.pred_lb[-1]])
+        new_pred_ub = np.hstack([I.pred_ub, R1.pred_ub[-1]])
+
+        return Star(new_V, new_C, new_d, new_pred_lb, new_pred_ub)
+
+    @staticmethod
+    def reachApprox_star(I, idx=None, opt=False, lp_solver='gurobi', RF=0.0, split=False, max_splits=0):
+        """
+        Compute reachable set approximation for sine activation using Star sets.
+
+        Modes:
+        - idx is None: original behavior (apply sine to all dimensions).
+        - idx is int : append y = sin(x_idx) as a new dimension (shared predicates).
+        """
+
+        if split:
+            raise NotImplementedError('error: split=True is not implemented for sine idx mode yet')
+        _ = max_splits
+
+        # Backward compatibility: old positional usage reachApprox_star(I, opt, ...)
+        if isinstance(idx, (bool, np.bool_)):
+            opt = bool(idx)
+            idx = None
+
+        if idx is None:
+            return Sine._reachApprox_star_all_dims(I, opt=opt, lp_solver=lp_solver, RF=RF)
+
+        return Sine._append_sin_idx_shared(I, idx=idx, opt=opt, lp_solver=lp_solver, RF=RF)
+
+    @staticmethod
+    def reach(I, idx=None, opt=False, lp_solver='gurobi', RF=0.0, split=False, max_splits=0):
+        """
+        Main entry point for reachability analysis with sine activation.
         """
         if isinstance(I, Star):
-            return Sine.reachApprox_star(I, opt=opt, lp_solver=lp_solver, RF=RF)
-        elif isinstance(I, ImageStar):
-            shape = I.shape()
-            S = Sine.reachApprox_star(I.toStar(), opt=opt, lp_solver=lp_solver, RF=RF)
-            return S.toImageStar(image_shape=shape, copy_=False)
+            return Sine.reachApprox_star(I, idx=idx, opt=opt, lp_solver=lp_solver, RF=RF, split=split, max_splits=max_splits)
+        # elif isinstance(I, ImageStar):
+            # shape = I.shape()
+            # S = Cosine.reachApprox_star(I.toStar(), idx=idx, opt=opt, lp_solver=lp_solver, RF=RF, split=split, max_splits=max_splits)
+            # return S.toImageStar(image_shape=shape, copy_=False)
         else:
             raise Exception('error: unknown input set type')
