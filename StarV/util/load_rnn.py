@@ -1,11 +1,15 @@
+"""
+Load RNN 
+Author: Qing Liu
+Date: 12/25/2025
+"""
+
 from scipy.io import loadmat
 import os
 import numpy as np
-from scipy.linalg import block_diag
 from StarV.set.star import Star
 from StarV.set.probstar import ProbStar
 import pandas as pd
-from StarV.util.plot import plot_probstar,plot_2D_Star
 
 
 def load_trained_CMAPSS_data():
@@ -125,16 +129,7 @@ def get_Star_set(col_point, eps,Ti):
    
     return X
 
-def get_ProbStar_set_RNN(
-    input_data,
-    noises,
-    feature_idx,
-    per_step_mu=None,
-    per_step_Sig=None,
-    per_step_pred_lb=None,
-    per_step_pred_ub=None,
-):
-
+def get_ProbStar_set_RNN(input_data,noises,feature_idx,):
 
     temperature_noise= noises[0]
     pressure_noise = noises[1]
@@ -145,12 +140,6 @@ def get_ProbStar_set_RNN(
     temperature_sensor_indices = feature_idx[0]
     pressure_sensor_indices = feature_idx[1]
     speed_sensor_indices = feature_idx[2]
-
-    # print(f"input data shape:{input_data.shape},\n input data head 20:{input_data}")
-
-    # transposed_input_data = input_data.T
-
-    # print(f"transposed input data shape:{transposed_input_data.shape}")
 
     # returns list of initial states bounds for each dimension, construct a ProbSatr for initial state
     init_state_bounds_list = []
@@ -192,11 +181,7 @@ def get_ProbStar_set_RNN(
             else:  
                 raise ValueError("Dimension index out of range")
             single_data_points_bounds.append((lb, ub))
-        # print("single_data_points_bounds:",single_data_points_bounds)
-        # print("shape of single_data_points_bounds:",len(single_data_points_bounds))
         init_state_bounds_list.append(single_data_points_bounds)
-    # print("init_state_bounds_list:",init_state_bounds_list)
-    # print("shape of init_state_bounds_list:",len(init_state_bounds_list))
 
     # create Star for initial state 
     X = []
@@ -204,43 +189,11 @@ def get_ProbStar_set_RNN(
 
     for i,bounds in enumerate(init_state_bounds_list):
         init_state_lb = np.array([b[0] for b in bounds])
-        print("init_state_lb:",init_state_lb)
+        # print("init_state_lb:",init_state_lb)
         init_state_ub = np.array([b[1] for b in bounds])
-        print("init_state_ub:",init_state_ub)
+        # print("init_state_ub:",init_state_ub)
 
-        # X0 = Star(init_state_lb,init_state_ub)
-        # lb_X0 = X0.getRanges()[0]
-        # ub_X0 = X0.getRanges()[1]
-        # print("==== get ranges LB======:",lb_X0)
-        # print("==== get ranges UB ======:",ub_X0)
-
-        # mu = 0.5*(lb_X0+ub_X0)
-        # a = 3
-        # sig = (mu-lb_X0)/a
-        # epsilon = 1e-12
-        # sig = np.maximum(sig, epsilon).astype(np.float64)
-        # Sig = np.diag(np.square(sig)).astype(np.float64)
-        # X0_probstar = ProbStar(mu, Sig,lb_X0,ub_X0)
-        # mu = 0.5*(init_state_lb+init_state_ub)
-        # a = 5
-        # sig = (mu-init_state_lb)/a
-        # epsilon = 1e-10
-        # sig = np.maximum(sig, epsilon).astype(np.float64)
-        # Sig = np.diag(np.square(sig)).astype(np.float64)
-        # X0_probstar = ProbStar(mu, Sig,init_state_lb,init_state_ub)
-        # # X0_probstar.C = np.empty([1,X0_probstar.nVars])  
-        # # X0_probstar.d = np.empty([1])
-        # print(f"initial probstar set {i}:{X0_probstar}")
-        # print(f"probability of the initial ProbStar set {i}:{X0_probstar.estimateProbability()}")
-        # X.append(X0_probstar)
-        
-        # map_mat = np.array([[0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]])
         X0 = Star(init_state_lb,init_state_ub)
-        print("X0_V_shape:",X0.V.shape)
-        # X0.C = np.empty([X0.d.shape[0],X0.nVars])  
-        # X0.d = np.empty([X0.d.shape[0]])
-        print("X0_C:",X0.C)
-        # Default canonical predicate distribution (same shape each step).
         mu = 0.5*(X0.pred_lb + X0.pred_ub)
         a = 3
         sig = (mu - X0.pred_lb)/a
@@ -250,27 +203,9 @@ def get_ProbStar_set_RNN(
         pred_lb = X0.pred_lb
         pred_ub = X0.pred_ub
 
-        # # Optional per-step overrides.
-        # if per_step_mu is not None:
-        #     mu = np.asarray(per_step_mu[i], dtype=float)
-        # if per_step_Sig is not None:
-        #     Sig = np.asarray(per_step_Sig[i], dtype=float)
-        # if per_step_pred_lb is not None:
-        #     pred_lb = np.asarray(per_step_pred_lb[i], dtype=float)
-        # if per_step_pred_ub is not None:
-        #     pred_ub = np.asarray(per_step_pred_ub[i], dtype=float)
-
         X0_probstar = ProbStar(X0.V, X0.C, X0.d, mu, Sig, pred_lb, pred_ub)
-        # print(f"initial probstar set {i}:{X0_probstar}")
-        # print(f"each initial probsatrset V:{X0_probstar.V}, C:{X0_probstar.C},d:{X0_probstar.d}")
         print(f"probability of the initial ProbStar set {i}:{X0_probstar.estimateProbability()}")
         X.append(X0_probstar)
-
-        # star_set = X0.affineMap(map_mat)
-        # # plot_probstar(set)
-        # plot_2D_Star(star_set)
-
-        # print("Input ProbStar set constructed:",X0_probstar)
 
     return X
 
@@ -283,8 +218,8 @@ def get_ProbStar_set(col_point, eps,Ti):
         col_points.append(col_point) # repeating Ti times
         input_points = np.hstack(col_points) 
 
-    print("input_points-len:",len(input_points))
-    print("input_points-shape:",input_points.shape)
+    # print("input_points-len:",len(input_points))
+    # print("input_points-shape:",input_points.shape)
     x = input_points
     n = x.shape[1]
     X = []

@@ -97,7 +97,6 @@ class RecurrentLayer(object):
 
             if t == 0:
                 # First timestep: h0 = ReLU(Whx * x + bhx)
-        
                 WIn = I.affineMap(self.Whx, self.bhx)
                 h_out  = ReLULayer.reach([WIn], method=method)
                 hidden_states = h_out
@@ -106,30 +105,17 @@ class RecurrentLayer(object):
                 # Subsequent timesteps: h_t = ReLU(Whx * x_t + bhx + Whh * h_{t-1})
                 hidden_states = []
                 prev_hidden = H[t - 1]
-                # print("===== first affine for initial input set ========")
                 WIn = I.affineMap(self.Whx, self.bhx)
-                # print(f" for minsum === \n WIn{t}: V_shape:{WIn.V.shape}, C:{WIn.C},C_shape:{WIn.C.shape}d:{WIn.d}")
 
                 for k, h_prev in enumerate(prev_hidden):
-                    # print("==== second affine for h_recurrent====")
                     if self.bhh is not None:
                         h_recurrent = h_prev.affineMap(self.Whh,self.bhh)
                     else:
                         h_recurrent = h_prev.affineMap(self.Whh)
-                    # print("\n====== end affine======")
-
-                    # if len(h_recurrent.C) == 0 :
-                        # print(f"\n h_recurrent  V_type:{(type(h_recurrent.V))}, V_shape:{h_recurrent.V.shape},\n C_type:{type(h_recurrent.C)},C: {h_recurrent.C}d:{h_recurrent.d},h_pred_lb:{h_recurrent.pred_lb}")
-                    # else:
-                        # print(f"\n h_recurrent  V_type:{(type(h_recurrent.V))}, V_shape:{h_recurrent.V.shape},\n C_type:{type(h_recurrent.C.shape)},C: {h_recurrent.C}d:{h_recurrent.d},h_pred_lb:{h_recurrent.pred_lb}")
-
                     summed = h_recurrent.minKowskiSum(WIn)
-                    # print(f"summed V_type:{(type(summed.V))}, V_shape:{summed.V.shape},\n C_type:{type(summed.C)},C: {summed.C}d:{summed.d},h_pred_lb:{summed.pred_lb}")
                     # Apply ReLU
                     h_out = ReLULayer.reach([summed], method=method)
-                    # print(f"Number of h_out sets after relu in step {t}:{len(h_out)}")
                     hidden_states.extend(h_out)
-                # print(f"Number of hidden_states sets after minsum in step {t}:{len(hidden_states)}")
 
             # Save hidden states
             H.append(hidden_states)
@@ -209,8 +195,8 @@ class RecurrentLayer(object):
 
     def reachExactBranches(self, In, post_layers=None, lp_solver="gurobi", pool=None,
                            p_filter=None, show=False):
-        """Exact reachability with branch tracking (for ProbStarTL).
 
+        """ Exact reachability with branch tracking (for ProbStarTL).
         This returns *branch signals* instead of per-time unions:
             branch_i = [O11, O21, ..., O(T-1)1] for the i-th branch, where O(tj) is the output set at time t for that branch.
 
@@ -219,6 +205,8 @@ class RecurrentLayer(object):
         - Branch consistency is preserved by propagating constraints through time.
         """
 
+        # Qing Liu, 02/15/2026 
+        
         assert isinstance(In, list), 'error: input must be a list'
         assert len(In) > 0, 'error: input is empty'
         assert all(isinstance(s, ProbStar) for s in In), 'error: input must be a list of ProbStars'

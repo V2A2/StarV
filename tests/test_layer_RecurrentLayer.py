@@ -6,15 +6,15 @@ Date: 9/28/2025
 
 from curses.ascii import RS
 import numpy as np
-from StarV.RNN_ProbStar_rechability import reachability_with_RNN_exact_branches, verify_tl_over_branches
+from StarV.RNN_ProbStar_rechability import  verify_tl_over_branches
 from StarV.set.star import Star
 from StarV.set.probstar import ProbStar
 from StarV.layer.RecurrentLayer import RecurrentLayer
 from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
 from StarV.layer.ReLULayer import ReLULayer
 from StarV.net.network import NeuralNetwork
-from StarV.util.load_rnn import load_simple_rnn, get_Star_set,get_ProbStar_set
-from StarV.util.plot import plot_2D_Star,plot_probstar_signal,plot_probstar,plot_SAT_trace,plot_probstar_reachset_with_unsafeSpec
+from StarV.util.load_rnn import load_simple_rnn,get_ProbStar_set
+from StarV.util.plot import plot_2D_Star
 import matplotlib.pyplot as plt
 from StarV.fun.poslin import PosLin
 from StarV.verifier.verifier import checkSafetyProbStar
@@ -559,46 +559,6 @@ class Test(object):
         P_1 = ProbStar(mu_1, Sig_1, lb_X, ub_X)
         print("ProbStar_1 info:",P_1,"probility_1:",P_1.estimateProbability())
 
-
-    def test_probstar_combine(self):
-        # np.random.seed(42)
-        lb = np.array([0,1])
-        ub = np.array([1.5,2.5])
-        # X = Star.rand(2)
-        X = Star(lb,ub)
-        print("First Star info:",X)
-        mu = 0.5*(X.pred_ub + X.pred_lb) 
-        a  = 3
-        sig= (X.pred_ub-mu )/a
-        epsilon = 1e-10
-        sig = np.maximum(sig, epsilon)
-        Sig = np.diag(np.square(sig))
-        P = ProbStar(X.V,X.C,X.d, mu, Sig,X.pred_lb,X.pred_ub)
-        print("ProbStar info:",P,"probility:",P.estimateProbability())
-        plot_probstar(P)
-        
-        # X1 =Star.rand(2)
-        lb1 = np.array([-1,0])
-        ub2 = np.array([0.5,1.5])
-        # X = Star.rand(2)
-        X1 = Star(lb1,ub2)
-        print("Second Star info:",X1)
-        mu = 0.5*(X1.pred_ub + X1.pred_lb) 
-        a  = 3
-        sig= (X1.pred_ub-mu )/a
-        epsilon = 1e-10
-        sig = np.maximum(sig, epsilon)
-        Sig = np.diag(np.square(sig))
-        P1 = ProbStar(X1.V,X1.C,X1.d, mu, Sig,X1.pred_lb,X1.pred_ub)
-        print("ProbStar info:",P1,"probility:",P1.estimateProbability())
-        plot_probstar(P1)
-
-        Combine_P = P.Combine(P1)
-
-        plot_probstar_signal([P,P1])
-        # plot_2D_Star(S)
-        plot_probstar(Combine_P)
-
     def test_relu(self):
         np.random.seed(42)
         self.n_tests = self.n_tests + 1
@@ -796,6 +756,7 @@ class Test(object):
         #     # verify_time=checking_time + reach_time_duration    
               
     def test_ProbStar_TL_verification(self):
+
         np.random.seed(42)
         self.n_tests = self.n_tests + 1
         # try:
@@ -901,7 +862,6 @@ if __name__ == "__main__":
     # test_RecurrentLayer.test_multiRandomLayers()
     # test_RecurrentLayer.test_multiMinsum()
     # test_RecurrentLayer.test_probstar_construct()
-    # test_RecurrentLayer.test_probstar_combine()
     # test_RecurrentLayer.test_relu()
     # test_RecurrentLayer.test_ProbSatrTL()
     test_RecurrentLayer.test_ProbStar_TL_verification()

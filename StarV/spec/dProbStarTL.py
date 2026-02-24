@@ -1129,10 +1129,10 @@ class DynamicFormula(object):
 
     def realization_for_RNN(self, branch_signal):
         """Realization for RNN branch_signal where each timestep has independent  set as input set.
-
         Args:
             branch_signal: list of ProbStar  sets(one per timestep)
         """
+        # Qing Liu, 02/15/2026 
 
         assert isinstance(branch_signal, list), 'error: probstar signal should be a list'
         T = len(branch_signal)
@@ -1149,7 +1149,6 @@ class DynamicFormula(object):
                 nVarMaxID = i
 
         base_probstar = copy.deepcopy(branch_signal[nVarMaxID])
-        print(f"=====================base_probstar info for RNN realization: C ={base_probstar.C}, d ={base_probstar.d}=====================\n")
         max_nVars = base_probstar.nVars
         # if len(base_probstar.C) != 0:
         #     base_probstar.C = np.empty((0, max_nVars))
@@ -1169,15 +1168,6 @@ class DynamicFormula(object):
                 pad = np.zeros((C.shape[0], target_nvars - m))
                 return np.hstack((C, pad))
             return C
-
-        def pad_target_V(V, target_nvars):
-            cur_nvars = V.shape[1] - 1
-            if cur_nvars == target_nvars:
-                return V
-            if cur_nvars < target_nvars:
-                pad = np.zeros((V.shape[0], target_nvars - cur_nvars))
-                return np.hstack((V, pad))
-            return V
 
         constraints = []
 
@@ -1273,8 +1263,9 @@ class DynamicFormula(object):
     def evaluate_for_RNN(self, branch_signal):
         'evaluate the satisfaction of the abtract-timed dynamic formula on an RNN probstar signal'
 
-        print('Realizing Abstract DNF specification on a ProbStar Signal (RNN)...')
+        # Qing Liu, 02/15/2026 
 
+        print('Realizing Abstract DNF specification on a ProbStar Signal (RNN)...')
         cdnf = self.realization_for_RNN(branch_signal)
         # print(f"======== cdnf=========:\n {cdnf.print()}")
         print('Length of Computable DNF = {} for branch signal'.format(cdnf.length))
