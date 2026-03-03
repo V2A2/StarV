@@ -1,6 +1,6 @@
 """
 Even power operater
-Zhuoyang Zhou, 02/05/2026, Update: 02/20/2026
+Zhuoyang Zhou, 02/05/2026
 """
 
 import numpy as np
@@ -25,7 +25,7 @@ class PowerEven(object):
         return n * np.power(x, n - 1)
     
     @staticmethod
-    def _reachApprox_star_all_dims(I, n, opt=True, lp_solver='gurobi', RF=0.0):
+    def reachApprox_star(I, n, opt=True, lp_solver='gurobi', RF=0.0):
         assert isinstance(I, Star), 'error: input set must be a Star set'
         
         N = I.dim
@@ -170,78 +170,11 @@ class PowerEven(object):
         new_pred_ub = np.hstack((I.pred_ub, y_ub))
 
         return Star(new_V, new_C, new_d, new_pred_lb, new_pred_ub)
-
-    @staticmethod
-    def _append_pow_even_idx_shared(I, idx, n, opt=True, lp_solver='gurobi', RF=0.0):
-        """
-        Append y = x_idx^n (n even) as a new dimension with shared predicates.
-        """
-
-        assert isinstance(I, Star), 'error: input set must be a Star set'
-        assert isinstance(idx, int), 'error: idx must be an integer'
-        assert 0 <= idx < I.dim, f'error: idx {idx} is out of range [0, {I.dim - 1}]'
-
-        V1 = I.V[idx:idx + 1, :]
-        I1 = Star(V1, I.C, I.d, I.pred_lb, I.pred_ub)
-        R1 = PowerEven._reachApprox_star_all_dims(I1, n=n, opt=opt, lp_solver=lp_solver, RF=RF)
-
-        new_V = np.zeros((I.dim + 1, I.nVars + 2), dtype=np.float64)
-        new_V[:I.dim, :I.nVars + 1] = I.V
-        new_V[I.dim, :] = R1.V[0, :]
-
-        n_old = I.C.shape[0] if len(I.C) > 0 else 0
-        if len(R1.C) > 0 and R1.C.shape[0] > n_old:
-            C_env = R1.C[n_old:, :]
-            d_env = R1.d[n_old:]
-        else:
-            C_env = np.empty((0, I.nVars + 1), dtype=np.float64)
-            d_env = np.empty((0,), dtype=np.float64)
-
-        if len(I.C) > 0:
-            C0 = np.hstack([I.C, np.zeros((I.C.shape[0], 1), dtype=np.float64)])
-            d0 = I.d.copy()
-        else:
-            C0 = np.empty((0, I.nVars + 1), dtype=np.float64)
-            d0 = np.empty((0,), dtype=np.float64)
-
-        new_C = np.vstack([C0, C_env])
-        new_d = np.hstack([d0, d_env])
-        new_pred_lb = np.hstack([I.pred_lb, -1.0])
-        new_pred_ub = np.hstack([I.pred_ub, 1.0])
-
-        return Star(new_V, new_C, new_d, new_pred_lb, new_pred_ub)
-
-    @staticmethod
-    def reachApprox_star(I, idx=None, n=None, opt=True, lp_solver='gurobi', RF=0.0, split=False, max_splits=0):
-        """
-        Compute reachable set approximation for even power.
-
-        Modes:
-        - idx is None: original behavior (apply power to all dimensions).
-        - idx is int : append y = (x_idx)^n as a new dimension (shared predicates).
-        """
-
-        if split:
-            raise NotImplementedError('error: split=True is not implemented for pow_even idx mode yet')
-        _ = max_splits
-
-        # Backward compatibility: old positional usage reachApprox_star(I, n, ...)
-        if n is None and isinstance(idx, int):
-            n = idx
-            idx = None
-
-        assert isinstance(n, int), "n must be an integer"
-        assert n > 0 and n % 2 == 0, "n must be a positive even integer"
-
-        if idx is None:
-            return PowerEven._reachApprox_star_all_dims(I, n=n, opt=opt, lp_solver=lp_solver, RF=RF)
-
-        return PowerEven._append_pow_even_idx_shared(I, idx=idx, n=n, opt=opt, lp_solver=lp_solver, RF=RF)
     
     @staticmethod
-    def reach(I, n, idx=None, opt=False, delta=0.98, lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False, split=False, max_splits=0):
+    def reach(I, n, opt=False, delta=0.98, lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
         if isinstance(I, Star):
-            return PowerEven.reachApprox_star(I, idx=idx, n=n, opt=opt, lp_solver=lp_solver, RF=RF, split=split, max_splits=max_splits)
+            return PowerEven.reachApprox_star(I, n=n, opt=opt, lp_solver=lp_solver, RF=RF)
         # elif isinstance(I, SparseStar):
         #     return PowerEven.reachApprox_sparse(I=I, n=n, opt=opt, delta=delta, lp_solver=lp_solver, RF=RF, DR=DR, show=show)
         # elif isinstance(I, ImageStar):

@@ -1,88 +1,149 @@
 """
-DAG expression graph for lifting workflows.
+Expression graph utilities for lifting DAGs.
 Author: Zhuoyang Zhou
-Date: 02/17/2026
+Date: 02/17/2026 Updated: 2026/02/27
 """
-
-from collections import deque
-
 from StarV.lifting.exprnode import ExprNode
 
 
-class ExpressionGraph:
-    """A minimal directed acyclic expression graph."""
+class ExprGraph:
+    """
+    A lightweight DAG wrapper around a list of ExprNode objects.
 
-    def __init__(self) -> None:
-        self.nodes: dict[int | str, ExprNode] = {}
-        self.output_node_ids: list[int | str] = []
+    Responsibilities:
+      1) Build id -> node index
+      2) Validate references (inputs exist)
+      3) Build dependency structure (inDegree + successors)
+      4) Provide topological order for execution
+    """
 
-    def add_node(
-        self,
-        node_id: int | str,
-        op: str,
-        inputs: list[int | str] | None = None,
-        params: dict | None = None,
-    ) -> ExprNode:
-        if node_id in self.nodes:
-            raise ValueError(f"Duplicate node id '{node_id}'")
+    def __init__(self, nodes):
+        self.nodes = list(nodes) if nodes is not None else []
+        self.idToNode = {}
+        self.inDegree = {}
+        self.successors = {}
+        self.buildIndex()
+        self.buildDeps()
 
-        node = ExprNode(
-            node_id=node_id,
-            op=op,
-            inputs=[] if inputs is None else list(inputs),
-            params={} if params is None else dict(params),
-        )
-        self.nodes[node_id] = node
-        return node
+    def buildIndex(self):
+        """Build id -> node map, and check duplicate ids."""
+        self.idToNode = {}
+        for node in self.nodes:
+            if node is None:
+                raise ValueError("ExprGraph: found None in node list")
 
-    def add_var(self, node_id: int | str, name: str) -> ExprNode:
-        return self.add_node(node_id=node_id, op='var', inputs=[], params={'name': name})
+            nodeId = node.id
+            if nodeId in self.idToNode:
+                raise ValueError("ExprGraph: duplicate node id '{}'".format(nodeId))
 
-    def add_const(self, node_id: int | str, value: float) -> ExprNode:
-        return self.add_node(node_id=node_id, op='const', inputs=[], params={'value': float(value)})
+            self.idToNode[nodeId] = node
 
-    def set_outputs(self, output_node_ids: list[int | str]) -> None:
-        for node_id in output_node_ids:
-            if node_id not in self.nodes:
-                raise ValueError(f"Unknown output node id '{node_id}'")
-        self.output_node_ids = list(output_node_ids)
+    def buildDeps(self):
+        """
+        Build:
+          - inDegree[nodeId] = number of inputs
+          - successors[inputId] = list of nodeIds that depend on inputId
+        Also validates that every input reference exists.
+        """
+        # initialize tables
+        self.inDegree = {}
+        self.successors = {}
+        for node in self.nodes:
+            self.inDegree[node.id] = 0
+            self.successors[node.id] = []
 
-    def topological_sort(self) -> list[int | str]:
-        if len(self.nodes) == 0:
-            return []
+        # fill edges
+        for node in self.nodes:
+            nodeId = node.id
+            inputs = node.inputs if node.inputs is not None else []
 
-        indegree: dict[int | str, int] = {nid: 0 for nid in self.nodes}
-        succ: dict[int | str, list[int | str]] = {nid: [] for nid in self.nodes}
+            # validate references
+            for inId in inputs:
+                if inId not in self.idToNode:
+                    raise ValueError("ExprGraph: node '{}' references missing input id '{}'".format(nodeId, inId))
 
-        for nid, node in self.nodes.items():
-            for src in node.inputs:
-                if src not in self.nodes:
-                    raise ValueError(f"Node '{nid}' depends on unknown input node '{src}'")
-                indegree[nid] += 1
-                succ[src].append(nid)
+                # edge: inId -> nodeId
+                self.successors[inId].append(nodeId)
+                self.inDegree[nodeId] += 1
 
-        q = deque([nid for nid, deg in indegree.items() if deg == 0])
-        order: list[int | str] = []
+    def getNode(self, nodeId):
+        """Return node by id."""
+        if nodeId not in self.idToNode:
+            raise KeyError("ExprGraph: unknown node id '{}'".format(nodeId))
+        return self.idToNode[nodeId]
 
-        while q:
-            cur = q.popleft()
-            order.append(cur)
-            for nxt in succ[cur]:
-                indegree[nxt] -= 1
-                if indegree[nxt] == 0:
-                    q.append(nxt)
+    def getRoots(self):
+        """Return all root nodes (inDegree == 0)."""
+        roots = []
+        for node in self.nodes:
+            if self.inDegree.get(node.id, 0) == 0:
+                roots.append(node)
+        return roots
 
-        if len(order) != len(self.nodes):
-            raise ValueError('Expression graph is not a DAG (cycle detected)')
+    def topoSort(self):
+        """
+        Return nodes in a valid topological order (Kahn's algorithm).
+        Raises an error if a cycle exists.
+        """
+        # copy degrees so we don't destroy the stored ones
+        deg = {}
+        for k, v in self.inDegree.items():
+            deg[k] = v
 
-        return order
+        # init queue with inDegree==0
+        queue = []
+        for node in self.nodes:
+            if deg[node.id] == 0:
+                queue.append(node.id)
 
-    def validate(self) -> None:
-        self.topological_sort()
+        orderIds = []
+        head = 0
 
-        if len(self.output_node_ids) == 0:
-            raise ValueError('Expression graph has no outputs; call set_outputs([...])')
+        # standard BFS-like process
+        while head < len(queue):
+            curId = queue[head]
+            head += 1
 
-        for nid in self.output_node_ids:
-            if nid not in self.nodes:
-                raise ValueError(f"Unknown output node id '{nid}'")
+            orderIds.append(curId)
+
+            for nxtId in self.successors.get(curId, []):
+                deg[nxtId] -= 1
+                if deg[nxtId] == 0:
+                    queue.append(nxtId)
+
+        # cycle detection
+        if len(orderIds) != len(self.nodes):
+            # Find nodes still with deg > 0 for debugging
+            stuck = []
+            for node in self.nodes:
+                if deg.get(node.id, 0) > 0:
+                    stuck.append(node.id)
+
+            raise ValueError(
+                "ExprGraph: cycle detected or graph not fully connected. "
+                "Unresolved nodes: {}".format(stuck)
+            )
+
+        # convert ids to nodes
+        orderedNodes = []
+        for nodeId in orderIds:
+            orderedNodes.append(self.idToNode[nodeId])
+
+        return orderedNodes
+
+    def summary(self):
+        """Return a readable text summary for debugging."""
+        lines = []
+        lines.append("ExprGraph summary:")
+        lines.append("  numNodes: {}".format(len(self.nodes)))
+        lines.append("  roots: {}".format([n.id for n in self.getRoots()]))
+
+        lines.append("  inDegree:")
+        for node in self.nodes:
+            lines.append("    {}: {}".format(node.id, self.inDegree.get(node.id, 0)))
+
+        lines.append("  successors:")
+        for node in self.nodes:
+            lines.append("    {} -> {}".format(node.id, self.successors.get(node.id, [])))
+
+        return "\n".join(lines)
