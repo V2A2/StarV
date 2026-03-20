@@ -770,7 +770,7 @@ if __name__ == "__main__":
         val_loader,
         lr=1e-3,
         weight_decay=1e-4,
-        epochs=30,
+        epochs=50,
         model_dir=model_dir,
         selected_vars=target_cols,
         scaler=scaler_bundle,

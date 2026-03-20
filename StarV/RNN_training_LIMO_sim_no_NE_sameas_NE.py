@@ -62,41 +62,41 @@ def build_windows(input_data: np.ndarray, target_data: np.ndarray, window_size: 
     return np.array(X, dtype=np.float32), np.array(y, dtype=np.float32)
 
 
-# def prepare_eval_dataset_from_csv(
-#     csv_path: str,
-#     input_cols: list,
-#     target_cols: list,
-#     window_size: int,
-#     x_scaler,
-#     max_steps: Optional[int] = None,
-#     save_processed_dir: Optional[str] = None,
-# ):
-#     df = pd.read_csv(csv_path)
-#     required_cols = list(dict.fromkeys(input_cols + target_cols))
-#     missing = [c for c in required_cols if c not in df.columns]
-#     if missing:
-#         raise RuntimeError(f"Missing required columns in {csv_path}: {missing}")
+def prepare_eval_dataset_from_csv(
+    csv_path: str,
+    input_cols: list,
+    target_cols: list,
+    window_size: int,
+    x_scaler,
+    max_steps: Optional[int] = None,
+    save_processed_dir: Optional[str] = None,
+):
+    df = pd.read_csv(csv_path)
+    required_cols = list(dict.fromkeys(input_cols + target_cols))
+    missing = [c for c in required_cols if c not in df.columns]
+    if missing:
+        raise RuntimeError(f"Missing required columns in {csv_path}: {missing}")
 
-#     df = df.dropna(subset=required_cols).reset_index(drop=True)
-#     if max_steps is not None:
-#         df = df.iloc[:max_steps].reset_index(drop=True)
+    df = df.dropna(subset=required_cols).reset_index(drop=True)
+    if max_steps is not None:
+        df = df.iloc[:max_steps].reset_index(drop=True)
 
-#     input_raw = df[input_cols].to_numpy(dtype=np.float32)
-#     target_raw = df[target_cols].to_numpy(dtype=np.float32)
-#     input_scaled = x_scaler.transform(input_raw).astype(np.float32)
-#     target_indices = [input_cols.index(c) for c in target_cols]
-#     target_scaled = input_scaled[:, target_indices].astype(np.float32)
+    input_raw = df[input_cols].to_numpy(dtype=np.float32)
+    target_raw = df[target_cols].to_numpy(dtype=np.float32)
+    input_scaled = x_scaler.transform(input_raw).astype(np.float32)
+    target_indices = [input_cols.index(c) for c in target_cols]
+    target_scaled = input_scaled[:, target_indices].astype(np.float32)
 
-#     processed_csv_path = None
-#     if save_processed_dir is not None:
-#         processed_dir_path = Path(save_processed_dir)
-#         processed_dir_path.mkdir(parents=True, exist_ok=True)
-#         processed_csv_path = processed_dir_path / f"{Path(csv_path).stem}_processed_4f.csv"
-#         pd.DataFrame(input_scaled, columns=input_cols).to_csv(processed_csv_path, index=False)
+    processed_csv_path = None
+    if save_processed_dir is not None:
+        processed_dir_path = Path(save_processed_dir)
+        processed_dir_path.mkdir(parents=True, exist_ok=True)
+        processed_csv_path = processed_dir_path / f"{Path(csv_path).stem}_processed_4f.csv"
+        pd.DataFrame(input_scaled, columns=input_cols).to_csv(processed_csv_path, index=False)
 
-#     X_eval, _ = build_windows(input_scaled, target_scaled, window_size)
-#     y_eval_raw = target_raw[window_size:].astype(np.float32)
-#     return X_eval, y_eval_raw, len(df), processed_csv_path
+    X_eval, _ = build_windows(input_scaled, target_scaled, window_size)
+    y_eval_raw = target_raw[window_size:].astype(np.float32)
+    return X_eval, y_eval_raw, len(df), processed_csv_path
 
 class RNN_trajectory(object):
 
@@ -135,7 +135,9 @@ class RNN_trajectory(object):
         split_idx = int((1.0 - self.val_ratio) * len(X_all))
         if split_idx <= 0 or split_idx >= len(X_all):
             raise RuntimeError(
-                f"Invalid split index {split_idx} for {len(X_all)} windows. ")
+                f"Invalid split index {split_idx} for {len(X_all)} windows. "
+                f"Adjust val_ratio={self.val_ratio}."
+            )
         X_train = X_all[:split_idx]
         y_train = y_all[:split_idx]
         X_val = X_all[split_idx:]
@@ -180,22 +182,16 @@ class RNN_trajectory(object):
             X_all_scaled_csv_path, index=False
         )
 
-        # 4) Build windows from scaled trajectory with full next-state targets.
+        # 4) Build windows from scaled trajectory.
         X_all, y_all = self.build_next_state_windows(input_data_scaled, target_data_scaled)
 
         X_train_processed, y_train_processed, X_val_processed, y_val_processed, split_idx = (
             self.train_test_win_split(X_all, y_all)
         )
 
-        # 5) Keep raw validation next-state targets and state ranges for evaluation.
+        # 5) Keep raw validation targets for evaluation.
         y_all_raw = target_data_raw[self.window_size:].astype(np.float32)
         y_val_raw = y_all_raw[split_idx:].astype(np.float32)
-        state_range_raw = (
-            np.max(target_data_raw, axis=0) - np.min(target_data_raw, axis=0)
-        ).astype(np.float32)
-        safe_state_range_raw = np.where(
-            np.abs(state_range_raw) < 1e-8, 1.0, state_range_raw
-        ).astype(np.float32)  # avoids divide-by-zero is range is an constant
 
         return {
             "df_raw": df_raw,
@@ -207,8 +203,6 @@ class RNN_trajectory(object):
             "X_val": X_val_processed.astype(np.float32),
             "y_val": y_val_processed.astype(np.float32),
             "y_val_raw": y_val_raw.astype(np.float32),
-            "state_range_raw": state_range_raw.astype(np.float32),
-            "safe_state_range_raw": safe_state_range_raw.astype(np.float32),
             "x_scaler": x_scaler,
             "y_scaler": y_scaler,
             "num_input_features": len(self.LIMO_INPUT_COLS),
@@ -329,56 +323,13 @@ class RNN_trainer(object):
         self.model_dir = model_dir
         self.selected_vars = selected_vars
         self.scaler = scaler
-
         # Optimizer and scheduler
         self.optimizer = torch.optim.AdamW(model.parameters(), lr=self.lr,weight_decay=self.weight_decay)
         # self.t_total = len(train_loader) * epochs
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer,mode='min',factor=0.2,patience=4)
         self.loss_fn = nn.SmoothL1Loss(beta=0.5)
-        self.y_scaler = None
-        self.state_range_raw = None
-        if isinstance(self.scaler, dict):
-            self.y_scaler = self.scaler.get("y_scaler")
-            self.state_range_raw = self.scaler.get("state_range_raw")
-        else:
-            self.y_scaler = self.scaler
-
-        # if not using state range raw data then use state range from scaler
-        if self.state_range_raw is None and self.y_scaler is not None and hasattr(self.y_scaler, "data_range_"):
-            self.state_range_raw = np.asarray(self.y_scaler.data_range_, dtype=np.float32)
-
-        # if not using state range raw data and y scaler is none then use 1 as range, so that in compute error the error does not change
-        if self.state_range_raw is None:
-            self.state_range_raw = np.ones(len(self.selected_vars), dtype=np.float32)
-
-        self.safe_state_range_raw = np.where(
-            np.abs(self.state_range_raw) < 1e-8, 1.0, self.state_range_raw
-        ).astype(np.float32)
-
-    def normalized_loss(self, pred_state: torch.Tensor, target_state: torch.Tensor):
-        error_scaled = pred_state - target_state
-        error_raw = error_scaled
-
-        # convert scaled error to raw error
-        if self.y_scaler is not None and hasattr(self.y_scaler, "scale_"):
-            scale_factor = np.asarray(self.y_scaler.scale_, dtype=np.float32)
-            safe_scale_factor = np.where(np.abs(scale_factor) < 1e-8, 1.0, scale_factor)
-            safe_scale = torch.as_tensor(
-                safe_scale_factor, dtype=error_scaled.dtype, device=error_scaled.device
-            )
-            if isinstance(self.y_scaler, MinMaxScaler):
-                # MinMax: diff_scaled = diff_raw * scale => diff_raw = diff_scaled / scale
-                error_raw = error_scaled / safe_scale
-            elif isinstance(self.y_scaler, StandardScaler):
-                # Standard: diff_scaled = diff_raw / scale => diff_raw = diff_scaled * scale
-                error_raw = error_scaled * safe_scale
-
-        safe_range = torch.as_tensor(
-            self.safe_state_range_raw, dtype=error_raw.dtype, device=error_raw.device
-        )
-
-        normalized_error = error_raw / safe_range
-        return self.loss_fn(normalized_error, torch.zeros_like(normalized_error))
+        # self.loss_fn = nn.MSELoss()
+        
     
     def train(self):
         print("======================== Begin Training ========================")
@@ -396,7 +347,7 @@ class RNN_trainer(object):
             # y_batch = y_batch.to(self.device)
             pred_state = self.model(x_batch)
             # print("pred_rul type:",type(pred_rul))
-            loss = self.normalized_loss(pred_state, y_batch)
+            loss = self.loss_fn(pred_state,y_batch)
             # print(f"pred_rul: {pred_rul}")
             # print(f"true_rul: {y_batch}")
 
@@ -430,7 +381,7 @@ class RNN_trainer(object):
                 # x_batch = x_batch.to(self.device)
                 # y_batch = y_batch.to(self.device)
                 pred_state = self.model(x_batch)
-                loss = self.normalized_loss(pred_state, y_batch)
+                loss = self.loss_fn(pred_state,y_batch)
                 losses.append(loss.item())
                 all_preds.append(pred_state.detach().cpu())
                 all_targets.append(y_batch.detach().cpu())
@@ -591,56 +542,26 @@ def set_seed(seed=42):
         torch.cuda.manual_seed_all(seed)
 
 
-
-
-##### Begin Evaluation ################
-def inverse_transform_states(state_scaled: np.ndarray, y_scaler):
-    if y_scaler is None:
-        return state_scaled.astype(np.float32)
-    if not hasattr(y_scaler, "inverse_transform"):
-        raise RuntimeError("Provided y_scaler has no inverse_transform for state reconstruction.")
-    return y_scaler.inverse_transform(state_scaled).astype(np.float32)
-
-def normalize_error_by_state_range(error_raw: np.ndarray, state_range_raw: np.ndarray):
-    if error_raw.ndim != 2:
-        raise RuntimeError(f"Expected error_raw shape (N, F), got {error_raw.shape}")
-    state_range_raw = np.asarray(state_range_raw, dtype=np.float32)
-    if state_range_raw.ndim == 0:
-        state_range_raw = np.full((error_raw.shape[1],), float(state_range_raw), dtype=np.float32)
-    if state_range_raw.ndim != 1 or state_range_raw.shape[0] != error_raw.shape[1]:
-        raise RuntimeError(
-            f"Expected state_range_raw shape ({error_raw.shape[1]},), got {state_range_raw.shape}"
-        )
-    safe_range = np.where(np.abs(state_range_raw) < 1e-8, 1.0, state_range_raw).astype(np.float32)
-    return error_raw / safe_range, safe_range
-
-
-def evaluate_next_state_with_normalized_error(
+def evaluate_next_state_rmse(
     model: nn.Module,
     X_val: np.ndarray,
-    y_val_raw: np.ndarray,
-    state_range_raw: Optional[np.ndarray],
     y_scaler,
+    y_val_raw: np.ndarray,
     state_cols: list,
     plot_dir: str = "./",
 ):
     pred_scaled = predict(model, X_val)
     print("X_val:", X_val.shape)   # (N, T, F_in)
-    print("pred_scaled:", pred_scaled.shape)     # (N, F_out)
-    pred_raw = inverse_transform_states(pred_scaled, y_scaler)
-
-    if pred_raw.shape != y_val_raw.shape:
-        raise RuntimeError(
-            f"Shape mismatch: pred {pred_raw.shape} vs target {y_val_raw.shape}"
-        )
+    print("pred:", pred_scaled.shape)     # (N, F_out)
+    pred_raw = y_scaler.inverse_transform(pred_scaled)
 
     num_pred=50
-    print(f"\nFirst {num_pred} predicted states:")
+    print(f"\nFirst {num_pred} predicted and states (pred_raw):")
     pred_df = pd.DataFrame(pred_raw[:num_pred], columns=state_cols)
     print(pred_df)
-    print(f"\nFirst {num_pred} origin states:")
-    target_df = pd.DataFrame(y_val_raw[:num_pred], columns=state_cols)
-    print(target_df)
+    print(f"\nFirst {num_pred} original states :")
+    origin_df = pd.DataFrame(y_val_raw[:num_pred], columns=state_cols)
+    print(origin_df)
 
     plot_prediction_vs_origin_over_time(
         pred_raw=pred_raw,
@@ -649,46 +570,12 @@ def evaluate_next_state_with_normalized_error(
         save_path=plot_dir,
     )
 
-    raw_error = pred_raw - y_val_raw
-    raw_rmse_each = np.sqrt(np.mean(raw_error ** 2, axis=0))
-    print("\nValidation raw RMSE per state:")
-    for c, r in zip(state_cols, raw_rmse_each):
+    rmse_each = np.sqrt(np.mean((pred_raw - y_val_raw) ** 2, axis=0))
+
+    print("\nValidation RMSE per state:")
+    for c, r in zip(state_cols, rmse_each):
         print(f"  {c}: {r:.6f}")
-    print(f"Validation raw RMSE mean: {raw_rmse_each.mean():.6f}")
-
-    if state_range_raw is None:
-        print(
-            "Warning: state_range_raw not provided. Falling back to target range on validation split."
-        )
-        state_range_raw = (
-            np.max(y_val_raw, axis=0) - np.min(y_val_raw, axis=0)
-        ).astype(np.float32)
-    normalized_error, safe_state_range = normalize_error_by_state_range(
-        raw_error, state_range_raw.astype(np.float32)
-    )
-    abs_normalized_error = np.abs(normalized_error)
-    nmae_each = np.mean(abs_normalized_error, axis=0)
-    nrmse_each = np.sqrt(np.mean(normalized_error ** 2, axis=0))
-
-    print("\nValidation range-normalized MAE per state (|pred-true| / range):")
-    for c, n in zip(state_cols, nmae_each):
-        print(f"  {c}: {n:.6f} ({100.0 * n:.2f}%)")
-    print(
-        f"Validation range-normalized MAE mean: {nmae_each.mean():.6f} "
-        f"({100.0 * nmae_each.mean():.2f}%)"
-    )
-
-    print("\nValidation range-normalized RMSE per state (sqrt(mean((pred-true)^2)) / range):")
-    for c, n in zip(state_cols, nrmse_each):
-        print(f"  {c}: {n:.6f} ({100.0 * n:.2f}%)")
-    print(
-        f"Validation range-normalized RMSE mean: {nrmse_each.mean():.6f} "
-        f"({100.0 * nrmse_each.mean():.2f}%)"
-    )
-
-    print("\nState ranges used for normalization:")
-    for c, r in zip(state_cols, safe_state_range):
-        print(f"  {c}: {r:.6f}")
+    print(f"Validation RMSE mean: {rmse_each.mean():.6f}")
 
 
 if __name__ == "__main__":
@@ -735,8 +622,6 @@ if __name__ == "__main__":
     print("Raw rows:", len(data["df_raw"]), "| Clean rows:", len(data["df_new"]))
     print("Input columns:", input_cols)
     print("Target columns:", target_cols)
-    print("Training target: full next state S(t+1)")
-    print("Training loss: normalized error only (SmoothL1 on normalized residuals)")
     print("Window size:", win_size)
     print("Train windows:", X_train.shape, "Targets:", y_train.shape)
     print("Val windows:", X_val.shape, "Targets:", y_val.shape)
@@ -757,11 +642,7 @@ if __name__ == "__main__":
         output_size=num_output_features,
     )
 
-    scaler_bundle = {
-        "x_scaler": data["x_scaler"],
-        "y_scaler": data["y_scaler"],
-        "state_range_raw": data["safe_state_range_raw"],
-    }
+    scaler_bundle = {"x_scaler": data["x_scaler"], "y_scaler": data["y_scaler"]}
     # scaler_bundle =None
 
     trainer = RNN_trainer(
@@ -793,11 +674,10 @@ if __name__ == "__main__":
     model.load_state_dict(checkpoint["model_state_dict"], strict=False)
     model.eval()
 
-    evaluate_next_state_with_normalized_error(
+    evaluate_next_state_rmse(
         model=model,
         X_val=X_val,
         y_val_raw=data["y_val_raw"],
-        state_range_raw=data["state_range_raw"],
         y_scaler=data["y_scaler"],
         state_cols=target_cols,
         plot_dir=model_dir,

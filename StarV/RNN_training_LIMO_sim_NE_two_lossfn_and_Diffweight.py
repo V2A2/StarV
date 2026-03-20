@@ -330,11 +330,19 @@ class RNN_trainer(object):
         self.selected_vars = selected_vars
         self.scaler = scaler
 
+        # Split states into pose vs velo channels for mixed-objective learning.
+        self.pose_var_names = {"x", "y", "yaw"}
+        self.velo_var_names = {"v", "w"}
+        self.pose_indices = [i for i, v in enumerate(self.selected_vars) if v in self.pose_var_names]
+        self.velo_indices = [i for i, v in enumerate(self.selected_vars) if v in self.velo_var_names]
         # Optimizer and scheduler
         self.optimizer = torch.optim.AdamW(model.parameters(), lr=self.lr,weight_decay=self.weight_decay)
         # self.t_total = len(train_loader) * epochs
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer,mode='min',factor=0.2,patience=4)
-        self.loss_fn = nn.SmoothL1Loss(beta=0.5)
+        self.pose_loss_fn = nn.SmoothL1Loss(beta=0.5)
+        self.velo_loss_fn = nn.MSELoss()
+        self.pose_loss_weight = 1.2
+        self.velo_loss_weight = 1.5
         self.y_scaler = None
         self.state_range_raw = None
         if isinstance(self.scaler, dict):
@@ -354,7 +362,7 @@ class RNN_trainer(object):
         self.safe_state_range_raw = np.where(
             np.abs(self.state_range_raw) < 1e-8, 1.0, self.state_range_raw
         ).astype(np.float32)
-
+   
     def normalized_loss(self, pred_state: torch.Tensor, target_state: torch.Tensor):
         error_scaled = pred_state - target_state
         error_raw = error_scaled
@@ -378,7 +386,27 @@ class RNN_trainer(object):
         )
 
         normalized_error = error_raw / safe_range
-        return self.loss_fn(normalized_error, torch.zeros_like(normalized_error))
+
+        # Use different metrics for pose states(x,y,yaw) and velocity states (v and w).
+        total_loss = torch.tensor(0.0, dtype=normalized_error.dtype, device=normalized_error.device)
+        active_weight = 0.0
+
+        if len(self.pose_indices) > 0:
+            pose_error = normalized_error[:, self.pose_indices]
+            pose_loss = self.pose_loss_fn(pose_error, torch.zeros_like(pose_error))
+            total_loss = total_loss + self.pose_loss_weight * pose_loss
+            active_weight += self.pose_loss_weight
+
+        if len(self.velo_indices) > 0:
+            velo_error = normalized_error[:, self.velo_indices]
+            velo_loss = self.velo_loss_fn(velo_error, torch.zeros_like(velo_error))
+            total_loss = total_loss + self.velo_loss_weight * velo_loss
+            active_weight += self.velo_loss_weight
+
+        if active_weight <= 0.0:
+            return self.pose_loss_fn(normalized_error, torch.zeros_like(normalized_error))
+
+        return total_loss / active_weight
     
     def train(self):
         print("======================== Begin Training ========================")
@@ -473,6 +501,14 @@ class RNN_trainer(object):
                     "rnn_dropout_prob": self.model.rnn_dropout_prob,
                     "fc_dropout_prob": self.model.fc_dropout_prob,
                     "selected_vars": self.selected_vars,
+                    "loss_config": {
+                        "pose_vars": sorted(list(self.pose_var_names)),
+                        "velo_vars": sorted(list(self.velo_var_names)),
+                        "pose_loss": "SmoothL1(beta=0.5)",
+                        "velo_loss": "MSE",
+                        "pose_weight": self.pose_loss_weight,
+                        "velo_weight": self.velo_loss_weight,
+                    },
                     "scaler": self.scaler,
                 }, best_model_path)
 
@@ -686,6 +722,24 @@ def evaluate_next_state_with_normalized_error(
         f"({100.0 * nrmse_each.mean():.2f}%)"
     )
 
+    pose_vars = {"x", "y", "yaw"}
+    velo_vars = {"v", "w"}
+    pose_idx = [i for i, c in enumerate(state_cols) if c in pose_vars]
+    velo_idx = [i for i, c in enumerate(state_cols) if c in velo_vars]
+
+    if len(pose_idx) > 0:
+        pose_nrmse_mean = float(np.mean(nrmse_each[pose_idx]))
+        print(
+            f"Pose normalized RMSE mean (x,y,yaw): {pose_nrmse_mean:.6f} "
+            f"({100.0 * pose_nrmse_mean:.2f}%)"
+        )
+    if len(velo_idx) > 0:
+        velo_nrmse_mean = float(np.mean(nrmse_each[velo_idx]))
+        print(
+            f"Control normalized RMSE mean (v,w): {velo_nrmse_mean:.6f} "
+            f"({100.0 * velo_nrmse_mean:.2f}%)"
+        )
+
     print("\nState ranges used for normalization:")
     for c, r in zip(state_cols, safe_state_range):
         print(f"  {c}: {r:.6f}")
@@ -736,7 +790,10 @@ if __name__ == "__main__":
     print("Input columns:", input_cols)
     print("Target columns:", target_cols)
     print("Training target: full next state S(t+1)")
-    print("Training loss: normalized error only (SmoothL1 on normalized residuals)")
+    print(
+        "Training loss: mixed normalized error "
+        "(pose x,y,yaw -> SmoothL1, velo v,w -> MSE, velo weight=1.5)"
+    )
     print("Window size:", win_size)
     print("Train windows:", X_train.shape, "Targets:", y_train.shape)
     print("Val windows:", X_val.shape, "Targets:", y_val.shape)
@@ -770,7 +827,7 @@ if __name__ == "__main__":
         val_loader,
         lr=1e-3,
         weight_decay=1e-4,
-        epochs=30,
+        epochs=100,
         model_dir=model_dir,
         selected_vars=target_cols,
         scaler=scaler_bundle,
