@@ -373,6 +373,7 @@ class CDNF(object):
             C = C.reshape(1, self.base_probstar.nVars)
 
         S = ProbStar(self.base_probstar.V, C, d, self.base_probstar.mu, self.base_probstar.Sig, self.base_probstar.pred_lb, self.base_probstar.pred_ub)
+        # print(f'number of predicate variables in the combination {combination_ids} is {C.shape[1]}')
 
         prob = S.estimateProbability()
 
@@ -1148,6 +1149,7 @@ class DynamicFormula(object):
                 nVarMax = p.nVars
                 nVarMaxID = i
 
+        # trace_probstar = copy.deepcopy(branch_signal[0])
         base_probstar = copy.deepcopy(branch_signal[nVarMaxID])
         max_nVars = base_probstar.nVars
         # if len(base_probstar.C) != 0:
@@ -1225,6 +1227,7 @@ class DynamicFormula(object):
 
         print('Realizing Abstract DNF specification on a ProbStar Signal...')
         cdnf = self.realization(probstar_sig)
+        print(f"cndf.constraints = {len(cdnf.constraints)}")
         # print(f"======== cdnf=========:\n {cdnf.print()}")
         print('Length of Computable DNF = {}'.format(cdnf.length))
 
@@ -1270,13 +1273,20 @@ class DynamicFormula(object):
         # print(f"======== cdnf=========:\n {cdnf.print()}")
         print('Length of Computable DNF = {} for branch signal'.format(cdnf.length))
 
-        p_base = cdnf.base_probstar.estimateProbability()
+        if isinstance(cdnf.base_probstar, ProbStar) and cdnf.base_probstar.nVars > 0:
+            p_base = cdnf.base_probstar.estimateProbability()
+        else:
+            p_base = 0.0
         print(f"base probstar probability = {p_base}")
+        # p_trace = cdnf.trace_probstar.estimateProbability() 
+
         SAT = []
         p_SAT_MIN = 0.0
         p_SAT_MAX = 0.0
+        p_ig = 0.0
         if cdnf.length != 0:
             for i in range(0, cdnf.length):
+                print(f"compute prob for each CDNF term, i = {i}")
                 SAT.append(cdnf.estimateProbability((i,)))
             if cdnf.length > 11:
                 print('*****WARNING*****: CDNF (len = {}) is too large for exact verification'.format(cdnf.length))
@@ -1284,6 +1294,8 @@ class DynamicFormula(object):
                 p_SAT_MIN = max(SAT)
                 print(f"p_sat_MIN in cdnf > 11 = {p_SAT_MIN}")
                 p_SAT_MAX = max(p_SAT_MIN, p_base)
+                p_ig = p_base
+                print(f"p_sat_MAX in cdnf > 11 = {p_SAT_MAX}, p_ig = {p_ig}")
             else:
                 N = range(0, cdnf.length)
                 print('Computing exact probability of satisfaction...')
@@ -1291,14 +1303,19 @@ class DynamicFormula(object):
                     print('i = {}/{}'.format(i, cdnf.length))
                     SAT1 = 0.0
                     comb = combinations(N, i+1)
+                    # len_comb = len(list(comb))
+                    # print(f"number of combinations for i = {i} is {len_comb}")
                     for j in list(comb):
+                        print(f'=== start in combination loop ===')
                         prob = (-1)**i * cdnf.estimateProbability(j)
                         SAT1 = SAT1 + prob
+                        # print(f"combination {j}, prob = {prob}, SAT1 = {SAT1}")
                     p_SAT_MAX = p_SAT_MAX + SAT1
+                    # print(f"after combination for cdnf loop, p_SAT_MAX = {p_SAT_MAX}")
                 p_SAT_MIN = p_SAT_MAX
+                print(f"p_sat_MAX in cdnf <= 11 = {p_SAT_MAX}, p_sat_MIN = {p_SAT_MIN}")
 
-        return SAT, p_SAT_MAX, p_SAT_MIN, cdnf.length
-
+        return SAT, p_SAT_MAX, p_SAT_MIN, p_ig, cdnf.length
 
     def evaluate2(self, probstar_sig, n_max):
         'evaluate the satisfaction of the abtract-timed dyanmic formula on a probstar signal'

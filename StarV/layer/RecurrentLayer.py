@@ -134,7 +134,6 @@ class RecurrentLayer(object):
         return O
 
 
-
     def reachApprox(self, In, method="approx", lp_solver="gurobi", pool=None, RF=0.0, DR=0):
         """
         Perform approximate reachability analysis of an RNN with ReLU activation.
@@ -194,19 +193,23 @@ class RecurrentLayer(object):
 
 
     def reachExactBranches(self, In, post_layers=None, lp_solver="gurobi", pool=None,
-                           p_filter=None, show=False):
+                           p_filter=None, show=False, post_start_t=None):
+        """  Branch-based reachability for RNNs
 
-        """ Exact reachability with branch tracking (for ProbStarTL).
-        This returns *branch signals* instead of per-time unions:
-            branch_i = [O11, O21, ..., O(T-1)1] for the i-th branch, where O(tj) is the output set at time t for that branch.
-
-        Notes for RNNs with predicate growth:
-        - Each timestep may introduce new predicate variables via minKowskiSum.
-        - Branch consistency is preserved by propagating constraints through time.
+        Args:
+            post_layers:
+                List of post layers to apply to each RNN output after post_start_t. Supported layer types: FullyConnectedLayer, ReLULayer. Default: None (no post layers).
+            p_filter:
+                Branch pruning threshold at/after post_start_t based on output
+                set probability. If p_filter = 0, no pruning (exact method); if > 0, prune branches with estimated output probability < p_filter (approximate method).
+            post_start_t:
+                Start timestep to record outputs into branch traces.
+                Default: len(In)//2.
         """
 
-        # Qing Liu, 02/15/2026 
-        
+        # Qing Liu, 02/15/2026
+        # Update: post-reachability branch filtering with time tags, 04/03/2026
+
         assert isinstance(In, list), 'error: input must be a list'
         assert len(In) > 0, 'error: input is empty'
         assert all(isinstance(s, ProbStar) for s in In), 'error: input must be a list of ProbStars'
@@ -215,15 +218,40 @@ class RecurrentLayer(object):
             post_layers = []
         assert isinstance(post_layers, list), 'error: post_layers must be a list'
 
+        if post_start_t is None:
+            post_start_t = len(In) // 2
+        else:
+            assert isinstance(post_start_t, int), 'error: post_start_t should be an int'
+            assert 0 <= post_start_t <= len(In), 'error: invalid post_start_t'
+
+        if p_filter is None:
+            p_filter = 0.0
+        if p_filter < 0.0:
+            raise RuntimeError('error: p_filter should be >= 0')
+        
+        if show:
+            if p_filter == 0.0:
+                print(f"Using exact reachability with branch tracing and no pruning (p_filter=0.0)")
+            else:
+                print(f"Using approximate reachability with branch tracing and pruning threshold p_filter={p_filter}")
+        
+        p_ignored = 0.0
+
+
+        # Branch elements: (hidden_state_for_next_step, trace_after_post_start)
+        branches = [(None, [])]
+        hidden_states_all_steps = []
+        hidden_output_all_steps = []
+
         def propagate_hidden_through_post_layers(h, h_out):
             """Apply post layers to one RNN output and return (h_next, y) pairs."""
-
             current = [h_out]
             for layer in post_layers:
                 if isinstance(layer, FullyConnectedLayer):
                     nxt = []
                     for S in current:
-                        nxt.append(S.affineMap(layer.W, layer.b))
+                        S1 = S.affineMap(layer.W, layer.b)
+                        nxt.append(S1)
                     current = nxt
                 elif isinstance(layer, ReLULayer):
                     current = ReLULayer.reach(
@@ -240,6 +268,8 @@ class RecurrentLayer(object):
 
             h_pairs = []
             for net_out in current:
+                # Keep predicate consistency across branch evolution by reusing
+                # post-layer constraints on hidden state for next recurrent step.
                 if len(net_out.C) == 0:
                     h_next_set = h
                 else:
@@ -247,69 +277,65 @@ class RecurrentLayer(object):
                 h_pairs.append((h_next_set, net_out))
             return h_pairs
 
-        branches = []  # list of (hidden_state, signal)
-        hidden_states_all_steps = []
-        hidden_output_all_steps = []
-
         for t, I in enumerate(In):
-            if show:
-                print(f"[reachExactBranches] timestep {t}: {len(branches) if t > 0 else 0} active branches")
             new_branches = []
             hidden_sets_step = []
             hidden_output_step = []
-            if t == 0:
-                WIn = I.affineMap(self.Whx, self.bhx)
-                hidden_sets = ReLULayer.reach([WIn], method="exact", lp_solver=lp_solver, pool=pool, show=False)
-                hidden_sets_step.extend(hidden_sets)
-                if show:
-                    print(f"number of output sets in step {t} for hidden states:{len(hidden_sets)}")
-                for h in hidden_sets:
-                    h_out = h.affineMap(self.Woh, self.bo)
-                    hidden_output_step.append(h_out)
-                    h_pairs = propagate_hidden_through_post_layers(h, h_out)
-                    for h_next, y in h_pairs:
-                        if p_filter is not None and h_next.estimateProbability() < p_filter:
-                            continue
-                        new_branches.append((h_next, [y]))
-                branches = new_branches
-            else:
-                WIn = I.affineMap(self.Whx, self.bhx)
-                for h_prev_post, trace in branches:
+
+            WIn = I.affineMap(self.Whx, self.bhx)
+
+            for i, (h_prev_post, trace) in enumerate(branches):
+                if t == 0:
+                    hidden_sets = ReLULayer.reach([WIn], method="exact", lp_solver=lp_solver, pool=pool, show=False)
+                else:
                     if self.bhh is not None:
                         h_recurrent = h_prev_post.affineMap(self.Whh, self.bhh)
                     else:
                         h_recurrent = h_prev_post.affineMap(self.Whh)
                     summed = h_recurrent.minKowskiSum(WIn)
                     hidden_sets = ReLULayer.reach([summed], method="exact", lp_solver=lp_solver, pool=pool, show=False)
-                    hidden_sets_step.extend(hidden_sets)
-                    for h in hidden_sets:
-                        h_out = h.affineMap(self.Woh, self.bo)
-                        hidden_output_step.append(h_out)
+
+                hidden_sets_step.extend(hidden_sets)
+
+                for h in hidden_sets:
+                    h_out = h.affineMap(self.Woh, self.bo)
+                    hidden_output_step.append(h_out)
+
+                    if t < post_start_t:
+                        new_branches.append((h, trace.copy())) # only save hidden state for next step before post_start_t
+                    else:
                         h_pairs = propagate_hidden_through_post_layers(h, h_out)
                         for h_next, y in h_pairs:
-                            if p_filter is not None and h_next.estimateProbability() < p_filter:
-                                continue
-                            new_trace = trace.copy()
-                            new_trace.append(y)
-                            new_branches.append((h_next, new_trace))
-                branches = new_branches
-                if show:
-                    print(f"number of output sets in step {t} for hidden states:{len(hidden_sets_step)}")
+                            if p_filter == 0.0 :
+                                new_trace = trace.copy()
+                                new_trace.append(y)
+                                new_branches.append((h_next, new_trace))
+                            if  p_filter > 0.0:
+                                p_y = y.estimateProbability()
+                                print(f"Step {t}: Branch {i} with output set probability {p_y:.12f} evaluated against threshold {p_filter}")
+                                if  p_y <= p_filter:
+                                    p_ignored += p_y
+                                    print(f"Step {t}: Branch {i} with output set probability {p_y:.12f} ignored (threshold {p_filter})")
+                                    continue
+                                else:
+                                    print(f"Step {t}: Branch {i} with output set probability {p_y:.12f} kept (threshold {p_filter})")
+                                    new_trace = trace.copy()
+                                    new_trace.append(y)
+                                    new_branches.append((h_next, new_trace))
 
             hidden_states_all_steps.append(hidden_sets_step)
             hidden_output_all_steps.append(hidden_output_step)
 
-        self.hidden_states_all_steps = hidden_states_all_steps
-        self.hidden_output_all_steps = hidden_output_all_steps
-        # if show:
-        #     print(f"Total branches after {len(In)} steps: {len(branches)}")
+            branches = new_branches
+            if show:
+                print(f"number of output sets in step {t} for hidden states(after relu):{len(hidden_sets_step)}")
+                print(f"number of branches after step {t}: {len(branches)}")
+
         branch_signals = []
         for _, sig in branches:
-            if show:
-                print(f"each branch signal length (number of sets): {len(sig)}")
             branch_signals.append(sig)
 
-        return branch_signals,hidden_output_all_steps
+        return branch_signals, hidden_output_all_steps, p_ignored
 
 
 

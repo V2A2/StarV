@@ -6,6 +6,7 @@ Date: 12/25/2025
 
 from scipy.io import loadmat
 import os
+import glob
 import numpy as np
 from StarV.set.star import Star
 from StarV.set.probstar import ProbStar
@@ -31,27 +32,18 @@ def load_trained_CMAPSS_data():
         print("all_test_URL_shape:",y_test.shape)
         # print("test_data_info:",test_processed.describe())
 
-        train_samples = train_processed.head(10)
-        test_samples = test_processed.head(10)
-        # print("train_data_samples:",train_samples)
-        # print("test_data_samples:",test_samples)
-        # pd.set_option('display.max_column', 30)
-        # print("train_data_samples:",train_samples)
-
-
         # group by engine unit
         grouped_engine_data = train_processed.groupby("unit_number")
         print("grouped_engine_data.size:",grouped_engine_data.size())
         print("type of all grouped_engine_data :",type(grouped_engine_data))
         print("grouped_engine_data first cycle in each groups:",grouped_engine_data.first())   
 
-
         return train_processed,test_processed,y_test
 
-def load_trained_params():
+def load_trained_params_CMAPSS():
         ''' Load Weights and Biases ''' 
         directory = os.path.dirname(os.path.abspath(__file__)) 
-        params_path = directory + "/data/CMAPSS/saved_models/RNN_model_parameters_1_29_win25_h32_f64.npz"
+        params_path = directory + "/data/CMAPSS/saved_models/RNN_model_parameters_4_8_win20_h32_f64.npz"
         params = np.load(params_path)
         W_hx = params["rnn.weight_ih_l0"]
         W_hh = params["rnn.weight_hh_l0"]
@@ -83,6 +75,60 @@ def load_trained_params():
         return W_hx,b_hx,W_hh,b_hh,W_oh,b_oh,fc_weights,fc_biases
 
 
+def load_LIMO_data():
+    ''' Load Data '''
+    directory = os.path.dirname(os.path.abspath(__file__))
+    print("current directory:",directory)
+    data_path = directory + "/data/LIMO_trajectories/limo_processed"
+    print("current data path:",data_path)
+    
+    LIMO_INPUT_COLS = ["x", "y", "yaw", "v", "w", "v_cmd", "w_cmd"]
+    LIMO_TARGET_COLS = ["x", "y", "yaw", "v", "w"]
+
+    data = pd.read_csv(data_path + '/rosbag1_4f_processed_4f.csv',sep=',',header=0,index_col=False)
+
+    processed_input_data = data[LIMO_INPUT_COLS].to_numpy(dtype=np.float32)
+    processed_target_data = data[LIMO_TARGET_COLS].to_numpy(dtype=np.float32)
+    print("all_processed_data_shape:",processed_input_data.shape)
+    print("all_processed_target_shape:",processed_target_data.shape)
+
+
+    return processed_input_data,processed_target_data
+
+
+def load_trained_params_LIMO():
+        ''' Load Weights and Biases ''' 
+        directory = os.path.dirname(os.path.abspath(__file__)) 
+        params_path = directory + "/data/LIMO_trajectories/saved_models/RNN_model_parameters_LIMO_with_weights.npz"
+        params = np.load(params_path)
+        W_hx = params["rnn.weight_ih_l0"]
+        W_hh = params["rnn.weight_hh_l0"]
+        b_hx = params["rnn.bias_ih_l0"]
+        b_hh = params["rnn.bias_hh_l0"]
+        W_oh = params["fc.0.weight"]
+        b_oh = params["fc.0.bias"]
+        fc_weights = []
+        fc_biases = []
+
+        # sort keys to keep layer order
+        fc_weight_keys = sorted([k for k in params if k.startswith("fc.") and k.endswith(".weight")])
+        fc_bias_keys   = sorted([k for k in params if k.startswith("fc.") and k.endswith(".bias")])
+        fc_weight_keys = fc_weight_keys[1:]
+        fc_bias_keys   = fc_bias_keys[1:]
+
+        for w_key, b_key in zip(fc_weight_keys, fc_bias_keys):
+            fc_weights.append(params[w_key])
+            fc_biases.append(params[b_key])
+        
+        # print("fc_w:",fc_weights)
+        # print("type_of_fc_w:",len(fc_weights))
+        # print("fc_b:",fc_biases)
+
+        # for key in params:
+        #     print("Parameter name:", key, " shape:", params[key].shape)
+        #     print("Parameter values:", params[key])
+
+        return W_hx,b_hx,W_hh,b_hh,W_oh,b_oh,fc_weights,fc_biases
 
 def load_simple_rnn(dtype=np.float64):
     """Load RNN model"""
@@ -129,7 +175,7 @@ def get_Star_set(col_point, eps,Ti):
    
     return X
 
-def get_ProbStar_set_RNN(input_data,noises,feature_idx,):
+def get_input_ProbStar_CMAPSS(input_data,noises,feature_idx,):
 
     temperature_noise= noises[0]
     pressure_noise = noises[1]
@@ -195,7 +241,7 @@ def get_ProbStar_set_RNN(input_data,noises,feature_idx,):
 
         X0 = Star(init_state_lb,init_state_ub)
         mu = 0.5*(X0.pred_lb + X0.pred_ub)
-        a = 3
+        a = 3.5
         sig = (mu - X0.pred_lb)/a
         epsilon = 1e-6
         sig = np.maximum(sig, epsilon)
@@ -208,6 +254,54 @@ def get_ProbStar_set_RNN(input_data,noises,feature_idx,):
         X.append(X0_probstar)
 
     return X
+
+def get_input_ProbStar_LIMO(input_data,noise):
+
+    # returns list of initial states bounds for each dimension, construct a ProbSatr for initial state
+    init_state_bounds_list = []
+    for i in range(input_data.shape[0]):
+        single_data_point = input_data[i, :]
+        single_data_points_bounds = []
+        # print("single_data_point:",single_data_point)
+        dims = single_data_point.shape[0]
+        for dim in range(dims):
+            if dim < dims -2:
+                lb = single_data_point[dim] - noise
+                ub = single_data_point[dim] + noise
+            elif dim >=5:
+                lb = ub =single_data_point[dim]
+            else:  
+                raise ValueError("Dimension index out of range")
+            single_data_points_bounds.append((lb, ub))
+        init_state_bounds_list.append(single_data_points_bounds)
+
+    # create Star for initial state 
+    X = []
+    np.set_printoptions(precision=12, suppress=False)
+
+    for i,bounds in enumerate(init_state_bounds_list):
+        init_state_lb = np.array([b[0] for b in bounds])
+        # print("init_state_lb:",init_state_lb)
+        init_state_ub = np.array([b[1] for b in bounds])
+        # print("init_state_ub:",init_state_ub)
+
+        X0 = Star(init_state_lb,init_state_ub)
+        mu = 0.5*(X0.pred_lb + X0.pred_ub)
+        a = 3.5
+        sig = (mu - X0.pred_lb)/a
+        epsilon = 1e-6
+        sig = np.maximum(sig, epsilon)
+        Sig = np.diag(np.square(sig))
+        pred_lb = X0.pred_lb
+        pred_ub = X0.pred_ub
+
+        X0_probstar = ProbStar(X0.V, X0.C, X0.d, mu, Sig, pred_lb, pred_ub)
+        print(f"probability of the initial ProbStar set {i}:{X0_probstar.estimateProbability()}")
+        X.append(X0_probstar)
+
+
+    return X
+
 
 
 def get_ProbStar_set(col_point, eps,Ti):
@@ -240,6 +334,7 @@ def get_ProbStar_set(col_point, eps,Ti):
 
 
 if __name__ == "__main__":
-    load_trained_CMAPSS_data()
-    load_trained_params()
+    # load_trained_CMAPSS_data()
+    # load_trained_params_CMAPSS()
+    load_trained_params_LIMO()
    
