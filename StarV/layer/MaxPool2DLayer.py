@@ -29,11 +29,7 @@ import torch
 import numpy as np
 import scipy.sparse as sp
 import multiprocessing
-import torch.nn.functional as F
-import multiprocessing
 import ipyparallel
-
-from timeit import default_timer as timer
 
 class MaxPool2DLayer(object):
     """ 
@@ -244,8 +240,23 @@ class MaxPool2DLayer(object):
             Return: 
                @R: convolved dataset
         """
+
+        if isinstance(self, MaxPool2DLayer):
+
+            layer = torch.nn.MaxPool2d(
+                kernel_size = self.kernel_size,
+                stride = self.stride,
+                padding = self.padding,
+            )
+
+        else:
+            assert isinstance(self, MaxPool2DLayer), \
+            '\'layer\' should be torch.nn.MaxPool2DLayer or StarV.layer.MaxPool2DLayer.MaxPool2DLayer'
         
-        assert isinstance(self.layer, torch.nn.MaxPool2d), '\'layer\' should be torch.nn.AvgPool2d for \'pytorch\' module'
+            layer = self.layer
+
+        # set the layer in evaluation mode
+        layer.eval()
 
         in_dim = input.ndim
         if in_dim == 4:
@@ -254,19 +265,16 @@ class MaxPool2DLayer(object):
             H, W, C = input.shape
             N = 1
         else:
-            raise Exception('input should be either 2D, 3D, or 4D tensor')
+            raise Exception('input should be either 2D, 3D, or 4D numpy ndarray')
 
         input = copy.deepcopy(input).reshape(H, W, C, N)
         # change input shape from (H, W, C, N) to (N, C, H, W)
         input = input.transpose([3, 2, 0, 1])
-        input = torch.from_numpy(input).type(self.torch_dtype)
+        input = torch.from_numpy(input)
+
         output = self.layer(input).detach().numpy()
         # change input shape to H, W, C, N
         output.transpose([2, 3, 1, 0])
-        
-        # if in_dim == 3:
-        #     output = output.reshape(H, W, C) 
-
         return output
 
     def maxpool2d_basic(self, input):

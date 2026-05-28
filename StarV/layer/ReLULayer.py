@@ -51,9 +51,11 @@ class ReLULayer(object):
         if method == 'exact':
             return PosLin.reachExactMultiInputs(In, lp_solver, pool)
         elif method == 'approx':
-            return PosLin.reachApproxSingleInput(In=In, lp_solver=lp_solver, RF=RF, DR=DR, show=show)
+            return PosLin.reachApproxSingleInput(In=In, lp_solver=lp_solver, RF=RF, DR=DR, milp=False, show=show)
         elif method == 'relax':
-            return PosLin.reachApproxSingleInput(In=In, lp_solver=lp_solver, RF=RF, DR=DR, show=show)
+            return PosLin.reachApproxSingleInput(In=In, lp_solver=lp_solver, RF=RF, DR=DR, milp=False, show=show)
+        elif method == 'approx-milp':
+            return PosLin.reachApproxSingleInput(In=In, lp_solver=lp_solver, RF=RF, DR=DR, milp=True, show=show)
         elif method == 'basic':
             return PosLin.reachApprox(In=In, lp_solver=lp_solver, show=show)
         else:

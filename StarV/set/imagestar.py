@@ -29,9 +29,12 @@ import polytope as pc
 import glpk
 import gurobipy as gp
 from gurobipy import GRB
+from StarV.util.lp_solver import solve_index_lp as util_solve_index_lp
+from StarV.util.lp_solver import solve_lp as util_solve_lp
 from StarV.set.star import Star
 from StarV.set.sparseimagestar2dcoo import SparseImageStar2DCOO
 from StarV.set.sparseimagestar2dcsr import SparseImageStar2DCSR
+from StarV.set.predicate_layout import PredLayout
 
 GUROBI_OPT_TOL = 1e-6
 
@@ -57,6 +60,7 @@ class ImageStar(object):
             X = V[:, :, :, 1:] : generator image
             C = [] # linear constraints matrix of the predicate variables
             d = [] # linear constraints vector of the predicate variables
+            layout = None # predicate layout
 
             num_pred = 0 # number of predicate variables
             pred_lb = [] # lower bound of predicate variables
@@ -70,8 +74,67 @@ class ImageStar(object):
         """
 
         len_ = len(args)
+        
+        if len_ == 6:
+            [V, C, d, pred_lb, pred_ub, layout] = copy.deepcopy(args) if copy_ is True else args
+                
+            assert isinstance(V, np.ndarray), \
+            'error: basis matrix should be a numpy array'
+            assert isinstance(pred_lb, np.ndarray), \
+            'error: lower bound vector should be a 1D numpy array'
+            assert isinstance(pred_ub, np.ndarray), \
+            'error: upper bound vector should be a 1D numpy array'
 
-        if len_ == 5:
+            if d.size > 0:
+                assert isinstance(C, np.ndarray), \
+                'error: a linear constraint matrix should be a numpy array'
+                assert isinstance(d, np.ndarray), \
+                'error: a linear constraint vector should be a 1D numpy array'
+                assert d.ndim == 1, \
+                'error: a linear constraint vector should be a 1D numpy array'
+                assert C.shape[0] == d.shape[0], \
+                'error: inconsistency between lienar constraints matrix and linear constraints vector'
+                assert C.shape[1] == pred_lb.shape[0], \
+                'error: inconsistent number of predicatve variables between linear constratints matrix and predicate bound vectors'
+
+            assert len(pred_lb.shape) == 1, \
+            'error: lower bound vector should be a 1D numpy array'
+            assert len(pred_ub.shape) == 1, \
+            'error: upper bound vector should be a 1D numpy array'
+            assert pred_ub.shape[0] == pred_lb.shape[0], \
+            'error: inconsistent number of predicate variables between predicate lower- and upper-boud vectors'
+                
+            if V.ndim == 1:
+                V = V[None, None, :, None]
+
+            elif V.ndim == 2:
+                V = V[None, None, :, :]
+            
+            elif V.ndim == 3:
+                V = V[:, :, :, None]
+
+            elif V.ndim > 4:
+                raise Exception(f"error: invalid dimension of basis matrix, V.shape = {V.shape}")
+            
+            if isinstance(layout, PredLayout):
+                pass
+            elif layout is None or layout == []:
+                layout = PredLayout(n_base = pred_lb.shape[0])
+            else:
+                raise ValueError('error: layout should be an instance of PredLayout class or None or empty list')
+            
+            self.height, self.width, self.num_channel = V.shape[:3]
+            self.num_pixel = self.height * self.width * self.num_channel
+            self.num_pred = pred_lb.shape[0]
+
+            self.V = V
+            self.C = C
+            self.d = d
+            self.pred_lb = pred_lb
+            self.pred_ub = pred_ub
+            self.pred_layout = layout
+            
+        elif len_ == 5:
 
             [V, C, d, pred_lb, pred_ub] = copy.deepcopy(args) if copy_ is True else args
                 
@@ -114,30 +177,14 @@ class ImageStar(object):
                 raise Exception(f"error: invalid dimension of basis matrix, V.shape = {V.shape}")
             
             self.height, self.width, self.num_channel = V.shape[:3]
-
-                # need to clarify if A.ndim is 3 or 2
-                # if V.ndim == 2:
-                #     V = V[:, :, np.newaxis]
-                # self.height, self.width, self.num_channel = V.shape
-                # num_pixels = self.height * self.width * self.num_channel
-                # V = np.diag(A.flatten())
-
-                # self.num_pred = num_pixels
-                # V = V.reshape(self.height, self.width, self.num_channel, self.num_pred)
-                # V = np.insert(V, 0, 0, axis=3)
+            self.num_pixel = self.height * self.width * self.num_channel
+            self.num_pred = C.shape[1] if d.size > 0 else V.shape[-1] - 1
 
             self.V = V
             self.C = C
             self.d = d
             self.pred_lb = pred_lb
             self.pred_ub = pred_ub
-
-            if d.size > 0:
-                self.num_pred = self.C.shape[1]
-            else:
-                self.num_pred = V.shape[-1] - 1
-
-            self.num_pixel = self.height * self.width * self.num_channel
         
         elif len_ == 2:
 
@@ -266,7 +313,7 @@ class ImageStar(object):
 
         else:
             raise Exception(
-                'error: invalid number of input arguments (should be 0, 2, 6)')
+                'error: invalid number of input arguments (should be 0, 2, 5, or 6)')
     
     def __str__(self, channel_first=False):
         if channel_first:
@@ -410,8 +457,10 @@ class ImageStar(object):
         return ImageStar(new_V, self.C, self.d, self.pred_lb, self.pred_ub)
     
     def resetRows_hwc(self, h_map, w_map, c_map):
+        assert len(h_map) == len(w_map) == len(c_map), \
+        'error: inconsistent lengths of h_map, w_map, and c_map'
         new_V = copy.deepcopy(self.V)
-        for i in range(len(map)):
+        for i in range(len(h_map)):
             new_V[h_map[i], w_map[i], c_map[i], :] = 0
         return ImageStar(new_V, self.C, self.d, self.pred_lb, self.pred_ub)
     
@@ -479,7 +528,7 @@ class ImageStar(object):
         
         return ImageStar(V, self.C, self.d, self.pred_lb, self.pred_ub)
 
-    def getMin(self, *args):
+    def getMin(self, *args, solver_opts=None, gurobi_model_pack=None, show=False):
         """Get the minimum value of state x[index] or x[h_indx, w_indx, c_indx] by solving LP
             @lp_solver = 'gurobi', 'linprog', or 'glpk'
             @h_indx: veritcial index
@@ -492,33 +541,40 @@ class ImageStar(object):
         if len_ == 4:
             [h_indx, w_indx, c_indx, lp_solver] = args
             # index = None
-            self.getMin_hwc(h_indx, w_indx, c_indx, lp_solver)
+            return self.getMin_hwc(
+                h_indx, w_indx, c_indx, lp_solver,
+                solver_opts=solver_opts, gurobi_model_pack=gurobi_model_pack, show=show
+            )
 
         elif len_ == 3:
             [h_indx, w_indx, c_indx] = args
             lp_solver = 'gurobi'
             # index = None
-            self.getMin_hwc(h_indx, w_indx, c_indx, lp_solver)
+            return self.getMin_hwc(
+                h_indx, w_indx, c_indx, lp_solver,
+                solver_opts=solver_opts, gurobi_model_pack=gurobi_model_pack, show=show
+            )
 
         elif len_ == 2:
             [index, lp_solver] = args
-            return self.getMin_index(index, lp_solver)
+            return self.getMin_index(
+                index, lp_solver,
+                solver_opts=solver_opts, gurobi_model_pack=gurobi_model_pack, show=show
+            )
 
         elif len_ == 1:
             [index] = args
             lp_solver = 'gurobi'
-            return self.getMin_index(index, lp_solver)
+            return self.getMin_index(
+                index, lp_solver,
+                solver_opts=solver_opts, gurobi_model_pack=gurobi_model_pack, show=show
+            )
 
         else:
             raise Exception(
                 'error: invalid number of input arguments (should be between 1 and 4)')
-
-        # if index is not None:
-        #     h_indx, w_indx, c_indx = self.index_to3D(index)
-
-        # return self.getMin_hwc(h_indx, w_indx, c_indx, lp_solver)
     
-    def getMax(self, *args):
+    def getMax(self, *args, solver_opts=None, gurobi_model_pack=None, show=False):
         """Get the maximum value of state x[index] or x[h_indx, w_indx, c_indx] by solving LP
             @lp_solver = 'gurobi', 'linprog', or 'glpk'
             @h_indx: veritcial index
@@ -531,254 +587,145 @@ class ImageStar(object):
         if len_ == 4:
             [h_indx, w_indx, c_indx, lp_solver] = args
             # index = None
-            return self.getMax_hwc(h_indx, w_indx, c_indx, lp_solver)
+            return self.getMax_hwc(
+                h_indx, w_indx, c_indx, lp_solver,
+                solver_opts=solver_opts, gurobi_model_pack=gurobi_model_pack, show=show
+            )
 
         elif len_ == 3:
             [h_indx, w_indx, c_indx] = args
             lp_solver = 'gurobi'
             # index = None
-            return self.getMax_hwc(h_indx, w_indx, c_indx, lp_solver)
+            return self.getMax_hwc(
+                h_indx, w_indx, c_indx, lp_solver,
+                solver_opts=solver_opts, gurobi_model_pack=gurobi_model_pack, show=show
+            )
 
         elif len_ == 2:
             [index, lp_solver] = args
-            return self.getMax_index(index, lp_solver)
+            return self.getMax_index(
+                index, lp_solver,
+                solver_opts=solver_opts, gurobi_model_pack=gurobi_model_pack, show=show
+            )
         
         elif len_ == 1:
             [index] = args
             lp_solver = 'gurobi'
-            return self.getMax_index(index, lp_solver)
+            return self.getMax_index(
+                index, lp_solver,
+                solver_opts=solver_opts, gurobi_model_pack=gurobi_model_pack, show=show
+            )
         
         else:
             raise Exception(
                 'error: invalid number of input arguments (should be between 1 and 4)')
-
-        # if index is not None:
-        #     h_indx, w_indx, c_indx = self.index_to3D(index)
-
-        # return self.getMax_hwc(h_indx, w_indx, c_indx, lp_solver)
     
-    def getMin_index(self, index, lp_solver='gurobi'):
+    def get_binary_predicate_indices(self):
+        pred_layout = getattr(self, 'pred_layout', None)
+        if pred_layout is None:
+            return np.empty(0, dtype=np.int32)
+
+        a_blocks = getattr(pred_layout, 'a_blocks', None)
+        if not a_blocks:
+            return np.empty(0, dtype=np.int32)
+
+        idx_parts = [
+            np.arange(start, start + block_size, dtype=np.int32)
+            for start, block_size in a_blocks
+            if block_size > 0
+        ]
+        if len(idx_parts) == 0:
+            return np.empty(0, dtype=np.int32)
+
+        idx = np.concatenate(idx_parts)
+        if ((idx < 0) | (idx >= self.num_pred)).any():
+            raise ValueError(
+                'error: pred_layout contains binary indices outside valid range [0, {})'.format(self.num_pred)
+            )
+        return np.unique(idx)
+     
+    def get_objective_and_center(self, index):
+        assert index >= 0 and index < self.num_pixel, 'error: invalid index'
+        V = self.V.reshape(self.num_pixel, self.num_pred + 1)
+        f = V[index, 1:]
+        center = V[index, 0]
+        if (f == 0).all():
+            return None, center
+        return np.asarray(f).reshape(-1), center
+    
+    def get_lp_ub(self):
+        if len(self.d) == 0:
+            return sp.csr_array((1, self.num_pred)), np.zeros(1)
+        return self.C, self.d
+    
+    def add_gurobi_pred_vars(self, model):
+        binary_idx = self.get_binary_predicate_indices()
+        if binary_idx.size > 0:
+            vtype = [GRB.CONTINUOUS] * self.num_pred
+            for idx in binary_idx.tolist():
+                vtype[idx] = GRB.BINARY
+        else:
+            vtype = GRB.CONTINUOUS
+
+        if self.pred_lb.size and self.pred_ub.size:
+            return model.addMVar(shape=self.num_pred, lb=self.pred_lb, ub=self.pred_ub, vtype=vtype)
+        return model.addMVar(shape=self.num_pred, vtype=vtype)    
+    
+    def solve_index_lp(self, index, sense='min', lp_solver='gurobi', solver_opts=None, model_pack=None, show=False):
+        return util_solve_index_lp(self, index=index, sense=sense, lp_solver=lp_solver, 
+            solver_opts=solver_opts, model_pack=model_pack, show=show)
+    
+    def getMin_index(self, index, lp_solver='gurobi', V=None, solver_opts=None, gurobi_model_pack=None, show=False):
         """Get the minimum value of state x[index] by solving LP
-            lp_solver = 'gurobi', 'linprog', or 'glpk'
+            lp_solver = 'gurobi', 'cupdlp', 'cupdlp-gurobi', 'scipy-milp', 'linprog', or 'glpk'
         """
 
-        assert index >= 0 and index < self.num_pixel, \
-        'error: invalid index'
+        assert index >= 0 and index < self.num_pixel, 'error: invalid index'
+        assert isinstance(lp_solver, str), 'error: lp_solver is not a string'
 
-        V = self.V.reshape(self.num_pixel, self.num_pred+1)
-
+        if V is None:
+            # Internal ImageStar basis is 4D: (h, w, ch, m); flatten to (num_pixel, m)
+            V = self.V.reshape(self.num_pixel, self.num_pred + 1)
+        elif isinstance(V, np.ndarray) and V.ndim == 4:
+            V = V.reshape(self.num_pixel, self.num_pred + 1)
+        
         f = V[index, 1:]
+        center = V[index, 0]
         if (f == 0).all():
-            xmin = V[index, 0]
-        else:
-            if lp_solver == 'gurobi':  # gurobi is the preferred LP solver
-
-                min_ = gp.Model()
-                min_.Params.LogToConsole = 0
-                min_.Params.OptimalityTol = GUROBI_OPT_TOL
-                if self.pred_lb.size and self.pred_ub.size:
-                    x = min_.addMVar(shape=self.num_pred,
-                                     lb=self.pred_lb, ub=self.pred_ub)
-                else:
-                    x = min_.addMVar(shape=self.num_pred)
-                min_.setObjective(f @ x, GRB.MINIMIZE)
-                if len(self.d) > 0:
-                    C = self.C
-                    d = self.d
-                else:
-                    C = sp.csr_matrix(np.zeros((1, self.num_pred)))
-                    d = 0
-                min_.addConstr(C @ x <= d)
-                min_.optimize()
-
-                if min_.status == 2:
-                    xmin = min_.objVal + V[index, 0]
-                else:
-                    raise Exception('error: cannot find an optimal solution, ' + \
-                        'exitflag = %d' % (min_.status))
-
-            elif lp_solver == 'linprog':
-
-                # https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.linprog.html
-                if len(self.d) == 0:
-                    A = np.zeros((1, self.num_pred))
-                    b = np.zeros(1)
-                else:
-                    A = self.C
-                    b = self.d
-
-                lb = self.pred_lb
-                ub = self.pred_ub
-                lb = lb.reshape((self.num_pred, 1))
-                ub = ub.reshape((self.num_pred, 1))
-                res = linprog(f, A_ub=A, b_ub=b, bounds=np.hstack((lb, ub)))
-
-                if res.status == 0:
-                    xmin = res.fun + V[index, 0]
-                else:
-                    raise Exception('error: cannot find an optimal solution, ' + \
-                        'exitflag = {}'.format(res.status))
-
-            elif lp_solver == 'glpk':
-
-                #  https://pyglpk.readthedocs.io/en/latest/examples.html
-                #  https://pyglpk.readthedocs.io/en/latest/
-
-                glpk.env.term_on = False
-
-                if len(self.d) == 0:
-                    A = np.zeros((1, self.num_pred))
-                    b = np.zeros(1)
-                else:
-                    A = self.C
-                    b = self.d
-
-                lb = self.pred_lb
-                ub = self.pred_ub
-                lb = lb.reshape((self.num_pred, 1))
-                ub = ub.reshape((self.num_pred, 1))
-
-                lp = glpk.LPX()  # create the empty problem instance
-                lp.obj.maximize = False
-                lp.rows.add(A.shape[0])  # append rows to this instance
-                for r in lp.rows:
-                    r.name = chr(ord('p') + r.index)  # name rows if we want
-                    lp.rows[r.index].bounds = None, b[r.index]
-
-                lp.cols.add(self.num_pred)
-                for c in lp.cols:
-                    c.name = 'x%d' % c.index
-                    c.bounds = lb[c.index], ub[c.index]
-
-                lp.obj[:] = f.tolist()
-                B = A.reshape(A.shape[0]*A.shape[1],)
-                lp.matrix = B.tolist()
-                # lp.interior()
-                lp.simplex()
-                # default choice, interior may have a big floating point error
-
-                if lp.status != 'opt':
-                    raise Exception('error: cannot find an optimal solution, ' + \
-                        'lp.status = {}'.format(lp.status))
-                else:
-                    xmin = lp.obj.value + V[index, 0]
-
-            else:
-                raise Exception(
-                    'error: unknown lp solver, should be gurobi or linprog or glpk')
-        return xmin
+            return center
+        A, b = self.get_lp_ub()
+        return util_solve_lp(
+            f=f, A_ub=A, b_ub=b, lb=self.pred_lb, ub=self.pred_ub, lp_solver=lp_solver,
+            sense='min', center=center, binary_idx=self.get_binary_predicate_indices(),
+            solver_opts=solver_opts, model_pack=gurobi_model_pack, show=show,
+        )
     
-    def getMax_index(self, index, lp_solver='gurobi'):
+    def getMax_index(self, index, lp_solver='gurobi', V=None, solver_opts=None, gurobi_model_pack=None, show=False):
         """Get the maximum value of state x[index] by solving LP
-            lp_solver = 'gurobi', 'linprog', or 'glpk'
+            lp_solver = 'gurobi', 'cupdlp', 'cupdlp-gurobi', 'scipy-milp', 'linprog', or 'glpk'
         """
 
-        assert index >= 0 and index < self.num_pixel, \
-        'error: invalid index'
-
-        V = self.V.reshape(self.num_pixel, self.num_pred+1)
+        assert index >= 0 and index < self.num_pixel, 'error: invalid index'
+        assert isinstance(lp_solver, str), 'error: lp_solver is not a string'
+        if V is None:
+            V = self.V.reshape(self.num_pixel, self.num_pred + 1)
+        elif isinstance(V, np.ndarray) and V.ndim == 4:
+            V = V.reshape(self.num_pixel, self.num_pred + 1)
+        
         f = V[index, 1:]
+        center = V[index, 0]
         if (f == 0).all():
-            xmax = V[index, 0]
-        else:
-            if lp_solver == 'gurobi':  # gurobi is the preferred LP solver
-
-                max_ = gp.Model()
-                max_.Params.LogToConsole = 0
-                max_.Params.OptimalityTol = GUROBI_OPT_TOL
-                if self.pred_lb.size and self.pred_ub.size:
-                    x = max_.addMVar(shape=self.num_pred,
-                                     lb=self.pred_lb, ub=self.pred_ub)
-                else:
-                    x = max_.addMVar(shape=self.num_pred)
-                max_.setObjective(f @ x, GRB.MAXIMIZE)
-                if len(self.d) > 0:
-                    C = self.C
-                    d = self.d
-                else:
-                    C = sp.csr_matrix(np.zeros((1, self.num_pred)))
-                    d = 0
-                max_.addConstr(C @ x <= d)
-                max_.optimize()
-
-                if max_.status == 2:
-                    xmax = max_.objVal + V[index, 0]
-                else:
-                    raise Exception('error: cannot find an optimal solution, \
-                    exitflag = %d' % (max_.status))
-
-            elif lp_solver == 'linprog':
-                # https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.linprog.html
-                if len(self.d) == 0:
-                    A = np.zeros((1, self.num_pred))
-                    b = np.zeros(1)
-                else:
-                    A = self.C
-                    b = self.d
-
-                lb = self.pred_lb
-                ub = self.pred_ub
-                lb = lb.reshape((self.num_pred, 1))
-                ub = ub.reshape((self.num_pred, 1))
-                res = linprog(-f, A_ub=A, b_ub=b, bounds=np.hstack((lb, ub)))
-                if res.status == 0:
-                    xmax = -res.fun + V[index, 0]
-                else:
-                    raise Exception('error: cannot find an optimal solution, \
-                    exitflag = {}'.format(res.status))
-
-            elif lp_solver == 'glpk':
-
-                # https://pyglpk.readthedocs.io/en/latest/examples.html
-                # https://pyglpk.readthedocs.io/en/latest/
-
-                glpk.env.term_on = False  # turn off messages/display
-
-                if len(self.d) == 0:
-                    A = np.zeros((1, self.num_pred))
-                    b = np.zeros(1)
-                else:
-                    A = self.C
-                    b = self.d
-
-                lb = self.pred_lb
-                ub = self.pred_ub
-                lb = lb.reshape((self.num_pred, 1))
-                ub = ub.reshape((self.num_pred, 1))
-
-                lp = glpk.LPX()  # create the empty problem instance
-                lp.obj.maximize = True
-                lp.rows.add(A.shape[0])  # append rows to this instance
-                for r in lp.rows:
-                    r.name = chr(ord('p') + r.index)  # name rows if we want
-                    lp.rows[r.index].bounds = None, b[r.index]
-
-                lp.cols.add(self.num_pred)
-                for c in lp.cols:
-                    c.name = 'x%d' % c.index
-                    c.bounds = lb[c.index], ub[c.index]
-
-                lp.obj[:] = f.tolist()
-                B = A.reshape(A.shape[0]*A.shape[1],)
-                lp.matrix = B.tolist()
-
-                # lp.interior()
-                # default choice, interior may have a big floating point error
-                lp.simplex()
-
-                if lp.status != 'opt':
-                    raise Exception('error: cannot find an optimal solution, \
-                    lp.status = {}'.format(lp.status))
-                else:
-                    xmax = lp.obj.value + V[index, 0]
-            else:
-                raise Exception('error: \
-                unknown lp solver, should be gurobi or linprog or glpk')
-        return xmax
+            return center
+        A, b = self.get_lp_ub()
+        return util_solve_lp(
+            f=f, A_ub=A, b_ub=b, lb=self.pred_lb, ub=self.pred_ub, lp_solver=lp_solver,
+            sense='max', center=center, binary_idx=self.get_binary_predicate_indices(),
+            solver_opts=solver_opts, model_pack=gurobi_model_pack, show=show,
+        )
     
-    def getMin_hwc(self, h_indx, w_indx, c_indx, lp_solver='gurobi'):
+    def getMin_hwc(self, h_indx, w_indx, c_indx, lp_solver='gurobi', solver_opts=None, gurobi_model_pack=None, show=False):
         """Get the minimum value of state x[index] or x[h_indx, w_indx, c_indx] by solving LP
-            lp_solver = 'gurobi', 'linprog', or 'glpk'
+            lp_solver = 'gurobi', 'cupdlp', 'cupdlp-gurobi', 'scipy-milp', 'linprog', or 'glpk'
             h_indx: veritcial index
             w_indx: horizontal index
             c_indx: channel index
@@ -790,112 +737,14 @@ class ImageStar(object):
         'error: invalid horizontal index'
         assert c_indx >= 0 and c_indx < self.num_channel, \
         'error: invalid channel index'
-
-        f = self.X(h_indx, w_indx, c_indx)
-        if (f == 0).all():
-            xmin = self.c(h_indx, w_indx, c_indx)
-        else:
-            if lp_solver == 'gurobi':  # gurobi is the preferred LP solver
-
-                min_ = gp.Model()
-                min_.Params.LogToConsole = 0
-                min_.Params.OptimalityTol = GUROBI_OPT_TOL
-                if self.pred_lb.size and self.pred_ub.size:
-                    x = min_.addMVar(shape=self.num_pred,
-                                     lb=self.pred_lb, ub=self.pred_ub)
-                else:
-                    x = min_.addMVar(shape=self.num_pred)
-                min_.setObjective(f @ x, GRB.MINIMIZE)
-                if len(self.d) > 0:
-                    C = self.C
-                    d = self.d
-                else:
-                    C = sp.csr_matrix(np.zeros((1, self.num_pred)))
-                    d = 0
-                min_.addConstr(C @ x <= d)
-                min_.optimize()
-
-                if min_.status == 2:
-                    xmin = min_.objVal + self.c(h_indx, w_indx, c_indx)
-                else:
-                    raise Exception('error: cannot find an optimal solution, ' + \
-                        'exitflag = %d' % (min_.status))
-
-            elif lp_solver == 'linprog':
-
-                # https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.linprog.html
-                if len(self.d) == 0:
-                    A = np.zeros((1, self.num_pred))
-                    b = np.zeros(1)
-                else:
-                    A = self.C
-                    b = self.d
-
-                lb = self.pred_lb
-                ub = self.pred_ub
-                lb = lb.reshape((self.num_pred, 1))
-                ub = ub.reshape((self.num_pred, 1))
-                res = linprog(f, A_ub=A, b_ub=b, bounds=np.hstack((lb, ub)))
-
-                if res.status == 0:
-                    xmin = res.fun + self.c(h_indx, w_indx, c_indx)
-                else:
-                    raise Exception('error: cannot find an optimal solution, ' + \
-                        'exitflag = {}'.format(res.status))
-
-            elif lp_solver == 'glpk':
-
-                #  https://pyglpk.readthedocs.io/en/latest/examples.html
-                #  https://pyglpk.readthedocs.io/en/latest/
-
-                glpk.env.term_on = False
-
-                if len(self.d) == 0:
-                    A = np.zeros((1, self.num_pred))
-                    b = np.zeros(1)
-                else:
-                    A = self.C
-                    b = self.d
-
-                lb = self.pred_lb
-                ub = self.pred_ub
-                lb = lb.reshape((self.num_pred, 1))
-                ub = ub.reshape((self.num_pred, 1))
-
-                lp = glpk.LPX()  # create the empty problem instance
-                lp.obj.maximize = False
-                lp.rows.add(A.shape[0])  # append rows to this instance
-                for r in lp.rows:
-                    r.name = chr(ord('p') + r.index)  # name rows if we want
-                    lp.rows[r.index].bounds = None, b[r.index]
-
-                lp.cols.add(self.num_pred)
-                for c in lp.cols:
-                    c.name = 'x%d' % c.index
-                    c.bounds = lb[c.index], ub[c.index]
-
-                lp.obj[:] = f.tolist()
-                B = A.reshape(A.shape[0]*A.shape[1],)
-                lp.matrix = B.tolist()
-                # lp.interior()
-                lp.simplex()
-                # default choice, interior may have a big floating point error
-
-                if lp.status != 'opt':
-                    raise Exception('error: cannot find an optimal solution, ' + \
-                        'lp.status = {}'.format(lp.status))
-                else:
-                    xmin = lp.obj.value + self.c(h_indx, w_indx, c_indx)
-
-            else:
-                raise Exception(
-                    'error: unknown lp solver, should be gurobi or linprog or glpk')
-        return xmin
+        index = (h_indx * self.width + w_indx) * self.num_channel + c_indx
+        return self.getMin_index(index, lp_solver=lp_solver, solver_opts=solver_opts,
+            gurobi_model_pack=gurobi_model_pack, show=show)
 
 
-    def getMax_hwc(self, h_indx, w_indx, c_indx, lp_solver='gurobi'):
+    def getMax_hwc(self, h_indx, w_indx, c_indx, lp_solver='gurobi', solver_opts=None, gurobi_model_pack=None, show=False):
         """Get the maximum value of state x[h_indx, w_indx, c_indx] by solving LP
-            lp_solver = 'gurobi', 'linprog', or 'glpk'
+            lp_solver = 'gurobi', 'cupdlp', 'cupdlp-gurobi', 'scipy-milp', 'linprog', or 'glpk'
             h_indx: veritcial index
             w_indx: horizontal index
             c_indx: channel index
@@ -907,124 +756,31 @@ class ImageStar(object):
         'error: invalid horizontal index'
         assert c_indx >= 0 and c_indx < self.num_channel, \
         'error: invalid channel index'
+        index = (h_indx * self.width + w_indx) * self.num_channel + c_indx
+        return self.getMax_index(index, lp_solver=lp_solver, solver_opts=solver_opts,
+            gurobi_model_pack=gurobi_model_pack, show=show)
 
-        f = self.X(h_indx, w_indx, c_indx)
-        if (f == 0).all():
-            xmax = self.c(h_indx, w_indx, c_indx)
-        else:
-            if lp_solver == 'gurobi':  # gurobi is the preferred LP solver
-
-                max_ = gp.Model()
-                max_.Params.LogToConsole = 0
-                max_.Params.OptimalityTol = GUROBI_OPT_TOL
-                if self.pred_lb.size and self.pred_ub.size:
-                    x = max_.addMVar(shape=self.num_pred,
-                                     lb=self.pred_lb, ub=self.pred_ub)
-                else:
-                    x = max_.addMVar(shape=self.num_pred)
-                max_.setObjective(f @ x, GRB.MAXIMIZE)
-                if len(self.d) > 0:
-                    C = self.C
-                    d = self.d
-                else:
-                    C = sp.csr_matrix(np.zeros((1, self.num_pred)))
-                    d = 0
-                max_.addConstr(C @ x <= d)
-                max_.optimize()
-
-                if max_.status == 2:
-                    xmax = max_.objVal + self.c(h_indx, w_indx, c_indx)
-                else:
-                    raise Exception('error: cannot find an optimal solution, \
-                    exitflag = %d' % (max_.status))
-
-            elif lp_solver == 'linprog':
-                # https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.linprog.html
-                if len(self.d) == 0:
-                    A = np.zeros((1, self.num_pred))
-                    b = np.zeros(1)
-                else:
-                    A = self.C
-                    b = self.d
-
-                lb = self.pred_lb
-                ub = self.pred_ub
-                lb = lb.reshape((self.num_pred, 1))
-                ub = ub.reshape((self.num_pred, 1))
-                res = linprog(-f, A_ub=A, b_ub=b, bounds=np.hstack((lb, ub)))
-                if res.status == 0:
-                    xmax = -res.fun + self.c(h_indx, w_indx, c_indx)
-                else:
-                    raise Exception('error: cannot find an optimal solution, \
-                    exitflag = {}'.format(res.status))
-
-            elif lp_solver == 'glpk':
-
-                # https://pyglpk.readthedocs.io/en/latest/examples.html
-                # https://pyglpk.readthedocs.io/en/latest/
-
-                glpk.env.term_on = False  # turn off messages/display
-
-                if len(self.d) == 0:
-                    A = np.zeros((1, self.num_pred))
-                    b = np.zeros(1)
-                else:
-                    A = self.C
-                    b = self.d
-
-                lb = self.pred_lb
-                ub = self.pred_ub
-                lb = lb.reshape((self.num_pred, 1))
-                ub = ub.reshape((self.num_pred, 1))
-
-                lp = glpk.LPX()  # create the empty problem instance
-                lp.obj.maximize = True
-                lp.rows.add(A.shape[0])  # append rows to this instance
-                for r in lp.rows:
-                    r.name = chr(ord('p') + r.index)  # name rows if we want
-                    lp.rows[r.index].bounds = None, b[r.index]
-
-                lp.cols.add(self.num_pred)
-                for c in lp.cols:
-                    c.name = 'x%d' % c.index
-                    c.bounds = lb[c.index], ub[c.index]
-
-                lp.obj[:] = f.tolist()
-                B = A.reshape(A.shape[0]*A.shape[1],)
-                lp.matrix = B.tolist()
-
-                # lp.interior()
-                # default choice, interior may have a big floating point error
-                lp.simplex()
-
-                if lp.status != 'opt':
-                    raise Exception('error: cannot find an optimal solution, \
-                    lp.status = {}'.format(lp.status))
-                else:
-                    xmax = lp.obj.value + self.c(h_indx, w_indx, c_indx)
-            else:
-                raise Exception('error: \
-                unknown lp solver, should be gurobi or linprog or glpk')
-        return xmax
-
-    def getMins_all(self, lp_solver='gurobi'):
-
+    def getMins_all(self, lp_solver='gurobi', solver_opts=None, show=False):
         xmin = np.zeros([self.height, self.width, self.num_channel], dtype=self.V.dtype)
         for h_ in range(self.height):
             for w_ in range(self.width):
                 for c_ in range(self.num_channel):
-                    xmin[h_, w_, c_] = self.getMin_hwc(h_, w_, c_, lp_solver)
+                    xmin[h_, w_, c_] = self.getMin_hwc(
+                        h_, w_, c_, lp_solver, solver_opts=solver_opts, show=show
+                    )
         return xmin
 
-    def getMaxs_all(self, lp_solver='gurobi'):
+    def getMaxs_all(self, lp_solver='gurobi', solver_opts=None, show=False):
         xmax = np.zeros([self.height, self.width, self.num_channel], dtype=self.V.dtype)
         for h_ in range(self.height):
             for w_ in range(self.width):
                 for c_ in range(self.num_channel):
-                    xmax[h_, w_, c_] = self.getMax_hwc(h_, w_, c_, lp_solver)
+                    xmax[h_, w_, c_] = self.getMax_hwc(
+                        h_, w_, c_, lp_solver, solver_opts=solver_opts, show=show
+                    )
         return xmax
 
-    def getMins(self, *args):
+    def getMins(self, *args, solver_opts=None, show=False):
         """Get the maximum values of state x corresponding map indexes
         """
         len_ = len(args)
@@ -1049,21 +805,22 @@ class ImageStar(object):
             raise Exception(
                 'error: invalid number of input arguments (should be between 1 and 4)')
 
-        n = len(map)
+        n = len(map) if map is not None else len(h_map)
         xmin = np.zeros(n, dtype=self.V.dtype)
 
         if map is not None:
+            V = self.V.reshape(self.num_pixel, self.num_pred+1)
             # h_map, w_map, c_map = self.index_to3D(map)
             for i in range(n):
-                xmin[i] = self.getMin_index(map[i], lp_solver)
+                xmin[i] = self.getMin_index(map[i], lp_solver, V=V, solver_opts=solver_opts, show=show)
 
         else:
             for i in range(n):
-                xmin[i] = self.getMin_hwc(h_map[i], w_map[i], c_map[i], lp_solver)
+                xmin[i] = self.getMin_hwc(h_map[i], w_map[i], c_map[i], lp_solver, solver_opts=solver_opts, show=show)
 
         return xmin
 
-    def getMaxs(self, *args):
+    def getMaxs(self, *args, solver_opts=None, show=False):
         """Get the maximum values of state x corresponding map indexes
         """
         len_ = len(args)
@@ -1088,17 +845,18 @@ class ImageStar(object):
             raise Exception(
                 'error: invalid number of input arguments (should be between 1 and 4)')
 
-        n = len(map)
+        n = len(map) if map is not None else len(h_map)
         xmin = np.zeros(n, dtype=self.V.dtype)
 
         if map is not None:
+            V = self.V.reshape(self.num_pixel, self.num_pred+1)
             # h_map, w_map, c_map = self.index_to3D(map)
             for i in range(n):
-                xmin[i] = self.getMax_index(map[i], lp_solver)
+                xmin[i] = self.getMax_index(map[i], lp_solver, V=V, solver_opts=solver_opts, show=show)
 
         else:
             for i in range(n):
-                xmin[i] = self.getMax_hwc(h_map[i], w_map[i], c_map[i], lp_solver)
+                xmin[i] = self.getMax_hwc(h_map[i], w_map[i], c_map[i], lp_solver, solver_opts=solver_opts, show=show)
 
         return xmin
     
@@ -1137,18 +895,18 @@ class ImageStar(object):
         xmax = self.c().reshape(-1) + np.matmul(neg_f, l) + np.matmul(pos_f, u)
         return xmin, xmax
 
-    def getRange(self, h_indx, w_indx, c_indx, lp_solver='gurobi'):
+    def getRange(self, h_indx, w_indx, c_indx, lp_solver='gurobi', solver_opts=None, show=False):
         """Get the lower and upper bounds of x[index]"""
 
         if lp_solver == 'estimate':
             return self.estimateRange(h_indx, w_indx, c_indx)
         else:
-            l = self.getMin(h_indx, w_indx, c_indx, lp_solver)
-            u = self.getMax(h_indx, w_indx, c_indx, lp_solver)
+            l = self.getMin(h_indx, w_indx, c_indx, lp_solver, solver_opts=solver_opts, show=show)
+            u = self.getMax(h_indx, w_indx, c_indx, lp_solver, solver_opts=solver_opts, show=show)
             return l, u    
         
 
-    def getRanges(self, lp_solver='gurobi', RF=0.0, layer=None, delta=0.98):
+    def getRanges(self, lp_solver='gurobi', RF=0.0, layer=None, delta=0.98, solver_opts=None, show=False):
         """Get the lower and upper bound vectors of the state
             Args:
                 lp_solver: linear programming solver. e.g.: 'gurobi', 'estimate', 'linprog'
@@ -1157,8 +915,8 @@ class ImageStar(object):
         if lp_solver == 'estimate':
             l, u = self.estimateRanges()
         else:
-            l = self.getMins_all()
-            u = self.getMaxs_all()
+            l = self.getMins_all(lp_solver=lp_solver, solver_opts=solver_opts, show=show)
+            u = self.getMaxs_all(lp_solver=lp_solver, solver_opts=solver_opts, show=show)
         return l, u
 
     # def getRanges(self, lp_solver='gurobi', RF=0.0, layer=None, delta=0.98):
@@ -1241,7 +999,7 @@ class ImageStar(object):
     def geNumAttackedPixels(self):
         """Esimate the number of attacked pixels"""
         V = self.V[:, :, :, 1:] != 0
-        return np.max(V, axis=3).sum()
+        return np.any(V, axis=-1).sum()
     
     def get_max_point_cadidates(self):
         """ Quickly estimate max-point candidates """
@@ -1309,6 +1067,92 @@ class ImageStar(object):
         else:
             V = sp.coo_array(self.V[:, :, :, 1:].reshape(-1, num_pred))
             return SparseImageStar2DCOO(c, V, C, self.d, self.pred_lb, self.pred_ub, shape)
+        
+    def concatenate(self, X, axis=0):
+        """Concatenate two imagestar sets"""
+        assert isinstance(X, ImageStar), \
+        'error: the input X should be an ImageStar set'
+        assert self.shape() == X.shape(), \
+        f'error: the two ImageStar sets should have the same shape to concatenate; shapes are current:{self.shape} and X:{X.shape}'
+
+        sc, xc = self.V[:, :, :, 0], X.V[:, :, :, 0]
+        c = np.concatenate([sc, xc], axis=axis)[:, :, :, None]
+        A = ImageStar.block_diag_axis(self.V[:, :, :, 1:], X.V[:, :, :, 1:], axis=axis)
+        new_V = np.concatenate((c, A), axis=3)
+
+        SC = self.C if len(self.C) > 0 else np.empty((0, self.num_pred))    
+        Sd = self.d if len(self.d) > 0 else np.empty((0,))
+        XC = X.C if len(X.C) > 0 else np.empty((0, X.num_pred))
+        Xd = X.d if len(X.d) > 0 else np.empty((0,))
+
+        new_C = block_diag(SC, XC)
+        new_d = np.concatenate((Sd, Xd))
+
+        new_pred_lb = np.concatenate((self.pred_lb, X.pred_lb))
+        new_pred_ub = np.concatenate((self.pred_ub, X.pred_ub))
+        return ImageStar(new_V, new_C, new_d, new_pred_lb, new_pred_ub, copy_=False)
+    
+    def block_diag_axis(A, B, axis=0):
+        """
+        Block diagonal concatenation along a specified axis
+        A, B: input 4D numpy arrays with shape (h, w, c, num_pred)
+        axis \in {0, 1, 2}:
+            - axis 0: vertical concatenation:       (h, :, :, m); block diag in (0, 3)
+            - axis 1: horizontal concatenation:     (:, w, :, m); block diag in (1, 3)
+            - axis 2: channel-wise concatenation:   (:, :, c, m); block diag in (2, 3)
+        return:
+            new_V: the concatenated 4D numpy array
+        """
+        assert A.ndim == 4 and B.ndim == 4
+        assert axis in (0, 1, 2)
+
+        h1, w1, c1, m1 = A.shape
+        h2, w2, c2, m2 = B.shape
+
+        if axis == 0:
+            # A: (h1, w, c, m1), B: (h2, w, c, m2)
+            assert w1 == w2 and c1 == c2, "w and c must match for axis=0"
+
+            out = np.zeros((h1 + h2, w1, c1, m1 + m2),
+                        dtype=np.result_type(A, B))
+            out[:h1, :, :, :m1] = A      # top-left block
+            out[h1:, :, :, m1:] = B      # bottom-right block
+
+        elif axis == 1:
+            # A: (h, w1, c, m1), B: (h, w2, c, m2)
+            assert h1 == h2 and c1 == c2, "h and c must match for axis=1"
+
+            out = np.zeros((h1, w1 + w2, c1, m1 + m2),
+                        dtype=np.result_type(A, B))
+            out[:, :w1, :, :m1] = A
+            out[:, w1:, :, m1:] = B
+
+        else:  # axis == 2
+            # A: (h, w, c1, m1), B: (h, w, c2, m2)
+            assert h1 == h2 and w1 == w2, "h and w must match for axis=2"
+
+            out = np.zeros((h1, w1, c1 + c2, m1 + m2),
+                        dtype=np.result_type(A, B))
+            out[:, :, :c1, :m1] = A
+            out[:, :, c1:,  m1:] = B
+
+        return out
+
+    def minKowskiSum(self, X):
+        """Minkowski sum of two ImageStar sets"""
+        shape = self.shape()
+        S = self.toStar(copy_=False)
+        X = X.toStar(copy_=False)
+        R = S.minKowskiSum(X)
+        return R.toImageStar(shape)
+    
+    @staticmethod
+    def rand(height, width, channel):
+        """"Randomly generate a ImageStar"""
+        dim = height*width*channel
+        lb = -np.random.rand(dim).reshape(height, width, channel)
+        ub = np.random.rand(dim).reshape(height, width, channel)
+        return ImageStar(lb, ub)
 
     @staticmethod
     def isMax(maxMap, ori_image, center, others, lp_solver='gurobi'):
@@ -1378,17 +1222,15 @@ class ImageStar(object):
         else:
             raise Exception('the data should be a 3D numpy array or 3D torch tensor')
 
-        if dtype =='float64':
-            data = data.astype(np.float64)
-        else:
-            data = data.astype(np.float32)
+        data = data.astype(dtype)
+        
 
         lb = data - epsilon
         ub = data + epsilon
 
         if data_type == 'image':
-            lb[lb < 0] = 0
-            ub[ub > 1] = 1
+            lb[lb < 0] = 0.0
+            ub[ub > 1] = 1.0
 
         return ImageStar(lb, ub)
     
@@ -1399,3 +1241,23 @@ class ImageStar(object):
         lb = -np.random.rand(in_height, in_width, in_channel)
         ub = np.random.rand(in_height, in_width, in_channel)
         return ImageStar(lb, ub)
+    
+    @staticmethod
+    def rand_polytope(h, w, ch, N, dtype='float64'):
+        """ Generate a random Star with constraints"""
+
+        assert h > 0 and w > 0 and ch > 0, 'error: invalid dimension'
+        assert N > h * w * ch, 'error: number constraints should be greater than dimension'
+
+        dim = h * w * ch
+        A = np.random.rand(N, dim)
+
+        # compute the convex hull
+        P = pc.qhull(A)
+
+        c = np.zeros([P.dim, 1])
+        I = np.eye(P.dim)
+
+        V = np.hstack([c, I]).reshape(h, w, ch, dim + 1)
+        pred_lb, pred_ub = P.bounding_box
+        return ImageStar(V, P.A, P.b, pred_lb.reshape(-1), pred_ub.reshape(-1))

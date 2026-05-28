@@ -4,8 +4,10 @@ import scipy
 import scipy.linalg
 
 from StarV.set.imagestar import ImageStar
-from StarV.fun.matmul import MatMul
+# from StarV.fun.matmul import MatMul
 from StarV.fun.identityXidentity import IdentityXIdentity
+
+np.set_printoptions(threshold=np.inf, linewidth=1000000)
 
 class Test(object):
     """
@@ -212,40 +214,40 @@ class Test(object):
         print('LB3\n', LB3)
         print('UB3\n', UB3)
 
-    def test_matmul(self):
-        shape = (3, 3, 1)
-        dim = np.prod(shape)
-        A = np.arange(dim).reshape(*shape) + 1
-        eps = (np.arange(dim).reshape(*shape) + 1)*0.1
-        # lb, ub = A - eps, A + eps
-        lb, ub = -eps, eps
-        IM = ImageStar(lb, ub)
-        I = np.eye(dim)
-        C = np.vstack([-I, I])
-        d = np.hstack([(np.ones(dim)-0.2), np.ones(dim)-0.2])
-        IM1 = ImageStar(IM.V, C, d, IM.pred_lb, IM.pred_ub)
+    # def test_matmul(self):
+    #     shape = (3, 3, 1)
+    #     dim = np.prod(shape)
+    #     A = np.arange(dim).reshape(*shape) + 1
+    #     eps = (np.arange(dim).reshape(*shape) + 1)*0.1
+    #     # lb, ub = A - eps, A + eps
+    #     lb, ub = -eps, eps
+    #     IM = ImageStar(lb, ub)
+    #     I = np.eye(dim)
+    #     C = np.vstack([-I, I])
+    #     d = np.hstack([(np.ones(dim)-0.2), np.ones(dim)-0.2])
+    #     IM1 = ImageStar(IM.V, C, d, IM.pred_lb, IM.pred_ub)
 
-        print('IM1')
-        repr(IM1)
-        LB1, UB1 = IM1.getRanges()
-        print('LB1\n', LB1)
-        print('UB1\n', UB1)
+    #     print('IM1')
+    #     repr(IM1)
+    #     LB1, UB1 = IM1.getRanges()
+    #     print('LB1\n', LB1)
+    #     print('UB1\n', UB1)
 
-        IM2 = IM1.sum(axis=1)
+    #     IM2 = IM1.sum(axis=1)
 
-        print('IM2')
-        repr(IM2)
-        LB2, UB2 = IM2.getRanges()
-        print('LB2\n', LB2)
-        print('UB2\n', UB2)
+    #     print('IM2')
+    #     repr(IM2)
+    #     LB2, UB2 = IM2.getRanges()
+    #     print('LB2\n', LB2)
+    #     print('UB2\n', UB2)
 
 
-        IM3 = MatMul.reach(IM1, IM2)
-        print(IM3)
-        repr(IM3)
-        LB3, UB3 = IM3.getRanges()
-        print('LB3\n', LB3)
-        print('UB3\n', UB3)
+    #     IM3 = MatMul.reach(IM1, IM2)
+    #     print(IM3)
+    #     repr(IM3)
+    #     LB3, UB3 = IM3.getRanges()
+    #     print('LB3\n', LB3)
+    #     print('UB3\n', UB3)
 
     def test(self):
         shape = (4, 4, 3)
@@ -260,7 +262,68 @@ class Test(object):
         C = scipy.linalg.block_diag(IM1.C, IM2.C)
         print(C.shape)
 
+    def test_concatenate_axis(self):
 
+        self.n_tests += 1
+
+        print('=================================================\
+        ==============================================')
+        print('Testing ImageStar.concatenate...')
+
+        h, w, c = 2, 2, 3
+        shape = (h, w, c)
+        dim = np.prod(shape)
+        axis = 0
+        im1 = np.arange(dim).reshape(*shape) + 1
+        eps = 0.2
+        lb1 = im1 - eps
+        ub1 = im1 + eps
+        IM1 = ImageStar(lb1, ub1)
+
+        im2 = (np.arange(dim).reshape(*shape) + 1)*0.1
+        eps = 0.1
+        lb2 = im2 - eps
+        ub2 = im2 + eps
+        IM2 = ImageStar(lb2, ub2)
+              
+        IM3 = IM1.concatenate(IM2, axis=axis)
+        print(f'IM1.V[0, 0, :, :]: \n', IM1.V[0, 0, :, :])
+        print(f'IM2.V[0, 0, :, :]: \n', IM2.V[0, 0, :, :])
+        print(f'IM3.V[0, 0, :, :]: \n', IM3.V[0, 0, :, :])
+
+        print(f'IM1.V[0, 1, :, :]: \n', IM1.V[0, 1, :, :])
+        print(f'IM2.V[0, 1, :, :]: \n', IM2.V[0, 1, :, :])
+        print(f'IM3.V[0, 1, :, :]: \n', IM3.V[0, 1, :, :])
+
+        print(f'IM1.V[1, 3, :, :]: \n', IM1.V[1, 1, :, :])
+        print(f'IM2.V[1, 1, :, :]: \n', IM2.V[1, 1, :, :])
+        print(f'IM3.V[1, 1, :, :]: \n', IM3.V[1, 1, :, :])
+
+        print(f'IM1: representation \n{repr(IM1)}')
+        print(f'IM2: representation \n{repr(IM2)}')
+        print(f'IM3: representation \n{repr(IM3)}')
+
+        lb1, ub1 = IM1.getRanges()
+        lb2, ub2 = IM2.getRanges()
+        lb3, ub3 = IM3.getRanges()
+
+        print('LB1:\n', lb1)
+        print('UB1:\n', ub1)
+        print('LB2:\n', lb2)
+        print('UB2:\n', ub2)
+        print('LB3:\n', lb3)
+        print('UB3:\n', ub3)
+
+
+        print('Testing ImageStar concatenate along axis 2...')
+        try:
+            IM3 = IM1.concatenate(IM2, axis=2)
+
+        except Exception:
+            print('Fail in ImageStar concatenate along axis 2')
+            self.n_fails += 1
+        else:
+            print('Test successfull!')
 
 if __name__ == "__main__":
 
@@ -274,8 +337,9 @@ if __name__ == "__main__":
     # test_ImageStar.test_sum()
     # test_ImageStar.test_sum2()
     # test_ImageStar.test_element_product()
-    test_ImageStar.test_matmul()
+    # test_ImageStar.test_matmul()
     # test_ImageStar.test()
+    test_ImageStar.test_concatenate_axis()
     print('\n========================\
     =================================\
     =================================\

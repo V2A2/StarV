@@ -18,6 +18,7 @@ PosLin Class
 Dung Tran, 8/29/2022
 Update: 12/20/2024 (Sung Woo Choi, merging)
 Update: Yuntao Li, Date: 09/16/2025
+Update: 03/07/2026 (Sung Woo Choi, support milp; csr now operates in csr format instead of changing to coo)
 """
 
 # !/usr/bin/python3
@@ -28,6 +29,7 @@ from StarV.set.sparsestar import SparseStar
 from StarV.set.sparseimagestar import *
 from StarV.set.sparseimagestar2dcoo import SparseImageStar2DCOO
 from StarV.set.sparseimagestar2dcsr import SparseImageStar2DCSR
+from StarV.set.predicate_layout import PredicateLayout
 
 import numpy as np
 import scipy.sparse as sp
@@ -262,7 +264,7 @@ class PosLin(object):
         #         print('No relaxation by triangular area applied due to RF = {}'.format(RF))
         #     return l, u
         
-        # else if RF == 0.0:
+        # elif RF == 0.0:
         #     if show:
         #         print('Applying full relaxation (RF = {})'.format(RF))
 
@@ -372,51 +374,139 @@ class PosLin(object):
         return In, lb, ub, map8
 
         
-    def addConstraints(I, map, l, u):
+    def addConstraints(I, map, l, u, milp=False):
+        """
+        Over-approximate the ReLU function by linear constraints for neurons with (l < 0) and (u > 0)
+        Args:
+        - I: input star set before ReLU layer
+        - map: indices of neurons with (l < 0) and (u > 0)
+        - l: lower bound vector of the neurons in map
+        - u: upper bound vector of the neurons in map
+        - milp: whether to apply MILP constraints (big-M method) for over-approximation (default: False)
+        Return:
+        - output star set after adding constraints for ReLU layer
+        """
+        m = len(map) # number of neurons invovled
+        if m == 0:
+            return I
 
         N = I.dim
-        m = len(map) # number of neurons invovled
-        dtype = I.V.dtype
-
+        n = I.nVars # number of predicate variables in the reachable set before ReLU layer
+        dtype = I.V.dtype        
+        
+        # New predicate variables for the output of ReLU layer
         V1 = copy.deepcopy(I.V)
         V1[map, :] = 0
+        
         V2 = np.zeros([N, m], dtype=dtype)
         for i in range(m):
             V2[map[i], i] = 1
-        new_V = np.hstack([V1, V2])
+        
+        # x = cx + Vx*alpha 
+        cx = I.V[map, 0]
+        Vx = I.V[map, 1:n+1]
+        
+        # Prepare constraint matrices
+        Z_mn = np.zeros([m, n], dtype=dtype)
+        I_m  = np.eye(m, dtype=dtype)
+        Z_mm = np.zeros([m, m], dtype=dtype)
+        z_m  = np.zeros(m, dtype=dtype)
+            
+        if milp:
+            # Existing constraints need both y and z variable blocks.
+            if len(I.C) == 0:
+                C0 = np.empty([0, n + 2 * m], dtype=dtype)
+                d0 = np.empty([0], dtype=dtype)
+            else:
+                C0 = np.hstack([I.C, np.zeros([I.C.shape[0], 2 * m], dtype=dtype)])
+                d0 = I.d
 
-        n = I.nVars
+            # over-approximate the ReLU function by MILP constraints (big-M method)
+            # Apply 4 linear constraints for each neuron with (l < 0) and (u > 0)
+            # case 1: y[index] >= 0
+            # case 2: y[index] >= x[index]
+            # case 3: y[index] <= u * z
+            # case 4: y[index] <= x[index] * (1 - z), where z is a binary variable (z in {0, 1})
+            
+            # V2 is the coefficient matrix for new predicate variables corresponding to the output of ReLU layer (y cols)
+            # V3 is the coefficient matrix for new binary variables (z cols)
+            V3 = np.zeros([N, m], dtype=dtype)
+            new_V = np.hstack([V1, V2, V3])
+    
+            # case 1: y[index] >= 0 <=> -y[index] <= 0
+            C1 = np.hstack([Z_mn, -I_m, Z_mm])
+            d1 = z_m
+            
+            # case 2: y[index] >= x[index] <=> Vx*alpha -y[index] <= -cx
+            C2 = np.hstack([Vx, -I_m, Z_mm])
+            d2 = -cx
+            
+            # case 3: y[index] <= u * z <=> y[index] - u * z <= 0
+            C3 = np.hstack([Z_mn, I_m, -np.diag(u)])
+            d3 = z_m
+            
+            # case 4: y[index] <= x[index] - l[index] * (1 - z) <=> -Vx*alpha + y[index] - l * z <= cx - l
+            C4 = np.hstack([-Vx, I_m, -np.diag(l)])
+            d4 = cx - l
+            
+            # Combine all constraints
+            new_C = np.vstack([C0, C1, C2, C3, C4])
+            new_d = np.hstack([d0, d1, d2, d3, d4])
+            
+            # Extend predicate bounds for new variables: y in [0, u], z in {0, 1}
+            new_pred_lb = np.hstack([I.pred_lb, z_m, z_m])
+            new_pred_ub = np.hstack([I.pred_ub, u, np.ones(m, dtype=dtype)])
+            
+            layout = copy.deepcopy(getattr(I, "pred_layout", None))
+            if layout is None:
+                layout = PredicateLayout(n_base=I.nVars)
+            y_sl, z_sl = layout.add_relu_bigM_block(m) # add new (y,z) block for ReLU layer
+            
+            return Star(new_V, new_C, new_d, new_pred_lb, new_pred_ub, layout)
+
+        # Extend existing predicate constraints C alpha <= d with zeros for new y vars
         if len(I.C) == 0:
-            C0 = np.empty([0, n+m], dtype=dtype)
+            C0 = np.empty([0, n + m], dtype=dtype)
             d0 = np.empty([0], dtype=dtype)
         else:
             C0 = np.hstack([I.C, np.zeros([I.C.shape[0], m], dtype=dtype)])
             d0 = I.d
-
+            
+        # Triangular area relaxation for ReLU function
+        # Apply 3 linear constraints for each neuron with (l < 0) and (u > 0)
         # case 1: y[index] >= 0
-        C1 = np.hstack([np.zeros([m, n], dtype=dtype), -np.identity(m, dtype=dtype)])
-        d1 = np.zeros(m, dtype=dtype)
+        # case 2: y[index] >= x[index]
+        # case 3: y[index] <= (u / (u - l)) * (x - l)
+        
+        new_V = np.hstack([V1, V2])
+        
+        # case 1: y[index] >= 0
+        C1 = np.hstack([Z_mn, -I_m])
+        d1 = z_m
 
         # case 2: y[index] >= x[index]
-        C2 = np.hstack([I.V[map, 1:n + 1], -V2[map, 0:m]])
-        d2 = -I.V[map, 0] 
+        C2 = np.hstack([Vx, -I_m])
+        d2 = -cx
 
         # case 3: y[index] <= (u / (u - l)) * (x - l)
         a = u / (u - l)
         b = a * l
 
-        C3 = np.hstack([(-a[:, None] * I.V[map, 1:n + 1]), V2[map, 0:m]])
-        d3 = a * I.V[map, 0] - b
+        C3 = np.hstack([(-a[:, None] * Vx), I_m])
+        d3 = a * cx - b
 
+        # Combine all constraints
         new_C = np.vstack([C0, C1, C2, C3])
         new_d = np.hstack([d0, d1, d2, d3])
 
-        new_pred_lb = np.hstack([I.pred_lb, np.zeros(m, dtype=dtype)])
+        # Extend predicate bounds for new variables: y in [0, u]
+        new_pred_lb = np.hstack([I.pred_lb, z_m])
         new_pred_ub = np.hstack([I.pred_ub, u])
+        
         return Star(new_V, new_C, new_d, new_pred_lb, new_pred_ub)
 
 
-    def addConstraints_sparse(I, map, l, u):
+    def addConstraints_sparse(I, map, l, u, milp=False):
         N = I.dim
         m = len(map) # number of neurons invovled
         dtype = I.V.dtype
@@ -466,7 +556,7 @@ class PosLin(object):
         return SparseStar(new_A, new_C, new_d, new_pred_lb, new_pred_ub, new_pred_depth)
     
 
-    def addConstraints_sparseimagestar(I, map, l, u):
+    def addConstraints_sparseimagestar(I, map, l, u, milp=False):
 
         N = I.num_pixel
         m = len(map)
@@ -580,271 +670,640 @@ class PosLin(object):
 
     #     return SparseImageStar(new_c, new_V, new_C, new_d, new_pred_lb, new_pred_ub)
     
-    def addConstraints_sparseimagestar2d_coo(I, map, l, u):
-        map = map.astype(np.int32)
+    def addConstraints_sparseimagestar2d_coo(I, map, l, u, milp=False):
+        m = len(map)
+        if m == 0:
+            return I
 
         N = I.V.shape[0]
-        m = len(map)
         n = I.num_pred
         dtype = I.V.dtype
+        out_shape = copy.deepcopy(I.shape)
+        is_dense = isinstance(I.V, np.ndarray)
 
-        if isinstance(I.V, np.ndarray):
+        if is_dense:
             V1 = copy.deepcopy(I.V)
             V1[map, :] = 0
-            V2 = np.zeros([N, m], dtype=dtype)
-            # V2[map, np.arange(m, dtype=np.int32)] = 1
-            for i in range(m):
-                V2[map[i], i] = 1
-            new_V = np.hstack([V1, V2])
-
-            # case 1: y[map] >= 0
-            # case 2: y[map] >= x[map]
-            # case 3: y[map] <= (u / (u - l)) * (x - l)
+            new_V = np.hstack([V1, np.zeros((N, m), dtype=dtype)])
+            new_V[map, n:] = np.eye(m, dtype=dtype)
             Ic = I.V[map, 0]
-            d1 = np.zeros(m, dtype=dtype)
-            d2 = -Ic
-            a = u / (u - l)
-            b = a * l
-
             V1 = I.V[map, 1:]
-            V3 = np.multiply(V1, -a[:, None])
-            d3 = a * Ic - b
-
-            V1 = sp.coo_array(V1)
-            V3 = sp.coo_array(V3)
-
-            eye_data = np.ones(m, dtype=dtype)
-            eye_col = np.arange(m, dtype=np.int32) + n
-            eye_row = np.arange(m, dtype=np.int32)
-
-            data = np.hstack([-eye_data, V1.data, -eye_data, V3.data, eye_data])
-            row = np.hstack([eye_row, V1.row + m, eye_row + m, V3.row + 2*m, eye_row + 2*m])
-            col = np.hstack([eye_col, V1.col, eye_col, V3.col, eye_col])
-            C = sp.csr_array((data, (row, col)), shape=(3*m, n+m), copy=False)
-
-            if I.C.nnz > 0:
-                data = np.hstack([I.C.data, C.data])
-                indices = np.hstack([I.C.indices, C.indices])
-                indptr = np.hstack([I.C.indptr, C.indptr[1:]+I.C.nnz])
-                new_C = sp.csr_array((data, indices, indptr), shape=(I.C.shape[0]+C.shape[0], C.shape[1]), copy=False)
-                new_d = np.hstack([I.d, d1, d2, d3])
-            else:
-                new_C = C
-                new_d = np.hstack([d1, d2, d3])
-
-            new_pred_lb = np.hstack([I.pred_lb, np.zeros(m, dtype=dtype)])
-            new_pred_ub = np.hstack([I.pred_ub, u])
-            out_shape = copy.deepcopy(I.shape)
-
-            return SparseImageStar2DCOO(new_V, new_C, new_d, new_pred_lb, new_pred_ub, out_shape, copy_=False)
-
         else:
-        
             Ic = I.c[map]
             new_c = copy.deepcopy(I.c)
             new_c[map] = 0
-            V = I.resetRows_V(map)
-
+            V = I.reset_rows_coo(map)
             V.data = np.hstack([V.data, np.ones(m, dtype=dtype)])
             V.row = np.hstack([V.row, map])
             V.col = np.hstack([V.col, np.arange(m, dtype=np.int32)+V.shape[1]])
             V._shape = (N, n+m)
             new_V = V
+            V1 = I.getRows(map).tocoo(copy=False)
 
-            V1 = I.getRows(map)
-            eye_data = np.ones(m, dtype=dtype)
-            eye_col = np.arange(m, dtype=np.int32) + n
-            eye_row = np.arange(m, dtype=np.int32)
+        # Triangular area relaxation for ReLU function
+        # Apply 3 linear constraints for each neuron with (l < 0) and (u > 0)
+        # case 1: y[map] >= 0
+        # case 2: y[map] >= x[map]
+        # case 3: y[map] <= (u / (u - l)) * (x - l)
+        d1 = np.zeros(m, dtype=dtype)
+        d2 = -Ic
+        a = u / (u - l)
+        b = a * l
+        d3 = a * Ic - b
 
-            # case 1: y[map] >= 0
-            # case 2: y[map] >= x[map]
-            # case 3: y[map] <= (u / (u - l)) * (x - l)
-            d1 = np.zeros(m, dtype=dtype)
-            d2 = -Ic
-            a = u / (u - l)
-            b = a * l
-            V3 = V1.multiply(-a[:, None]).tocoo() # returns csr format
-            d3 = a * Ic - b
+        eye_data = np.ones(m, dtype=dtype)
+        eye_col = np.arange(m, dtype=np.int32) + n
+        eye_row = np.arange(m, dtype=np.int32)
 
-            data = np.hstack([-eye_data, V1.data, -eye_data, V3.data, eye_data])
-            row = np.hstack([eye_row, V1.row + m, eye_row + m, V3.row + 2*m, eye_row + 2*m])
-            col = np.hstack([eye_col, V1.col, eye_col, V3.col, eye_col])
-            C = sp.csr_array((data, (row, col)), shape=(3*m, n+m), copy=False)
+        if is_dense:
+            V1 = sp.coo_array(V1)
+            V3 = sp.coo_array(np.multiply(V1, -a[:, None]))
+        else:
+            V3 = sp.coo_array((-a[V1.row] * V1.data, (V1.row, V1.col)), shape=V1.shape)
 
-            if I.C.nnz > 0:
-                data = np.hstack([I.C.data, C.data])
-                indices = np.hstack([I.C.indices, C.indices])
-                indptr = np.hstack([I.C.indptr, C.indptr[1:]+I.C.nnz])
-                new_C = sp.csr_array((data, indices, indptr), shape=(I.C.shape[0]+C.shape[0], C.shape[1]), copy=False)
-                new_d = np.hstack([I.d, d1, d2, d3])
-            else:
-                new_C = C
-                new_d = np.hstack([d1, d2, d3])
+        data = np.hstack([-eye_data, V1.data, -eye_data, V3.data, eye_data])
+        row = np.hstack([eye_row, V1.row + m, eye_row + m, V3.row + 2*m, eye_row + 2*m])
+        col = np.hstack([eye_col, V1.col, eye_col, V3.col, eye_col])
+        C = sp.csr_array((data, (row, col)), shape=(3*m, n+m), copy=False)
 
-            new_pred_lb = np.hstack([I.pred_lb, np.zeros(m, dtype=dtype)])
-            new_pred_ub = np.hstack([I.pred_ub, u])
-            out_shape = copy.deepcopy(I.shape)
+        if I.C.nnz > 0:
+            data = np.hstack([I.C.data, C.data])
+            indices = np.hstack([I.C.indices, C.indices])
+            indptr = np.hstack([I.C.indptr, C.indptr[1:]+I.C.nnz])
+            new_C = sp.csr_array((data, indices, indptr), shape=(I.C.shape[0]+C.shape[0], C.shape[1]), copy=False)
+            new_d = np.hstack([I.d, d1, d2, d3])
+        else:
+            new_C = C
+            new_d = np.hstack([d1, d2, d3])
 
-            return SparseImageStar2DCOO(new_c, new_V, new_C, new_d, new_pred_lb, new_pred_ub, out_shape, copy_=False)
+        new_pred_lb = np.hstack([I.pred_lb, np.zeros(m, dtype=dtype)])
+        new_pred_ub = np.hstack([I.pred_ub, u])
+
+        if is_dense:
+            return SparseImageStar2DCOO(new_V, new_C, new_d, new_pred_lb, new_pred_ub, out_shape, copy_=False)
+        return SparseImageStar2DCOO(new_c, new_V, new_C, new_d, new_pred_lb, new_pred_ub, out_shape, copy_=False)
     
-    # def addConstraints_sparseimagestar2d_coo(I, map, l, u):
+    def addConstraints_sparseimagestar2d_coo2(I, map, l, u, milp=False):
+        """
+        COO-native implementation with the same logic as addConstraints_sparseimagestar2d_csr2.
+        Includes MILP support and returns SparseImageStar2DCOO.
+        """
+        assert isinstance(I, SparseImageStar2DCOO), 'error: Input set must be of type SparseImageStar2DCOO'
 
-    #     N = I.V.shape[0]
-    #     m = len(map)
-    #     n = I.num_pred
-    #     dtype = l.dtype
-        
-    #     Ic = I.c[map]
-    #     new_c = copy.deepcopy(I.c)
-    #     new_c[map] = 0
-    #     V1 = I.resetRows_V(map)
-    #     V2 = np.zeros([N, m])
-    #     for i in range(m):
-    #         V2[map[i], i] = 1
-    #     new_V = sp.hstack([V1, V2])
-
-    #     E = sp.eye(m, dtype=dtype)
-    #     V3 = I.getRows(map)
-
-    #     # case 1: y[index] >= 0
-    #     C1 = sp.hstack([sp.csr_matrix((m, n),dtype=dtype), -E])
-    #     d1 = np.zeros(m)
-
-    #     # case 2: y[index] >= x[index]
-    #     C2 = sp.hstack([V3, -E])
-    #     d2 = -Ic
-
-    #     # case 3: y[index] <= (u / (u - l)) * (x - l)
-    #     a = u / (u - l)
-    #     b = a * l
-
-    #     # C3 = sp.hstack([(-a[:, None] * V1), E])
-    #     C3 = sp.hstack([V3.multiply(-a[:, None]), E])
-    #     d3 = a * Ic - b
-
-    #     if I.C.nnz > 0:
-    #         C0 = sp.hstack((I.C, sp.csr_matrix((I.C.shape[0], m)))) 
-    #         d0 = I.d
-
-    #         new_C = sp.vstack([C0, C1, C2, C3]).tocsr()
-    #         new_d = np.hstack([d0, d1, d2, d3])
-    #     else:
-    #         new_C = sp.vstack([C1, C2, C3]).tocsr()
-    #         new_d = np.hstack([d1, d2, d3])
-
-    #     new_pred_lb = np.hstack([I.pred_lb, np.zeros(m)])
-    #     new_pred_ub = np.hstack([I.pred_ub, u])
-
-    #     return SparseImageStar2DCOO(new_c, new_V, new_C, new_d, new_pred_lb, new_pred_ub, I.shape)
-    
-
-    def addConstraints_sparseimagestar2d_csr(I, map, l, u):
-        map = map.astype(np.int32)
+        m = len(map)
+        if m == 0:
+            return I
 
         N = I.V.shape[0]
-        m = len(map)
         n = I.num_pred
         dtype = I.V.dtype
-        
-        if isinstance(I.V, np.ndarray):
-            V1 = copy.deepcopy(I.V)
-            V1[map, :] = 0
-            V2 = np.zeros([N, m], dtype=dtype)
-            # V2[map, np.arange(m, dtype=np.int32)] = 1
-            for i in range(m):
-                V2[map[i], i] = 1
-            new_V = np.hstack([V1, V2])
+        out_shape = copy.deepcopy(I.shape)
+        is_dense = isinstance(I.V, np.ndarray)
 
+        def _merge_existing_constraints(C_add, d_add, n_new_pred):
+            if I.C.nnz == 0:
+                return C_add, d_add
+            C0 = sp.csr_array((I.C.data, I.C.indices, I.C.indptr), shape=(I.C.shape[0], n_new_pred))
+            C_new = SparseImageStar2DCSR.vstack_csr(A=C0, B=C_add, A_shape=C0.shape, B_shape=C_add.shape)
+            d_new = np.hstack([I.d, d_add])
+            return C_new, d_new
+
+        def _update_predicate_layout(S):
+            pred_layout = getattr(I, "pred_layout", None)
+            if pred_layout is None:
+                return S
+            pred_layout = copy.deepcopy(pred_layout)
+            if milp:
+                pred_layout.add_relu_bigM_block(m)
+            else:
+                pred_layout.add_y_block(m)
+            S.pred_layout = pred_layout
+            return S
+
+        # -------------------------
+        # For Dense Case
+        # -------------------------
+        if is_dense:
+            # Keep the same dense handling pattern as coo/csr2
+            new_V = copy.deepcopy(I.V)
+            new_V[map, :] = 0 # reset rows for neurons in map
+
+            if milp:
+                new_V = np.hstack([new_V, np.zeros((N, m + m), dtype=dtype)])
+                y_col_start = 1 + n
+                for i in range(m):
+                    new_V[map[i], y_col_start + i] = 1.0
+
+                cx = I.V[map, 0]
+                Vx = I.V[map, 1:1 + n]
+                new_npred = n + 2 * m
+
+                Z_mn = sp.csr_array((m, n), dtype=dtype)
+                I_m = SparseImageStar2DCSR.csr_eye(m, dtype=dtype)
+                Z_mm = sp.csr_array((m, m), dtype=dtype)
+
+                C1 = SparseImageStar2DCSR.hstack_csr(A=Z_mn, B=-I_m, A_shape=Z_mn.shape, B_shape=I_m.shape)
+                C1 = SparseImageStar2DCSR.hstack_csr(A=C1, B=Z_mm, A_shape=C1.shape, B_shape=Z_mm.shape)
+                d1 = np.zeros(m, dtype=dtype)
+
+                Vx_csr = sp.csr_array(Vx, dtype=dtype)
+                C2 = SparseImageStar2DCSR.hstack_csr(
+                    A=Vx_csr,
+                    B=-I_m,
+                    A_shape=Vx_csr.shape,
+                    B_shape=I_m.shape
+                )
+                C2 = SparseImageStar2DCSR.hstack_csr(A=C2, B=Z_mm, A_shape=C2.shape, B_shape=Z_mm.shape)
+                d2 = -cx
+
+                Zu = sp.diags(u, 0, format='csr', dtype=dtype)
+                C3 = SparseImageStar2DCSR.hstack_csr(A=Z_mn, B=I_m, A_shape=Z_mn.shape, B_shape=I_m.shape)
+                C3 = SparseImageStar2DCSR.hstack_csr(A=C3, B=-Zu, A_shape=C3.shape, B_shape=Zu.shape)
+                d3 = np.zeros(m, dtype=dtype)
+
+                Zl = sp.diags(l, 0, format='csr', dtype=dtype)
+                C4 = SparseImageStar2DCSR.hstack_csr(
+                    A=-Vx_csr,
+                    B=I_m,
+                    A_shape=Vx_csr.shape,
+                    B_shape=I_m.shape
+                )
+                C4 = SparseImageStar2DCSR.hstack_csr(A=C4, B=-Zl, A_shape=C4.shape, B_shape=Zl.shape)
+                d4 = cx - l
+
+                C_add = SparseImageStar2DCSR.vstack_csr(
+                    A=SparseImageStar2DCSR.vstack_csr(A=C1, B=C2, A_shape=C1.shape, B_shape=C2.shape),
+                    B=SparseImageStar2DCSR.vstack_csr(A=C3, B=C4, A_shape=C3.shape, B_shape=C4.shape),
+                    A_shape=(C1.shape[0] + C2.shape[0], new_npred),
+                    B_shape=(C3.shape[0] + C4.shape[0], new_npred)
+                )
+                d_add = np.hstack([d1, d2, d3, d4])
+                new_C, new_d = _merge_existing_constraints(C_add, d_add, new_npred)
+
+                new_pred_lb = np.hstack([I.pred_lb, np.zeros(m, dtype=dtype), np.zeros(m, dtype=dtype)])
+                new_pred_ub = np.hstack([I.pred_ub, u, np.ones(m, dtype=dtype)])
+
+                S = SparseImageStar2DCOO(new_V, new_C, new_d, new_pred_lb, new_pred_ub, out_shape, copy_=False)
+                return _update_predicate_layout(S)
+
+            d1 = np.zeros(m, dtype=dtype)
+            d2 = -I.V[map, 0]
+            a = u / (u - l)
+            b = a * l
+            d3 = a * I.V[map, 0] - b
+
+            new_V = np.hstack([new_V, np.zeros((N, m), dtype=dtype)])
+            new_V[map, n:] = np.eye(m, dtype=dtype)
+            V1 = I.V[map, 1:]
+
+            C1 = np.hstack([np.zeros((m, n), dtype=dtype), -np.eye(m, dtype=dtype)])
+            C2 = np.hstack([V1, -np.eye(m, dtype=dtype)])
+            C3 = np.hstack([(-a[:, None] * V1), np.eye(m, dtype=dtype)])
+            C_new = sp.csr_array(np.vstack([C1, C2, C3]), dtype=dtype)
+            d_new = np.hstack([d1, d2, d3])
+
+            new_C, new_d = _merge_existing_constraints(C_new, d_new, C_new.shape[1])
+
+            new_pred_lb = np.hstack([I.pred_lb, np.zeros(m, dtype=dtype)])
+            new_pred_ub = np.hstack([I.pred_ub, u])
+            S = SparseImageStar2DCOO(new_V, new_C, new_d, new_pred_lb, new_pred_ub, out_shape, copy_=False)
+            return _update_predicate_layout(S)
+
+        # -------------------------
+        # For Sparse Case
+        # -------------------------
+        new_c = copy.deepcopy(I.c)
+        new_c[map] = 0
+
+        V0 = I.reset_rows_coo(map)
+        Y = sp.coo_array(
+            (np.ones(m, dtype=dtype), (np.asarray(map, dtype=np.int32), np.arange(m, dtype=np.int32))),
+            shape=(N, m)
+        )
+        new_V = sp.coo_array(
+            (np.hstack([V0.data, Y.data]), (np.hstack([V0.row, Y.row]), np.hstack([V0.col, Y.col]))),
+            shape=(N, n + m),
+            dtype=dtype
+        )
+
+        if milp:
+            new_npred = n + 2 * m
+            new_V = sp.coo_array((new_V.data, (new_V.row, new_V.col)), shape=(N, new_npred), dtype=dtype)
+        else:
+            new_npred = n + m
+
+        Ic = I.c[map]
+        # scipy.sparse.coo_array does not support direct row slicing
+        Vx = I.V.tocsr(copy=False)[map, :]
+
+        Zmn = sp.csr_array((m, n), dtype=dtype)
+        Im = SparseImageStar2DCSR.csr_eye(m, dtype=dtype)
+        Zmm = sp.csr_array((m, m), dtype=dtype)
+
+        if not milp:
+            a = u / (u - l)
+
+            C1 = SparseImageStar2DCSR.hstack_csr(A=Zmn, B=-Im, A_shape=Zmn.shape, B_shape=Im.shape)
+            C2 = SparseImageStar2DCSR.hstack_csr(A=Vx, B=-Im, A_shape=Vx.shape, B_shape=Im.shape)
+            V3 = Vx.multiply((-a).reshape(-1, 1)).tocsr(copy=False)
+            C3 = SparseImageStar2DCSR.hstack_csr(A=V3, B=Im, A_shape=V3.shape, B_shape=Im.shape)
+
+            C_add = SparseImageStar2DCSR.vstack_csr(
+                A=SparseImageStar2DCSR.vstack_csr(A=C1, B=C2, A_shape=C1.shape, B_shape=C2.shape),
+                B=C3,
+                A_shape=(C1.shape[0] + C2.shape[0], new_npred),
+                B_shape=C3.shape
+            )
+            d_add = np.hstack([
+                np.zeros(m, dtype=dtype),
+                -Ic,
+                a * Ic - a * l
+            ])
+
+            new_pred_lb = np.hstack([I.pred_lb, np.zeros(m, dtype=dtype)])
+            new_pred_ub = np.hstack([I.pred_ub, u])
+        else:
+            Zu = SparseImageStar2DCSR.csr_diag(u, dtype=dtype)
+            Zl = SparseImageStar2DCSR.csr_diag(l, dtype=dtype)
+
+            C1 = SparseImageStar2DCSR.hstack_csr(A=Zmn, B=-Im, A_shape=Zmn.shape, B_shape=Im.shape)
+            C1 = SparseImageStar2DCSR.hstack_csr(A=C1, B=Zmm, A_shape=C1.shape, B_shape=Zmm.shape)
+            C2 = SparseImageStar2DCSR.hstack_csr(A=Vx, B=-Im, A_shape=Vx.shape, B_shape=Im.shape)
+            C2 = SparseImageStar2DCSR.hstack_csr(A=C2, B=Zmm, A_shape=C2.shape, B_shape=Zmm.shape)
+            C3 = SparseImageStar2DCSR.hstack_csr(A=Zmn, B=Im, A_shape=Zmn.shape, B_shape=Im.shape)
+            C3 = SparseImageStar2DCSR.hstack_csr(A=C3, B=-Zu, A_shape=C3.shape, B_shape=Zu.shape)
+            C4 = SparseImageStar2DCSR.hstack_csr(A=-Vx, B=Im, A_shape=(-Vx).shape, B_shape=Im.shape)
+            C4 = SparseImageStar2DCSR.hstack_csr(A=C4, B=-Zl, A_shape=C4.shape, B_shape=Zl.shape)
+
+            C_add = SparseImageStar2DCSR.vstack_csr(
+                A=SparseImageStar2DCSR.vstack_csr(A=C1, B=C2, A_shape=C1.shape, B_shape=C2.shape),
+                B=SparseImageStar2DCSR.vstack_csr(A=C3, B=C4, A_shape=C3.shape, B_shape=C4.shape),
+                A_shape=(C1.shape[0] + C2.shape[0], new_npred),
+                B_shape=(C3.shape[0] + C4.shape[0], new_npred)
+            )
+            d_add = np.hstack([
+                np.zeros(m, dtype=dtype),
+                -Ic,
+                np.zeros(m, dtype=dtype),
+                Ic - l
+            ])
+
+            new_pred_lb = np.hstack([I.pred_lb, np.zeros(m, dtype=dtype), np.zeros(m, dtype=dtype)])
+            new_pred_ub = np.hstack([I.pred_ub, u, np.ones(m, dtype=dtype)])
+
+        new_C, new_d = _merge_existing_constraints(C_add, d_add, new_npred)
+        S = SparseImageStar2DCOO(new_c, new_V, new_C, new_d, new_pred_lb, new_pred_ub, out_shape, copy_=False)
+        return _update_predicate_layout(S)
+    
+    def addConstraints_sparseimagestar2d_csr2(I, map, l, u, milp=False):
+        """
+        Over-approximate the ReLU function by linear constraints for neurons with (l < 0) and (u > 0) in SparseImageStar2DCSR format.
+        This method is similar to addConstraints_sparseimagestar2d_csr but it does not convert to COO format for V1 and C3, 
+        which can be more efficient for large sparse matrices. It directly constructs the CSR format for the new constraints.
+        Args:
+        - I: input star set before ReLU layer
+        - map: indices of neurons with (l < 0) and (u > 0)
+        - l: lower bound vector of the neurons in map
+        - u: upper bound vector of the neurons in map
+        - milp: whether to apply MILP constraints (big-M method) for over-approximation (default: False)
+        Return:
+        - output star set after adding constraints for ReLU layer
+        """
+        assert isinstance(I, SparseImageStar2DCSR), "error: Input set must be of type SparseImageStar2DCSR"
+
+        m = len(map)
+        if m == 0:
+            return I
+
+        N = I.V.shape[0]
+
+        n = I.num_pred
+        dtype = I.V.dtype
+        out_shape = copy.deepcopy(I.shape)
+        is_dense = isinstance(I.V, np.ndarray)
+
+        def _merge_existing_constraints(C_add, d_add, n_new_pred):
+            if I.C.nnz == 0:
+                return C_add, d_add
+            C0 = SparseImageStar2DCSR.csr_extend_ncols(I.C.tocsr(copy=False), n_new_pred, dtype=dtype)
+            C_new = SparseImageStar2DCSR.vstack_csr(A=C0, B=C_add, A_shape=C0.shape, B_shape=C_add.shape)
+            d_new = np.hstack([I.d, d_add])
+            return C_new, d_new
+
+        # -------------------------
+        # For Dense Case
+        # -------------------------
+        if is_dense:
+            # Keep the same as addConstraints_sparseimagestar2d_csr for dense case
+            new_V = copy.deepcopy(I.V)
+            new_V[map, :] = 0
+
+            if milp:
+                # MILP constraints (big-M method) for over-approximation
+                # Apply 4 linear constraints for each neuron with (l < 0) and (u > 0)
+                # case 1: y[map] >= 0 <=> -y[map] <= 0
+                # case 2: y[map] >= x[map] <=> V1*alpha - y[map] <= -Ic
+                # case 3: y[map] <= u * z <=> y[map] - u * z <= 0
+                # case 4: y[map] <= x[map] - l * (1 - z) <=> -V1*alpha + y[map] - l * z <= Ic - l, where z is a binary variable (z in {0, 1})
+
+                # Build new_V: add y (m) and z (m) predicate vars
+                new_V = np.hstack([new_V, np.zeros((N, m + m), dtype=dtype)])  # add y,z predicate columns
+                y_col_start = 1 + n
+                for i in range(m):
+                    new_V[map[i], y_col_start + i] = 1.0
+
+                # Pre-activation x at mapped indices: x = cx + Vx*alpha
+                cx = I.V[map, 0]           # (m,)
+                Vx = I.V[map, 1:1+n]       # (m,n) dense here
+                new_npred = n + 2*m
+
+                # Build MILP constraint blocks in sparse CSR
+                # Variables ordering in constraints is: [alpha (n) | y (m) | z (m)]
+                Z_mn = sp.csr_array((m, n), dtype=dtype)
+                I_m = SparseImageStar2DCSR.csr_eye(m, dtype=dtype)
+                Z_mm = sp.csr_array((m, m), dtype=dtype)
+
+                # case 1: y >= 0  <=>  -y <= 0
+                C1 = SparseImageStar2DCSR.hstack_csr(A=Z_mn, B=-I_m, A_shape=Z_mn.shape, B_shape=I_m.shape)
+                C1 = SparseImageStar2DCSR.hstack_csr(A=C1, B=Z_mm, A_shape=C1.shape, B_shape=Z_mm.shape)
+                d1 = np.zeros(m, dtype=dtype)
+
+                # case 2: y >= x  <=>  Vx*alpha - y <= -cx
+                Vx_csr = sp.csr_array(Vx, dtype=dtype)
+                C2 = SparseImageStar2DCSR.hstack_csr(
+                    A=Vx_csr,
+                    B=-I_m,
+                    A_shape=Vx_csr.shape,
+                    B_shape=I_m.shape
+                )
+                C2 = SparseImageStar2DCSR.hstack_csr(A=C2, B=Z_mm, A_shape=C2.shape, B_shape=Z_mm.shape)
+                d2 = -cx
+
+                # case 3: y <= u z  <=>  y - u z <= 0
+                Zu = sp.diags(u, 0, format="csr", dtype=dtype)
+                C3 = SparseImageStar2DCSR.hstack_csr(A=Z_mn, B=I_m, A_shape=Z_mn.shape, B_shape=I_m.shape)
+                C3 = SparseImageStar2DCSR.hstack_csr(A=C3, B=-Zu, A_shape=C3.shape, B_shape=Zu.shape)
+                d3 = np.zeros(m, dtype=dtype)
+
+                # case 4: y <= x - l(1-z)  <=>  -Vx*alpha + y - l z <= cx - l
+                Zl = sp.diags(l, 0, format="csr", dtype=dtype)
+                C4 = SparseImageStar2DCSR.hstack_csr(
+                    A=-Vx_csr,
+                    B=I_m,
+                    A_shape=Vx_csr.shape,
+                    B_shape=I_m.shape
+                )
+                C4 = SparseImageStar2DCSR.hstack_csr(A=C4, B=-Zl, A_shape=C4.shape, B_shape=Zl.shape)
+                d4 = cx - l
+
+                C_add = SparseImageStar2DCSR.vstack_csr(
+                    A=SparseImageStar2DCSR.vstack_csr(A=C1, B=C2, A_shape=C1.shape, B_shape=C2.shape),
+                    B=SparseImageStar2DCSR.vstack_csr(A=C3, B=C4, A_shape=C3.shape, B_shape=C4.shape),
+                    A_shape=(C1.shape[0] + C2.shape[0], new_npred),
+                    B_shape=(C3.shape[0] + C4.shape[0], new_npred)
+                )
+                d_add = np.hstack([d1, d2, d3, d4])
+                new_C, new_d = _merge_existing_constraints(C_add, d_add, new_npred)
+
+                # predicate bounds: alpha as-is, y in [0,u], z in [0,1] (binary)
+                new_pred_lb = np.hstack([I.pred_lb, np.zeros(m, dtype=dtype), np.zeros(m, dtype=dtype)])
+                new_pred_ub = np.hstack([I.pred_ub, u, np.ones(m, dtype=dtype)])
+
+                # IMPORTANT: store which variables are binary (the last m)
+                # e.g., pred_layout.add_relu_bigM_block(m) or keep bin_idx = range(n+m, n+2m)
+                pred_layout = copy.deepcopy(getattr(I, "pred_layout", None))
+                if pred_layout is not None:
+                    pred_layout.add_relu_bigM_block(m)
+
+                # Dense constructor form does not carry pred_layout.
+                return SparseImageStar2DCSR(new_V, new_C, new_d, new_pred_lb, new_pred_ub, out_shape, copy_=False)
+
+            # Triangular area relaxation for ReLU function
+            # Apply 3 linear constraints for each neuron with (l < 0) and (u > 0)
             # case 1: y[map] >= 0
             # case 2: y[map] >= x[map]
             # case 3: y[map] <= (u / (u - l)) * (x - l)
+            new_V = np.hstack([new_V, np.zeros((N, m), dtype=dtype)])
+            new_V[map, n:] = np.eye(m, dtype=dtype)  # (as in your code)
             Ic = I.V[map, 0]
+            V1 = I.V[map, 1:]
+
             d1 = np.zeros(m, dtype=dtype)
             d2 = -Ic
             a = u / (u - l)
             b = a * l
-
-            V1 = I.V[map, 1:]
-            V3 = np.multiply(V1, -a[:, None])
             d3 = a * Ic - b
 
-            V1 = sp.coo_array(V1)
-            V3 = sp.coo_array(V3)
+            # build C as CSR from dense blocks (still fine for dense mode)
+            Z_mn = np.zeros((m, n), dtype=dtype)
+            I_m = np.eye(m, dtype=dtype)
 
-            eye_data = np.ones(m, dtype=dtype)
-            eye_col = np.arange(m, dtype=np.int32) + n
-            eye_row = np.arange(m, dtype=np.int32)
+            C1 = np.hstack([Z_mn, -I_m])    # case 1: y[map] >= 0
+            C2 = np.hstack([V1,  -I_m])     # case 2: y[map] >= x[map]
+            C3 = np.hstack([(-a[:, None] * V1), I_m]) # case 3: y[map] <= (u / (u - l)) * (x - l)
 
-            data = np.hstack([-eye_data, V1.data, -eye_data, V3.data, eye_data])
-            row = np.hstack([eye_row, V1.row + m, eye_row + m, V3.row + 2*m, eye_row + 2*m])
-            col = np.hstack([eye_col, V1.col, eye_col, V3.col, eye_col])
-            C = sp.csr_array((data, (row, col)), shape=(3*m, n+m), copy=False)
-
+            C_new = sp.csr_array(np.vstack([C1, C2, C3]), dtype=dtype)
+            d_new = np.hstack([d1, d2, d3])
             if I.C.nnz > 0:
-                data = np.hstack([I.C.data, C.data])
-                indices = np.hstack([I.C.indices, C.indices])
-                indptr = np.hstack([I.C.indptr, C.indptr[1:]+I.C.nnz])
-                new_C = sp.csr_array((data, indices, indptr), shape=(I.C.shape[0]+C.shape[0], C.shape[1]), copy=False)
-                new_d = np.hstack([I.d, d1, d2, d3])
-            else:
-                new_C = C
-                new_d = np.hstack([d1, d2, d3])
+                C_new, d_new = _merge_existing_constraints(C_new, d_new, C_new.shape[1])
 
             new_pred_lb = np.hstack([I.pred_lb, np.zeros(m, dtype=dtype)])
             new_pred_ub = np.hstack([I.pred_ub, u])
-            out_shape = copy.deepcopy(I.shape)
 
-            return SparseImageStar2DCSR(new_V, new_C, new_d, new_pred_lb, new_pred_ub, out_shape, copy_=False)
-        
+            return SparseImageStar2DCSR(new_V, C_new, d_new, new_pred_lb, new_pred_ub, out_shape, copy_=False)
+
+        # -------------------------
+        # For Sparse Case
+        # -------------------------
+        new_c = copy.deepcopy(I.c)
+        new_c[map] = 0
+
+        # V0: generators with rows `map` zeroed
+        V0 = I.reset_rows_csr(map)  # (N, n)
+
+        # Append y-columns: one 1 per selected row; y_i is column i (local)
+        Y = sp.csr_array(
+            (np.ones(m, dtype=dtype), (np.asarray(map, dtype=np.int32), np.arange(m, dtype=np.int32))),
+            shape=(N, m)
+        )  # (N, m)
+
+        if not milp:
+            new_V = SparseImageStar2DCSR.hstack_csr(A=V0, B=Y, A_shape=V0.shape, B_shape=Y.shape)      # (N, n+m)
+            new_npred = n + m
         else:
-            Ic = I.c[map]
+            # add z columns (all zero in V)
+            Z0 = sp.csr_array((N, m), dtype=dtype)
+            new_V = SparseImageStar2DCSR.hstack_csr(A=V0, B=Y, A_shape=V0.shape, B_shape=Y.shape)
+            new_V = SparseImageStar2DCSR.hstack_csr(A=new_V, B=Z0, A_shape=new_V.shape, B_shape=Z0.shape)  # (N, n+2m)
+            new_npred = n + 2*m
+
+        Ic = I.c[map]                       # (m,)
+        Vx = I.V.tocsr(copy=False)[map, :]  # (m, n)
+
+        Zmn = sp.csr_array((m, n), dtype=dtype)
+        Im = SparseImageStar2DCSR.csr_eye(m, dtype=dtype)
+        Zmm = sp.csr_array((m, m), dtype=dtype)
+
+        if not milp:
+            # Triangle relaxation:
+            # 1) -y <= 0
+            # 2) Vx*alpha - y <= -Ic
+            # 3) (-a*Vx)*alpha + y <= a*Ic - a*l
+            a = u / (u - l)
+
+            C1 = SparseImageStar2DCSR.hstack_csr(A=Zmn, B=-Im, A_shape=Zmn.shape, B_shape=Im.shape)
+            C2 = SparseImageStar2DCSR.hstack_csr(A=Vx, B=-Im, A_shape=Vx.shape, B_shape=Im.shape)
+            V3 = Vx.multiply((-a).reshape(-1, 1)).tocsr(copy=False)  # scales each row i by -a[i]
+            C3 = SparseImageStar2DCSR.hstack_csr(A=V3, B=Im, A_shape=V3.shape, B_shape=Im.shape)
+
+            C_add = SparseImageStar2DCSR.vstack_csr(
+                A=SparseImageStar2DCSR.vstack_csr(A=C1, B=C2, A_shape=C1.shape, B_shape=C2.shape),
+                B=C3,
+                A_shape=(C1.shape[0] + C2.shape[0], new_npred),
+                B_shape=C3.shape
+            )
+            d_add = np.hstack([np.zeros(m, dtype=dtype), -Ic, a * Ic - a * l])
+
+            new_pred_lb = np.hstack([I.pred_lb, np.zeros(m, dtype=dtype)])
+            new_pred_ub = np.hstack([I.pred_ub, u])
+
+        else:
+            # Big-M MILP:
+            # 1) -y <= 0
+            # 2) Vx*alpha - y <= -Ic
+            # 3) y - u*z <= 0
+            # 4) -Vx*alpha + y - l*z <= Ic - l
+            Zu = SparseImageStar2DCSR.csr_diag(u, dtype=dtype)
+            Zl = SparseImageStar2DCSR.csr_diag(l, dtype=dtype)
+
+            C1 = SparseImageStar2DCSR.hstack_csr(A=Zmn, B=-Im, A_shape=Zmn.shape, B_shape=Im.shape)
+            C1 = SparseImageStar2DCSR.hstack_csr(A=C1, B=Zmm, A_shape=C1.shape, B_shape=Zmm.shape)
+            C2 = SparseImageStar2DCSR.hstack_csr(A=Vx, B=-Im, A_shape=Vx.shape, B_shape=Im.shape)
+            C2 = SparseImageStar2DCSR.hstack_csr(A=C2, B=Zmm, A_shape=C2.shape, B_shape=Zmm.shape)
+            C3 = SparseImageStar2DCSR.hstack_csr(A=Zmn, B=Im, A_shape=Zmn.shape, B_shape=Im.shape)
+            C3 = SparseImageStar2DCSR.hstack_csr(A=C3, B=-Zu, A_shape=C3.shape, B_shape=Zu.shape)
+            C4 = SparseImageStar2DCSR.hstack_csr(A=-Vx, B=Im, A_shape=(-Vx).shape, B_shape=Im.shape)
+            C4 = SparseImageStar2DCSR.hstack_csr(A=C4, B=-Zl, A_shape=C4.shape, B_shape=Zl.shape)
+
+            C_add = SparseImageStar2DCSR.vstack_csr(
+                A=SparseImageStar2DCSR.vstack_csr(A=C1, B=C2, A_shape=C1.shape, B_shape=C2.shape),
+                B=SparseImageStar2DCSR.vstack_csr(A=C3, B=C4, A_shape=C3.shape, B_shape=C4.shape),
+                A_shape=(C1.shape[0] + C2.shape[0], new_npred),
+                B_shape=(C3.shape[0] + C4.shape[0], new_npred)
+            )
+            d_add = np.hstack([np.zeros(m, dtype=dtype), -Ic, np.zeros(m, dtype=dtype), Ic - l])
+
+            new_pred_lb = np.hstack([I.pred_lb, np.zeros(m, dtype=dtype), np.zeros(m, dtype=dtype)])
+            new_pred_ub = np.hstack([I.pred_ub, u, np.ones(m, dtype=dtype)])
+
+            # IMPORTANT: you must mark these last m vars as binary using your pred_layout.
+            # (If you keep pred_layout inside the set, call pred_layout.add_relu_bigM_block(m).)
+
+        new_C, new_d = _merge_existing_constraints(C_add, d_add, new_npred)
+
+        # Update pred_layout if present
+        pred_layout = getattr(I, "pred_layout", None)
+        if pred_layout is not None:
+            pred_layout = copy.deepcopy(pred_layout)
+            if not milp:
+                pred_layout.add_y_block(m)
+            else:
+                pred_layout.add_relu_bigM_block(m)
+
+        if pred_layout is None:
+            return SparseImageStar2DCSR(new_c, new_V, new_C, new_d, new_pred_lb, new_pred_ub, out_shape, copy_=False)
+        return SparseImageStar2DCSR(new_c, new_V, new_C, new_d, new_pred_lb, new_pred_ub, pred_layout, out_shape, copy_=False)
+
+    def addConstraints_sparseimagestar2d_csr(I, map, l, u):
+        """
+        Over-approximate the ReLU function by linear constraints for neurons with (l < 0) and (u > 0) in SparseImageStar2DCSR format.
+        No MILP constraints are supported in this method, it directly applies the triangular area relaxation for ReLU function.
+        Args:
+        - I: input star set before ReLU layer
+        - map: indices of neurons with (l < 0) and (u > 0)
+        - l: lower bound vector of the neurons in map
+        - u: upper bound vector of the neurons in map
+        - milp: whether to apply MILP constraints (big-M method) for over-approximation (default: False)
+        Return:
+        - output star set after adding constraints for ReLU layer
+        """
+        assert isinstance(I, SparseImageStar2DCSR), "error: Input set must be of type SparseImageStar2DCSR"
+        
+        m = len(map)
+        if m == 0:
+            return I
+        
+        N = I.V.shape[0]
+        n = I.num_pred
+        dtype = I.V.dtype
+        out_shape = copy.deepcopy(I.shape)
+        is_dense = isinstance(I.V, np.ndarray)
+
+        if is_dense:
+            new_V = copy.deepcopy(I.V)
+            new_V[map, :] = 0
+            new_V = np.hstack([new_V, np.zeros((N, m), dtype=dtype)])
+            new_V[map, n:] = np.eye(m, dtype=dtype)
+            Ic = I.V[map, 0]
+            V1 = I.V[map, 1:]
+        else:
             new_c = copy.deepcopy(I.c)
             new_c[map] = 0
-            V = I.resetRows_V(map).tocoo(copy=False)
-
+            V = I.reset_rows_csr(map).tocoo(copy=False)
             V.data = np.hstack([V.data, np.ones(m, dtype=dtype)])
             V.row = np.hstack([V.row, map])
-            V.col = np.hstack([V.col, np.arange(m, dtype=np.int32)+V.shape[1]])
-            V._shape = (N, n+m)
+            V.col = np.hstack([V.col, np.arange(m, dtype=np.int32) + V.shape[1]])
+            V._shape = (N, n + m)
             new_V = V.tocsr(copy=False)
+            Ic = I.c[map]
+            V1 = I.V[map, :].tocoo(copy=False)
 
-            V1 = I.V[map, :].tocoo()
-            eye_data = np.ones(m, dtype=dtype)
-            eye_col = np.arange(m, dtype=np.int32) + n
-            eye_row = np.arange(m, dtype=np.int32)
+        # Triangular area relaxation for ReLU function
+        # Apply 3 linear constraints for each neuron with (l < 0) and (u > 0)
+        # case 1: y[index] >= 0
+        # case 2: y[index] >= x[index]
+        # case 3: y[index] <= (u / (u - l)) * (x - l)
+        d1 = np.zeros(m, dtype=dtype)
+        d2 = -Ic
+        a = u / (u - l)
+        b = a * l
+        d3 = a * Ic - b
+        if not is_dense:
+            V1 = V1.tocoo(copy=False)
+            V3 = sp.coo_array((-a[V1.row] * V1.data,
+                               (V1.row, V1.col)),
+                               shape=V1.shape)
+        else:
+            V1 = sp.coo_array(V1)
+            V3 = sp.coo_array(np.multiply(V1, -a[:, None]))
 
-            # case 1: y[map] >= 0
-            # case 2: y[map] >= x[map]
-            # case 3: y[map] <= (u / (u - l)) * (x - l)
-            d1 = np.zeros(m, dtype=dtype)
-            d2 = -Ic
-            a = u / (u - l)
-            b = a * l
-            V3 = I.V[map, :].multiply(-a[:, None]).tocoo()
-            d3 = a * Ic - b
+        eye_data = np.ones(m, dtype=dtype)
+        eye_col = np.arange(m, dtype=np.int32) + n
+        eye_row = np.arange(m, dtype=np.int32)
 
-            data = np.hstack([-eye_data, V1.data, -eye_data, V3.data, eye_data])
-            row = np.hstack([eye_row, V1.row + m, eye_row + m, V3.row + 2*m, eye_row + 2*m])
-            col = np.hstack([eye_col, V1.col, eye_col, V3.col, eye_col])
-            C = sp.csr_array((data, (row, col)), shape=(3*m, n+m), copy=False)
+        data = np.hstack([-eye_data, V1.data, -eye_data, V3.data, eye_data])
+        row = np.hstack([eye_row, V1.row + m, eye_row + m, V3.row + 2*m, eye_row + 2*m])
+        col = np.hstack([eye_col, V1.col, eye_col, V3.col, eye_col])
+        C = sp.csr_array((data, (row, col)), shape=(3*m, n+m), copy=False)
 
-            if I.C.nnz > 0:
-                data = np.hstack([I.C.data, C.data])
-                indices = np.hstack([I.C.indices, C.indices])
-                indptr = np.hstack([I.C.indptr, C.indptr[1:]+I.C.nnz])
-                new_C = sp.csr_array((data, indices, indptr), shape=(I.C.shape[0]+C.shape[0], C.shape[1]), copy=False)
-                new_d = np.hstack([I.d, d1, d2, d3])
-            else:
-                new_C = C
-                new_d = np.hstack([d1, d2, d3])
+        if I.C.nnz > 0:
+            data = np.hstack([I.C.data, C.data])
+            indices = np.hstack([I.C.indices, C.indices])
+            indptr = np.hstack([I.C.indptr, C.indptr[1:] + I.C.nnz])
+            new_C = sp.csr_array((data, indices, indptr), shape=(I.C.shape[0] + C.shape[0], C.shape[1]), copy=False)
+            new_d = np.hstack([I.d, d1, d2, d3])
+        else:
+            new_C = C
+            new_d = np.hstack([d1, d2, d3])
 
-            new_pred_lb = np.hstack([I.pred_lb, np.zeros(m, dtype=dtype)])
-            new_pred_ub = np.hstack([I.pred_ub, u])
-            out_shape = copy.deepcopy(I.shape)
+        new_pred_lb = np.hstack([I.pred_lb, np.zeros(m, dtype=dtype)])
+        new_pred_ub = np.hstack([I.pred_ub, u])
 
-            return SparseImageStar2DCSR(new_c, new_V, new_C, new_d, new_pred_lb, new_pred_ub, out_shape, copy_=False)
+        if is_dense:
+            return SparseImageStar2DCSR(new_V, new_C, new_d, new_pred_lb, new_pred_ub, out_shape, copy_=False)
+        return SparseImageStar2DCSR(new_c, new_V, new_C, new_d, new_pred_lb, new_pred_ub, out_shape, copy_=False)
     
-    def stepReachApprox(In, lp_solver='gurobi', RF=0.0, DR=0, show=False):
+    def stepReachApprox(In, lp_solver='gurobi', RF=0.0, DR=0, milp=False, show=False):
         """
         Approx reachability using multi stepReachApprox
         Args:
@@ -858,6 +1317,9 @@ class PosLin(object):
         """
 
         I = copy.deepcopy(In)
+
+        if isinstance(I, ImageStar):
+            I = I.toStar(copy_=False)
 
         if show:
             print('Applying approximate reachability on \'poslin\' or \'relu\' activation function')
@@ -890,21 +1352,19 @@ class PosLin(object):
             # applying partial relaxation and partial LP solver
             I, l, u, map = PosLin.relax_by_area(I=I, l=l, u=u, lp_solver=lp_solver, RF=RF, show=show)
 
-        if isinstance(I, Star):
-            return PosLin.addConstraints(I=I, map=map, l=l, u=u)
+        if isinstance(In, Star):
+            return PosLin.addConstraints(I=I, map=map, l=l, u=u, milp=milp)
 
-        
-        elif isinstance(I, ImageStar):
-            S = I.toStar(copy_=False)
-            S = PosLin.addConstraints(I=S, map=map, l=l, u=u)
-            if I.V.ndim == 4:
-                new_V = S.V.reshape(I.height, I.width, I.num_channel, S.nVars + 1)
+        elif isinstance(In, ImageStar):
+            S = PosLin.addConstraints(I=I, map=map, l=l, u=u, milp=milp)
+            if In.V.ndim == 4:
+                new_V = S.V.reshape(In.height, In.width, In.num_channel, S.nVars + 1)
             else:
                 new_V = S.V
             return ImageStar(new_V, S.C, S.d, S.pred_lb, S.pred_ub)
 
-        elif isinstance(I, SparseStar):
-            S = PosLin.addConstraints_sparse(I=I, map=map, l=l, u=u)
+        elif isinstance(In, SparseStar):
+            S = PosLin.addConstraints_sparse(I=I, map=map, l=l, u=u, milp=milp)
             if DR > 0:
                 if show:
                     if (S.pred_depth >= DR).any():
@@ -912,14 +1372,14 @@ class PosLin(object):
                 S = S.depthReduction(DR=DR)
             return S
         
-        elif isinstance(I, SparseImageStar):
-            return PosLin.addConstraints_sparseimagestar(I=I, map=map, l=l, u=u)
+        elif isinstance(In, SparseImageStar):
+            return PosLin.addConstraints_sparseimagestar(I=I, map=map, l=l, u=u, milp=milp)
         
-        elif isinstance(I, SparseImageStar2DCOO):
-            return PosLin.addConstraints_sparseimagestar2d_coo(I=I, map=map, l=l, u=u)
+        elif isinstance(In, SparseImageStar2DCOO):
+            return PosLin.addConstraints_sparseimagestar2d_coo2(I=I, map=map, l=l, u=u, milp=milp)
         
-        elif isinstance(I, SparseImageStar2DCSR):
-            return PosLin.addConstraints_sparseimagestar2d_csr(I=I, map=map, l=l, u=u)
+        elif isinstance(In, SparseImageStar2DCSR):
+            return PosLin.addConstraints_sparseimagestar2d_csr2(I=I, map=map, l=l, u=u, milp=milp)
         
         else:
             raise Exception(
@@ -927,7 +1387,7 @@ class PosLin(object):
                 )
 
     @staticmethod
-    def reachApproxSingleInput(In, lp_solver='gurobi', RF=0.0, DR=0.0, show=False):
+    def reachApproxSingleInput(In, lp_solver='gurobi', RF=0.0, DR=0.0, milp=False, show=False):
         """
         Approx reachability using stepReach
         Args:
@@ -944,7 +1404,7 @@ class PosLin(object):
             isinstance(In, SparseImageStar2DCOO) or isinstance(In, SparseImageStar2DCSR), \
             f"error: approximate reachaiblity of \'relu\' or \'poslin\' supports Star, ImageStar, SparseStar, SparseImageStar but received In={type(In)}"
 
-        return PosLin.stepReachApprox(In=In, lp_solver=lp_solver, RF=RF, DR=0, show=show)
+        return PosLin.stepReachApprox(In=In, lp_solver=lp_solver, RF=RF, DR=DR, milp=milp, show=show)
 
                 
     @staticmethod
@@ -966,54 +1426,55 @@ class PosLin(object):
         assert isinstance(In, Star), 'Input is not a Star set'
 
         l = In.getMin(index=index, lp_solver=lp_solver)
-
+        # If the lower bound is greater than 0, then the ReLU function is linear and we can return the input set as it is.
         if l > 0:
             return In
+
+        u = In.getMax(index=index, lp_solver=lp_solver)
+        # If the upper bound is less than or equal to 0, then the ReLU function is linear and we can return the input set with the corresponding row zeroed out.
+        if u <= 0:
+            V = copy.deepcopy(In.V)
+            V[index, :] = 0
+            return Star(V, In.C, In.d, In.pred_lb, In.pred_ub)
         
+        if show:
+            print('Add a new predicate variables at index = {}'.format(index))
+
+        # Case when l < 0 and u > 0, we need to add new predicate variable y[index] for ReLU output and 
+        # add linear constraints for the relationship between x[index] and y[index].
+        n = In.nVars + 1
+        dtype = In.V.dtype
+
+        # y[index] >= 0
+        C1 = np.zeros([1, n], dtype=dtype)
+        C1[0, n-1] = -1
+        d1 = 0
+
+        # y[index] >= x[index]
+        C2 = np.hstack([In.V[index, 1:n], -1]).reshape(1, -1)
+        d2 = -In.V[index, 0]
+
+        # y[index] <= ub * (x[index] - lb) / (ub - lb)
+        a = -u / (u - l)
+        C3 = np.hstack([a * In.V[index, 1:n], 1]).reshape(1, -1)
+        d3 = a*(l - In.V[index, 0])
+
+        if len(In.d) == 0: # for Star set as initial C and d might be []
+            C0 = np.empty([0, n], dtype=dtype)
+            d0 = np.empty([0], dtype=dtype)
         else:
-            u = In.getMax(index=index, lp_solver=lp_solver)
-            if u <= 0:
-                V = copy.deepcopy(In.V)
-                V[index, :] = 0
-                return Star(V, In.C, In.d, In.pred_lb, In.pred_ub)
-            
-            else:
-                if show:
-                    print('Add a new predicate variables at index = {}'.format(index))
+            m = In.C.shape[0]
+            C0 = np.hstack([In.C, np.zeros([m, 1], dtype=dtype)])
+            d0 = In.d
 
-                n = In.nVars + 1
-                dtype = In.V.dtype
-
-                # y[index] >= 0
-                C1 = np.zeros([1, n], dtype=dtype)
-                C1[0, n-1] = -1
-                d1 = 0
-
-                # y[index] >= x[index]
-                C2 = np.column_stack([In.V[index, 1:n], -1])
-                d2 = -In.V[index, 0]
-
-                # y[index] <= ub * (x[index] - lb) / (ub - lb)
-                a = -u / (u - l)
-                C3 = np.column_stack([a*In.V[index, 1:n], 1])
-                d3 = a*(l - In.V[index, 0])
-
-                if len(In.d) == 0: # for Star set as initial C and d might be []
-                    C0 = np.empty([0, n], dtype=dtype)
-                    d0 = np.empty([0], dtype=dtype)
-                else:
-                    m = In.C.shape[0]
-                    C0 = np.column_stack([In.C, np.zeros([m, 1], dtype=dtype)])
-                    d0 = In.d
-
-                C = np.vstack([C0, C1, C2, C3])
-                d = np.hstack([d0, d1, d2, d3])
-                V = np.hstack([In.V, np.zeros([In.dim, 1], dtype=dtype)])
-                V[index, :] = 0
-                V[index, n] = 1
-                pred_lb = np.hstack([In.pred_lb, 0])
-                pred_ub = np.hstack([In.pred_ub, u])
-                return Star(V, C, d, pred_lb, pred_ub)
+        C = np.vstack([C0, C1, C2, C3])
+        d = np.hstack([d0, d1, d2, d3])
+        V = np.hstack([In.V, np.zeros([In.dim, 1], dtype=dtype)])
+        V[index, :] = 0
+        V[index, n] = 1
+        pred_lb = np.hstack([In.pred_lb, 0])
+        pred_ub = np.hstack([In.pred_ub, u])
+        return Star(V, C, d, pred_lb, pred_ub)
 
 
     @staticmethod
@@ -1034,16 +1495,16 @@ class PosLin(object):
 
         l, u = In.estimateRanges()
 
-        map = np.argwhere(u <= 0)
+        map = np.argwhere(u <= 0).reshape(-1)
         V = copy.deepcopy(In.V)
         V[map, :] = 0
         I = Star(V, In.C, In.d, In.pred_lb, In.pred_ub)
 
-        map = np.argwhere((l < 0) & (u > 0))
+        map = np.argwhere((l < 0) & (u > 0)).reshape(-1)
         for i in range(len(map)):
             if show:
                 print('Performing approximate PosLin operation on {} neuron'.format(map[i]))
-            I = PosLin.stepReachStarApprox(In=I, index=map[i], lp_solver=lp_solver, show=show)
+            I = PosLin.stepReachStarApprox(In=I, index=int(map[i]), lp_solver=lp_solver, show=show)
         
         return I
 

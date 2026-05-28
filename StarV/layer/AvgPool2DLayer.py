@@ -21,18 +21,19 @@ Sung Woo Choi, 11/16/2023
 import time
 import copy
 import torch
+import warnings
 import numpy as np
 import scipy.sparse as sp
 import multiprocessing
-import torch.nn.functional as F
 from StarV.set.imagestar import ImageStar
 from StarV.set.sparseimagestar2dcoo import SparseImageStar2DCOO
 from StarV.set.sparseimagestar2dcsr import SparseImageStar2DCSR
+from StarV.set.zonotope import Zonotope
 from StarV.set.sparseimagestar import *
 
 class AvgPool2DLayer(object):
     """ AvgPool2DLayer Class
-    
+            
         properties:
 
         methods:
@@ -50,7 +51,7 @@ class AvgPool2DLayer(object):
         ):
         
         assert module in ['default', 'pytorch'], \
-        'error: Conv2DLayer supports moudles: \'default\', which use numpy kernels, and \'pytorch\''
+        'error: AvgPool2DLayer supports modules: \'default\', which use numpy kernels, and \'pytorch\''
         self.module = module
 
         if dtype == 'float32':
@@ -64,18 +65,18 @@ class AvgPool2DLayer(object):
             # check stride, padding, and dilation
 
             assert isinstance(kernel_size, tuple) or isinstance(kernel_size, list) or \
-                   isinstance(kernel_size, int) or isinstance(stride, np.ndarray), \
+                   isinstance(kernel_size, int) or isinstance(kernel_size, np.ndarray), \
             f'error: kernel_size should be a tuple, list, numpy ndarray, or int but received {type(kernel_size)}'
             assert isinstance(stride, tuple) or isinstance(stride, list) or \
                    isinstance(stride, int) or isinstance(stride, np.ndarray), \
             f'error: stride should be a tuple, list, numpy ndarray, or int but received {type(stride)}'
             assert isinstance(padding, tuple) or isinstance(padding, list) or \
-                   isinstance(padding, int) or isinstance(stride, np.ndarray), \
-            f'error: padding should be a tuple, list, numpy ndarray, or in tbut received {type(padding)}'
+                   isinstance(padding, int) or isinstance(padding, np.ndarray), \
+            f'error: padding should be a tuple, list, numpy ndarray, or int but received {type(padding)}'
 
             if isinstance(kernel_size, int):
                 assert kernel_size >= 0, 'error: kernel size should non-negative integer'
-                self.kernel_size = np.ones(2, dtype=np.uint16)*kernel_size[0]
+                self.kernel_size = np.ones(2, dtype=np.uint16)*kernel_size
             else:
                 if len(kernel_size) == 1:
                     assert kernel_size[0] >= 0, 'error: kernel size should non-negative integer'
@@ -91,13 +92,14 @@ class AvgPool2DLayer(object):
                 self.padding = np.ones(4, dtype=np.int16)*padding
             else:
                 padding = np.array(padding)
-                assert (padding >= 0).any(), 'error: padding should non-negative integers'
+                assert (padding >= 0).all(), 'error: padding should non-negative integers'
 
                 if len(padding) == 1:
                     self.padding = np.ones(4, dtype=np.int16)*padding[0]
                 else:
                     if len(padding) == 2:
                         padding = np.array([padding[0], padding[0], padding[1], padding[1]])
+                        self.padding = padding
                     elif len(padding) == 4:
                         self.padding = padding
                     else:
@@ -137,7 +139,7 @@ class AvgPool2DLayer(object):
     def info(self):
         print(self)
 
-    def pad_coo(input, shape, padding, tocsc=False):
+    def pad_coo(input, shape, padding, tocsr=False):
         if len(padding) == 4:
             pad = np.array(padding)
         elif len(padding) == 2:
@@ -152,8 +154,8 @@ class AvgPool2DLayer(object):
         mo = shape[0] + pad[0] + pad[1]
         no = shape[1] + pad[2] + pad[3]
 		
-        if tocsc is True:
-            output = sp.csc_array((input.data, (row, input.col)), shape = (mo*no*shape[2], input.shape[1]))
+        if tocsr is True:
+            output = sp.csr_array((input.data, (row, input.col)), shape = (mo*no*shape[2], input.shape[1]))
         else:
             output = sp.coo_array((input.data, (row, input.col)), shape = (mo*no*shape[2], input.shape[1]))
         return output, mo, no
@@ -291,8 +293,31 @@ class AvgPool2DLayer(object):
             Return: 
                @R: convolved dataset
         """
+
+        if isinstance(self, AvgPool2DLayer):
+
+            if len(self.padding) == 4:
+                padding = [self.padding[1], self.padding[3]]
+                if self.padding[0] != self.padding[1] or self.padding[2] != self.padding[3]:
+                    warnings.warn(f'AvgPool2DLayer has a 4-tuple padding, {self.padding}: [t, b, l, r], but torch.nn.AvgPool2DLayer does not accept it; passing padding={padding}: [h, w]')
+            else: padding = self.padding.tolist()
+
+            layer = torch.nn.AvgPool2d(
+                kernel_size = self.kernel_size.tolist(),
+                stride = self.stride.tolist(),
+                padding = padding,
+            )
+
+        else:
+            assert isinstance(self.layer, torch.nn.AvgPool2d), \
+            '\'layer\' should be torch.nn.AvgPool2d or StarV.layer.AvgPool2DLayer.AvgPool2DLayer'
+
+            layer = self.layer
+
+        # set the layer in evaluation mode
+        layer.eval()
         
-        assert isinstance(self.layer, torch.nn.AvgPool2d), '\'layer\' should be torch.nn.AvgPool2d for \'pytorch\' module'
+        assert isinstance(input, np.ndarray), 'error: input should be numpy ndarray'
 
         in_dim = input.ndim
         if in_dim == 4:
@@ -301,19 +326,16 @@ class AvgPool2DLayer(object):
             H, W, C = input.shape
             N = 1
         else:
-            raise Exception('input should be either 2D, 3D, or 4D tensor')
+            raise Exception('input should be either 2D, 3D, or 4D numpy ndarray')
         
         input = copy.deepcopy(input).reshape(H, W, C, N)
         # change input shape from (H, W, C, N) to (N, C, H, W)
         input = input.transpose([3, 2, 0, 1])
-        input = torch.from_numpy(input).type(self.torch_dtype)
-        output = self.layer(input).detach().numpy()
-        # change input shape to H, W, C, N
-        output.transpose([2, 3, 1, 0])
-        
-        # if in_dim == 3:
-        #     output = output.reshape(H, W, C) 
+        input = torch.from_numpy(input)
 
+        output = layer(input).detach().numpy()
+        # change input shape to H, W, C, N
+        output = output.transpose([2, 3, 1, 0])
         return output
 
 
@@ -902,6 +924,9 @@ class AvgPool2DLayer(object):
                 new_V, out_shape = self.favgpool2d_csr2(In.V, In.shape)
                 
             return SparseImageStar2DCSR(new_c, new_V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
+        
+        elif isinstance(In, Zonotope):
+            return In.conv2d(self.W, self.b, self.stride.tolist(), self.padding.tolist(), self.dilation.tolist())
         
         else:
             raise Exception('error: AvgPool2DLayer support ImageStar and SparseImageStar')

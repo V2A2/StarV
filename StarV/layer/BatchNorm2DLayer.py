@@ -24,10 +24,10 @@ import torch
 import numpy as np
 import scipy.sparse as sp
 import multiprocessing
-import torch.nn.functional as F
 from StarV.set.imagestar import ImageStar
 from StarV.set.sparseimagestar2dcoo import SparseImageStar2DCOO
 from StarV.set.sparseimagestar2dcsr import SparseImageStar2DCSR
+from StarV.set.zonotope import Zonotope
 from StarV.set.sparseimagestar import *
 
 class BatchNorm2DLayer(object):
@@ -59,7 +59,7 @@ class BatchNorm2DLayer(object):
         'error: BatchNorm2DLayer supports moudles: \'default\', which use numpy kernels, and \'pytorch\''
         self.module = module
 
-        if dtype == 'float32':
+        if dtype == 'float32' or dtype == np.float32:
             self.numpy_dtype = np.float32
             self.torch_dtype = torch.float32
         else:
@@ -89,7 +89,7 @@ class BatchNorm2DLayer(object):
                 self.gamma = gamma.astype(self.numpy_dtype)
                 self.beta = beta.astype(self.numpy_dtype)
                 self.num_features = num_features
-                self.eps = eps
+                self.eps = np.array(eps, dtype=self.numpy_dtype).ravel()
                 self.mean = mean.astype(self.numpy_dtype)
                 self.var = var.astype(self.numpy_dtype)
 
@@ -115,7 +115,7 @@ class BatchNorm2DLayer(object):
                 self.gamma = layer.weight.detach().numpy().copy().astype(self.numpy_dtype)
                 self.beta = layer.bias.detach().numpy().copy().astype(self.numpy_dtype)
                 self.num_features = layer.num_features
-                self.eps = layer.eps
+                self.eps = eps = np.array(layer.eps).ravel()
                 self.mean = layer.running_mean.numpy().astype(self.numpy_dtype)
                 self.var = layer.running_var.numpy().astype(self.numpy_dtype)
 
@@ -178,7 +178,7 @@ class BatchNorm2DLayer(object):
             return self.batchnorm2d_pytorch(input)
         else:
             return self.batchnorm2d(input)
-
+        
     def batchnorm2d_pytorch(self, input):
         """
             Args:
@@ -188,7 +188,28 @@ class BatchNorm2DLayer(object):
                @R: batch normalized dataset
         """
 
-        assert isinstance(self.layer, torch.nn.BatchNorm2d), '\'layer\' should be torch.nn.BatchNorm2d for \'pytorch\' module'
+        if isinstance(self, BatchNorm2DLayer):
+            
+            layer = torch.nn.BatchNorm2d(
+                num_features = self.num_features,
+                eps = self.eps,
+                affine = True,    
+            )
+            layer.weight.data = torch.from_numpy(self.gamma)
+            layer.bias.data = torch.from_numpy(self.beta)
+            layer.running_mean = torch.from_numpy(self.mean)
+            layer.running_var = torch.from_numpy(self.var)
+
+        else:
+            assert isinstance(self.layer, torch.nn.BatchNorm2d), \
+            '\'layer\' should be torch.nn.BatchNorm2d or StarV.layer.BatchNorm2DLayer.BatchNorm2DLayer'
+            
+            layer = self.layer
+        
+        # set the layer in evaluation mode
+        layer.eval()
+
+        assert isinstance(input, np.ndarray), 'error: input should be numpy ndarray'
 
         in_dim = input.ndim
         if in_dim == 4:
@@ -197,22 +218,18 @@ class BatchNorm2DLayer(object):
             H, W, C = input.shape
             N = 1
         else:
-            raise Exception('input should be either 2D, 3D, or 4D tensor')
+            raise Exception('input should be either 2D, 3D, or 4D numpy ndarray')
         
         input = copy.deepcopy(input).reshape(H, W, C, N)
         # change input shape from (H, W, C, N) to (N, C, H, W)
         input = input.transpose([3, 2, 0, 1])
-        input = torch.from_numpy(input).type(self.torch_dtype)
-        # set the layer in evaluation mode
-        self.layer.eval()
-        output = self.layer(input).detach().numpy()
-        # change input shape to H, W, C, N
-        output.transpose([2, 3, 1, 0])
-        
-        # if in_dim == 3:
-        #     output = output.reshape(H, W, C) 
+        input = torch.from_numpy(input)
 
+        output = layer(input).detach().numpy()
+        # change input shape to H, W, C, N
+        output = output.transpose([2, 3, 1, 0])
         return output
+    
     
     def batchnorm2d(self, input, bias=True):
         
@@ -334,13 +351,23 @@ class BatchNorm2DLayer(object):
         var = self.var
         gamma = self.gamma
         c = shape[2]
+
+        # gamma and var should be 1D numpy array in (channel,) shape
+        assert gamma.ndim == 1 and var.ndim == 1, \
+        'error: gamma and var should be 1D numpy array in (channel,) shape'
+        assert gamma.shape[0] == var.shape[0] == c, \
+        'error: inconsistency between gamma, var, and number of channels'
+        assert eps.ndim == 1 and eps.shape[0] == 1, \
+        'error: eps should be a scalar in 1D numpy array'
+
+        a = gamma / np.sqrt(var + eps).astype(input.dtype, copy=False)
         
         output = copy.deepcopy(input)
         row_ch = output.row % c
-        a = gamma / np.sqrt(var + eps)
+
         output.data *= a[row_ch]
         return output
-
+    
     def fbatchnorm2d_csr(self, input, shape):
         
         assert isinstance(input, sp.csr_array) or isinstance(input, sp.csr_matrix), \
@@ -351,18 +378,61 @@ class BatchNorm2DLayer(object):
         gamma = self.gamma
         c = shape[2]
         
+        # gamma and var should be 1D numpy array in (channel,) shape
+        assert gamma.ndim == 1 and var.ndim == 1, \
+        'error: gamma and var should be 1D numpy array in (channel,) shape'
+        assert gamma.shape[0] == var.shape[0] == c, \
+        'error: inconsistency between gamma, var, and number of channels'
+        assert eps.ndim == 1 and eps.shape[0] == 1, \
+        'error: eps should be a scalar in 1D numpy array'
+
+        a = gamma / np.sqrt(var + eps).astype(input.dtype, copy=False)
+        
+        # build row indices 
         T = input.tocoo(copy=False)
         output = copy.deepcopy(input)
         row_ch = T.row % c
-        a = gamma / np.sqrt(var + eps)
+    
         output.data *= a[row_ch] 
+        return output
+    
+
+    def fbatchnorm2d_csr2(self, input, shape):
+        
+        assert isinstance(input, sp.csr_array) or isinstance(input, sp.csr_matrix), \
+        'error: input should be a scipy coo or csr array or matrix'
+
+        eps = self.eps
+        var = self.var
+        gamma = self.gamma
+        c = shape[2]
+        
+        # gamma and var should be 1D numpy array in (channel,) shape
+        assert gamma.ndim == 1 and var.ndim == 1, \
+        'error: gamma and var should be 1D numpy array in (channel,) shape'
+        assert gamma.shape[0] == var.shape[0] == c, \
+        'error: inconsistency between gamma, var, and number of channels'
+        assert eps.ndim == 1 and eps.shape[0] == 1, \
+        'error: eps should be a scalar in 1D numpy array'
+
+        a = gamma / np.sqrt(var + eps).astype(input.dtype, copy=False)
+        
+        output = input.copy() 
+        indptr = output.indptr 
+        data = output.data 
+
+        # For each CSR row r, its channel is r % c
+        n_rows = output.shape[0]
+        for r in range(n_rows): 
+            start, end = indptr[r], indptr[r+1] 
+            if start != end: 
+                data[start:end] *= a[r % c] 
         return output
 
     def reachExactSingleInput(self, In):
         if isinstance(In, ImageStar):
             if self.module == 'pytorch':
                 new_V = self.batchnorm2d_pytorch(In.V)
-                print('need to fix')
 
             elif self.module == 'default':
                 new_V = self.batchnorm2d_basis_matrix(In.V)
@@ -401,10 +471,19 @@ class BatchNorm2DLayer(object):
             
             elif self.module == 'default':
                 new_c = self.batchnorm2d(In.c.reshape(In.shape), bias=True).reshape(-1)
-                new_V = self.fbatchnorm2d_csr(In.V, In.shape)
+                new_V = self.fbatchnorm2d_csr2(In.V, In.shape)
                 
             return SparseImageStar2DCSR(new_c, new_V, In.C, In.d, In.pred_lb, In.pred_ub, In.shape)
         
+        elif isinstance(In, Zonotope):
+            if self.module == 'pytorch':
+                raise Exception(
+                    'BatchNorm2DLayer does not support \'pyotrch\' moudle for Zonotope set'
+                )
+            
+            elif self.module == 'default':
+                return In.batchnorm2d(self.gamma, self.beta, self.mean, self.var, self.eps)
+            
         else:
             raise Exception('error: Conv2DLayer support ImageStar only')
         

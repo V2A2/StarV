@@ -37,6 +37,9 @@ from StarV.layer.LogSigLayer import LogSigLayer
 from StarV.layer.TanSigLayer import TanSigLayer
 from StarV.layer.PixelClassificationLayer import PixelClassificationLayer
 from StarV.layer.RecurrentLayer import RecurrentLayer
+from StarV.layer.PadLayer import PadLayer
+from StarV.layer.CropLayer import CropLayer
+from StarV.layer.ConcatenateLayer import ConcatenateLayer
 
 from StarV.set.probstar import ProbStar
 from StarV.set.star import Star
@@ -67,7 +70,7 @@ class NeuralNetwork(object):
         @rand: randomly  generate a network
     """
 
-    def __init__(self, layers, net_type=None):
+    def __init__(self, layers, net_type=None, UNet=None):
 
         assert isinstance(layers, list), 'error: layers should be a list'
         self.type = net_type
@@ -78,6 +81,17 @@ class NeuralNetwork(object):
             if hasattr(layers[i], 'out_dim'):
                 self.out_dim = layers[i].out_dim
                 break
+        #UNet = [down, up];
+        # down = [d0, ..., dn] is a list containing layer number from which x needs to be stored for concatenation
+        # up   = [u0, ..., un] is a list containing layer number from which the stored x based on down need to be concatenated to
+        if UNet is not None:
+            down, up = UNet
+            assert len(down) == len(up), f'length of up and down lists must be equivalent but down: {len(down)} while up: {len(up)}'
+            self.unet_up = up
+            self.unet_down = down
+        else:
+            self.unet_up = None
+            self.unet_down = None
 
     def __str__(self):
         """print information of the network"""
@@ -108,7 +122,7 @@ class NeuralNetwork(object):
                         layer_.weight.shape[2], layer_.weight.shape[3], layer_.weight.shape[:2], layer_.stride, layer_.padding, layer_.dilation, layer_.weight.dtype)
             elif isinstance(layer_, ConvTranspose2DLayer):
                 str_ += ' ({}, {}, kernel_size = {}, stride = {}, padding = {}, output_padding={}, dilation = {}, dtype={})'.format(
-                    layer_.weight.shape[2], layer_.weight.shape[3], layer_.weight.shape[:2], layer_.stride, layer_.padding, layer_.output_padding, layer_.dilation, layer_.weight.dtype)
+                    layer_.weight.shape[3], layer_.weight.shape[2], layer_.weight.shape[:2], layer_.stride, layer_.padding, layer_.output_padding, layer_.dilation, layer_.weight.dtype)
             elif isinstance(layer_, AvgPool2DLayer):
                 str_ += ' (kernel_size = {}, stride = {}, padding = {})'.format(layer_.kernel_size, layer_.stride, layer_.padding)
             elif isinstance(layer_, MaxPool2DLayer):
@@ -117,7 +131,20 @@ class NeuralNetwork(object):
                 str_ += ' ({}, eps={}, dtype={})'.format(layer_.num_features, layer_.eps, layer_.gamma.dtype)
             elif isinstance(layer_, FlattenLayer):
                 str_ += ' (channel_last={})'.format(layer_.channel_last)
+            elif isinstance(layer_, PadLayer):
+                str_ += ' (padding={})'.format(layer_.pad_width)
+            elif isinstance(layer_, CropLayer):
+                str_ += ' (top={}, left={}, height={}, width={})'.format(layer_.top, layer_.left, layer_.height, layer_.width)
+            elif isinstance(layer_, PixelClassificationLayer):
+                str_ += ' (num_pix_classes={})'.format(layer_.classes)
+                if layer_.threshold is not None:
+                    str_ += f', threshold={layer_.threshold}'
+            elif isinstance(layer_, ConcatenateLayer):
+                str_ += ' (axis={})'.format(layer_.axis)
             print(str_)
+        if self.unet_down is not None and self.unet_up is not None:
+            print(f'down (unet): {self.unet_down}')
+            print(f'up (unet): {self.unet_up}')
         return ''
 
     def info(self):
@@ -129,13 +156,46 @@ class NeuralNetwork(object):
         assert isinstance(input_vec, np.ndarray), 'error: input vector is not a numpy array'
         # assert len(input_vec.shape) == 1, 'error: input vector should be a 1-d numpy array'
 
+        if self.unet_down is not None and self.unet_up is not None:
+            if show: print('unet_down: {}, unet_up: {}'.format(self.unet_down, self.unet_up))
+            unet_up = self.unet_up[::-1]  #reverse the up list for easier pop operation
+            y = input_vec.copy()
+            stored_x = dict()
+            if show: evaluate_start = time.perf_counter()
+            for i in range(self.n_layers):
+                if show: 
+                    print(f"evaluating {i} layer: {self.layers[i].__class__.__name__}")
+                    print(f"input shape: {y.shape}")
+                    start = time.perf_counter()
+                if i in self.unet_down:
+                    i_ = len(stored_x)
+                    stored_x[unet_up[i_]] = y.copy()
+                    if show: print(f'Storing x at layer {i} for UNet concatenation')
+                if i in self.unet_up:
+                    if show: print(f'Concatenating stored x at layer {i} for UNet concatenation')
+                    x = stored_x[i]
+                    y = self.layers[i].evaluate(y, x)
+                else:
+                    y = self.layers[i].evaluate(y)
+                if show: 
+                    print(f"output shape, dtype: {y.shape}, {y.dtype}")
+                    print(f'computation time: {time.perf_counter()-start} seconds')
+            
+            if show: print(f'total evaluation time: {time.perf_counter()-evaluate_start} seconds')
+            return y
+        
         y = input_vec.copy()
+        if show: evaluate_start = time.perf_counter()
         for i in range(self.n_layers):
-            if show: print(f"evaluating {i} layer: {self.layers[i].__class__.__name__}"); print(f"input shape: {y.shape}")
-            if show: start = time.perf_counter()
+            if show: 
+                print(f"evaluating {i} layer: {self.layers[i].__class__.__name__}")
+                print(f"input shape: {y.shape}")
+                start = time.perf_counter()
             y = self.layers[i].evaluate(y)
-            if show: print(f"output shape: {y.shape}")
-            if show: print(f'computation time: {time.perf_counter()-start}')
+            if show: 
+                print(f"output shape, dtype: {y.shape}, {y.dtype}")
+                print(f'computation time: {time.perf_counter()-start} seconds')
+        if show: print(f'total evaluation time: {time.perf_counter()-evaluate_start} seconds')
         return y
 
 def rand_ffnn(arch, actvs):

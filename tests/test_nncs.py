@@ -5,11 +5,9 @@ Dung Tran
 """
 
 from StarV.net.network import rand_ffnn
-from StarV.nncs.nncs import NNCS, ReachPRM_NNCS, getCurrentSpecConstraints
+from StarV.nncs.nncs import NNCS, ReachPRM_NNCS
 from StarV.plant.dlode import DLODE
 from StarV.set.probstar import ProbStar
-from StarV.spec.dProbStarTL import _ALWAYS_, _EVENTUALLY_, AtomicPredicate, Formula, _LeftBracket_, _RightBracket_, _AND_
-from StarV.spec.dProbStarTL import DynamicFormula, Predicate
 import numpy as np
 
 class Test(object):
@@ -71,29 +69,9 @@ class Test(object):
         sys = NNCS(controller, plant, type='DLNNCS')           # NNCS object
         sys.info()
         X0 = ProbStar.rand(2,2,np.array([-1.0, -1.0]), np.array([1., 1.]))  # initial set
-    
+
         
-    def test_getCurrentSpecConstraints(self):
-        'test getCurrentSpecContraints method'
-       
-        self.n_tests = self.n_tests + 1
-        A = np.array([3., -1.])
-        b = np.array([1.])
-
-        P1 = AtomicPredicate(A, b)
-        op1 = _EVENTUALLY_(0, 2)
-        lb1 = _LeftBracket_()
-        rb1 = _RightBracket_()
-
-        f = [op1, lb1, P1, rb1]
-        spec = Formula(f)
-        spec.print()
-
-        abs_spec = spec.getDynamicFormula()
-        abs_spec.print()
-
-        P = getCurrentSpecConstraints(abs_spec.F[0], 0)
-        P.print_info()
+   
 
 if __name__ == "__main__":
     test = Test()
@@ -101,9 +79,8 @@ if __name__ == "__main__":
     ================================\
     ================================\
     ===============================\n')
-    #test.test_constructor()
-    #test.test_reachDLNNCS()
-    test.test_getCurrentSpecConstraints()
+    # test.test_constructor()
+    test.test_reachDLNNCS()
     print('\n========================\
     =================================\
     =================================\

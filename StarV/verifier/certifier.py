@@ -44,7 +44,7 @@ class Certifier(object):
     """
 
 
-def reachBFS(net, inputSet, reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
+def reachBFS(net, inputSet, reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False, return_max_memory_usage=False):
     """ Verification of neural network with over-apporoximation method.
         Compute Reachable set layer-by-layer
     """
@@ -59,18 +59,78 @@ def reachBFS(net, inputSet, reachMethod='approx', lp_solver='gurobi', pool=None,
     reachTime = []
     In = inputSet
 
-    # For semantic segmentation neural network
-    if isinstance(net.layers[-1], PixelClassificationLayer):
-        for i in range(net.n_layers-1):
-            if show:
-                print(f"\nComputing {net.layers[i].__class__.__name__} layer {i} reachable set...")
-            
-            start = time.perf_counter()
-            In = net.layers[i].reach(In, method=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
-            vt = time.perf_counter() - start
+    if return_max_memory_usage:
+        max_nbytes = 0
+        if isinstance(In, list):
+            for j in range(len(In)):
+                nbytes = In[j].nbytes()
+                if nbytes > max_nbytes:
+                    max_nbytes = nbytes
+        else:
+            nbytes = In.nbytes()
+            if nbytes > max_nbytes:
+                max_nbytes = nbytes
 
-            # reachSet.append(In)
+    isUNet = net.unet_down is not None and net.unet_up is not None
+    if isUNet:
+        unet_up = net.unet_up[::-1]  #reverse the up list for easier pop operation
+        stored_X = dict() # to store downstream reachable sets
+
+    # For semantic segmentation neural network
+    has_pixel_classification_layer = isinstance(net.layers[-1], PixelClassificationLayer)
+    if has_pixel_classification_layer:
+        for i in range(net.n_layers):
+            start = time.perf_counter()
+            
+            if show: 
+                print(f"\nComputing {i} layer: {net.layers[i].__class__.__name__} reachable set..."); print(f"input shape: {In.shape}")
+                print(f"Starting reachability analysis for layer {i} at time: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}")
+            
+            # For UNET architecture: downstrean and upstream
+            if isUNet:
+                # Store downstream reachable set BEFORE pooling for UNet skip connections
+                if i in net.unet_down:
+                    i_ = len(stored_X)
+                    stored_X[unet_up[i_]] = In  # store the pre-pooling reachable set
+                    if show: print(f'Storing X at layer {i} for UNet concatenation')
+
+                # For upstream layers with concatenation
+                if i in net.unet_up:
+                    if show: print(f'Concatenating stored X at layer {i} for UNet concatenation')
+                    X = stored_X[i]
+                    # Reachability analysis for concatenate layer (skip connection for UNET)
+                    In = net.layers[i].reach([In, X], method=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
+                else:
+                    # Reachability analysis for each layer      
+                    if isinstance(net.layers[i], PixelClassificationLayer):
+                        pixel_classification = net.layers[-1].reach(In, method=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
+                    else:
+                        In = net.layers[i].reach(In, method=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
+                        if show: print(f"output shape: {In.shape}")
+                    if show: print(f'computation time: {time.perf_counter()-start} seconds')
+            # For non-UNet architectures
+            else:
+                # Reachability analysis for each layer      
+                if isinstance(net.layers[i], PixelClassificationLayer):
+                    pixel_classification = net.layers[-1].reach(In, method=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
+                else:
+                    In = net.layers[i].reach(In, method=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
+                    if show: print(f"output shape: {In.shape}")
+                if show: print(f'computation time: {time.perf_counter()-start} seconds')
+            
+            vt = time.perf_counter() - start
             reachTime.append(vt)
+            
+            if return_max_memory_usage:
+                if isinstance(In, list):
+                    for j in range(len(In)):
+                        nbytes = In[j].nbytes()
+                        if nbytes > max_nbytes:
+                            max_nbytes = nbytes
+                else:
+                    nbytes = In.nbytes()
+                    if nbytes > max_nbytes:
+                        max_nbytes = nbytes
 
             if show:
                 print('Number of stars/sparsestars: {}'.format(len(In)))
@@ -80,12 +140,32 @@ def reachBFS(net, inputSet, reachMethod='approx', lp_solver='gurobi', pool=None,
                         print(f"Shape of the set: {In.V.shape}")
                     elif isinstance(In, SparseImageStar2DCOO) or isinstance(In, SparseImageStar2DCSR):
                         print(f"Shape of the set: {In.shape + (In.num_pred,)}")
-                print(f"Reachability analysis is done in {vt} seconds")
+                        print(f'density of In.V: {In.density()}')
+                        print(f'nnz of In.V: {In.V.nnz}')
+                        print(f'memory (bytes) of In: {In.nbytes()} ({In.nbytes() / (1024**3):.2f} GB)')
+                        if return_max_memory_usage:
+                            print(f'max memory (bytes) of reachable sets so far: {max_nbytes}')
+                print(f"Reachability analysis is done in {vt} seconds ({vt / 3600:.2f} hours)")
+                print(f"Total reachability analysis so far is done in {sum(reachTime)} seconds ({sum(reachTime) / 3600:.2f} hours)")
 
         outputSet = In
-        totalReachTime = sum(reachTime)    
-        pixel_classification = net.layers[-1].reach(In, method=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
-        return outputSet, totalReachTime, pixel_classification
+        totalReachTime = sum(reachTime)
+        if show:
+            print(f"Total reachability analysis is done in {totalReachTime} seconds ({totalReachTime / 3600:.2f} hours)")
+            if return_max_memory_usage:
+                print(f'max memory (bytes) of reachable sets: {max_nbytes}')
+        
+        # if return_max_memory_usage:
+        #     return outputSet, totalReachTime, pixel_classification, max_nbytes
+        # return outputSet, totalReachTime, pixel_classification
+        
+        dict_results = {
+            'outputSet': outputSet,
+            'totalReachTime': totalReachTime,
+            'pixel_classification': pixel_classification if has_pixel_classification_layer else None,
+            'max_memory_usage': max_nbytes if return_max_memory_usage else None,
+        }
+        return dict_results
         
     for i in range(net.n_layers):
         if show:
@@ -95,8 +175,18 @@ def reachBFS(net, inputSet, reachMethod='approx', lp_solver='gurobi', pool=None,
         In = net.layers[i].reach(In, method=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
         vt = time.perf_counter() - start
 
-        # reachSet.append(In)
         reachTime.append(vt)
+
+        if return_max_memory_usage:
+            if isinstance(In, list):
+                for j in range(len(In)):
+                    nbytes = In[j].nbytes()
+                    if nbytes > max_nbytes:
+                        max_nbytes = nbytes
+            else:
+                nbytes = In.nbytes()
+                if nbytes > max_nbytes:
+                    max_nbytes = nbytes
 
         if show:
             print('Number of stars/sparsestars: {}'.format(len(In)))
@@ -109,12 +199,33 @@ def reachBFS(net, inputSet, reachMethod='approx', lp_solver='gurobi', pool=None,
                         print(f"Shape of the set: {In.V.shape}")
                     elif isinstance(In, SparseImageStar2DCOO) or isinstance(In, SparseImageStar2DCSR):
                         print(f"Shape of the set: {In.shape + (In.num_pred,)}")
-            print(f"Reachability analysis is done in {vt} seconds")
+                        print(f'density of In.V: {In.density()}')
+                        print(f'nnz of In.V: {In.V.nnz}')
+                        print(f'memory (bytes) of In: {In.nbytes()} ({In.nbytes() / (1024**3):.2f} GB)')
+                        if return_max_memory_usage:
+                            print('max memory (bytes) of reachable sets so far: {}'.format(max_nbytes))
+            print(f"Reachability analysis is done in {vt} seconds ({vt / 3600:.2f} hours)")
+            print(f"Total reachability analysis so far is done in {sum(reachTime)} seconds")
             
     outputSet = In
-    totalReachTime = sum(reachTime)    
-    return outputSet, totalReachTime
+    totalReachTime = sum(reachTime)
+    if show:
+        print(f"Total reachability analysis is done in {totalReachTime} seconds")
+        if return_max_memory_usage:
+            print('max memory (bytes) of reachable sets: {}'.format(max_nbytes))
+                
+    # if return_max_memory_usage:
+    #     return outputSet, totalReachTime, pixel_classification, max_nbytes
+    # return outputSet, totalReachTime, pixel_classification
 
+    dict_results = {
+        'outputSet': outputSet,
+        'totalReachTime': totalReachTime,
+        'pixel_classification': pixel_classification,
+        'max_memory_usage': max_nbytes if return_max_memory_usage else None
+    }
+    return dict_results
+    
 def certifyRobustness_sigmoid(net, input, label=None, epsilon=0.01, veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
     """
         Certify robustness of neural networks with given inputs
@@ -195,7 +306,8 @@ def certifyRobustness_sigmoid(net, input, label=None, epsilon=0.01, veriMethod='
 
                     # Compute output reachable sets
                     if veriMethod == 'BFS':
-                        Y, _ = reachBFS(net=net, inputSet=X, reachMethod=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF_[rf], DR=DR_[dr], show=show)
+                        result = reachBFS(net=net, inputSet=X, reachMethod=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF_[rf], DR=DR_[dr], show=show)
+                        Y = result['outputSet']
                     else:
                         raise Exception('other verification methods is not yet implemented, i.e. DFS')
 
@@ -273,7 +385,8 @@ def certifyRobustness_sequence(net, inputs, epsilon=0.01, veriMethod='BFS', reac
 
     # Compute output reachable sets
     if veriMethod == 'BFS':
-        Y, _ = reachBFS(net=net, inputSet=X, reachMethod=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
+        result = reachBFS(net=net, inputSet=X, reachMethod=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
+        Y = result['outputSet']
     else:
         raise Exception('other verification methods is not yet implemented, i.e. DFS')
     
@@ -440,9 +553,9 @@ def certifyRobustness_sequence(net, inputs, epsilon=0.01, veriMethod='BFS', reac
 #     r = sum(cnt) / N
 #     return r, rb, ce, cands, vt
 
-def certifyRobustness_pixel(net, in_sets, in_datas, num_classes, veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, return_output=False, show=False):
+def certifyRobustness_pixel(net, in_sets, in_datas, num_classes, veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, return_output=False,  show=False, return_max_memory_usage=False):
     assert isinstance(net.layers[-1], PixelClassificationLayer), f"The network's last layer should be PixelClassificationLayer, but network has {net.layers[-1]}"
-    assert len(in_sets) == len(in_datas), f"Inconsistent number of elements in in_sets and in_datas"
+    assert len(in_sets) == len(in_datas), f"Inconsistent number of elements in in_sets and in_datas; got {len(in_sets)} and {len(in_datas)}"
     start = time.perf_counter()
     N = len(in_sets)
     veri_set = []
@@ -454,38 +567,76 @@ def certifyRobustness_pixel(net, in_sets, in_datas, num_classes, veriMethod='BFS
     num_misPix = np.zeros(N) # number of missclassified pixels
     num_attPix = np.zeros(N) # number of attacked pixels
     riou = np.zeros(N) # rate of Jaccard similarity coefficient score; iou = Jaccard similarity index (IoU)
-	
-    num_pixels = np.prod(in_datas[0].shape)
+    max_nbytes = np.zeros(N)
+    num_pixels = np.prod(in_datas[0].shape[:2]) if len(in_datas[0].shape) >= 2 else np.prod(in_datas[0].shape)
 
     UNK_PIX = num_classes
     MIS_PIX = num_classes + 1
     
+    PIX_LABELS = []
+    PIX_MULTICLASS_LABELS = []
+    PIX_GT_LABELS = []
+    
     for i in range(N):
-        veri_image, veri_time[i], _, O,  gr_pix_id = certifyPixelRobustness_single_input(net, in_sets[i], in_datas[i], veriMethod, reachMethod, lp_solver, pool, RF, DR, show)
+        # if return_max_memory_usage:
+        #     veri_image, veri_time[i], _, O,  gr_pix_id, max_nbytes[i] = certifyPixelRobustness_single_input(net, in_sets[i], in_datas[i], veriMethod, reachMethod, lp_solver, pool, RF, DR, show,  return_max_memory_usage)
+        # else:
+        #     veri_image, veri_time[i], _, O,  gr_pix_id = certifyPixelRobustness_single_input(net, in_sets[i], in_datas[i], veriMethod, reachMethod, lp_solver, pool, RF, DR, show)
+        
+        result = certifyPixelRobustness_single_input(net, in_sets[i], in_datas[i], veriMethod, reachMethod, lp_solver, pool, RF, DR, show, return_max_memory_usage)
+        
+        veri_image = result['verified_image']
+        veri_time[i] = result['verification_time']
+        O = result['output_set']
+        pixel_gt_labels = result['ground_truth_pixel_id']
+        max_nbytes[i] = result['max_memory_usage'] if return_max_memory_usage else None
+        pixel_labels = result['pixel_labels']
+        pixel_multiclass_labels = result['pixel_multiclass_labels']
+        
+        PIX_GT_LABELS.append(pixel_gt_labels)
+        PIX_LABELS.append(pixel_labels)
+        PIX_MULTICLASS_LABELS.append(pixel_multiclass_labels)
         veri_set.append(veri_image)
         
         num_attPix[i] = in_sets[i].geNumAttackedPixels()
         num_misPix[i] = (veri_image == MIS_PIX).sum()
         num_unkPix[i] = (veri_image == UNK_PIX).sum()
         num_rbPix[i] = num_pixels - (num_misPix[i] + num_unkPix[i])
-        iou = jaccard_score(veri_image.ravel(), gr_pix_id.ravel(), average=None) #labels = np.arange(num_classes+2)
-        riou[i] = iou.sum()/(num_classes+2)
+        riou[i] = jaccard_score(pixel_gt_labels.ravel(), veri_image.ravel(), average='macro')
 
         if return_output:
             out_sets.append(O)
 
-    avg_numRb = num_rbPix.sum() / N
-    avg_numUnk = num_unkPix.sum() / N
-    avg_numMis = num_misPix.sum() / N
-    avg_numAtt = num_attPix.sum() / N
+    N_rbPix  = num_rbPix.sum()
+    N_unkPix = num_unkPix.sum()
+    N_misPix = num_misPix.sum()
+    N_attPix = num_attPix.sum()
+    avg_numRb  = N_rbPix / N
+    avg_numUnk = N_unkPix / N
+    avg_numMis = N_misPix / N
+    avg_numAtt = N_attPix / N
     avg_riou = riou.sum() / N
-    avg_rv = (num_rbPix / num_pixels) / N
-    avg_rs = (num_misPix + num_unkPix / num_attPix).sum() / N
+    avg_rv = avg_numRb / num_pixels
+    avg_rs = (N_misPix + N_unkPix) / N_attPix
     avg_vt = veri_time.sum() / N
-    avg_data = [avg_numRb, avg_numUnk, avg_numMis, avg_numAtt, avg_riou, avg_rv, avg_rs, avg_vt]
+    if return_max_memory_usage:
+        max_memory_used = max_nbytes.max()
+        avg_data = [avg_numRb, avg_numUnk, avg_numMis, avg_numAtt, avg_riou, avg_rv, avg_rs, avg_vt, max_memory_used]
+    else:
+        avg_data = [avg_numRb, avg_numUnk, avg_numMis, avg_numAtt, avg_riou, avg_rv, avg_rs, avg_vt]
 
     vt_total = time.perf_counter() - start 
-    return veri_image, veri_time, vt_total, out_sets, avg_data
+    
+    results = {
+        'verified_images': veri_image,
+        'verification_times': veri_time,
+        'output_sets': out_sets,
+        'average_data': avg_data,
+        'pixel_labels': PIX_LABELS,
+        'pixel_multiclass_labels': PIX_MULTICLASS_LABELS,
+        'ground_truth_pixel_labels': PIX_GT_LABELS
+    }
+    return results
 
 
 def certifyRobustness(net, inputs, labels=None, veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, return_output=False, show=False):
@@ -523,16 +674,33 @@ def certifyRobustness(net, inputs, labels=None, veriMethod='BFS', reachMethod='a
     vt_total = time.perf_counter() - start 
     return RB, VT, vt_total, Y
 
-def certifyPixelRobustness_single_input(net, in_set, in_data, veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
+def certifyPixelRobustness_single_input(net, in_set, in_data, veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False, return_max_memory_usage=False):
 
     start = time.perf_counter()
 
-    gr_pix_id = net.evaluate(in_data).squeeze(axis=2)
-
+    # gr_pix_id = net.evaluate(in_data).squeeze(axis=2)
+    gr_pix_id = net.evaluate(in_data)
+    if gr_pix_id.ndim == 3:
+        gr_pix_id = gr_pix_id[:, :, 0]
+    elif gr_pix_id.ndim == 4:
+        gr_pix_id = gr_pix_id[:, :, 0, 0]
+    
     # Compute output reachable sets
     if veriMethod == 'BFS':
         # outputSet, totalReachTime, pixel_classification
-        Y, VT, pixel_labels = reachBFS(net=net, inputSet=in_set, reachMethod=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
+        # if return_max_memory_usage:
+        #     Y, VT, pixel_labels, max_nbytes = reachBFS(net=net, inputSet=in_set, reachMethod=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show, return_max_memory_usage=True)
+        # else:
+        #     Y, VT, pixel_labels = reachBFS(net=net, inputSet=in_set, reachMethod=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
+        
+        result = reachBFS(net=net, inputSet=in_set, reachMethod=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show, return_max_memory_usage=return_max_memory_usage)
+        Y = result['outputSet']
+        VT = result['totalReachTime']
+        pixel_classification = result['pixel_classification']
+        pixel_labels = pixel_classification['pix_labels']
+        pixel_multiclass_labels = pixel_classification['pix_multiclass_labels']
+        max_nbytes = result['max_memory_usage'] if return_max_memory_usage else None
+        
     else:
         raise Exception('other verification methods is not yet implemented, i.e. DFS')
 
@@ -542,11 +710,27 @@ def certifyPixelRobustness_single_input(net, in_set, in_data, veriMethod='BFS', 
 
     ver_im = (classes + 1)*np.ones([h, w]) # initially define incorrect classification (unrobust / misslcassified pixels)
     ver_im[ver_im < classes] = classes # unknown pixles
-    eq = pixel_labels == gr_pix_id 
+    eq = pixel_labels == gr_pix_id
     ver_im[eq] = pixel_labels[eq] # robust pixels / correctly classified pixels
 
-    vt_total = time.perf_counter() - start  
-    return ver_im, VT, vt_total, Y, gr_pix_id
+    vt_total = time.perf_counter() - start
+    
+    # if return_max_memory_usage:
+    #     return ver_im, VT, vt_total, Y, gr_pix_id, max_nbytes
+    # return ver_im, VT, vt_total, Y, gr_pix_id
+
+    dict_result = {
+        'verified_image': ver_im,
+        'verification_time': VT,
+        'total_time': vt_total,
+        'output_set': Y,
+        'ground_truth_pixel_id': gr_pix_id,
+        'pixel_labels': pixel_labels,
+        'pixel_multiclass_labels': pixel_multiclass_labels,
+        'max_memory_usage': max_nbytes if return_max_memory_usage else None
+    }
+    return dict_result
+
 
 
 def certifyRobustness_single_input(net, in_set, label=None, veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
@@ -556,12 +740,15 @@ def certifyRobustness_single_input(net, in_set, label=None, veriMethod='BFS', re
         max_id = np.array([y.argmax()])
     else:
         max_id = np.array([label]).reshape(-1)
-
+        
     start = time.perf_counter()
 
     # Compute output reachable sets
     if veriMethod == 'BFS':
-        Y, _ = reachBFS(net=net, inputSet=in_set, reachMethod=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
+        # Y, _ = reachBFS(net=net, inputSet=in_set, reachMethod=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
+        result = reachBFS(net=net, inputSet=in_set, reachMethod=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
+        Y = result['outputSet']
+        
     else:
         raise Exception('other verification methods is not yet implemented, i.e. DFS')
     

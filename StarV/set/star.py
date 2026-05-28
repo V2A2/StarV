@@ -22,15 +22,18 @@ Update: 09/16/2025 (Yuntao Li)
 """
 
 # !/usr/bin/python3
+import copy
+import time
+import glpk
 import numpy as np
+import polytope as pc
 import scipy.sparse as sp
 import gurobipy as gp
 from gurobipy import GRB
 from scipy.optimize import linprog
 from scipy.linalg import block_diag
-import glpk
-import polytope as pc
-import copy
+from StarV.util.lp_solver import solve_index_lp as util_solve_index_lp
+from StarV.set.predicate_layout import PredLayout
 
 class Star(object):
     """
@@ -60,34 +63,71 @@ class Star(object):
            pred_lb = []; % lower bound of predicate variables
            pred_ub = []; % upper bound of predicate variables
         """
-        if len(args) == 5:
-            
-            if copy_ is True:
-                [V, C, d, pred_lb, pred_ub] = copy.deepcopy(args)
-            else:
-                [V, C, d, pred_lb, pred_ub] = args
+        if len(args) == 6:
+            [V, C, d, pred_lb, pred_ub, layout] = copy.deepcopy(args) if copy_ else args
 
-            assert isinstance(V, np.ndarray), 'error: \
-            basis matrix should be a 2D numpy array'
-            assert isinstance(pred_lb, np.ndarray), 'error: \
-            lower bound vector should be a 1D numpy array'
-            assert isinstance(pred_ub, np.ndarray), 'error: \
-            upper bound vector should be a 1D numpy array'
-            assert len(V.shape) == 2, 'error: \
-            basis matrix should be a 2D numpy array'
+            assert isinstance(V, np.ndarray), 'error: ' +\
+            'basis matrix should be a 2D numpy array'
+            assert isinstance(pred_lb, np.ndarray), 'error: ' +\
+            'lower bound vector should be a 1D numpy array'
+            assert isinstance(pred_ub, np.ndarray), 'error: ' +\
+            'upper bound vector should be a 1D numpy array'
+            assert len(V.shape) == 2, 'error: ' +\
+            'basis matrix should be a 2D numpy array'
             if len(C) != 0:
-                assert len(C.shape) == 2, 'error: \
-                constraint matrix should be a 2D numpy array'
-                assert len(d.shape) == 1, 'error: \
-                constraint vector should be a 1D numpy array'
-                assert V.shape[1] == C.shape[1] + 1, 'error: \
-                Inconsistency between generator matrix and constraint matrix'
-                assert C.shape[0] == d.shape[0], 'error: \
-                Inconsistency between constraint matrix and constraint vector'
+                assert len(C.shape) == 2, 'error: ' +\
+                'constraint matrix should be a 2D numpy array'
+                assert len(d.shape) == 1, 'error: ' +\
+                'constraint vector should be a 1D numpy array'
+                assert V.shape[1] == C.shape[1] + 1, f'error: ' +\
+                f'Inconsistency between generator matrix and constraint matrix, V in {V.shape} and C in {C.shape}'
+                assert C.shape[0] == d.shape[0], 'error: ' +\
+                'Inconsistency between constraint matrix and constraint vector'
                 assert C.shape[1] == pred_lb.shape[0] and \
-                    C.shape[1] == pred_ub.shape[0], 'error: \
-                    Inconsistency between number of predicate variables and \
-                    predicate lower- or upper-bound vectors'
+                    C.shape[1] == pred_ub.shape[0], 'error: ' +\
+                    'Inconsistency between number of predicate variables and ' +\
+                    'predicate lower- or upper-bound vectors'
+                
+            assert len(pred_lb.shape) == 1, 'error: \
+            lower bound vector should be a 1D numpy array'
+            assert len(pred_ub.shape) == 1, 'error: \
+            upper bound vector should be a 1D numpy array'
+            assert layout.n_total() == pred_lb.shape[0] == pred_ub.shape[0], 'error: ' +\
+            'Inconsistency between predicate layout and predicate lower- or upper-bound vectors'
+            
+            self.V = V
+            self.C = C
+            self.d = d
+            self.dim = V.shape[0]
+            self.nVars = V.shape[1] - 1
+            self.pred_lb = pred_lb
+            self.pred_ub = pred_ub
+            self.pred_layout = layout
+            
+        elif len(args) == 5:
+            [V, C, d, pred_lb, pred_ub] = copy.deepcopy(args) if copy_ else args
+
+            assert isinstance(V, np.ndarray), 'error: ' +\
+            'basis matrix should be a 2D numpy array'
+            assert isinstance(pred_lb, np.ndarray), 'error: ' +\
+            'lower bound vector should be a 1D numpy array'
+            assert isinstance(pred_ub, np.ndarray), 'error: ' +\
+            'upper bound vector should be a 1D numpy array'
+            assert len(V.shape) == 2, 'error: ' +\
+            'basis matrix should be a 2D numpy array'
+            if len(C) != 0:
+                assert len(C.shape) == 2, 'error: ' +\
+                'constraint matrix should be a 2D numpy array'
+                assert len(d.shape) == 1, 'error: ' +\
+                'constraint vector should be a 1D numpy array'
+                assert V.shape[1] == C.shape[1] + 1, f'error: ' +\
+                f'Inconsistency between generator matrix and constraint matrix, V in {V.shape} and C in {C.shape}'
+                assert C.shape[0] == d.shape[0], 'error: ' +\
+                'Inconsistency between constraint matrix and constraint vector'
+                assert C.shape[1] == pred_lb.shape[0] and \
+                    C.shape[1] == pred_ub.shape[0], 'error: ' +\
+                    'Inconsistency between number of predicate variables and ' +\
+                    'predicate lower- or upper-bound vectors'
                 
             assert len(pred_lb.shape) == 1, 'error: \
             lower bound vector should be a 1D numpy array'
@@ -103,11 +143,7 @@ class Star(object):
             self.pred_ub = pred_ub
 
         elif len(args) == 3:
-            
-            if copy_ is True:
-                [V, C, d] = copy.deepcopy(args)
-            else:
-                [V, C, d] = args
+            [V, C, d] = copy.deepcopy(args) if copy_ else args
 
             assert isinstance(V, np.ndarray), 'error: \
             basis matrix should be a 2D numpy array'
@@ -134,11 +170,7 @@ class Star(object):
 
         
         elif len(args) == 2:  # the most common use
-            
-            if copy_ is True:
-                [lb, ub] = copy.deepcopy(args)
-            else:
-                [lb, ub] = args
+            [lb, ub] = copy.deepcopy(args) if copy_ else args
 
             assert isinstance(lb, np.ndarray), 'error: \
             lower bound vector should be a 1D numpy array'
@@ -185,9 +217,9 @@ class Star(object):
 
     def __str__(self):
         print('Star Set:')
-        print('V: {}'.format(self.V))
+        print('V: \n{}'.format(self.V))
         print('Predicate Constraints:')
-        print('C: {}'.format(self.C))
+        print('C: \n{}'.format(self.C))
         print('d: {}'.format(self.d))
         print('dim: {}'.format(self.dim))
         print('nVars: {}'.format(self.nVars))
@@ -270,235 +302,93 @@ class Star(object):
         
         return lb, ub
 
+    def get_binary_predicate_indices(self):
+        pred_layout = getattr(self, 'pred_layout', None)
+        if pred_layout is None:
+            return np.empty(0, dtype=np.int32)
 
-    def getMin(self, index, lp_solver='gurobi'):
+        a_blocks = getattr(pred_layout, 'a_blocks', None)
+        if not a_blocks:
+            return np.empty(0, dtype=np.int32)
+
+        idx_parts = [
+            np.arange(start, start + block_size, dtype=np.int32)
+            for start, block_size in a_blocks
+            if block_size > 0
+        ]
+        if len(idx_parts) == 0:
+            return np.empty(0, dtype=np.int32)
+
+        idx = np.concatenate(idx_parts)
+        if ((idx < 0) | (idx >= self.nVars)).any():
+            raise ValueError(
+                'error: pred_layout contains binary indices outside valid range [0, {})'.format(self.nVars)
+            )
+        return np.unique(idx)
+
+    def add_gurobi_pred_vars(self, model):
+        binary_idx = self.get_binary_predicate_indices()
+        if binary_idx.size > 0:
+            vtype = [GRB.CONTINUOUS] * self.nVars
+            for idx in binary_idx.tolist():
+                vtype[idx] = GRB.BINARY
+        else:
+            vtype = GRB.CONTINUOUS
+
+        if self.pred_lb.size and self.pred_ub.size:
+            return model.addMVar(shape=self.nVars, lb=self.pred_lb, ub=self.pred_ub, vtype=vtype)
+        return model.addMVar(shape=self.nVars, vtype=vtype)
+
+    def get_lp_ub(self):
+        if len(self.C) == 0:
+            return sp.csr_array((1, self.nVars)), np.zeros(1)
+        return self.C, self.d
+
+    def get_objective_and_center(self, index):
+        assert index >= 0 and index <= self.dim - 1, 'error: invalid index'
+        f = self.V[index, 1:self.nVars + 1]
+        center = self.V[index, 0]
+        if (f == 0).all():
+            return None, center
+        return np.asarray(f).reshape(-1), center
+
+    def solve_index_lp(self, index, sense='min', lp_solver='gurobi', solver_opts=None, model_pack=None, show=False):
+        return util_solve_index_lp(self, index=index, sense=sense, lp_solver=lp_solver,
+            solver_opts=solver_opts, model_pack=model_pack, show=show)
+
+    def getMin(self, index, lp_solver='gurobi', solver_opts=None, gurobi_model_pack=None, show=False):
         """get exact minimum value of state x[index] by solving LP
-           lp_solver = 'gurobi' or 'linprog' or 'glpk'
+           lp_solver = 'gurobi', 'cupdlp', 'cupdlp-gurobi', 'scipy-milp', 'linprog', or 'glpk'
         """
-
         assert index >= 0 and index <= self.dim-1, 'error: invalid index'
         assert isinstance(lp_solver, str), 'error: lp_solver is not a string'
+        return self.solve_index_lp(index=index, sense='min', lp_solver=lp_solver,
+            solver_opts=solver_opts, model_pack=gurobi_model_pack, show=show)
 
-        f = self.V[index, 1:self.nVars + 1]
-        if (f == 0).all():
-            xmin = self.V[index, 0]
-        else:
-            if lp_solver == 'gurobi':  # using gurobi is the preferred choice
-
-                min_ = gp.Model()
-                min_.Params.LogToConsole = 0
-                min_.Params.OptimalityTol = 1e-9
-                if self.pred_lb.size and self.pred_ub.size:
-                    x = min_.addMVar(shape=self.nVars, lb=self.pred_lb, ub=self.pred_ub)
-                else:
-                    x = min_.addMVar(shape=self.nVars)
-                min_.setObjective(f @ x, GRB.MINIMIZE)
-                if len(self.C) == 0:
-                    C = sp.csr_matrix(np.zeros((1, self.nVars)))
-                    d = 0
-                else:
-                    C = sp.csr_matrix(self.C)
-                    d = self.d
-                min_.addConstr(C @ x <= d)
-                min_.optimize()
-
-                if min_.status == 2:
-                    xmin = min_.objVal + self.V[index, 0]
-                else:
-                    raise Exception('error: cannot find an optimal solution, \
-                    exitflag = %d' % (min_.status))
-
-            elif lp_solver == 'linprog':
-
-                # https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.linprog.html
-                if len(self.C) == 0:
-                    A = np.zeros((1, self.nVars))
-                    b = np.zeros(1)
-                else:
-                    A = self.C
-                    b = self.d
-
-                lb = self.pred_lb
-                ub = self.pred_ub
-                lb = lb.reshape((self.nVars, 1))
-                ub = ub.reshape((self.nVars, 1))
-                res = linprog(f, A_ub=A, b_ub=b, bounds=np.hstack((lb, ub)))
-
-                if res.status == 0:
-                    xmin = res.fun + self.V[index, 0]
-                else:
-                    raise Exception('error: cannot find an optimal solution, \
-                    exitflag = {}'.format(res.status))
-
-            elif lp_solver == 'glpk':
-
-                #  https://pyglpk.readthedocs.io/en/latest/examples.html
-                #  https://pyglpk.readthedocs.io/en/latest/
-
-                glpk.env.term_on = False
-
-                if len(self.C) == 0:
-                    A = np.zeros((1, self.nVars))
-                    b = np.zeros(1)
-                else:
-                    A = self.C
-                    b = self.d
-
-                lb = self.pred_lb
-                ub = self.pred_ub
-                lb = lb.reshape((self.nVars, 1))
-                ub = ub.reshape((self.nVars, 1))
-
-                lp = glpk.LPX()  # create the empty problem instance
-                lp.obj.maximize = False
-                lp.rows.add(A.shape[0])  # append rows to this instance
-                for r in lp.rows:
-                    r.name = chr(ord('p') + r.index)  # name rows if we want
-                    lp.rows[r.index].bounds = None, b[r.index]
-
-                lp.cols.add(self.nVars)
-                for c in lp.cols:
-                    c.name = 'x%d' % c.index
-                    c.bounds = lb[c.index], ub[c.index]
-
-                lp.obj[:] = f.tolist()
-                B = A.reshape(A.shape[0]*A.shape[1],)
-                lp.matrix = B.tolist()
-                # lp.interior()
-                lp.simplex()
-                # default choice, interior may have a big floating point error
-
-                if lp.status != 'opt':
-                    raise Exception('error: cannot find an optimal solution, \
-                    lp.status = {}'.format(lp.status))
-                else:
-                    xmin = lp.obj.value + self.V[index, 0]
-            else:
-                raise Exception('error: \
-                unknown lp solver, should be gurobi or linprog or glpk')
-        return xmin
-
-    def getMax(self, index, lp_solver='gurobi'):
+    def getMax(self, index, lp_solver='gurobi', solver_opts=None, gurobi_model_pack=None, show=False):
         """get exact maximum value of state x[index] by solving LP
-           lp_solver = 'gurobi' or 'linprog' or 'glpk'
+           lp_solver = 'gurobi', 'cupdlp', 'cupdlp-gurobi', 'scipy-milp', 'linprog', or 'glpk'
         """
-
         assert index >= 0 and index <= self.dim-1, 'error: invalid index'
         assert isinstance(lp_solver, str), 'error: lp_solver is not a string'
-
-        f = self.V[index, 1:self.nVars + 1]
-        if (f == 0).all():
-            xmax = self.V[index, 0]
-        else:
-            if lp_solver == 'gurobi':  # using gurobi is the preferred choice
-
-                max_ = gp.Model()
-                max_.Params.LogToConsole = 0
-                max_.Params.OptimalityTol = 1e-9
-                if self.pred_lb.size and self.pred_ub.size:
-                    x = max_.addMVar(shape=self.nVars,
-                                     lb=self.pred_lb, ub=self.pred_ub)
-                else:
-                    x = max_.addMVar(shape=self.nVars)
-                max_.setObjective(f @ x, GRB.MAXIMIZE)
-                if len(self.C) == 0:
-                    C = sp.csr_matrix(np.zeros((1, self.nVars)))
-                    d = 0
-                else:
-                    C = sp.csr_matrix(self.C)
-                    d = self.d
-                max_.addConstr(C @ x <= d)
-                max_.optimize()
-
-                if max_.status == 2:
-                    xmax = max_.objVal + self.V[index, 0]
-                else:
-                    raise Exception('error: cannot find an optimal solution, \
-                    exitflag = %d' % (max_.status))
-            elif lp_solver == 'linprog':
-                # https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.linprog.html
-                if len(self.C) == 0:
-                    A = np.zeros((1, self.nVars))
-                    b = np.zeros(1)
-                else:
-                    A = self.C
-                    b = self.d
-
-                lb = self.pred_lb
-                ub = self.pred_ub
-                lb = lb.reshape((self.nVars, 1))
-                ub = ub.reshape((self.nVars, 1))
-                res = linprog(-f, A_ub=A, b_ub=b, bounds=np.hstack((lb, ub)))
-                if res.status == 0:
-                    xmax = -res.fun + self.V[index, 0]
-                else:
-                    raise Exception('error: cannot find an optimal solution, \
-                    exitflag = {}'.format(res.status))
-
-            elif lp_solver == 'glpk':
-
-                # https://pyglpk.readthedocs.io/en/latest/examples.html
-                # https://pyglpk.readthedocs.io/en/latest/
-
-                glpk.env.term_on = False  # turn off messages/display
-
-                if len(self.C) == 0:
-                    A = np.zeros((1, self.nVars))
-                    b = np.zeros(1)
-                else:
-                    A = self.C
-                    b = self.d
-
-                lb = self.pred_lb
-                ub = self.pred_ub
-                lb = lb.reshape((self.nVars, 1))
-                ub = ub.reshape((self.nVars, 1))
-
-                lp = glpk.LPX()  # create the empty problem instance
-                lp.obj.maximize = True
-                lp.rows.add(A.shape[0])  # append rows to this instance
-                for r in lp.rows:
-                    r.name = chr(ord('p') + r.index)  # name rows if we want
-                    lp.rows[r.index].bounds = None, b[r.index]
-
-                lp.cols.add(self.nVars)
-                for c in lp.cols:
-                    c.name = 'x%d' % c.index
-                    c.bounds = lb[c.index], ub[c.index]
-
-                lp.obj[:] = f.tolist()
-                B = A.reshape(A.shape[0]*A.shape[1],)
-                lp.matrix = B.tolist()
-
-                # lp.interior()
-                # default choice, interior may have a big floating point error
-                lp.simplex()
-
-                if lp.status != 'opt':
-                    raise Exception('error: cannot find an optimal solution, \
-                    lp.status = {}'.format(lp.status))
-                else:
-                    xmax = lp.obj.value + self.V[index, 0]
-            else:
-                raise Exception('error: \
-                unknown lp solver, should be gurobi or linprog or glpk')
-        return xmax
+        return self.solve_index_lp(index=index, sense='max', lp_solver=lp_solver,
+            solver_opts=solver_opts, model_pack=gurobi_model_pack, show=show)
     
-    def getMins(self, map, lp_solver='gurobi'):
+    def getMins(self, map, lp_solver='gurobi', solver_opts=None, show=False):
         n = len(map)
         xmin = np.zeros(n)
         for i in range(n):
-            xmin[i] = self.getMin(index=map[i], lp_solver=lp_solver)
+            xmin[i] = self.getMin(index=map[i], lp_solver=lp_solver, solver_opts=solver_opts, show=show)
         return xmin
 
-    def getMaxs(self, map, lp_solver='gurobi'):
+    def getMaxs(self, map, lp_solver='gurobi', solver_opts=None, show=False):
         n = len(map)
         xmax = np.zeros(n)
         for i in range(n):
-            xmax[i] = self.getMax(index=map[i], lp_solver=lp_solver)
+            xmax[i] = self.getMax(index=map[i], lp_solver=lp_solver, solver_opts=solver_opts, show=show)
         return xmax
 
-    def getRanges(self, lp_solver='gurobi', RF=0.0, layer=None, delta=0.98):
+    def getRanges(self, lp_solver='gurobi', RF=0.0, layer=None, delta=0.98, solver_opts=None, show=False):
         """Get the lower and upper bound vectors of the state
             Args:
                 lp_solver: linear programming solver. e.g.: 'gurobi', 'estimate', 'linprog'
@@ -512,8 +402,8 @@ class Star(object):
             if lp_solver == 'estimate':
                 return self.estimateRanges()
             else:
-                l = self.getMins(np.arange(self.dim), lp_solver=lp_solver)
-                u = self.getMaxs(np.arange(self.dim), lp_solver=lp_solver)
+                l = self.getMins(np.arange(self.dim), lp_solver=lp_solver, solver_opts=solver_opts, show=show)
+                u = self.getMaxs(np.arange(self.dim), lp_solver=lp_solver, solver_opts=solver_opts, show=show)
                 return l, u
 
         else:
@@ -531,15 +421,15 @@ class Star(object):
                     n2 = check
 
                 mid = midx[midb[0:n2]]
-                l1 = self.getMins(mid)
-                u1 = self.getMaxs(mid)
+                l1 = self.getMins(mid, lp_solver=lp_solver, solver_opts=solver_opts, show=show)
+                u1 = self.getMaxs(mid, lp_solver=lp_solver, solver_opts=solver_opts, show=show)
                 l[mid] = l1
                 u[mid] = u1
             else:
                 midx = np.argsort((u - l))[::-1]
                 mid = midx[0:n1]
-                l1 = self.getMins(mid)
-                u1 = self.getMaxs(mid)
+                l1 = self.getMins(mid, lp_solver=lp_solver, solver_opts=solver_opts, show=show)
+                u1 = self.getMaxs(mid, lp_solver=lp_solver, solver_opts=solver_opts, show=show)
                 l[mid] = l1
                 u[mid] = u1
             return l, u
@@ -620,6 +510,7 @@ class Star(object):
         else:
             return new_S
         
+    
 
     # intersection with a half space: H(x) := Hx <= g
     def intersectHalfSpace(self, H, g):
@@ -663,8 +554,14 @@ class Star(object):
         V = np.hstack((V1, V3))
         pred_lb = np.concatenate((self.pred_lb, Y.pred_lb))
         pred_ub = np.concatenate((self.pred_ub, Y.pred_ub))  
-        C = block_diag(self.C, Y.C)
-        d = np.concatenate((self.d, Y.d))
+
+        SC = self.C if len(self.C) > 0 else np.empty((0, self.nVars))
+        Sd = self.d if len(self.d) > 0 else np.empty((0,))
+        YC = Y.C if len(Y.C) > 0 else np.empty((0, Y.nVars))
+        Yd = Y.d if len(Y.d) > 0 else np.empty((0,))
+
+        C = block_diag(SC, YC)
+        d = np.concatenate((Sd, Yd))
         if len(d) == 0:
             C = []
             d = []
@@ -947,10 +844,7 @@ class Star(object):
         # prevent optimization information
         m.Params.LogToConsole = 0
         m.Params.OptimalityTol = 1e-6
-        if self.pred_lb.size and self.pred_ub.size:
-            x = m.addMVar(shape=self.nVars, lb=self.pred_lb, ub=self.pred_ub)
-        else:
-            x = m.addMVar(shape=self.nVars)
+        x = self.add_gurobi_pred_vars(m)
         m.setObjective(f @ x, GRB.MINIMIZE)
         if len(self.d) > 0:
             C = self.C
@@ -976,7 +870,7 @@ class Star(object):
 
         lb, ub = self.getRanges('estimate')
         max_id = np.argmax(lb)
-        a = (ub > lb[max_id])
+        a = (ub >= lb[max_id])
         if sum(a) == 1:
             return [max_id]
         else:
@@ -1009,6 +903,128 @@ class Star(object):
             return False
         else:
             return True
+
+    def distance_p1_p2(self, p1_indx, p2_indx, delta=0.0, lp_solver='gurobi'):
+        """
+            Compute distance between p1 and p2
+            dist = | p1 - p2 |
+        """
+
+        assert p1_indx >= 0 and p1_indx < self.dim, 'error: invalid index for point 1'
+        assert p2_indx >= 0 and p2_indx < self.dim, 'error: invalid index for point 2'
+
+        dim = self.dim
+        A = np.zeros([dim, dim], dtype = self.V.dtype)
+        A[p2_indx, p2_indx] -= 1.0
+        A[p2_indx, p1_indx] += 1.0
+
+        S = self.affineMap(A)
+        lb = S.getMin(index = p1_indx, lp_solver=lp_solver)
+
+        if lb > delta:
+            rb = True # robust
+        else:
+            rb = False # unkonw
+        return rb, np.abs(lb)
+    
+
+    def is_p1_max(self, p1_indx, lp_solver='gurobi'):
+        """
+            Check if an p1 index (correct label) is grater than other indices in Star set
+        """
+
+        assert p1_indx >= 0 and p1_indx < self.dim, 'error: invalid index for point 1'
+      
+        lb = self.getMin(index = p1_indx, lp_solver=lp_solver)
+        min_diff = 0
+        for i in range(self.dim):
+            if i == p1_indx:
+                continue
+            
+            ub = self.getMax(index = i, lp_solver=lp_solver)
+            diff = lb - ub
+            print(f'diff: {diff:.3e}')
+            if diff > 0:
+                min_diff = np.minimum(min_diff, diff)
+                continue
+            else:
+                return False, np.abs(diff)
+        
+        return True, min_diff
+
+    
+    # def is_p1_max(self, p1_indx, lp_solver='gurobi'):
+    #     """
+    #         Check if an p1 index (correct label) is grater than other indices in Star set
+    #     """
+
+    #     assert p1_indx >= 0 and p1_indx < self.dim, 'error: invalid index for point 1'
+    #     A = np.diag(-np.ones(self.dim, dtype=self.V.dtype))
+    #     A[:, p1_indx] += 1.0
+    #     S = self.affineMap(A)
+    #     lbs = np.zeros(self.dim)
+
+    #     for i in range(self.dim):
+    #         if i == p1_indx:
+    #             continue
+            
+    #         lb = S.getMin(index = i, lp_solver=lp_solver)
+    #         ub = S.getMax(index = i, lp_solver=lp_solver)
+    #         print('lb: ', lb)
+    #         print('ub: ', ub)
+    #         lbs[i] = lb
+    #         if lb > 0:
+    #             continue
+    #         else:
+    #             return False, np.abs(lb)
+        
+    #     return True, np.minimum(lbs)
+        
+    def concatenate(self, X):
+        """Concatenate two star sets
+            Author: Sung Woo Choi
+            Date: 2025/10/20
+        """
+        
+        assert isinstance(X, Star), 'error: input is not a Star'
+
+
+        c = np.concatenate([self.V[:, 0], X.V[:, 0]])
+        A = block_diag(self.V[:, 1:], X.V[:, 1:])
+        new_V = np.hstack([c[:, None], A])
+
+        if len(self.C) == 0:
+            C1 = np.empty([0, self.nVars])
+        else: C1 = self.C
+        if len(X.C) == 0:
+            C2 = np.empty([0, X.nVars])
+        else: C2 = X.C
+
+        new_C = block_diag(C1, C2)
+        new_d = np.concatenate([self.d, X.d])
+
+        new_pred_lb = np.concatenate([self.pred_lb, X.pred_lb])
+        new_pred_ub = np.concatenate([self.pred_ub, X.pred_ub])
+
+        return Star(new_V, new_C, new_d, new_pred_lb, new_pred_ub)
+    
+    def minimizeConstraints(self, copy_=True):
+
+        if len(self.C) == 0:
+            return self.clone() if copy_ else self
+        
+        C1 = np.vstack((np.eye(self.nVars), -np.eye(self.nVars)))
+        d1 = np.concatenate([self.pred_ub, -self.pred_lb])
+        C = np.vstack((self.C, C1))
+        d = np.concatenate([self.d, d1])       
+        P = pc.Polytope(C, d)
+        P1 = pc.reduce(P)
+        Cmin = P1.A
+        dmin = P1.b
+        self.C = Cmin
+        self.d = dmin
+
+        return Star(self.V, Cmin, dmin, self.pred_lb, self.pred_ub, copy_=copy_)
 
     @staticmethod
     def inf_attack(data, epsilon=0.01, data_type='default', dtype='float64'):

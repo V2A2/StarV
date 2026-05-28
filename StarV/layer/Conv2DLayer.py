@@ -21,16 +21,14 @@ Sung Woo Choi, 08/11/2023
 import time
 import copy
 import torch
+import warnings
 import numpy as np
 import scipy.sparse as sp
 import multiprocessing
-import torch.nn.functional as F
 from StarV.set.imagestar import ImageStar
 from StarV.set.sparseimagestar2dcoo import SparseImageStar2DCOO
 from StarV.set.sparseimagestar2dcsr import SparseImageStar2DCSR
 from StarV.set.sparseimagestar import *
-
-from timeit import default_timer as timer
 
 class Conv2DLayer(object):
     """ Conv2DLayer Class
@@ -145,14 +143,14 @@ class Conv2DLayer(object):
                 f'error: padding should be a tuple, list, numpy ndarray, or int but received {type(padding)}'
                 assert isinstance(dilation, tuple) or isinstance(dilation, list) or \
                        isinstance(dilation, int) or isinstance(dilation, np.ndarray), \
-                f'error: dilation should be a tuple, list, numpy ndarray, or int but received {type(padding)}'
+                f'error: dilation should be a tuple, list, numpy ndarray, or int but received {type(dilation)}'
             
                 if isinstance(padding, int):
                     assert padding >= 0, 'error: padding should non-negative integers'
                     self.padding = np.ones(4, dtype=np.int16)*padding
                 else:
                     padding = np.array(padding)
-                    assert (padding >= 0).any(), 'error: padding should non-negative integers'
+                    assert (padding >= 0).all(), 'error: padding should non-negative integers'
 
                     if len(padding) == 1:
                         self.padding = np.ones(4, dtype=np.int16)*padding[0]
@@ -184,7 +182,7 @@ class Conv2DLayer(object):
                         assert dilation[0] > 0, 'error: dilation should positive integer'
                         self.dilation = np.ones(2, dtype=np.int16)*dilation[0]
                     elif len(dilation) == 2:
-                        assert dilation[0] > 0 and dilation[1], 'error: dilation should positive integer'
+                        assert dilation[0] > 0 and dilation[1] > 0, 'error: dilation should positive integer'
                         self.dilation = np.array(dilation)
                     else:
                         raise Exception('error: incorrect dilation')
@@ -201,7 +199,7 @@ class Conv2DLayer(object):
                 self.layer = torch.nn.Conv2d(
                     in_channels = self.in_channel,
                     out_channels = self.out_channel,
-                    kernel_size = kernel_weight.shape[2:3],
+                    kernel_size = kernel_weight.shape[:2],
                     stride = stride,
                     padding = padding,
                     dilation = dilation,
@@ -225,8 +223,8 @@ class Conv2DLayer(object):
         elif isinstance(layer, torch.nn.Conv2d):
 
             # kernel weight in shape (ch_out, ch_in, kernel_height, kernel_width)
-            self.in_channel = layer.weight.shape[-2]
-            self.out_channel = layer.weight.shape[-1]
+            self.in_channel = layer.weight.shape[1]
+            self.out_channel = layer.weight.shape[0]
             
             self.stride = np.array(layer.stride)
             padding = np.array(layer.padding)
@@ -452,43 +450,6 @@ class Conv2DLayer(object):
                 'Invalid number of input dimensions; it should be between 2D and 4D'
             )
     
-    # def add_zero_padding_old(input, padding):
-
-    #     assert isinstance(input, np.ndarray), \
-    #     'error: input should be numpy ndarray'
-
-    #     if padding[0] == 0 and padding[1] == 0:
-    #         return input
-        
-    #     in_dim = input.ndim
-    #     if in_dim == 4:
-    #         h, w, c, n = input.shape
-    #         out = np.zeros(
-    #             (h + 2*padding[0], w + 2*padding[1], c, n)
-    #         )
-    #         out[padding[0]:h+padding[0], padding[1]:w+padding[1], :, :] = input
-
-    #     elif in_dim == 3:
-    #         h, w, c = input.shape
-    #         out = np.zeros(
-    #             (h + 2*padding[0], w + 2*padding[1], c)
-    #         )
-    #         out[padding[0]:h+padding[0], padding[1]:w+padding[1], :] = input
-
-    #     elif in_dim == 2:
-    #         h, w = input.shape
-    #         out = np.zeros(
-    #             (h + 2*padding[0], w + 2*padding[1])
-    #         )
-    #         out[padding[0]:h+padding[0], padding[1]:w+padding[1]] = input
-
-    #     else:
-    #         raise Exception(
-    #             'Invalid number of input dimensions; it should be between 2D and 4D'
-    #         )
-
-    #     return out
-    
     def get_output_size(self, input):
         padding = self.padding
         if len(padding) == 4:
@@ -538,7 +499,7 @@ class Conv2DLayer(object):
             return self.conv2d_pytorch(input, bias=True)
         
         else:
-            return self.conv2d(input, bias=True)
+            return self.conv2d_pytorch(input, bias=True)
         
     def conv2d_pytorch(self, input, bias=True):
         """
@@ -548,8 +509,41 @@ class Conv2DLayer(object):
             Return: 
                @R: convolved dataset
         """
-        
-        assert isinstance(self.layer, torch.nn.Conv2d), '\'layer\' should be torch.nn.Conv2d for \'pytorch\' module'
+
+        if isinstance(self, Conv2DLayer):
+
+            if len(self.padding) == 4:
+                padding = np.array([self.padding[1], self.padding[3]])
+                if self.padding[0] != self.padding[1] or self.padding[2] != self.padding[3]:
+                    warnings.warn(f'Conv2DLayer has a 4-tuple padding, {self.padding}: [t, b, l, r], but torch.nn.Conv2DLayer does not accept it; passing padding={padding}: [h, w]')
+            else: padding = self.padding
+
+            # convert StarV Conv2D to torch.nn.Conv2d
+            layer = torch.nn.Conv2d(
+                in_channels = self.in_channel,
+                out_channels = self.out_channel,
+                kernel_size = self.weight.shape[:2],
+                stride = self.stride,
+                padding = padding,
+                dilation = self.dilation,
+                bias = bias, # self.layer.bias is false as it is stored in self.bias, because bias must not be added to generators   
+            )
+
+            layer.weight.data = torch.from_numpy(self.weight.transpose([3, 2, 0, 1]))
+            layer.bias = torch.nn.Parameter(torch.from_numpy(self.bias)) if bias==True else None
+            # layer.bias.data = torch.from_numpy(self.bias) if bias==True else None
+            
+        else:
+            assert isinstance(self.layer, torch.nn.Conv2d), \
+            '\'layer\' should be torch.nn.Conv2d or StarV.layer.Conv2DLayer.Conv2DLayer' 
+
+            layer = self.layer
+            layer.bias = torch.nn.Parameter(self.bias) if bias==True else None
+
+        # set the layer in evaluation mode
+        layer.eval()
+
+        assert isinstance(input, np.ndarray), 'error: input should be numpy ndarray'
 
         in_dim = input.ndim
         if in_dim == 4:
@@ -558,26 +552,19 @@ class Conv2DLayer(object):
             H, W, C = input.shape
             N = 1
         else:
-            raise Exception('input should be either 2D, 3D, or 4D tensor')
+            raise Exception('input should be either 2D, 3D, or 4D numpy ndarray')
         
-        input = copy.deepcopy(input).reshape(H, W, C, N)
+        # input = copy.deepcopy(input).reshape(H, W, C, N)
+        input = input.reshape(H, W, C, N)
         # change input shape from (H, W, C, N) to (N, C, H, W)
         input = input.transpose([3, 2, 0, 1])
-        input = torch.from_numpy(input).type(self.torch_dtype)
-
-        conv2d_layer = self.layer
-        if bias == True:
-            conv2d_layer.bias = torch.nn.Parameter(self.bias)
-        else:
-            conv2d_layer.bias = None
-
-        output = conv2d_layer(input).detach().numpy()
-        # change input shape to H, W, C, Noutput += self.bias[None, None, :, None]
-        # if in_dim == 3:
-        #     output = output.reshape(H, W, C) 
-
+        input = torch.from_numpy(input)
+        
+        output = layer(input).detach().numpy()
+        # change input shape to H, W, C, N
+        output = output.transpose([2, 3, 1, 0])
         return output
-
+                    
 
     def conv2d_basic(self, input, bias=True):
         """ 
@@ -1780,7 +1767,8 @@ class Conv2DLayer(object):
                 new_V = self.conv2d_pytorch(In.V, bias=False)
 
             elif self.module == 'default':
-                new_V = self.conv2d(In.V, bias=False)
+                # new_V = self.conv2d(In.V, bias=False)
+                new_V = self.conv2d_pytorch(In.V, bias=False)
 
             if self.bias is not None:
                 new_V[:, :, :, 0] += self.bias
@@ -1806,7 +1794,7 @@ class Conv2DLayer(object):
                 )
             
             elif self.module == 'default':
-                new_c = self.conv2d(In.c.reshape(In.shape), bias=True).reshape(-1)
+                new_c = self.conv2d_pytorch(In.c.reshape(In.shape), bias=True).reshape(-1)
                 if self.sparse:
                     new_V, out_shape = self.fconv2d_coo(In.V, In.shape)
                 else:
@@ -1821,7 +1809,7 @@ class Conv2DLayer(object):
                 )
             
             elif self.module == 'default':
-                new_c = self.conv2d(In.c.reshape(In.shape), bias=True).reshape(-1)
+                new_c = self.conv2d_pytorch(In.c.reshape(In.shape), bias=True).reshape(-1)
                 if self.sparse:
                     new_V, out_shape = self.fconv2d_csr(In.V, In.shape)
                 else:

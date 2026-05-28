@@ -570,7 +570,7 @@ def plot_probstar_reachset_with_unsafeSpec(rs, unsafe_mat, unsafe_vec, dir_mat=N
         plt.show()
 
        
-def plot_star(I, dir_mat=None, dir_vec=None, label=('$y_1$', '$y_2$'), show=True, color='g', font_size = 15):
+def plot_star(I, dir_mat=None, dir_vec=None, label=('$y_1$', '$y_2$'), show=True, color='g', font_size = 15, title=''):
     """Plot a star set in a specific direction
        y = dir_mat*x + dir_vec, x in I
     """
@@ -598,16 +598,26 @@ def plot_star(I, dir_mat=None, dir_vec=None, label=('$y_1$', '$y_2$'), show=True
         ax.set_ylim(l[1], u[1])
         
     elif isinstance(I, list) and len(I) > 1:
+        if isinstance(color, list):
+            if len(color) > 1:
+                if len(color) != len(I):
+                    raise Exception('error: the number of colors should be the same as the number of stars')
         L = []
         U = []
         for i in range(0,len(I)):
+            if isinstance(color, list):
+                if len(color) > 1:
+                    color_ = color[i]
+                else:
+                    color_ = color[0]
+                    
             I2 = I[i].affineMap(dir_mat, dir_vec)
             if I2.dim > 2:
                 raise Exception('error: only 2D plot is supported')
             if I2.isEmptySet(): # Can't plot empty set Fixed, Yuntao Li, 2/4/2024
                 continue
             else:
-                plot_2D_Star(I2, show=False)
+                plot_2D_Star(I2, show=False, color=color_)
             l, u = I2.getRanges()
             if i==0:
                 L = l
@@ -626,12 +636,13 @@ def plot_star(I, dir_mat=None, dir_vec=None, label=('$y_1$', '$y_2$'), show=True
         ax.set_xlim(Lm[0], Um[0])
         ax.set_ylim(Lm[1], Um[1])
     else:
-        raise Exception('error: first input should be a ProbStar or a list of ProbStar')
+        raise Exception('error: first input should be a Star or a list of Star')
 
     plt.xlabel(label[0], fontsize=font_size)
     plt.ylabel(label[1], fontsize=font_size)
     plt.xticks(fontsize=font_size)
     plt.yticks(fontsize=font_size)
+    plt.title(title)
     if show:
         plt.show()
 

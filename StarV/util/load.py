@@ -27,6 +27,7 @@ import copy
 import onnx
 import onnx2pytorch
 import csv
+import scipy
 
 from scipy.io import loadmat
 from scipy.sparse import csc_matrix
@@ -43,6 +44,9 @@ from StarV.layer.AvgPool2DLayer import AvgPool2DLayer
 from StarV.layer.BatchNorm2DLayer import BatchNorm2DLayer
 from StarV.layer.MaxPool2DLayer import MaxPool2DLayer
 from StarV.layer.FlattenLayer import FlattenLayer
+from StarV.layer.PadLayer import PadLayer
+from StarV.layer.CropLayer import CropLayer
+from StarV.layer.ConcatenateLayer import ConcatenateLayer
 from StarV.layer.PixelClassificationLayer import PixelClassificationLayer
 from StarV.layer.MixedActivationLayer import MixedActivationLayer
 from StarV.net.network import NeuralNetwork
@@ -1311,7 +1315,7 @@ def load_neural_network_file(file_path, layer=None, net_type=None, dtype='float6
     return load_neural_network(model, layer=layer, net_type=net_type, dtype=dtype, channel_last=channel_last, in_shape=in_shape, sparse=sparse, show=show)
 
 
-def load_neural_network(model, layer=None, net_type=None, dtype='float64', channel_last=True, in_shape=None, sparse=False, show=False):
+def load_neural_network(model, layer=None, net_type=None, dtype='float64', channel_last=True, in_shape=None, sparse=False, add_pixel_class_layer=False, pix_threshold=None, UNet=None, show=False):
     if sparse is True and in_shape is not None:
         assert len(in_shape) == 3, \
         f"To unroll weight matrix, the input shape (in_shape) must be provided in a  3-tuple containing (H, W, C). Given in_shape = {in_shape}"
@@ -1320,7 +1324,27 @@ def load_neural_network(model, layer=None, net_type=None, dtype='float64', chann
             c, h, w = in_shape
             in_shape = (h, w, c)
     
-    if isinstance(model, torch.nn.Module):
+    #UNet = [down, up];
+    # down = [d0, ..., dn] is a list containing layer number from which x needs to be stored for concatenation
+    # up   = [u0, ..., un] is a list containing layer number from which the stored x based on down need to be concatenated to
+    if UNet is not None:
+        assert isinstance(UNet, list) and len(UNet) == 2, f'for UNet, it should be a list containing two lists for down and up layers respectively'
+        unet_down, unet_up = copy.deepcopy(UNet)
+        assert len(unet_down) == len(unet_up), f'for unet, length of up and down lists must be equivalent but down: {len(unet_down)} while up: {len(unet_up)}'
+        if show:
+            print(f'UNet structure with {len(unet_down)} skip connections is considered in the analysis')
+            print(f'Down layers: {unet_down}')
+            print(f'Up layers: {unet_up}')
+    else:
+        unet_down, unet_up = None, None
+        
+
+    if isinstance(model, str):
+        return load_neural_network_file(model, layer=layer, net_type=net_type, 
+                                        dtype=dtype, channel_last=channel_last,
+                                        in_shape=in_shape, sparse=sparse, show=show)
+    
+    elif isinstance(model, torch.nn.Module):
         if show: print('converting to StarV module')
 
         if layer is None:
@@ -1330,10 +1354,11 @@ def load_neural_network(model, layer=None, net_type=None, dtype='float64', chann
             layers = copy.deepcopy(layer)
             cnt = len(layers)
             if show:
-                for i, layer in layers:
+                for i, layer in enumerate(layers):
                     print(f"Pre-given layer {i}: {layer}")
 
         var = None
+        layer_cnt = 0
         for idx, layer in enumerate(model.modules(), cnt):
             if not isinstance(layer, model.__class__):
                 DONE = True
@@ -1348,7 +1373,8 @@ def load_neural_network(model, layer=None, net_type=None, dtype='float64', chann
 
                 elif type(layer).__name__ in ['sub', 'Sub']:
                     if var is None:
-                        print(f"{layer} layer is neglected in the analysis because 'Constant' variable is not previously provided")
+                        if show:
+                            print(f"{layer} layer is neglected in the analysis because 'Constant' variable is not previously provided")
                         DONE = False
                     else:
                         layers.append(FullyConnectedLayer(layer=[None, -var], dtype=dtype))
@@ -1356,7 +1382,8 @@ def load_neural_network(model, layer=None, net_type=None, dtype='float64', chann
 
                 elif type(layer).__name__ in ['add', 'Add']:
                     if var is None:
-                        print(f"{layer} layer is neglected in the analysis because 'Constant' variable is not previously provided")
+                        if show:
+                            print(f"{layer} layer is neglected in the analysis because 'Constant' variable is not previously provided")
                         DONE = False
                     else:
                         layers.append(FullyConnectedLayer(layer=[None, var], dtype=dtype))
@@ -1364,7 +1391,8 @@ def load_neural_network(model, layer=None, net_type=None, dtype='float64', chann
 
                 elif type(layer).__name__ in ['div', 'Div']:
                     if var is None:
-                        print(f"{layer} layer is neglected in the analysis because 'Constant' variable is not previously provided")
+                        if show:
+                            print(f"{layer} layer is neglected in the analysis because 'Constant' variable is not previously provided")
                         DONE = False
                     else:
                         layers.append(FullyConnectedLayer(layer=[1/var, None], dtype=dtype))
@@ -1394,12 +1422,17 @@ def load_neural_network(model, layer=None, net_type=None, dtype='float64', chann
                     if sparse:
                         in_shape = layer_.out_shape
 
+                elif isinstance(layer, torch.nn.ConvTranspose2d):
+                    layer_ = ConvTranspose2DLayer(layer=layer, dtype=dtype)
+                    layers.append(layer_)
+
                 elif isinstance(layer, torch.nn.AvgPool2d):
                     layers.append(AvgPool2DLayer(kernel_size=layer.kernel_size, stride=layer.stride, padding=layer.padding, dtype=dtype))
 
                 elif isinstance(layer, torch.nn.AdaptiveAvgPool2d):
                     layers.append(FlattenLayer(channel_last))
-                    print(f"{layer} layer is considered as FalttenLayer in the analysis")
+                    if show:
+                        print(f"{layer} layer is considered as FlattenLayer in the analysis")
 
                 elif isinstance(layer, torch.nn.BatchNorm2d):
                     layers.append(BatchNorm2DLayer(layer=layer, dtype=dtype))
@@ -1408,7 +1441,7 @@ def load_neural_network(model, layer=None, net_type=None, dtype='float64', chann
                     gamma = layer.weight.detach().numpy().copy()
                     beta = layer.bias.detach().numpy().copy()
                     num_features = layer.num_features
-                    eps = np.array(layer.eps)
+                    eps = np.array(layer.eps).ravel()
                     var = layer.running_var.numpy()
                     mean = layer.running_mean.numpy()
                     layers.append(BatchNorm2DLayer(layer=[gamma, beta, mean, var], num_features = num_features, eps = eps, dtype=dtype))
@@ -1423,11 +1456,13 @@ def load_neural_network(model, layer=None, net_type=None, dtype='float64', chann
                     layers.append(FlattenLayer(channel_last))
 
                 elif isinstance(layer, torch.nn.Dropout):
-                    print(f"{layer} layer is neglected in the analysis")
+                    if show:
+                        print(f"{layer} layer is neglected in the analysis")
                     DONE = False
 
                 elif isinstance(layer, torch.nn.Softmax):
-                    print(f"{layer} layer is neglected in the analysis")
+                    if show:
+                        print(f"{layer} layer is neglected in the analysis")
                     DONE = False
 
                 elif isinstance(layer, torch.nn.modules.container.Sequential):
@@ -1440,34 +1475,37 @@ def load_neural_network(model, layer=None, net_type=None, dtype='float64', chann
                     DONE = False
                     # raise Exception('error: unsupported neural network layer {}'.format(type(layer)))
                 
+                if DONE:
+                    layer_cnt += 1
+
+                if unet_up is not None:
+                    if len(unet_up) > 0:
+                        if layer_cnt == unet_up[0]:
+                            if show:
+                                print(f'Adding ConcatenateLayer at layer {idx} for UNet up path')
+                            layers.append(ConcatenateLayer(axis=2)) #channel concatenation
+                            unet_up.pop(0)
+                            layer_cnt += 1
+
                 if show and DONE:
                     print(f"Parsing layer {idx}: {layer} is done successfully")
                 
                 prev_layer = layer
 
-        return NeuralNetwork(layers, net_type=net_type)
+        if add_pixel_class_layer:
+            layers.append(PixelClassificationLayer(num_pix_classes=prev_layer.out_channels, threshold=pix_threshold))
+            if show:
+                print(f"PixelClassificationLayer is added as the last layer of the network")
+
+        return NeuralNetwork(layers, net_type=net_type, UNet=UNet)
     
-    elif isinstance(model, onnx.onnx_ml_pb2.ModelProtolProto):
+    elif isinstance(model, onnx.onnx_ml_pb2.ModelProto) or isinstance(model, onnx.ModelProto):
         pytorch_model = onnx2pytorch.ConvertModel(model)
-        return load_neural_network(pytorch_model, net_type, show)
+        return load_neural_network(pytorch_model, net_type=net_type, add_pixel_class_layer=add_pixel_class_layer, UNet=UNet, show=show)
     
     else:
-        raise Exception('error: unsupported neural network module {}'.format(type(model)))
+        raise Exception('error: unsupported neuaral network module {}'.format(type(model)))
     
-
-def find_node_with_input(graph, input_name):
-    'find the unique onnx node with the given input, can return None'
-
-    rv = None
-
-    for n in graph.node:
-        for i in n.input:
-            if i == input_name:
-                assert rv is None, f"multiple onnx nodes accept network input {input_name}"
-                rv = n
-
-    return rv
-
 
 def find_node_with_input(graph, input_name):
     'find the unique onnx node with the given input, can return None'
@@ -1728,7 +1766,7 @@ def load_onnx_network(filename, net_type=None, channel_last=True, num_pixel_clas
             assert layer is not None
             layers.append(layer)
 
-        assert len(cur_node.output) == 1, f"multiple output at onnx node {cur_node.name}"
+        # assert len(cur_node.output) == 1, f"multiple output at onnx node {cur_node.name}"
         cur_input_name = cur_node.output[0]
 
         #print(f"{cur_node.name} -> {cur_input_name}")
@@ -1747,3 +1785,77 @@ def load_onnx_network(filename, net_type=None, channel_last=True, num_pixel_clas
         layers.append(PixelClassificationLayer(num_pixel_classes))
 
     return NeuralNetwork(layers, net_type=net_type)
+
+
+
+def load_cav2021_sssnn(net_name, dtype = 'float64'):
+    assert net_name in ['m2nist_62iou_dilatedcnn_avgpool', 
+                        'm2nist_75iou_transposedcnn_avgpool', 
+                        'm2nist_dilated_72iou_24layer',
+                        'mnist_dilated_net_21_later_83iou', 
+                        'net_mnist_3_relu', 
+                        'net_mnist_3_relu_maxpool'], \
+        'error: unknown network for CAV2021 SSNN'
+
+    net_dir = f'StarV/util/data/nets/CAV2021_SSNN/{net_name}_weights.mat'
+    mat_file = scipy.io.loadmat(net_dir)
+    layers = mat_file['network'][0]
+
+    starv_layers = []
+    for layer in layers:
+        
+        l = layer[0]
+        name = l[0][0]
+
+        if name == 'input':
+            mean = l[1][0]
+            starv_layers.append(FullyConnectedLayer(layer=[None, -mean], dtype=dtype))
+        elif name == 'conv2d':
+            _, W, b, kernel_size, ci, co, stride, dilation, padding = l
+            b = b.ravel()
+            stride = stride.ravel()
+            dilation = dilation.ravel()
+            padding = padding.ravel()
+            starv_layers.append(PadLayer(padding[0], padding[1], padding[2], padding[3]))
+            padding = np.zeros(4, dtype=int)
+            starv_layers.append(Conv2DLayer([W, b], stride, padding, dilation, dtype=dtype))
+        elif name == 'convtransposed2d':
+            _, W, b, kernel_size, ci, co, stride, out_padding = l
+            b = b.ravel()
+            stride = stride.ravel()
+            dilation = dilation.ravel()
+            padding = padding.ravel()
+            kernel_size = kernel_size.ravel()
+            output_padding = np.zeros(2, dtype=int)
+            starv_layers.append(ConvTranspose2DLayer([W, b], stride, padding, dilation, output_padding, dtype=dtype))
+            starv_layers.append(PadLayer(1, 0, 1, 0))
+        elif name == 'avgpool2d':
+            _, kernel_size, stride, padding = l
+            kernel_size = kernel_size.ravel()
+            stride = stride.ravel()
+            padding = padding.ravel()
+            starv_layers.append(AvgPool2DLayer(kernel_size, stride, padding, dtype=dtype))
+        elif name == 'maxpool2d':
+            _, kernel_size, stride, padding = l
+            kernel_size = kernel_size.ravel()
+            stride = stride.ravel()
+            padding = padding.ravel()
+            starv_layers.append(MaxPool2DLayer(kernel_size, stride, padding, dtype=dtype))
+        elif name == 'batchnorm2d':
+            _, beta, gamma, mean, var, eps = l
+            gamma = gamma.ravel()
+            beta = beta.ravel()
+            mean = mean.ravel()
+            var = var.ravel()
+            eps = eps.ravel()
+            shape = gamma.shape
+            starv_layers.append(BatchNorm2DLayer(layer=[gamma, beta, mean, var], num_features = shape[0], eps = eps, dtype=dtype))
+        elif name == 'relu':
+            starv_layers.append(ReLULayer())
+        elif name == 'softmax':
+            print(f"{name} layer is neglected in the reachability analysis")
+        elif name == 'pixelclassification':
+            _, classes = l
+            starv_layers.append(PixelClassificationLayer(classes.item()))
+
+    return NeuralNetwork(starv_layers, net_type=net_name)

@@ -23,7 +23,6 @@ import numpy as np
 import scipy.sparse as sp
 
 from StarV.set.imagestar import ImageStar
-from StarV.set.sparseimagestar import SparseImageStar
 from StarV.set.sparseimagestar2dcoo import SparseImageStar2DCOO
 from StarV.set.sparseimagestar2dcsr import SparseImageStar2DCSR
 

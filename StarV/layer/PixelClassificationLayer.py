@@ -28,18 +28,26 @@ class PixelClassificationLayer(object):
         Author: Sung Woo Choi
         Date: 08/23/2024
 
-        Pixel Labels: [0, ..., n, n+1], n is used for unknown case, n+1 is used for unrobust case
+        Pixel Labels: [0, ..., n, n+1], n is used for unknown case, n+1 is used for unrobust case (missclassification, where a pixel has more than one classification)
     """
 
     def __init__(
             self,
             num_pix_classes,
+            threshold = None
     ):
         self.classes = num_pix_classes
+        self.threshold = threshold
         
     def evaluate(self, input):
-        shape = input.shape
-        return np.argmax(input, axis=2)
+        if input.shape[2] > 1:
+            shape = input.shape
+            return np.argmax(input, axis=2)
+        
+        elif input.shape[2] == 1 and self.threshold is not None:
+            input[input >= self.threshold] = 1
+            input[input < self.threshold] = 0
+        return input
 
     def reach_single(self, input):
         if isinstance(input, ImageStar):
@@ -51,18 +59,51 @@ class PixelClassificationLayer(object):
         lb, ub = input.estimateRanges()
         lb = lb.reshape(shape[:3])
         ub = ub.reshape(shape[:3])
-
-        max_lb = np.max(lb, axis=2)
-        pix_label = np.empty([h, w])
-        for i in range(h):
-            for j in range(w):
-                cand = np.argwhere(ub[i, j, :] >= max_lb[i, j]).ravel()
-                if len(cand) > 1:
-                    cand = self.classes # unkown case; multiple classification for a single pixel
-                pix_label[i, j] = cand
-        return pix_label
         
-    def reach_relax_single(self, input, RF=0.0, method='area', lp_solver='gurobi', show=False):
+        pix_labels = np.empty([h, w], dtype=np.int16)
+        reach_classes = 2 if shape[2] == 1 and self.threshold is not None else self.classes
+        pix_multiclass_labels = np.zeros([h, w, reach_classes], dtype=bool)
+
+        if shape[2] == 1 and self.threshold is not None:
+            for i in range(h):
+                for j in range(w):
+                    if lb[i, j, 0] >= self.threshold:
+                        pix_labels[i, j] = 1
+                        if reach_classes > 1:
+                            pix_multiclass_labels[i, j, 1] = True
+                    elif ub[i, j, 0] < self.threshold:
+                        pix_labels[i, j] = 0
+                        pix_multiclass_labels[i, j, 0] = True
+                    else:
+                        pix_labels[i, j] = self.classes + 1 # missclassification/unrobust case
+                        pix_multiclass_labels[i, j, 0] = True
+                        if reach_classes > 1:
+                            pix_multiclass_labels[i, j, 1] = True
+
+        else:
+            # multi-class case
+            max_lb = np.max(lb, axis=2)
+            
+            for i in range(h):
+                for j in range(w):
+                    cand = np.argwhere(ub[i, j, :] >= max_lb[i, j]).ravel()
+                    pix_multiclass_labels[i, j, cand] = True
+                    
+                    if len(cand) != 1:
+                        pix_labels[i, j] = self.classes + 1 # missclassification/unrobust case; multiple classification for a single pixel
+                    else:
+                        pix_labels[i, j] = cand[0]
+                        
+        results = {
+            'pix_labels': pix_labels,
+            'pix_multiclass_labels': pix_multiclass_labels,
+        }
+        return results
+        
+    def reach_relax_single(self, input, threshold=0.0, RF=0.0, method='area', lp_solver='gurobi', show=False):
+        assert method in ['range', 'random', 'area', 'bound'], \
+        f"Invalid relaxation method. Options: 'range', 'random', 'area', and 'bound'. Received {method}"
+        
         if isinstance(input, ImageStar):
             shape = input.V.shape[:3]
         else:
@@ -104,11 +145,11 @@ class PixelClassificationLayer(object):
                 print('Applying relaxation by bound with RF = {}'.format(RF))
 
             N = len(ub)
-            ul = np.hstack(ub, np.abs(lb))
+            ul = np.hstack([ub, np.abs(lb)])
             midx = np.argsort(ul)
             midx1 = midx[-2*n1:]
-            ub_idx = midx1[midx1 <= N]
-            lb_idx = midx1[midx1 > N] - N
+            ub_idx = midx1[midx1 < N]
+            lb_idx = midx1[midx1 >= N] - N
 
             if show:
                 print('Applying relaxation by bound')
@@ -123,16 +164,43 @@ class PixelClassificationLayer(object):
 
         lb = lb.reshape(shape[:3])
         ub = ub.reshape(shape[:3])
+        pix_labels = np.empty([h, w], dtype=np.int16)
+        reach_classes = 2 if shape[2] == 1 and self.threshold is not None else self.classes
+        pix_multiclass_labels = np.zeros([h, w, reach_classes], dtype=bool)
+        
+        if shape[2] == 1 and self.threshold is not None:
+            for i in range(h):
+                for j in range(w):
+                    if lb[i, j, 0] >= threshold:
+                        pix_labels[i, j] = 1
+                        if reach_classes > 1:
+                            pix_multiclass_labels[i, j, 1] = True
+                    elif ub[i, j, 0] < threshold:
+                        pix_labels[i, j] = 0
+                        pix_multiclass_labels[i, j, 0] = True
+                    else:
+                        pix_labels[i, j] = self.classes + 1 # missclassification/unrobust case
+                        pix_multiclass_labels[i, j, 0] = True
+                        if reach_classes > 1:
+                            pix_multiclass_labels[i, j, 1] = True
 
-        max_lb = np.max(lb, axis=2)
-        pix_label = np.empty([h, w])
-        for i in range(h):
-            for j in range(w):
-                cand = np.argwhere(ub[i, j, :] >= max_lb[i, j]).ravel()
-                if len(cand) > 1:
-                    cand = self.classes  # unkown case; multiple classification for a single pixel
-                pix_label[i, j] = cand
-        return pix_label
+        else:
+            # multi-class case
+            max_lb = np.max(lb, axis=2)
+            for i in range(h):
+                for j in range(w):
+                    cand = np.argwhere(ub[i, j, :] >= max_lb[i, j]).ravel()
+                    pix_multiclass_labels[i, j, cand] = True
+                    if len(cand) != 1:
+                        pix_labels[i, j] = self.classes + 1 # missclassification/unrobust case; multiple classification for a single pixel
+                    else:
+                        pix_labels[i, j] = cand[0]
+                    
+        results = {
+            'pix_labels': pix_labels,
+            'pix_multiclass_labels': pix_multiclass_labels,
+        }
+        return results
 
 
     def reach(self, inputSet, method='area', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
