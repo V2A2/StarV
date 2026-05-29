@@ -18,6 +18,8 @@ from __future__ import annotations
 from pathlib import Path
 import sys
 
+# Allow the tutorial to be run directly from the L4DC folder while still
+# importing the local StarV package from the repository root.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import matplotlib.patches as mpatches
@@ -33,6 +35,8 @@ from StarV.util.lp_solver import sample
 from StarV.util.plot import plot_star
 
 
+# Reuse a fixed palette so exact split Stars are easy to track across the
+# hidden-layer, output-layer, and combined comparison figures.
 EXACT_STAR_COLORS = [
     "#f4a261",
     "#2a9d8f",
@@ -48,6 +52,8 @@ INPUT_COLOR = "#8ecae6"
 
 def create_tiny_relu_network() -> NeuralNetwork:
     """Create a 2D -> ReLU -> 2D network for the tutorial."""
+    # The weights are intentionally small and two-dimensional so every Star
+    # transformation can be visualized in the plane.
     W1 = np.array([[1.0, -0.8], [-0.6, 1.1]])
     b1 = np.array([0.15, -0.05])
     W2 = np.array([[1.0, 0.55], [-0.65, 1.0]])
@@ -63,11 +69,15 @@ def create_tiny_relu_network() -> NeuralNetwork:
 
 def reach_exact_with_hidden_sets(network: NeuralNetwork, input_star: Star, lp_solver: str = "linprog") -> tuple[list[Star], list[Star]]:
     """Run exact reachability and keep the Stars immediately after ReLU."""
+    # StarV layers accept a list of input Stars for exact reachability. Each
+    # layer returns the list of exact Stars produced at that layer.
     reachable_sets = [input_star]
     hidden_exact_sets = None
 
     for layer in network.layers:
         reachable_sets = layer.reach(reachable_sets, method="exact", lp_solver=lp_solver, pool=None)
+        # Save the post-ReLU sets so the tutorial can show where exact
+        # reachability splits the original input region.
         if isinstance(layer, ReLULayer):
             hidden_exact_sets = reachable_sets
 
@@ -79,10 +89,14 @@ def reach_exact_with_hidden_sets(network: NeuralNetwork, input_star: Star, lp_so
 
 def reach_approx_with_hidden_set(network: NeuralNetwork, input_star: Star, lp_solver: str = "linprog") -> Star:
     """Run over-approximate reachability up to the ReLU layer."""
+    # Approximate reachability keeps one enclosing Star instead of preserving
+    # all exact activation-case splits.
     reachable_set = input_star
 
     for layer in network.layers:
         reachable_set = layer.reach(reachable_set, method="approx", lp_solver=lp_solver, pool=None)
+        # Stop at the first ReLU because this helper is used only for the
+        # intermediate-set subplot.
         if isinstance(layer, ReLULayer):
             return reachable_set
 
@@ -95,6 +109,7 @@ def as_list(reach_set):
 
 
 def add_plot_labels(ax: plt.Axes, labels: list[tuple[str, str]]) -> None:
+    """Create simple patch labels for plots that do not need sample markers."""
     handles = [mpatches.Patch(color=color, label=label) for label, color in labels]
     ax.legend(handles=handles, fontsize=8, loc="lower left")
 
@@ -106,6 +121,7 @@ def add_reachability_legend(
     exact_labels: list[tuple[str, str]],
     sample_label: str | None = None,
 ) -> None:
+    """Build a consistent legend for exact, approximate, and sampled sets."""
     handles = []
     if overapprox_label is not None:
         handles.append(mpatches.Patch(color=OVERAPPROX_COLOR, label=overapprox_label))
@@ -118,6 +134,7 @@ def add_reachability_legend(
 
 
 def setup_reachability_axis(ax: plt.Axes) -> None:
+    """Apply shared styling for all 2D reachability subplots."""
     ax.grid(True, linewidth=0.4, alpha=0.35)
     ax.set_aspect("equal", adjustable="box")
 
@@ -158,6 +175,7 @@ def make_axis_artists_opaque(
     color: str,
     zorder: float,
 ) -> None:
+    """Restyle artists added by StarV plotting without touching older artists."""
     for patch in ax.patches[start_patch_count:]:
         patch.set_alpha(1.0)
         patch.set_facecolor(color)
@@ -178,12 +196,15 @@ def plot_starv_set(
     zorder: float = 2.0,
     lp_solver: str = "linprog",
 ) -> None:
+    """Plot a Star or list of Stars, including degenerate 0D/1D cases."""
     for star in as_list(reach_set):
         lb, ub = star.getRanges(lp_solver=lp_solver)
         span = ub - lb
         if np.allclose(span, 0.0, atol=1e-9):
+            # A completely collapsed Star is a single point.
             ax.scatter([lb[0]], [lb[1]], s=70, color=color, edgecolor=color, zorder=zorder)
         elif np.isclose(span[0], 0.0, atol=1e-9):
+            # A Star with zero width in x is drawn as a vertical segment.
             ax.plot(
                 [lb[0], lb[0]],
                 [lb[1], ub[1]],
@@ -193,6 +214,7 @@ def plot_starv_set(
                 zorder=zorder,
             )
         elif np.isclose(span[1], 0.0, atol=1e-9):
+            # A Star with zero width in y is drawn as a horizontal segment.
             ax.plot(
                 [lb[0], ub[0]],
                 [lb[1], lb[1]],
@@ -202,6 +224,7 @@ def plot_starv_set(
                 zorder=zorder,
             )
         else:
+            # For full 2D Stars, delegate vertex/polygon construction to StarV.
             patch_count = len(ax.patches)
             collection_count = len(ax.collections)
             plt.sca(ax)
@@ -218,6 +241,7 @@ def plot_numbered_exact_stars(
     zorder: float = 2.0,
 ) -> list[tuple[str, str]]:
     labels = []
+    # Number the exact Stars so viewers can see each ReLU split as its own set.
     for i, reach_set in enumerate(reach_sets, start=1):
         if isinstance(color, (list, tuple)):
             star_color = color[(i - 1) % len(color)]

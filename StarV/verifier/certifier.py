@@ -58,6 +58,7 @@ def reachBFS(net, inputSet, reachMethod='approx', lp_solver='gurobi', pool=None,
     # compute reachable set
     reachTime = []
     In = inputSet
+    pixel_classification = None
 
     if return_max_memory_usage:
         max_nbytes = 0
@@ -77,7 +78,11 @@ def reachBFS(net, inputSet, reachMethod='approx', lp_solver='gurobi', pool=None,
         stored_X = dict() # to store downstream reachable sets
 
     # For semantic segmentation neural network
-    has_pixel_classification_layer = isinstance(net.layers[-1], PixelClassificationLayer)
+    if isinstance(net.layers[-1], PixelClassificationLayer):
+        has_pixel_classification_layer = True
+    else:
+        has_pixel_classification_layer = False
+    
     if has_pixel_classification_layer:
         for i in range(net.n_layers):
             start = time.perf_counter()
@@ -752,6 +757,7 @@ def certifyRobustness_single_input(net, in_set, label=None, veriMethod='BFS', re
     else:
         raise Exception('other verification methods is not yet implemented, i.e. DFS')
     
+    # rb = 1: robust; rb = 0: not robust; rb = 2: unknown
     rb = 0
     max_cands = Y.get_max_point_cadidates()
     if len(max_cands) == 1:

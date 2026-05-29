@@ -35,6 +35,56 @@ _CUPDLP_CALLBACK = None
 def _to_1d(x, dtype=np.float64):
     return np.asarray(x, dtype=dtype).reshape(-1)
 
+
+"""
+This module centralizes linear-programming utilities used by StarV set
+operations and reachability algorithms.
+
+Main functionality:
+    * Solve LPs of the form min/max f^T x subject to A_ub x <= b_ub and
+      predicate lower/upper bounds.
+    * Dispatch the same StarV solver request to several optional backends.
+    * Return either only the optimal objective value or both the objective and
+      primal/dual solution data for sampling and warm-started solves.
+    * Solve one coordinate range query for a Star-like reach set through
+      solve_index_lp(...), which is used by getRange/getRanges methods.
+    * Draw feasible predicate samples from Star constraints using LP-based
+      feasible-point search and hit-and-run sampling helpers.
+
+Supported lp_solver values:
+    * "gurobi": Uses gurobipy. Supports continuous LPs and mixed-integer
+      predicate variables, optional pre-built model packs, and warm starts.
+    * "linprog": Uses scipy.optimize.linprog with HiGHS. Intended for
+      continuous LPs only; binary predicate variables are rejected.
+    * "scipy-milp": Uses scipy.optimize.milp. Supports binary predicate
+      variables when SciPy provides the MILP interface.
+    * "glpk": Uses the Python GLPK binding. Supports LP/MIP paths when the
+      installed binding exposes the required optimizer methods.
+    * "cupdlp": Uses a registered cuPDLP callback or the optional cupdlpx
+      Python package. This backend solves continuous LPs; binary predicates
+      are redirected to "cupdlp-gurobi".
+    * "cupdlp-gurobi": Runs cuPDLP first to obtain primal/dual warm-start data
+      and then solves with Gurobi. This is useful when Gurobi is still needed
+      for reliability, MILP support, or exact status handling.
+
+solver_opts conventions:
+    * "cupdlp_callback": callable used by lp_solver="cupdlp".
+    * "cupdlp_params": backend parameters passed to cupdlpx.
+    * "allow_cupdlp_fallback": allow lp_solver="cupdlp" to fall back to another
+      solver if no callback/backend is available.
+    * "cupdlp_fallback_solver": fallback target for cuPDLP failures; commonly
+      "gurobi", "linprog", "glpk", or "scipy-milp".
+    * "allow_cupdlp_failure": for "cupdlp-gurobi", continue with Gurobi even
+      if the cuPDLP warm-start attempt fails.
+
+Notes:
+    The module treats minimization and maximization uniformly through a
+    `sense` argument. Objective values include the optional `center` offset
+    used by Star coordinate optimization. External solver imports happen inside
+    backend-specific functions so StarV can still run with whichever solvers
+    are installed in the current environment.
+"""
+
 # context manager to suppress native stdout/stderr output from external solvers (e.g., cuPDLPx) 
 # that do not respect Python-level redirection
 def _suppress_native_stdio():
