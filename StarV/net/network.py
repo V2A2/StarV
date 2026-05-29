@@ -247,6 +247,93 @@ def filterProbStar(*args):
         p_ignored = prob
 
     return P, p_ignored
+
+def reachExactDFS(net, inputSet, f=None, label=None, lp_solver='gurobi', pool=None, show=True):
+    """Compute Reachable Set using DFS method
+    args:
+        @net: NeuralNetwork object
+        @inputSet: a list of input set (Star/ProbStar)
+        @f: a function to verify robustness; f(Ri) returns:
+            rb = 0: unknown
+            rb = 1: robust
+            rb = 2: not robust
+        @lp_solver: lp solver: 'gurobi' (default), 'glpk', or 'linprog'
+        @pool: parallel pool: None or multiprocessing.pool.Pool
+        @show: boolean variable to show progress
+    return:
+        @Y: a list of all final reachable sets
+        @rb: robustness verification result
+        @vt: verification time
+
+    @author: Sung Woo Choi
+    """
+
+    assert isinstance(net, NeuralNetwork), 'error: first input should be a NeuralNetwork object'
+    assert isinstance(inputSet, list), 'error: second input should be a list of Star/ProbStar set'
+
+    if f is not None:
+        assert label is not None, 'error: label must be provided for robustness verification'
+
+    # contains all remaining reachable set at all k steps, 
+    # remains = [RM1, RM2, ..., RMk], 
+    #     RMj = [I1, I2, ..., Im]
+    remains = [copy.deepcopy(inputSet)]
+
+    rb = [] if f is not None else None # robustness verification result
+    Y = [] # a list of all final reachable sets (should be equivalent to BFS method, but order may be different)
+    start = time.perf_counter()
+    while True:
+        # get the current k step
+        k = len(remains) - 1
+        if k >= 0:
+            # get the remaining reachable sets at current k step
+            RMj = remains[k]
+        else:
+            # no remaining reachable sets at current k step
+            break
+        
+        if len(RMj) > 0:
+            # pop out one input set at current k step
+            Ii = RMj.pop(0)
+            
+            # in the worset case m = 2^n reachable sets can be generated from one input set
+            # Rm = [R1, R2, ..., Rm]
+            if show:
+                print(f'Computing reachable set at layer {k} {net.layers[k].__class__.__name__}...')
+
+            Rm = net.layers[k].reach([Ii], method='exact', lp_solver=lp_solver, pool=pool, show=show)
+
+            # process reachable sets at k+1 step
+            if k == net.n_layers - 1:
+                # final reachable sets
+                # therefor no need to store reachable sets at k+1 step; simply add them to output list Y
+                Y.extend(Rm)
+
+                # for robustness verification
+                rb = f(Rm, label) if f is not None else None
+                if rb == 2 or rb == 0:
+                    # unsafe or unknown, stop the process; unkonwn should not happen in exact analysis
+                    vt = time.perf_counter() - start
+                    return Y, rb, vt
+
+            # add reachable sets at k+1 step
+            elif len(remains) == k + 1:
+                # first time to add reachable sets at k+1 step
+                remains.append(Rm)
+
+            # k + 1 step already exists
+            else:
+                # not the first time to add reachable sets at k+1 step
+                # append reachable sets at k+1 step
+                remains[k + 1].extend(Rm)
+
+        else:
+            # all reachable sets at current k step have been processed
+            # pop out remains at k step
+            remains.pop(k)
+
+    vt = time.perf_counter() - start
+    return Y, rb, vt
     
 
 def reachExactBFS(net, inputSet, lp_solver='gurobi', pool=None, show=True):

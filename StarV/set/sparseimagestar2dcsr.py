@@ -21,10 +21,6 @@ Sung Woo Choi, 03/17/2024
 
 # !/usr/bin/python3
 import copy
-import contextlib
-import io
-import os
-import sys
 import torch
 import numpy as np
 import scipy.sparse as sp
@@ -35,8 +31,6 @@ from scipy.optimize import linprog
 from scipy.linalg import block_diag
 # from scipy.ndimage import shift
 # import numba
-import glpk
-import polytope as pc
 from StarV.set.predicate_layout import PredLayout
 from StarV.util.lp_solver import solve_index_lp as util_solve_index_lp
 

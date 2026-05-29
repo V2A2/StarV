@@ -1315,7 +1315,7 @@ def load_neural_network_file(file_path, layer=None, net_type=None, dtype='float6
     return load_neural_network(model, layer=layer, net_type=net_type, dtype=dtype, channel_last=channel_last, in_shape=in_shape, sparse=sparse, show=show)
 
 
-def load_neural_network(model, layer=None, net_type=None, dtype='float64', channel_last=True, in_shape=None, sparse=False, add_pixel_class_layer=False, pix_threshold=None, UNet=None, show=False):
+def load_neural_network(model, layer=None, net_type=None, dtype='float64', channel_last=True, in_shape=None, sparse=False, add_pixel_class_layer=False, pix_threshold=None, UNet=None, skip_first_flatten_layer=True, show=False):
     if sparse is True and in_shape is not None:
         assert len(in_shape) == 3, \
         f"To unroll weight matrix, the input shape (in_shape) must be provided in a  3-tuple containing (H, W, C). Given in_shape = {in_shape}"
@@ -1496,6 +1496,12 @@ def load_neural_network(model, layer=None, net_type=None, dtype='float64', chann
             layers.append(PixelClassificationLayer(num_pix_classes=prev_layer.out_channels, threshold=pix_threshold))
             if show:
                 print(f"PixelClassificationLayer is added as the last layer of the network")
+
+        if isinstance(layers[0], FlattenLayer):
+            if skip_first_flatten_layer:
+                layers = layers[1:]
+                if show:
+                    print(f"The first FlattenLayer is skipped in the analysis")
 
         return NeuralNetwork(layers, net_type=net_type, UNet=UNet)
     

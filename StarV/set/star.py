@@ -23,14 +23,11 @@ Update: 09/16/2025 (Yuntao Li)
 
 # !/usr/bin/python3
 import copy
-import time
-import glpk
 import numpy as np
 import polytope as pc
 import scipy.sparse as sp
 import gurobipy as gp
 from gurobipy import GRB
-from scipy.optimize import linprog
 from scipy.linalg import block_diag
 from StarV.util.lp_solver import solve_index_lp as util_solve_index_lp
 from StarV.set.predicate_layout import PredLayout
@@ -40,7 +37,7 @@ class Star(object):
         Star Class for reachability
         author: Dung Tran
         date: 9/13/2022
-        Representation of a ProbStar
+        Representation of a Star
         ==========================================================================
         Star set defined by
         x = c + a[1]*v[1] + a[2]*v[2] + ... + a[n]*v[n]
@@ -802,7 +799,7 @@ class Star(object):
         V[map, 0] = new_c
         return Star(V, self.C, self.d, self.pred_lb, self.pred_ub, copy_=copy_)
 
-    def sample(self, N):
+    def sample(self, N, lp_solver='gurobi'):
         """
         Sample N points in the feasible Star set.
 
@@ -815,7 +812,7 @@ class Star(object):
         if N < 1:
             raise ValueError("Number of samples must be at least 1")
 
-        lb, ub = self.getRanges(lp_solver='gurobi')
+        lb, ub = self.getRanges(lp_solver=lp_solver)
         
         # Generate 2N samples initially
         V1 = np.random.uniform(lb[:, np.newaxis], ub[:, np.newaxis], (self.dim, 2*N))

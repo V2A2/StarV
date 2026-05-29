@@ -602,6 +602,8 @@ def plot_star(I, dir_mat=None, dir_vec=None, label=('$y_1$', '$y_2$'), show=True
             if len(color) > 1:
                 if len(color) != len(I):
                     raise Exception('error: the number of colors should be the same as the number of stars')
+        else:
+            color_ = color
         L = []
         U = []
         for i in range(0,len(I)):

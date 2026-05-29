@@ -445,6 +445,259 @@ def linprog_solver(f, A_ub, b_ub, lb, ub, sense="min", center=0.0):
     return (obj if sense == "min" else -obj) + float(center)
 
 
+def gurobi_solver_solution(f, A_ub, b_ub, lb, ub, binary_idx=None, sense="min",
+    center=0.0, model_pack=None, primal_start=None, dual_start=None,
+):
+    try:
+        from gurobipy import GRB
+    except Exception as e:
+        raise Exception("error: gurobipy is required for lp_solver='gurobi'") from e
+
+    if binary_idx is None:
+        binary_idx = np.empty(0, dtype=np.int32)
+
+    if model_pack is None:
+        model, x, constr = build_gurobi_lp_model(A_ub=A_ub, b_ub=b_ub, lb=lb, ub=ub, binary_idx=binary_idx)
+    else:
+        model, x, constr = model_pack
+
+    f_vec = _to_1d(f)
+    apply_gurobi_warm_start(
+        x, constr, num_pred=f_vec.shape[0], primal_start=primal_start, dual_start=dual_start
+    )
+
+    model.setObjective(f_vec @ x, GRB.MINIMIZE if sense == "min" else GRB.MAXIMIZE)
+    model.optimize()
+    if model.status != GRB.OPTIMAL:
+        raise Exception("error: cannot find an optimal solution, exitflag = {}".format(model.status))
+
+    return float(model.objVal) + float(center), np.asarray(x.X).reshape(-1), None
+
+
+def scipy_milp_solver_solution(f, A_ub, b_ub, lb, ub, binary_idx=None, sense="min", center=0.0):
+    try:
+        from scipy.optimize import Bounds, LinearConstraint, milp
+    except Exception as e:
+        raise Exception(
+            "error: lp_solver='scipy-milp' requires scipy.optimize.milp "
+            "(available in newer SciPy versions)."
+        ) from e
+
+    if binary_idx is None:
+        binary_idx = np.empty(0, dtype=np.int32)
+
+    A = sp.csr_matrix(A_ub) if sp.issparse(A_ub) else np.asarray(A_ub, dtype=np.float64)
+    b = _to_1d(b_ub)
+    lb_vec = _to_1d(lb)
+    ub_vec = _to_1d(ub)
+
+    constraints = LinearConstraint(A, -np.inf, b)
+    bounds = Bounds(lb_vec, ub_vec)
+    integrality = np.zeros(lb_vec.shape[0], dtype=np.int32)
+    if binary_idx.size > 0:
+        integrality[binary_idx] = 1
+
+    c = _to_1d(f) if sense == "min" else -_to_1d(f)
+    res = milp(c=c, constraints=constraints, integrality=integrality, bounds=bounds)
+    if not getattr(res, "success", False):
+        raise Exception(
+            "error: cannot find an optimal solution, exitflag = {}, message = {}".format(
+                res.status, getattr(res, "message", "unknown")
+            )
+        )
+
+    obj = float(res.fun)
+    return (obj if sense == "min" else -obj) + float(center), np.asarray(res.x).reshape(-1), None
+
+
+def glpk_solver_solution(f, A_ub, b_ub, lb, ub, binary_idx=None, sense="min", center=0.0):
+    try:
+        import glpk
+    except ImportError as e:
+        raise ImportError("error: glpk is not installed") from e
+
+    if binary_idx is None:
+        binary_idx = np.empty(0, dtype=np.int32)
+
+    f_vec = _to_1d(f)
+    b_vec = _to_1d(b_ub)
+    lb_vec = _to_1d(lb)
+    ub_vec = _to_1d(ub)
+    A = sp.csr_matrix(A_ub) if sp.issparse(A_ub) else np.asarray(A_ub, dtype=np.float64)
+    if not sp.issparse(A):
+        A = sp.csr_matrix(A)
+
+    glpk.env.term_on = False
+    lp = glpk.LPX()
+    lp.obj.maximize = (sense == "max")
+
+    lp.rows.add(A.shape[0])
+    for r in lp.rows:
+        r.name = chr(ord("p") + r.index)
+        lp.rows[r.index].bounds = None, b_vec[r.index]
+
+    lp.cols.add(lb_vec.shape[0])
+    binary_idx_set = set(binary_idx.tolist()) if binary_idx.size > 0 else set()
+    for c in lp.cols:
+        c.name = "x%d" % c.index
+        c.bounds = lb_vec[c.index], ub_vec[c.index]
+        if c.index in binary_idx_set:
+            c.kind = int
+
+    lp.obj[:] = f_vec.tolist()
+    B = A.toarray().reshape(A.shape[0] * A.shape[1],)
+    lp.matrix = B.tolist()
+    lp.simplex()
+
+    if binary_idx.size > 0:
+        if hasattr(lp, "integer"):
+            lp.integer()
+        elif hasattr(lp, "intopt"):
+            lp.intopt()
+        else:
+            raise Exception("error: current glpk binding does not expose a MIP optimizer method")
+
+    if lp.status != "opt":
+        raise Exception("error: cannot find an optimal solution, lp.status = {}".format(lp.status))
+
+    values = []
+    for col in lp.cols:
+        if hasattr(col, "value"):
+            values.append(col.value)
+        elif hasattr(col, "primal"):
+            values.append(col.primal)
+        else:
+            raise Exception("error: current glpk binding does not expose column primal values")
+
+    return float(lp.obj.value) + float(center), np.asarray(values, dtype=np.float64).reshape(-1), None
+
+
+def linprog_solver_solution(f, A_ub, b_ub, lb, ub, sense="min", center=0.0):
+    try:
+        from scipy.optimize import linprog
+    except ImportError as e:
+        raise ImportError("error: scipy is not installed") from e
+
+    c = _to_1d(f) if sense == "min" else -_to_1d(f)
+    bounds = np.column_stack((_to_1d(lb), _to_1d(ub)))
+    res = linprog(c, A_ub=A_ub, b_ub=_to_1d(b_ub), bounds=bounds, method="highs")
+    if res.status != 0:
+        raise Exception("error: cannot find an optimal solution, exitflag = {}".format(res.status))
+
+    obj = float(res.fun)
+    return (obj if sense == "min" else -obj) + float(center), np.asarray(res.x).reshape(-1), None
+
+
+def solve_lp_solution(f, A_ub, b_ub, lb, ub, lp_solver="gurobi", sense="min",
+    center=0.0, binary_idx=None, solver_opts=None, model_pack=None, show=False,
+):
+    """
+    Solve an LP or MILP and return both the optimal objective and primal vector.
+    This mirrors solve_lp's solver dispatch for callers that need the optimizer.
+
+    Returns:
+        A tuple of (optimal objective value, primal solution vector, dual solution vector if available)
+    """
+    solver_opts = {} if solver_opts is None else solver_opts
+    binary_idx = np.empty(0, dtype=np.int32) if binary_idx is None else np.asarray(binary_idx, dtype=np.int32).reshape(-1)
+    has_binary = binary_idx.size > 0
+
+    if has_binary and lp_solver == "cupdlp":
+        warnings.warn(
+            (
+                "lp_solver='cupdlp' cannot solve MILP directly. "
+                "Using lp_solver='cupdlp-gurobi' instead."
+            ),
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        lp_solver = "cupdlp-gurobi"
+
+    if has_binary and lp_solver == "linprog":
+        raise Exception(
+            "error: set contains binary predicates (MILP), but lp_solver='{}' solves LP relaxation only. "
+            "Use lp_solver='gurobi' or 'scipy-milp' (or 'cupdlp-gurobi' for warm-start).".format(lp_solver)
+        )
+
+    if show:
+        print(f"Solving LP (sense={sense}) with lp_solver='{lp_solver}'...")
+
+    if lp_solver == "gurobi":
+        return gurobi_solver_solution(f=f, A_ub=A_ub, b_ub=b_ub, lb=lb, ub=ub, binary_idx=binary_idx,
+            sense=sense, center=center, model_pack=model_pack,
+        )
+
+    if lp_solver == "cupdlp":
+        callback = resolve_cupdlp_callback(solver_opts=solver_opts)
+        if callback is None:
+            callback = _build_cupdlpx_callback(solver_opts=solver_opts, show=show)
+
+        try:
+            obj, x, y = call_cupdlp_callback(callback, f=f, A_ub=A_ub, b_ub=b_ub, lb=lb, ub=ub, sense=sense)
+        except Exception:
+            if not solver_opts.get("allow_cupdlp_fallback", False):
+                raise
+            fallback_solver = resolve_cupdlp_fallback_solver(solver_opts=solver_opts)
+            if fallback_solver == "cupdlp":
+                raise Exception(
+                    "error: invalid cupdlp fallback solver '{}'; choose one of "
+                    "['gurobi', 'linprog', 'glpk', 'scipy-milp']".format(fallback_solver)
+                )
+            warnings.warn(
+                (
+                    "lp_solver='cupdlp' could not be executed. "
+                    "Falling back to lp_solver='{}'.".format(fallback_solver)
+                ),
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            return solve_lp_solution(f=f, A_ub=A_ub, b_ub=b_ub, lb=lb, ub=ub,
+                lp_solver=fallback_solver, sense=sense, center=center, binary_idx=binary_idx,
+                solver_opts=solver_opts, model_pack=model_pack, show=show,
+            )
+
+        if x is None:
+            raise Exception("error: lp_solver='cupdlp' did not return a primal solution required for sampling")
+        return obj + float(center), x, y
+
+    if lp_solver == "cupdlp-gurobi":
+        callback = resolve_cupdlp_callback(solver_opts=solver_opts)
+        if callback is None:
+            callback = _build_cupdlpx_callback(solver_opts=solver_opts, show=show)
+
+        try:
+            _, x_ws, y_ws = call_cupdlp_callback(
+                callback, f=f, A_ub=A_ub, b_ub=b_ub, lb=lb, ub=ub, sense=sense
+            )
+        except Exception:
+            if not solver_opts.get("allow_cupdlp_failure", True):
+                raise
+            x_ws, y_ws = None, None
+
+        return gurobi_solver_solution(
+            f=f, A_ub=A_ub, b_ub=b_ub, lb=lb, ub=ub, binary_idx=binary_idx, sense=sense,
+            center=center, model_pack=model_pack, primal_start=x_ws, dual_start=y_ws,
+        )
+
+    if lp_solver == "scipy-milp":
+        return scipy_milp_solver_solution(f=f, A_ub=A_ub, b_ub=b_ub, lb=lb, ub=ub,
+            binary_idx=binary_idx, sense=sense, center=center,
+        )
+
+    if lp_solver == "linprog":
+        return linprog_solver_solution(f=f, A_ub=A_ub, b_ub=b_ub, lb=lb, ub=ub, sense=sense, center=center)
+
+    if lp_solver == "glpk":
+        return glpk_solver_solution(f=f, A_ub=A_ub, b_ub=b_ub, lb=lb, ub=ub,
+            binary_idx=binary_idx, sense=sense, center=center,
+        )
+
+    raise Exception(
+        "error: unknown lp solver, should be one of "
+        "['gurobi', 'cupdlp', 'cupdlp-gurobi', 'scipy-milp', 'linprog', 'glpk']"
+    )
+
+
 def solve_lp(f, A_ub, b_ub, lb, ub, lp_solver="gurobi", sense="min",
     center=0.0, binary_idx=None, solver_opts=None, model_pack=None, show=False,
 ):
@@ -623,3 +876,333 @@ def solve_index_lp(reach_set, index, sense="min", lp_solver="gurobi", solver_opt
         lp_solver=lp_solver, sense=sense, center=center, binary_idx=binary_idx,
         solver_opts=solver_opts, model_pack=model_pack, show=show,
     )
+
+
+def _empty_lp_constraints(num_vars):
+    return sp.csr_array((1, num_vars)), np.zeros(1)
+
+
+def _get_sample_lp_data(reach_set, num_vars):
+    if hasattr(reach_set, "get_lp_ub"):
+        A_ub, b_ub = reach_set.get_lp_ub()
+    else:
+        C = getattr(reach_set, "C", None)
+        d = getattr(reach_set, "d", None)
+        if C is None:
+            A_ub, b_ub = _empty_lp_constraints(num_vars)
+        elif sp.issparse(C):
+            if C.shape[0] == 0:
+                A_ub, b_ub = _empty_lp_constraints(num_vars)
+            else:
+                A_ub, b_ub = C, d
+        else:
+            C_arr = np.asarray(C, dtype=np.float64)
+            if C_arr.size == 0:
+                A_ub, b_ub = _empty_lp_constraints(num_vars)
+            else:
+                A_ub, b_ub = C_arr.reshape((-1, num_vars)), d
+
+    return A_ub, _to_1d(b_ub)
+
+
+def _get_sample_binary_indices(reach_set):
+    if hasattr(reach_set, "get_binary_predicate_indices"):
+        return np.asarray(reach_set.get_binary_predicate_indices(), dtype=np.int32).reshape(-1)
+    return np.empty(0, dtype=np.int32)
+
+
+def _sample_constraints_satisfied(A_ub, b_ub, alpha, tol=1e-9):
+    if A_ub is None or b_ub is None:
+        return np.ones(alpha.shape[1], dtype=bool)
+
+    if sp.issparse(A_ub):
+        values = A_ub @ alpha
+    else:
+        values = np.asarray(A_ub, dtype=np.float64) @ alpha
+    return np.all(values <= _to_1d(b_ub)[:, np.newaxis] + tol, axis=0)
+
+
+def _find_feasible_predicate_point(A_ub, b_ub, pred_lb, pred_ub, lp_solver='linprog'):
+    center = 0.5 * (pred_lb + pred_ub)
+    if _sample_constraints_satisfied(A_ub, b_ub, center.reshape(-1, 1))[0]:
+        return center
+
+    _, feasible_point, _ = solve_lp_solution(
+        f=np.zeros(pred_lb.shape[0]),
+        A_ub=A_ub,
+        b_ub=b_ub,
+        lb=pred_lb,
+        ub=pred_ub,
+        lp_solver=lp_solver,
+        sense='min',
+        center=0.0,
+    )
+    return feasible_point
+
+
+def _rng_from_seed(seed):
+    if seed is None:
+        return np.random
+    if isinstance(seed, np.random.Generator):
+        return seed
+    return np.random.default_rng(seed)
+
+
+def _rng_normal(rng, size):
+    if isinstance(rng, np.random.Generator):
+        return rng.normal(size=size)
+    return rng.randn(size)
+
+
+def _rng_integers(rng, low, high=None, size=None):
+    if isinstance(rng, np.random.Generator):
+        return rng.integers(low, high, size=size)
+    return rng.randint(low, high, size=size)
+
+
+def _hit_and_run_predicate_samples(A_ub, b_ub, pred_lb, pred_ub, N, lp_solver='linprog', rng=None):
+    rng = _rng_from_seed(None) if rng is None else rng
+    alpha = _find_feasible_predicate_point(A_ub, b_ub, pred_lb, pred_ub, lp_solver=lp_solver)
+    samples = []
+    burn_in = max(10, 2 * pred_lb.shape[0])
+    max_steps = max(1000, 50 * (N + burn_in))
+
+    A = sp.csr_matrix(A_ub) if sp.issparse(A_ub) else np.asarray(A_ub, dtype=np.float64)
+    b = _to_1d(b_ub)
+
+    for step in range(max_steps):
+        direction = _rng_normal(rng, pred_lb.shape[0])
+        norm = np.linalg.norm(direction)
+        if norm == 0.0:
+            continue
+        direction = direction / norm
+
+        t_low = -np.inf
+        t_high = np.inf
+
+        for i, di in enumerate(direction):
+            if di > 1e-12:
+                t_low = max(t_low, (pred_lb[i] - alpha[i]) / di)
+                t_high = min(t_high, (pred_ub[i] - alpha[i]) / di)
+            elif di < -1e-12:
+                t_low = max(t_low, (pred_ub[i] - alpha[i]) / di)
+                t_high = min(t_high, (pred_lb[i] - alpha[i]) / di)
+
+        Ad = A @ direction
+        Ax = A @ alpha
+        Ad = np.asarray(Ad).reshape(-1)
+        Ax = np.asarray(Ax).reshape(-1)
+
+        for ai, ci in zip(Ad, b - Ax):
+            if ai > 1e-12:
+                t_high = min(t_high, ci / ai)
+            elif ai < -1e-12:
+                t_low = max(t_low, ci / ai)
+            elif ci < -1e-9:
+                t_low, t_high = 1.0, 0.0
+                break
+
+        if not np.isfinite(t_low) or not np.isfinite(t_high) or t_low > t_high:
+            continue
+
+        alpha = alpha + rng.uniform(t_low, t_high) * direction
+        if step >= burn_in:
+            samples.append(alpha.copy())
+            if len(samples) >= N:
+                break
+
+    return samples
+
+
+def sample(self, N, lp_solver='linprog', solver_opts=None, seed=None, show=False):
+    """
+    Sample N feasible points across the Star set domain.
+
+    The sampler draws predicate variables throughout the bounded predicate box
+    and keeps points satisfying C*a <= d. If rejection sampling cannot collect
+    enough points for a tightly constrained Star, it falls back to hit-and-run
+    sampling inside the feasible predicate polytope.
+
+    Args:
+        N (int): Number of samples to generate.
+        lp_solver (str): LP solver used only by the hit-and-run fallback to find
+            an initial feasible predicate point.
+        solver_opts: Reserved for API compatibility.
+        seed: Optional seed or np.random.Generator for reproducible sampling.
+        show (bool): Whether to print fallback information.
+
+    Returns:
+        np.ndarray: Matrix of sampled points (dim x N), or fewer columns if the
+        predicate constraints are infeasible.
+    """
+    if N < 1:
+        raise ValueError("Number of samples must be at least 1")
+
+    if self.nVars == 0:
+        return np.repeat(self.V[:, [0]], N, axis=1)
+
+    pred_lb = _to_1d(self.pred_lb)
+    pred_ub = _to_1d(self.pred_ub)
+    if pred_lb.size == 0 or pred_ub.size == 0:
+        raise ValueError("sample requires finite predicate lower and upper bounds")
+    if np.any(~np.isfinite(pred_lb)) or np.any(~np.isfinite(pred_ub)):
+        raise ValueError("sample requires finite predicate lower and upper bounds")
+    if np.any(pred_ub < pred_lb):
+        raise ValueError("predicate upper bounds must be greater than or equal to lower bounds")
+
+    A_ub, b_ub = _get_sample_lp_data(self, self.nVars)
+    binary_idx = _get_sample_binary_indices(self)
+    alpha_samples = []
+    attempts = 0
+    max_attempts = max(20 * N, 1000)
+    batch_size = max(4 * N, 256)
+    rng = _rng_from_seed(seed)
+
+    while len(alpha_samples) < N and attempts < max_attempts:
+        current_batch = min(batch_size, max_attempts - attempts)
+        alpha = rng.uniform(
+            pred_lb[:, np.newaxis],
+            pred_ub[:, np.newaxis],
+            size=(self.nVars, current_batch),
+        )
+        attempts += current_batch
+
+        if binary_idx.size > 0:
+            alpha[binary_idx, :] = _rng_integers(rng, 0, 2, size=(binary_idx.size, current_batch))
+
+        keep = _sample_constraints_satisfied(A_ub, b_ub, alpha)
+        if np.any(keep):
+            alpha_samples.extend(alpha[:, keep].T)
+
+    if len(alpha_samples) < N:
+        if show:
+            print("sample: rejection sampling was sparse; using hit-and-run fallback")
+        try:
+            needed = N - len(alpha_samples)
+            alpha_samples.extend(
+                _hit_and_run_predicate_samples(A_ub, b_ub, pred_lb, pred_ub, needed, lp_solver=lp_solver, rng=rng)
+            )
+        except Exception as ex:
+            if show:
+                print(f"sample: hit-and-run fallback failed: {ex}")
+
+    if len(alpha_samples) == 0:
+        return np.empty((self.dim, 0))
+
+    alpha_samples = np.column_stack(alpha_samples[:N])
+    samples = self.V[:, [0]] + self.V[:, 1:self.nVars + 1] @ alpha_samples
+    return samples
+
+
+def sample_interpolation(self, N, lp_solver='linprog'):
+    """
+    Sample N feasible points using LP optimization over predicate
+    constraints. This avoids rejection sampling when C*a <= d is tight.
+
+    Samples by repeatedly choosing a random direction, solving two LPs to find the min/max feasible points along that direction, 
+    then interpolating between them. This can work better when constraints are tight because it uses optimization 
+    instead of hoping rejection sampling lands inside the feasible region, but it is much slower because it solves LPs for every sample.
+
+    Args:
+        N (int): Number of samples to generate.
+        lp_solver (str): LP solver to use, either 'linprog' or 'gurobi'.
+
+    Returns:
+        np.ndarray: Matrix of sampled points (dim x N), or fewer columns
+        if the predicate constraints are infeasible.
+    """
+    if N < 1:
+        raise ValueError("Number of samples must be at least 1")
+
+    if self.nVars == 0:
+        return np.repeat(self.V[:, [0]], N, axis=1)
+
+    alpha_samples = []
+
+    if lp_solver == 'linprog':
+        try:
+            from scipy.optimize import linprog
+        except ImportError as e:
+            raise ImportError("error: scipy is not installed") from e
+
+        A = self.C if len(self.C) > 0 else None
+        b = self.d if len(self.d) > 0 else None
+        if self.pred_lb.size and self.pred_ub.size:
+            bounds = np.column_stack((self.pred_lb, self.pred_ub))
+        else:
+            bounds = [(None, None)] * self.nVars
+
+        for _ in range(N):
+            direction = np.random.randn(self.nVars)
+
+            res_max = linprog(-direction, A_ub=A, b_ub=b, bounds=bounds, method='highs')
+            if res_max.status == 2:
+                break
+            if res_max.status != 0:
+                continue
+
+            res_min = linprog(direction, A_ub=A, b_ub=b, bounds=bounds, method='highs')
+            if res_min.status == 2:
+                break
+            if res_min.status != 0:
+                continue
+
+            lam = np.random.rand()
+            alpha_sample = lam * res_min.x + (1.0 - lam) * res_max.x
+            alpha_samples.append(alpha_sample)
+
+    elif lp_solver == 'gurobi':
+        try:
+            import gurobipy as gp
+            from gurobipy import GRB
+        except Exception as e:
+            raise Exception("error: gurobipy is required for lp_solver='gurobi'") from e
+
+        m = gp.Model()
+        m.Params.LogToConsole = 0
+        m.Params.OptimalityTol = 1e-9
+
+        if self.pred_lb.size and self.pred_ub.size:
+            alpha = m.addMVar(shape=self.nVars, lb=self.pred_lb, ub=self.pred_ub)
+        else:
+            alpha = m.addMVar(shape=self.nVars)
+
+        if len(self.C) > 0:
+            m.addConstr(self.C @ alpha <= self.d)
+
+        for _ in range(N):
+            direction = np.random.randn(self.nVars)
+            m.setObjective(direction @ alpha, GRB.MAXIMIZE)
+            m.optimize()
+
+            if m.status == GRB.OPTIMAL:
+                alpha_max = alpha.X.copy()
+            elif m.status in [GRB.INFEASIBLE, GRB.INF_OR_UNBD]:
+                break
+            else:
+                continue
+
+            m.setObjective(direction @ alpha, GRB.MINIMIZE)
+            m.optimize()
+
+            if m.status == GRB.OPTIMAL:
+                alpha_min = alpha.X.copy()
+            elif m.status in [GRB.INFEASIBLE, GRB.INF_OR_UNBD]:
+                break
+            else:
+                continue
+
+            lam = np.random.rand()
+            alpha_sample = lam * alpha_min + (1.0 - lam) * alpha_max
+            alpha_samples.append(alpha_sample)
+
+    else:
+        raise ValueError("sample supports lp_solver='linprog' or lp_solver='gurobi'")
+
+    if len(alpha_samples) == 0:
+        return np.empty((self.dim, 0))
+
+    alpha_samples = np.column_stack(alpha_samples)
+    samples = self.V[:, [0]] + self.V[:, 1:self.nVars + 1] @ alpha_samples
+
+    return samples[:, :N]
