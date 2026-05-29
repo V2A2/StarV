@@ -75,7 +75,7 @@ class MaxPool2DLayer(object):
 
             if isinstance(kernel_size, int):
                 assert kernel_size >= 0, 'error: kernel size should non-negative integer'
-                self.kernel_size = np.ones(2, dtype=np.uint16)*kernel_size[0]
+                self.kernel_size = np.ones(2, dtype=np.uint16)*kernel_size
             else:
                 if len(kernel_size) == 1:
                     assert kernel_size[0] >= 0, 'error: kernel size should non-negative integer'
