@@ -14,5 +14,6 @@ onnx
 onnx2pytorch
 onnxruntime
 scikit-learn
+scikit-image
 pandas
 #cupdlpx
