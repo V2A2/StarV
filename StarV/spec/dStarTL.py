@@ -314,6 +314,22 @@ class getExpandedFormula(object):
         raise RuntimeError('unbalanced brackets')
 
 
+class getRobustnessInterval(object):
+    '''
+    Compute the robustness interval of a temporal formula given a reachable set sequence.
+    \rho_{\phi}_lb is the lower bound of the robustness interval, which is the minimum robustness value of all predicate-space trajectories.
+    \rho_{\phi}_ub is the upper bound of the robustness interval, which is the maximum robustness value of all predicate-space trajectories.
+    '''
+
+
+class computeSatisfactionFraction(object):
+    '''
+    Compute the satisfaction fraction of a temporal formula.
+    if \rho_{\phi}_lb > 0, then the satisfaction fraction is 1; ( All predicate-space trajectories satisfy the specification)
+    if \rho_{\phi}_ub < 0, then the satisfaction fraction is 0; ( No predicate-space trajectory satisfies the specification)
+    if \rho_{\phi}_lb <= 0 <= \rho_{\phi}_ub, then the satisfaction fraction is in (0, 1) and can be computed by sampling or optimization. ( Some predicate-space trajectories satisfy the specification, and some do not)
+    '''
+
 
 if __name__ == "__main__":
 
