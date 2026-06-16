@@ -1,4 +1,4 @@
-'''
+r'''
 
 Star Temporal Logic Specification Language in discrete-time domain
 
@@ -61,7 +61,7 @@ The satisfaction (|=) of a formula p by a reachable set X at time step 1 <= t <=
 
 * (X, t) |= NOT p <=> X[t] AND NOT p is feasiable  
 
-* (X, t) |= p U_[a, b] w <=> exist t' in [t + a, t + b] such that (X, t') |= w AND for all t'' in [t, t'], (X, t'') |= p
+* (X, t) |= p U_[a, b] w <=> exist t' in [t + a, t + b] such that (X, t') |= w AND for all t'' in [t, t'), (X, t'') |= p
 
 * Eventually: ET_[a, b] p = T U_[a, b] p
 
@@ -77,6 +77,7 @@ The satisfaction (|=) of a formula p by a reachable set X at time step 1 <= t <=
 
 import numpy as np
 from StarV.spec.dProbStarTL import (
+    _UNTIL_,
     AtomicPredicate,
     Formula,
     _AND_,
@@ -222,16 +223,10 @@ class getExpandedFormula(object):
                 if next_id >= end:
                     raise RuntimeError('temporal operator must be followed by a subformula')
 
-                if isinstance(tokens[next_id], _LeftBracket_):
-                    rb = self.match_right_loop_id(tokens, next_id)
-                    sub_tokens = self.getSubFormula(next_id + 1, rb, tokens)
-                    i = rb + 1
-                else:
-                    sub_tokens = self.getSubFormula(next_id, next_id + 1, tokens)
-                    i = next_id + 1
+                sub_tokens, i = self.get_temporal_subformula(tokens, next_id, end)
 
                 expanded = []
-                for dt in range(item.start_time, item.end_time + 1):
+                for dt in self.get_time_range(item):
                     expanded.append(
                         self.parse_formula(sub_tokens, 0, len(sub_tokens), time_offset + dt)
                     )
@@ -239,9 +234,22 @@ class getExpandedFormula(object):
                     terms.append(('AND', expanded))
                 else:
                     terms.append(('OR', expanded))
+            elif isinstance(item, _UNTIL_):
+                if len(terms) == 0:
+                    raise RuntimeError('UNTIL must have a left subformula')
+
+                next_id = i + 1
+                if next_id >= end:
+                    raise RuntimeError('UNTIL must be followed by a right subformula')
+
+                left_expr = terms.pop()
+                right_tokens, i = self.get_temporal_subformula(tokens, next_id, end)
+                terms.append(
+                    self.UNTIL_expand(left_expr, right_tokens, item, time_offset)
+                )
             elif isinstance(item, _LeftBracket_):
                 rb = self.match_right_loop_id(tokens, i)
-                sub_tokens = self.getSubFormula(i + 1, rb, tokens)
+                sub_tokens = Formula(tokens).getSubFormula(i + 1, rb)
                 terms.append(self.parse_formula(sub_tokens, 0, len(sub_tokens), time_offset))
                 i = rb + 1
             elif isinstance(item, _AND_):
@@ -255,11 +263,6 @@ class getExpandedFormula(object):
             else:
                 raise RuntimeError('unsupported item in formula: {}'.format(type(item)))
 
-        return self.combine_terms(terms, ops)
-
-    @staticmethod
-    def combine_terms(terms, ops):
-        'combine the parsed terms into one expression-tree node'
         if len(terms) == 0:
             raise RuntimeError('empty formula segment')
         if len(ops) != len(terms) - 1:
@@ -281,10 +284,46 @@ class getExpandedFormula(object):
             return ('OR', terms)
         raise RuntimeError('unknown operator {}'.format(op))
 
-    def getSubFormula(self, start_id, end_id, formula=None):
-        if formula is None:
-            formula = self.formula
-        return Formula(formula).getSubFormula(start_id, end_id)
+    def get_temporal_subformula(self, tokens, start_id, end): #find the formula that comes after a temporal operator. It can be either a single term (e.g., an atomic predicate) or a bracketed subformula.
+        if isinstance(tokens[start_id], _LeftBracket_):
+            rb = self.match_right_loop_id(tokens, start_id)
+            if rb >= end:
+                raise RuntimeError('right bracket is outside the current formula segment')
+            return Formula(tokens).getSubFormula(start_id + 1, rb), rb + 1
+        return Formula(tokens).getSubFormula(start_id, start_id + 1), start_id + 1
+
+    def UNTIL_expand(self, left_expr, right_tokens, until_op, time_offset):
+        'expand p1 U_[a,b] p2 into an OR over all possible witness times'
+
+        assert isinstance(until_op, _UNTIL_), 'error: input should be an UNTIL operator'
+        assert isinstance(right_tokens, list), 'error: right_tokens should be a list'
+        assert until_op.start_time >= 0, 'error: t_start should be >= 0'
+
+        until_terms = []
+        for witness_time in self.get_time_range(until_op):
+            left_terms = [
+                self.shift_time(left_expr, dt)
+                for dt in range(0, witness_time)
+            ]
+            right_terms = self.parse_formula(
+                right_tokens, 0, len(right_tokens), time_offset + witness_time
+            )
+            until_terms.append(('AND', left_terms + [right_terms]))
+        return ('OR', until_terms)
+
+    @staticmethod
+    def get_time_range(temporal_operator):
+        end_time = getattr(temporal_operator, 'end_time', None)
+        if end_time is None or end_time == float('inf'):
+            raise RuntimeError('only bounded temporal intervals can be expanded')
+        return range(temporal_operator.start_time, end_time + 1)
+
+    def shift_time(self, node, time_offset):
+        op = node[0]
+        if op == 'AP':
+            pred = node[1]
+            return ('AP', pred.at_time(pred.t + time_offset))
+        return (op, [self.shift_time(arg, time_offset) for arg in node[1]])
 
     def getLoopIds(self, formula=None):
         if formula is None:
@@ -315,7 +354,7 @@ class getExpandedFormula(object):
 
 
 class getRobustnessInterval(object):
-    '''
+    r'''
     Compute the robustness interval of a temporal formula given a reachable set sequence.
     \rho_{\phi}_lb is the lower bound of the robustness interval, which is the minimum robustness value of all predicate-space trajectories.
     \rho_{\phi}_ub is the upper bound of the robustness interval, which is the maximum robustness value of all predicate-space trajectories.
@@ -323,7 +362,7 @@ class getRobustnessInterval(object):
 
 
 class computeSatisfactionFraction(object):
-    '''
+    r'''
     Compute the satisfaction fraction of a temporal formula.
     if \rho_{\phi}_lb > 0, then the satisfaction fraction is 1; ( All predicate-space trajectories satisfy the specification)
     if \rho_{\phi}_ub < 0, then the satisfaction fraction is 0; ( No predicate-space trajectory satisfies the specification)
@@ -339,13 +378,14 @@ if __name__ == "__main__":
     rb  = _RightBracket_()
     AND = _AND_()
     OR  = _OR_()
+    UNTIL = _UNTIL_(2, 3)
     P1 = AtomicPredicate(np.array([1.0, 0.0]), np.array([0.05]))
     P2 = AtomicPredicate(np.array([0.0, 1.0]), np.array([0.02]))  
 
     spec1= Formula([EVOT,lb,P1,OR,lb,AWOT,P2,rb,rb])
     spec1.print()
     
-    spec2= Formula([AWOT,lb,P1,OR,lb,EVOT,P2,rb,rb])
+    spec2= Formula([P1,UNTIL,P2])
 
     Ex_F = getExpandedFormula(spec2)
     print("Expanded formula:")
