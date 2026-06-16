@@ -82,6 +82,8 @@ from StarV.spec.dProbStarTL import (
     Formula,
     _AND_,
     _OR_,
+    _NOT_,
+    _NEXT_,
     _ALWAYS_,
     _EVENTUALLY_,
     _LeftBracket_,
@@ -126,6 +128,11 @@ class DynamicFormula(object):
             if isinstance(pred, AtomicPredicate):
                 return '{} * x[t={}] <= {}'.format(pred.A, pred.t, pred.b)
             return str(pred)
+        if op == 'NOT':
+            arg_text = self._format_(node[1][0], outer_op=op)
+            if node[1][0][0] != 'AP':
+                arg_text = '({})'.format(arg_text)
+            return 'NOT {}'.format(arg_text)
 
         args = node[1]
         separator = ' {} '.format(op)
@@ -218,6 +225,25 @@ class getExpandedFormula(object):
                 t = 0 if item.t is None else item.t
                 terms.append(('AP', item.at_time(t + time_offset)))
                 i += 1
+            elif isinstance(item, _NOT_):
+                next_id = i + 1
+                if next_id >= end:
+                    raise RuntimeError('NOT must be followed by a subformula')
+
+                sub_tokens, i = self.get_temporal_subformula(tokens, next_id, end)
+                terms.append((
+                    'NOT',
+                    [self.parse_formula(sub_tokens, 0, len(sub_tokens), time_offset)]
+                ))
+            elif isinstance(item, _NEXT_):
+                next_id = i + 1
+                if next_id >= end:
+                    raise RuntimeError('NEXT must be followed by a subformula')
+
+                sub_tokens, i = self.get_temporal_subformula(tokens, next_id, end)
+                terms.append(
+                    self.parse_formula(sub_tokens, 0, len(sub_tokens), time_offset + 1)
+                )
             elif isinstance(item, _ALWAYS_) or isinstance(item, _EVENTUALLY_):
                 next_id = i + 1
                 if next_id >= end:
