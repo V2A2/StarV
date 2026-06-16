@@ -124,7 +124,7 @@ class AtomicPredicate(object):
 
         return str
 
-    def print_info(self):
+    def print_info(self, t=None):
 
         print('{} * x[t={}] <= {}\n'.format(self.A, self.t, self.b))
 
@@ -283,7 +283,24 @@ class _EVENTUALLY_(object):
 
 class _UNTIL_(object):
 
-    pass
+    def __init__(self, start_time, end_time=None):
+
+        assert start_time >= 0, 'error: invalid start_time'
+        self.start_time = start_time
+
+        if end_time is not None:
+            assert end_time > start_time, 'error: invalid end_time'
+            self.end_time = end_time
+            self.operator = 'UNTIL_[{},{}] '.format(start_time, end_time)
+        else:
+            self.end_time = float('inf')
+            self.operator = 'UNTIL_[{}, inf] '.format(start_time)
+
+        self.type = 'TemporalOperator'
+
+    def print(self):
+
+        return self.operator
 
 class _LeftBracket_(object):
 
@@ -374,6 +391,7 @@ class CDNF(object):
 
         S = ProbStar(self.base_probstar.V, C, d, self.base_probstar.mu, self.base_probstar.Sig, self.base_probstar.pred_lb, self.base_probstar.pred_ub)
         # print(f'number of predicate variables in the combination {combination_ids} is {C.shape[1]}')
+        
 
         prob = S.estimateProbability()
 
@@ -635,13 +653,14 @@ class Formula(object):
         # Step 3: F0 = P1 AND F0
         # Step 4: F0 = EV_[0,5] F0
 
+        print(f"Generating dynamic formula for specifications")
+
         lb_idxes, rb_idxes = self.getLoopIds()
         inner_f = self.getInnerMostLoopFormula()
         # expand the formula from inner loop to outer loop
 
         DF = DynamicFormula(F=[])
-        DF.subFormula_expand(inner_f)
-        
+        DF.subFormula_expand(inner_f)        
 
         if len(lb_idxes) >= 2:
         
@@ -1152,9 +1171,6 @@ class DynamicFormula(object):
         # trace_probstar = copy.deepcopy(branch_signal[0])
         base_probstar = copy.deepcopy(branch_signal[nVarMaxID])
         max_nVars = base_probstar.nVars
-        # if len(base_probstar.C) != 0:
-        #     base_probstar.C = np.empty((0, max_nVars))
-        #     base_probstar.d = np.empty((0,))
 
         def pad_target_C(C, target_nvars):
             if C is None:
@@ -1201,6 +1217,7 @@ class DynamicFormula(object):
                     d = np.concatenate((d, d1))
 
             if C is not None:
+                # print(f"C is not none in relaization")
                 if len(base_probstar.C) != 0:
                     C_base = pad_target_C(base_probstar.C, max_nVars)
                     d_base = base_probstar.d
@@ -1214,8 +1231,10 @@ class DynamicFormula(object):
                               base_probstar.pred_lb, base_probstar.pred_ub)
 
                 if not S1.isEmptySet():
+                    print(f" \n add constraint for Pi at time {Pi.t}, not set empyty")
                     constraints.append([C, d])
 
+                # print(f"S1 after relization is {S1.V}")
         cdnf = CDNF(constraints, base_probstar)
         return cdnf
 
@@ -1277,7 +1296,7 @@ class DynamicFormula(object):
             p_base = cdnf.base_probstar.estimateProbability()
         else:
             p_base = 0.0
-        print(f"base probstar probability = {p_base}")
+        print(f"base probstar probability = {p_base:.12f}")
         # p_trace = cdnf.trace_probstar.estimateProbability() 
 
         SAT = []
@@ -1306,12 +1325,12 @@ class DynamicFormula(object):
                     # len_comb = len(list(comb))
                     # print(f"number of combinations for i = {i} is {len_comb}")
                     for j in list(comb):
-                        print(f'=== start in combination loop ===')
+                        # print(f'=== start in combination loop ===')
                         prob = (-1)**i * cdnf.estimateProbability(j)
                         SAT1 = SAT1 + prob
-                        # print(f"combination {j}, prob = {prob}, SAT1 = {SAT1}")
+                        print(f" prob = {prob}, SAT1 = {SAT1}")
                     p_SAT_MAX = p_SAT_MAX + SAT1
-                    # print(f"after combination for cdnf loop, p_SAT_MAX = {p_SAT_MAX}")
+                    print(f"after combination for cdnf loop, p_SAT_MAX = {p_SAT_MAX}")
                 p_SAT_MIN = p_SAT_MAX
                 print(f"p_sat_MAX in cdnf <= 11 = {p_SAT_MAX}, p_sat_MIN = {p_SAT_MIN}")
 
