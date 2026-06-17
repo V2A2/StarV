@@ -431,6 +431,16 @@ def ffnn_auto_quanti_verification_probstar():
     plot_probstar(U_approx)
     plot_probstar(C_approx)
 
+    # get satisfaction probability
+    _, _, _, prob_lb, prob_ub, prob_min, prob_max = quantiVerifyBFS(F, I, unsafe_mat, unsafe_vec, p_filter=0.0, numCores=numCores, show=True)
+    print('Satisfaction probability for exact verification: ')
+    print('prob_lb: {}, prob_ub = {}, prob_min = {}, prob_max ={}'.format(prob_lb, prob_ub, prob_min, prob_max))
+
+    _, _, _, prob_lb, prob_ub, prob_min, prob_max = quantiVerifyBFS(F, I, unsafe_mat, unsafe_vec, p_filter=0.1, numCores=numCores, show=True)
+    print('Satisfaction probability for approximate verification: ')
+    print('prob_lb: {}, prob_ub = {}, prob_min = {}, prob_max ={}'.format(prob_lb, prob_ub, prob_min, prob_max))
+     
+
     print('=============== DONE: Automatic Quantitative Verification on FFNN using ProbStar ==========')
     print('==========================================================================================\n\n')
 
@@ -438,15 +448,15 @@ if __name__ == '__main__':
     """
     Main function to run the FFNN tutorials
     """
-    ffnn_construct_manually()
-    ffnn_construct_from_mat_file()
+    #ffnn_construct_manually()
+    #ffnn_construct_from_mat_file()
 
-    ffnn_evaluate_input_vector()
+    #ffnn_evaluate_input_vector()
     
-    ffnn_quali_reachability_star()
-    ffnn_manual_quali_verification_star()
-    ffnn_auto_quali_verification_star()
+    #ffnn_quali_reachability_star()
+    #ffnn_manual_quali_verification_star()
+    #ffnn_auto_quali_verification_star()
     
-    ffnn_quanti_reachability_probstar()
+    #ffnn_quanti_reachability_probstar()
     ffnn_auto_quanti_verification_probstar()
 

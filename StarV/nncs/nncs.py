@@ -100,10 +100,6 @@ class VerifyRes_NNCS(object):
         self.Qt_max = None # maximum upper bound quantitative result (for unbounded input set)
         self.p_ignored = None # total ignored probability
         
-class NCS:
-    def __init__(self):
-        self.controller = None
-        self.plant = None
 
 class NNCS(object):
     """Generic neural network control system class
@@ -187,9 +183,8 @@ class NNCS(object):
         # assert nI == controller_net.out_dim, 'error: number of plant inputs \
         # does not equal to the number of controller outputs'
 
-        self.ncs = NCS()
-        self.ncs.controller = controller_net
-        self.ncs.plant = plant
+        self.controller = controller_net
+        self.plant = plant
 
         if isinstance(plant, NeuralNetwork):
             self.nO = plant.out_dim
@@ -216,8 +211,8 @@ class NNCS(object):
         print('\n number of feeback inputs: {}'.format(self.nI_fb))
         print('\n number of reference inputs: {}'.format(self.nI_ref))
         print('\n network controller & plant model information:')
-        print(self.ncs.controller)
-        print(self.ncs.plant)
+        print(self.controller)
+        print(self.plant)
         print('')
         return '\n'
         
