@@ -18,7 +18,7 @@ from StarV.plant.lode import LODE, DLODE
 from StarV.set.star import Star
 from StarV.set.probstar import ProbStar
 from StarV.nncs.nncs import VerifyPRM_NNCS, verifyBFS_DLNNCS
-from StarV.util.plot import plot_probstar_reachset
+from StarV.util.plot import plot_probstar_reachset, plot_probstar_signal
 from StarV.set.star import Star
 from StarV.nncs.nncs import VerifyPRM_NNCS, verifyBFS_DLNNCS, ReachPRM_NNCS, reachBFS_DLNNCS, reachDFS_DLNNCS, verify_temporal_specs_DLNNCS, verify_temporal_specs_DLNNCS_for_full_analysis
 from StarV.spec.dProbStarTL import _ALWAYS_, _EVENTUALLY_, AtomicPredicate, Formula, _LeftBracket_, _RightBracket_, _AND_,_OR_
@@ -300,6 +300,14 @@ def probstarTL_nncs_acc_verifying():
     print('checkingTime = {}'.format(checkingTime))
     print('verifyTime = {}'.format(verifyTime))
 
+     # plot reachable set  (d_actual - d_safe) vs. (v_ego)
+    dir_mat1 = np.array([[0., 0., 0., 0., 1., 0., 0.],
+                         [1., 0., 0., -1., -1.4, 0., 0.]])
+    dir_vec1 = np.array([0., -10.])
+    plot_probstar_signal(traces[0], dir_mat=dir_mat1, dir_vec=dir_vec1, show_prob=True, \
+                         label=('$v_{ego}$','$D_r - D_{safe}$'), show=True)
+
+
     print('==========================================================================================')
     print('============================ Done: ACC system Verification ===============================\n\n')
 
@@ -310,7 +318,7 @@ if __name__ == '__main__':
     """
     Main function to run the ProbStarTL of LES tutorials
     """
-    probstarTL_nncs_acc_construct()
-    probstarTL_nncs_acc_initial_states()
-    probstarTL_nncs_acc_temporal_specs()
+    #probstarTL_nncs_acc_construct()
+    #probstarTL_nncs_acc_initial_states()
+    #probstarTL_nncs_acc_temporal_specs()
     probstarTL_nncs_acc_verifying()
