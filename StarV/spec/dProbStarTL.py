@@ -227,6 +227,19 @@ class _NOT_(object):
 
         return self.operator
 
+
+class _NEXT_(object):
+
+    def __init__(self):
+
+        self.type = 'TemporalOperator'
+        self.operator = 'NEXT '
+
+    def print(self):
+
+        return self.operator
+
+
 class _IMPLY_(object):
 
     def __init__(self):
@@ -552,7 +565,7 @@ class Formula(object):
         for obj in formula:
             
             if not isinstance(obj, AtomicPredicate) and not isinstance(obj, _AND_) and not isinstance(obj, _OR_) \
-               and not isinstance(obj, _ALWAYS_) and not isinstance(obj, _NOT_) and not isinstance(obj, _UNTIL_) \
+               and not isinstance(obj, _ALWAYS_) and not isinstance(obj, _NOT_) and not isinstance(obj, _NEXT_) and not isinstance(obj, _UNTIL_) \
                and not isinstance(obj, _EVENTUALLY_) and not isinstance(obj, _LeftBracket_) and not isinstance(obj, _RightBracket_):
 
                 raise RuntimeError('Invalid Spec, unknown object')
@@ -569,6 +582,8 @@ class Formula(object):
                     nORs = nORs + 1
                 elif obj.operator == 'IMPLY ':
                     nIMPLYs = nIMPLYs + 1
+                elif obj.operator == 'NOT ':
+                    pass
                 else:
                     raise RuntimeError('Unknown boolean operator')
     

@@ -17,10 +17,10 @@ DESCRIPTION:
 * StarTL has quantitative semantics that allows answering the quantify a system satisfying a property.
 
 * Given a temporal specification \phi, StarTL can answer:
-    whether the trajectory satisfy \phi;
-    whether the trajectory violate \phi;
+    whether the reachable set sequence satisfy \phi;
+    whether the reachable set sequence violate \phi;
     how robustly the specification is satisfied or violated ( robustness interval:[\rho_{\phi}_lb, \rho_{\phi}_ub]); 
-    how much (what fraction) of predicate-space trajectories satisfy (satisfaction fraction \phi (\q_{\phi})).
+    how much (what fraction) of predicate-space reachable sets satisfy (satisfaction fraction \phi (\q_{\phi})).
 
 ==================================================================================
 
@@ -76,6 +76,7 @@ The satisfaction (|=) of a formula p by a reachable set X at time step 1 <= t <=
 '''
 
 import numpy as np
+from StarV.set.star import Star
 from StarV.spec.dProbStarTL import (
     _UNTIL_,
     AtomicPredicate,
@@ -91,75 +92,14 @@ from StarV.spec.dProbStarTL import (
 )
 
 
-# Expand the temporal logic specification formulas
 
-class DynamicFormula(object):
-
+class ExpandedFormula(object):
     """
-    Store and print the time-expanded expression tree produced by ExtendFormula.
+    Expand a temporal logic formula into a time-indexed expression tree.
 
-    This class does not expand the formula into ADNF/DNF.  It keeps the nested
-    AND/OR structure so the printed formula stays close to the original temporal
-    specification.
-
-    """
-
-    def __init__(self, F=None, outer_operator=None):
-        if F is None:
-            F = []
-        self.F = F
-        self.length = len(F) if isinstance(F, list) else 1
-        self.outer_operator = outer_operator
-
-    def print(self):
-        print(self)
-
-    def __str__(self):
-        if isinstance(self.F, tuple):
-            return self._format_(self.F, multiline_outer=True)
-        if self.length == 0:
-            return '{}'.format(self.F)
-        return '{}'.format(self.F)
-
-    def _format_(self, node, outer_op=None, multiline_outer=False):
-        op = node[0]
-        if op == 'AP':
-            pred = node[1]
-            if isinstance(pred, AtomicPredicate):
-                return '{} * x[t={}] <= {}'.format(pred.A, pred.t, pred.b)
-            return str(pred)
-        if op == 'NOT':
-            arg_text = self._format_(node[1][0], outer_op=op)
-            if node[1][0][0] != 'AP':
-                arg_text = '({})'.format(arg_text)
-            return 'NOT {}'.format(arg_text)
-
-        args = node[1]
-        separator = ' {} '.format(op)
-        if multiline_outer and op == self.outer_operator:
-            separator = '\n{}\n'.format(op)
-
-        formatted_args = []
-        for arg in args:
-            arg_text = self._format_(arg, outer_op=op)
-            if multiline_outer and op == self.outer_operator and arg[0] != 'AP':
-                if not (arg_text.startswith('(') and arg_text.endswith(')')):
-                    arg_text = '({})'.format(arg_text)
-            formatted_args.append(arg_text)
-        text = separator.join(formatted_args)
-        if outer_op == 'AND' and op == 'OR':
-            return '({})'.format(text)
-        if outer_op == 'OR' and op == 'AND':
-            return '({})'.format(text)
-        return text
-
-
-class getExpandedFormula(object):
-    """
-    Convert a temporal Formula into a time-expanded DynamicFormula.
-
-    The outermost temporal operator determines how the time-step clauses are
-    joined: ALWAYS uses AND, and EVENTUALLY uses OR.
+    The expanded tree can be evaluated on a reachable set sequence. The
+    outermost temporal operator determines how repeated time clauses are joined:
+    ALWAYS uses AND, and EVENTUALLY uses OR.
 
     Example:
         AW_[0, 1] (P1 AND (ET_[0, 1] P2))
@@ -173,153 +113,199 @@ class getExpandedFormula(object):
     def __init__(self, formula):
 
         if isinstance(formula, Formula):
-            self.formula = formula.formula
+            self.formula_tokens = formula.formula
         elif isinstance(formula, list):
-            self.formula = formula
+            self.formula_tokens = formula
         else:
             raise RuntimeError('input should be a Formula object or list')
 
-        self.outer_operator = self.outer_operator()
-        expr = self.parse_formula(self.formula, 0, len(self.formula), 0)
-        self.expanded_formula = DynamicFormula(expr, self.outer_operator)
-
-    def expand(self):
-        'returns the expanded dynamic temporal formula'
-        return self.expanded_formula
+        self.formula = self.formula_tokens
+        self.outer_operator = self.get_outer_operator()
+        self.expr = self.getExpandedFormula(self.formula_tokens, 0, len(self.formula_tokens), 0)
+        self.F = self.expr  # Backward-compatible alias for older examples.
 
     def print(self):
         print(self)
 
     def __str__(self):
-        return str(self.expanded_formula)
+        return self.format_expression(self.expr)
 
-    def outer_operator(self):
-        if len(self.formula) < 2:
+    def print_format(self, expr, parent_op=None):
+        return self.format_expression(expr, parent_op)
+
+    def format_expression(self, expr, parent_op=None):
+        """Return a readable string for an expanded expression tree."""
+        op = expr[0]
+        if op == 'AP':
+            predicate = expr[1]
+            if isinstance(predicate, AtomicPredicate):
+                return '{} * x[t={}] <= {}'.format(predicate.A, predicate.t, predicate.b)
+            return str(predicate)
+        if op == 'NOT':
+            child_expr = expr[1][0]
+            child_text = self.format_expression(child_expr, parent_op=op)
+            if child_expr[0] != 'AP':
+                child_text = '({})'.format(child_text)
+            return 'NOT {}'.format(child_text)
+
+        child_exprs = expr[1]
+        separator = ' {} '.format(op)
+        is_outermost = parent_op is None and op == self.outer_operator
+        if is_outermost:
+            separator = '\n{}\n'.format(op)
+
+        formatted_children = []
+        for child_expr in child_exprs:
+            child_text = self.format_expression(child_expr, parent_op=op)
+            if is_outermost and child_expr[0] != 'AP':
+                if not (child_text.startswith('(') and child_text.endswith(')')):
+                    child_text = '({})'.format(child_text)
+            formatted_children.append(child_text)
+        text = separator.join(formatted_children)
+        if parent_op == 'AND' and op == 'OR':
+            return '({})'.format(text)
+        if parent_op == 'OR' and op == 'AND':
+            return '({})'.format(text)
+        return text
+
+    def get_outer_operator(self):
+        if len(self.formula_tokens) < 2:
             return None
-        if not isinstance(self.formula[1], _LeftBracket_):
+        if not isinstance(self.formula_tokens[1], _LeftBracket_):
             return None
-        if self.match_right_loop_id(self.formula, 1) != len(self.formula) - 1:
+        if self.match_right_loop_id(self.formula_tokens, 1) != len(self.formula_tokens) - 1:
             return None
-        if isinstance(self.formula[0], _EVENTUALLY_):
+        if isinstance(self.formula_tokens[0], _EVENTUALLY_):
             return 'OR'
-        if isinstance(self.formula[0], _ALWAYS_):
+        if isinstance(self.formula_tokens[0], _ALWAYS_):
             return 'AND'
         return None
 
-    def parse_formula(self, tokens, start, end, time_offset=0):
+
+    def getExpandedFormula(self, tokens, start, end, time_offset=0):
         '''
-            It reads the formula from left to right and builds a nested expression tree that preserves brackets and temporal structure(not in ADNF), for example:
+            Read formula tokens from left to right and build a nested expression tree.
+            The returned tree preserves brackets and temporal structure.
+
+            Example:
             ('AND', [
             ('AP', P1[t=0]),
             ('OR', [
                 ('AP', P2[t=0]),
                 ('AP', P2[t=1])
             ])])
+
+            Each tree node is either ('AP', predicate) or
+            (op, [child_expr1, child_expr2, ...]), where op is 'NOT',
+            'AND', or 'OR' and chid_expr is a nested expression tree.
         '''
-        terms = []
-        ops = []
-        i = start
-        while i < end:
-            item = tokens[i]
-            if isinstance(item, AtomicPredicate):
-                t = 0 if item.t is None else item.t
-                terms.append(('AP', item.at_time(t + time_offset)))
-                i += 1
-            elif isinstance(item, _NOT_):
-                next_id = i + 1
-                if next_id >= end:
+        expr_terms = []
+        bool_ops = []
+        token_index = start
+        while token_index < end:
+            token = tokens[token_index]
+            if isinstance(token, AtomicPredicate):
+                predicate_time = 0 if token.t is None else token.t
+                expr_terms.append(('AP', token.at_time(predicate_time + time_offset)))
+                token_index += 1
+            elif isinstance(token, _NOT_):
+                next_index = token_index + 1
+                if next_index >= end:
                     raise RuntimeError('NOT must be followed by a subformula')
 
-                sub_tokens, i = self.get_temporal_subformula(tokens, next_id, end)
-                terms.append((
+                subformula_tokens, token_index = self.expand_subformula(tokens, next_index, end)
+                expr_terms.append((
                     'NOT',
-                    [self.parse_formula(sub_tokens, 0, len(sub_tokens), time_offset)]
+                    [self.getExpandedFormula(subformula_tokens, 0, len(subformula_tokens), time_offset)]
                 ))
-            elif isinstance(item, _NEXT_):
-                next_id = i + 1
-                if next_id >= end:
+            elif isinstance(token, _NEXT_):
+                next_index = token_index + 1
+                if next_index >= end:
                     raise RuntimeError('NEXT must be followed by a subformula')
 
-                sub_tokens, i = self.get_temporal_subformula(tokens, next_id, end)
-                terms.append(
-                    self.parse_formula(sub_tokens, 0, len(sub_tokens), time_offset + 1)
+                subformula_tokens, token_index = self.expand_subformula(tokens, next_index, end)
+                expr_terms.append(
+                    self.getExpandedFormula(
+                        subformula_tokens, 0, len(subformula_tokens), time_offset + 1
+                    )
                 )
-            elif isinstance(item, _ALWAYS_) or isinstance(item, _EVENTUALLY_):
-                next_id = i + 1
-                if next_id >= end:
+            elif isinstance(token, _ALWAYS_) or isinstance(token, _EVENTUALLY_):
+                next_index = token_index + 1
+                if next_index >= end:
                     raise RuntimeError('temporal operator must be followed by a subformula')
 
-                sub_tokens, i = self.get_temporal_subformula(tokens, next_id, end)
+                subformula_tokens, token_index = self.expand_subformula(tokens, next_index, end)
 
-                expanded = []
-                for dt in self.get_time_range(item):
-                    expanded.append(
-                        self.parse_formula(sub_tokens, 0, len(sub_tokens), time_offset + dt)
+                expanded_terms = []
+                for dt in self.get_time_range(token):
+                    expanded_terms.append(
+                        self.getExpandedFormula(subformula_tokens, 0, len(subformula_tokens), time_offset + dt)
                     )
-                if isinstance(item, _ALWAYS_):
-                    terms.append(('AND', expanded))
+                if isinstance(token, _ALWAYS_):
+                    expr_terms.append(('AND', expanded_terms))
                 else:
-                    terms.append(('OR', expanded))
-            elif isinstance(item, _UNTIL_):
-                if len(terms) == 0:
+                    expr_terms.append(('OR', expanded_terms))
+            elif isinstance(token, _UNTIL_):
+                if len(expr_terms) == 0:
                     raise RuntimeError('UNTIL must have a left subformula')
 
-                next_id = i + 1
-                if next_id >= end:
+                next_index = token_index + 1
+                if next_index >= end:
                     raise RuntimeError('UNTIL must be followed by a right subformula')
 
-                left_expr = terms.pop()
-                right_tokens, i = self.get_temporal_subformula(tokens, next_id, end)
-                terms.append(
-                    self.UNTIL_expand(left_expr, right_tokens, item, time_offset)
+                left_expr = expr_terms.pop()
+                right_tokens, token_index = self.expand_subformula(tokens, next_index, end)
+                expr_terms.append(
+                    self.UNTIL_expand(left_expr, right_tokens, token, time_offset)
                 )
-            elif isinstance(item, _LeftBracket_):
-                rb = self.match_right_loop_id(tokens, i)
-                sub_tokens = Formula(tokens).getSubFormula(i + 1, rb)
-                terms.append(self.parse_formula(sub_tokens, 0, len(sub_tokens), time_offset))
-                i = rb + 1
-            elif isinstance(item, _AND_):
-                ops.append('AND')
-                i += 1
-            elif isinstance(item, _OR_):
-                ops.append('OR')
-                i += 1
-            elif isinstance(item, _RightBracket_):
-                i += 1
+            elif isinstance(token, _LeftBracket_):
+                right_bracket_index = self.match_right_loop_id(tokens, token_index)
+                subformula_tokens = Formula(tokens).getSubFormula(token_index + 1, right_bracket_index)
+                expr_terms.append(self.getExpandedFormula(subformula_tokens, 0, len(subformula_tokens), time_offset))
+                token_index = right_bracket_index + 1
+            elif isinstance(token, _AND_):
+                bool_ops.append('AND')
+                token_index += 1
+            elif isinstance(token, _OR_):
+                bool_ops.append('OR')
+                token_index += 1
+            elif isinstance(token, _RightBracket_):
+                token_index += 1
             else:
-                raise RuntimeError('unsupported item in formula: {}'.format(type(item)))
+                raise RuntimeError('unsupported item in formula: {}'.format(type(token)))
 
-        if len(terms) == 0:
-            raise RuntimeError('empty formula segment')
-        if len(ops) != len(terms) - 1:
-            raise RuntimeError('invalid formula segment: operators and terms do not match')
-        if len(ops) == 0:
-            return terms[0]
+        if len(expr_terms) == 0:
+            raise RuntimeError('empty subformula segment')
+        if len(bool_ops) != len(expr_terms) - 1:
+            raise RuntimeError('invalid subformula segment: operators and terms do not match')
+        if len(bool_ops) == 0:
+            return expr_terms[0]
 
-        op_types = set(ops)
+        op_types = set(bool_ops)
         if len(op_types) > 1:
             raise RuntimeError(
                 'mixed AND/OR operations must be bracketed, e.g., '
                 '(P1 OR P2) AND P3 or P1 OR (P2 AND P3)'
             )
 
-        op = ops[0]
+        op = bool_ops[0]
         if op == 'AND':
-            return ('AND', terms)
+            return ('AND', expr_terms)
         if op == 'OR':
-            return ('OR', terms)
+            return ('OR', expr_terms)
         raise RuntimeError('unknown operator {}'.format(op))
 
-    def get_temporal_subformula(self, tokens, start_id, end): #find the formula that comes after a temporal operator. It can be either a single term (e.g., an atomic predicate) or a bracketed subformula.
-        if isinstance(tokens[start_id], _LeftBracket_):
-            rb = self.match_right_loop_id(tokens, start_id)
-            if rb >= end:
+    def expand_subformula(self, tokens, start_index, end):
+        """Return the single term or bracketed subformula that starts at start_index."""
+        if isinstance(tokens[start_index], _LeftBracket_):
+            right_bracket_index = self.match_right_loop_id(tokens, start_index)
+            if right_bracket_index >= end:
                 raise RuntimeError('right bracket is outside the current formula segment')
-            return Formula(tokens).getSubFormula(start_id + 1, rb), rb + 1
-        return Formula(tokens).getSubFormula(start_id, start_id + 1), start_id + 1
+            return Formula(tokens).getSubFormula(start_index + 1, right_bracket_index), right_bracket_index + 1
+        return Formula(tokens).getSubFormula(start_index, start_index + 1), start_index + 1
 
     def UNTIL_expand(self, left_expr, right_tokens, until_op, time_offset):
-        'expand p1 U_[a,b] p2 into an OR over all possible witness times'
+        """Expand p1 U_[a,b] p2 into an OR over all possible witness times."""
 
         assert isinstance(until_op, _UNTIL_), 'error: input should be an UNTIL operator'
         assert isinstance(right_tokens, list), 'error: right_tokens should be a list'
@@ -331,7 +317,7 @@ class getExpandedFormula(object):
                 self.shift_time(left_expr, dt)
                 for dt in range(0, witness_time)
             ]
-            right_terms = self.parse_formula(
+            right_terms = self.getExpandedFormula(
                 right_tokens, 0, len(right_tokens), time_offset + witness_time
             )
             until_terms.append(('AND', left_terms + [right_terms]))
@@ -344,23 +330,19 @@ class getExpandedFormula(object):
             raise RuntimeError('only bounded temporal intervals can be expanded')
         return range(temporal_operator.start_time, end_time + 1)
 
-    def shift_time(self, node, time_offset):
-        op = node[0]
+    def shift_time(self, expr, time_offset):
+        """Return a copy of expr with every atomic predicate shifted in time."""
+        op = expr[0]
         if op == 'AP':
-            pred = node[1]
-            return ('AP', pred.at_time(pred.t + time_offset))
-        return (op, [self.shift_time(arg, time_offset) for arg in node[1]])
-
-    def getLoopIds(self, formula=None):
-        if formula is None:
-            formula = self.formula
-        return Formula(formula).getLoopIds()
+            predicate = expr[1]
+            return ('AP', predicate.at_time(predicate.t + time_offset))
+        return (op, [self.shift_time(child_expr, time_offset) for child_expr in expr[1]])
 
     def match_right_loop_id(self, tokens, left_index):
         if left_index >= len(tokens) or not isinstance(tokens[left_index], _LeftBracket_):
             raise RuntimeError('left_index must point to a left bracket')
 
-        lb_idxes, rb_idxes = self.getLoopIds(tokens)
+        lb_idxes, rb_idxes = Formula(tokens).getLoopIds()
         if left_index not in lb_idxes:
             raise RuntimeError('left bracket index not found in formula loop ids')
 
@@ -379,27 +361,142 @@ class getExpandedFormula(object):
         raise RuntimeError('unbalanced brackets')
 
 
-class getRobustnessInterval(object):
+def getRobustnessInterval(R, expanded_formula, lp_solver='linprog'):
     r'''
     Compute the robustness interval of a temporal formula given a reachable set sequence.
-    \rho_{\phi}_lb is the lower bound of the robustness interval, which is the minimum robustness value of all predicate-space trajectories.
-    \rho_{\phi}_ub is the upper bound of the robustness interval, which is the maximum robustness value of all predicate-space trajectories.
+    \rho_{\phi}_lb is the lower bound of the robustness interval, which is the minimum robustness value within predicate-space range.
+    \rho_{\phi}_ub is the upper bound of the robustness interval, which is the maximum robustness value within predicate-space range.
+
+    Args:
+        R: reachable set sequence. R[t] is the Star reachable set at
+           time t. R[t] may also be a list of reachable sets due to ReLU.
+        expanded_formula: ExpandedFormula object, for example
+                 Ex_F = ExpandedFormula(spec).
+        lp_solver: LP solver passed to Star getMin/getMax.
+
+    Returns:
+        (rho_lb, rho_ub): robustness interval of the expanded formula.
     '''
+    if not isinstance(R, (list, tuple)):
+        raise RuntimeError('R should be a reachable set sequence stored as a list or tuple')
+    if not isinstance(expanded_formula, ExpandedFormula):
+        raise RuntimeError('expanded_formula should be an ExpandedFormula object')
+
+    return getExpandedRobustnessInterval(R, expanded_formula.expr, lp_solver)
 
 
-class computeSatisfactionFraction(object):
-    r'''
-    Compute the satisfaction fraction of a temporal formula.
-    if \rho_{\phi}_lb > 0, then the satisfaction fraction is 1; ( All predicate-space trajectories satisfy the specification)
-    if \rho_{\phi}_ub < 0, then the satisfaction fraction is 0; ( No predicate-space trajectory satisfies the specification)
-    if \rho_{\phi}_lb <= 0 <= \rho_{\phi}_ub, then the satisfaction fraction is in (0, 1) and can be computed by sampling or optimization. ( Some predicate-space trajectories satisfy the specification, and some do not)
+def getExpandedRobustnessInterval(R, expr, lp_solver='linprog'):
+    """Recursively compute the robustness interval of an expanded expression."""
+    op, children_or_predicate = expr
+    if op == 'AP':
+        return getAtomicRobustnessInterval(R, children_or_predicate, lp_solver)
+
+    child_exprs = children_or_predicate
+    if not isinstance(child_exprs, list) or len(child_exprs) == 0:
+        raise RuntimeError('{} operator should contain a nonempty list of subformulas'.format(op))
+
+    child_intervals = []
+    for child_expr in child_exprs:
+        child_interval = getExpandedRobustnessInterval(R, child_expr, lp_solver)
+        child_intervals.append(child_interval)
+
+    if op == 'NOT':
+        if len(child_intervals) != 1:
+            raise RuntimeError('NOT operator should have exactly one subformula')
+        rho_lb, rho_ub = child_intervals[0]
+        return -rho_ub, -rho_lb
+
+    if op == 'AND':
+        # rho(phi1 AND ... AND phin) = min rho(phi,...,phin)
+        return (
+            min(rho_lb for rho_lb, _ in child_intervals),
+            min(rho_ub for _, rho_ub in child_intervals)
+        )
+
+    if op == 'OR':
+        # rho(phi1 OR ... OR phin) = max rho(phi,...,phin)
+        return (
+            max(rho_lb for rho_lb, _ in child_intervals),
+            max(rho_ub for _, rho_ub in child_intervals)
+        )
+
+    raise RuntimeError('unsupported expanded formula operator: {}'.format(op))
+
+
+def getAtomicRobustnessInterval(R, predicate, lp_solver='linprog'):
+    """Compute min/max of atomic robustness b - A*x[t] over reachable set R[t]."""
+    if not isinstance(predicate, AtomicPredicate):
+        raise RuntimeError('Missing an AtomicPredicate')
+
+    t = 0 if predicate.t is None else predicate.t
+    if t < 0 or t >= len(R):
+        raise RuntimeError('invalid time t={}'.format(t))
+
+    reachable_sets = R[t]
+    if isinstance(reachable_sets, tuple):
+        reachable_sets = list(reachable_sets)
+    if not isinstance(reachable_sets, list):
+        reachable_sets = [reachable_sets]
+    if len(reachable_sets) == 0:
+        raise RuntimeError('reachable set at time {} is empty'.format(t))
+
+    lower_bounds = []
+    upper_bounds = []
+    robustness_map = -predicate.A.reshape(1, predicate.A.shape[0])
+    robustness_offset = predicate.b
+    for reachable_set in reachable_sets:
+        # Predicate A*x <= b has robustness rho = b - A*x. If R[t] has
+        # several Star sets, take the min/max over their union.
+        robustness_set = reachable_set.affineMap(robustness_map, robustness_offset)
+        lower_bounds.append(robustness_set.getMin(0, lp_solver))
+        upper_bounds.append(robustness_set.getMax(0, lp_solver))
+
+    return min(lower_bounds), max(upper_bounds)
+
+
+def computeSatisfactionFraction(
+        R, expanded_formula, num_samples=10000, lp_solver='linprog',
+        error=1e-10, method=None):
     '''
+    Compute the fraction of the feasible predicate space satisfying a TL formula.
+
+    '''
+    if not isinstance(R, (list, tuple)):
+        raise RuntimeError('R should be a reachable set sequence as a list or tuple')
+    if not isinstance(num_samples, int) or num_samples < 1:
+        raise RuntimeError('num_samples should be a positive integer')
+    if method not in (None, 'polytope', 'sampling'):
+        raise RuntimeError("method should be None, 'polytope', or 'sampling'")
+    if not isinstance(expanded_formula, ExpandedFormula):
+        raise RuntimeError('expanded_formula should be an ExpandedFormula object')
+
+    rho_lb, rho_ub = getRobustnessInterval(R, expanded_formula, lp_solver)
+    result = {
+        'method': None,
+        'rho_lb': rho_lb,
+        'rho_ub': rho_ub,
+        'satisfying_fraction': None,
+    }
+
+    if rho_lb >= 0.0:
+        result['method'] = 'robustness'
+        result['satisfying_fraction'] = 1.0
+    elif rho_ub < 0.0:
+        result['method'] = 'robustness'
+        result['satisfying_fraction'] = 0.0
+    else:
+        # TODO: compute the mixed case with exact polytope volume for small
+        # fixed predicate spaces, or sampling for larger spaces.
+        result['method'] = method
+
+    return result
 
 
 if __name__ == "__main__":
 
     EVOT = _EVENTUALLY_(0, 1)
     AWOT = _ALWAYS_(0, 1)
+    AW03 = _ALWAYS_(0, 3)
     lb  = _LeftBracket_()
     rb  = _RightBracket_()
     AND = _AND_()
@@ -407,16 +504,60 @@ if __name__ == "__main__":
     UNTIL = _UNTIL_(2, 3)
     P1 = AtomicPredicate(np.array([1.0, 0.0]), np.array([0.05]))
     P2 = AtomicPredicate(np.array([0.0, 1.0]), np.array([0.02]))  
+    P3 = AtomicPredicate(np.array([-1.0, 0.0]), np.array([0.01]))
 
+    # EVENTUALLY_[0,1] (P1 OR ALWAYS_[0,1] P2)
     spec1= Formula([EVOT,lb,P1,OR,lb,AWOT,P2,rb,rb])
     spec1.print()
-    
-    spec2= Formula([P1,UNTIL,P2])
 
-    Ex_F = getExpandedFormula(spec2)
+    # EVENTUALLY_[0,1] (P1 AND (P2 UNTIL_[2,3] P3))
+    spec2= Formula([EVOT,lb,P1,AND,lb,P2,UNTIL,P3,rb,rb])
+    spec2.print()
+
+    # Test ExpandedFormula class
+    Ex_F = ExpandedFormula(spec2)
     print("Expanded formula:")
     Ex_F.print()
 
-    # Dy_F = Ex_F.expand()
-    # print("Dynamic formula:")
-    # Dy_F.print()
+    # Test getRobustnessInterval function
+    X0 = Star(np.array([0.0, 0.0]), np.array([0.4, 0.2]))
+    X1 = Star(np.array([0.5, -0.1]), np.array([1.0, 0.1]))
+    X2 = Star(np.array([1.0, 0.0]), np.array([1.6, 0.3]))
+    X3 = Star(np.array([1.5, -0.2]), np.array([1.8, 0.2]))
+    R = [X0,X1,X2,X3]
+    print("Reachable set sequence:")
+    for t, R_t in enumerate(R):
+        print("R[{}]: {}".format(t, R_t))
+
+    # Test Always operator Robustness Interval
+    # Always_[0,3] (x <= 2.0)
+    P_safe = AtomicPredicate(np.array([1.0, 0.0]), np.array([2.0]))
+    always_spec = Formula([AW03, lb, P_safe, rb])
+    always_spec.print()
+    Ex_AW = ExpandedFormula(always_spec)
+    print("Expanded ALWAYS formula:")
+    Ex_AW.print()
+    rho_lb, rho_ub = getRobustnessInterval(
+        R, Ex_AW, lp_solver='linprog'
+    )
+    print("Always: ==> rho_lb = {}, rho_ub = {}".format(rho_lb, rho_ub))
+    # Result is Always: ==> rho_lb = 0.20000000000000007, rho_ub = 0.5000000000000001
+    # which means the reachable set sequence satisfies the specification, and the robustness interval is [0.2, 0.5].
+
+
+    # Test nested operator Robustness Interval
+    # EVENTUALLY_[0,1] (x <= -0.5 AND ALWAYS_[0,1] (y <= 1.0))
+    P_x = AtomicPredicate(np.array([1.0, 0.0]), np.array([-0.5]))
+    P_y = AtomicPredicate(np.array([0.0, 1.0]), np.array([1.0]))
+    nested_spec = Formula([EVOT, lb,P_x, AND, lb, AWOT, P_y, rb,rb])
+    nested_spec.print()
+    Ex_nested = ExpandedFormula(nested_spec)
+    print("Expanded nested formula:")
+    Ex_nested.print()
+    rho_lb, rho_ub = getRobustnessInterval(
+        R, Ex_nested, lp_solver='linprog'
+    )
+    print("Nested: ==> rho_lb = {}, rho_ub = {}".format(rho_lb, rho_ub))
+    # Result is Nested: ==> rho_lb = -0.8999999999999999, rho_ub = -0.49999999999999994
+    # which means the reachable set sequence violates the specification, and the robustness interval is [-0.9, -0.5].
+
