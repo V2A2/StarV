@@ -1,4 +1,4 @@
-r'''
+'''
 
 Star Temporal Logic Specification Language in discrete-time domain
 
@@ -156,22 +156,22 @@ class ExpandedFormula(object):
                 return '{} * x[t={}] <= {}'.format(predicate.A, predicate.t, predicate.b)
             return str(predicate)
         if op == 'NOT':
-            child_expr = expr[1][0]
-            child_text = self.format_expression(child_expr, parent_op=op)
-            if child_expr[0] != 'AP':
+            sub_expr = expr[1][0]
+            child_text = self.format_expression(sub_expr, parent_op=op)
+            if sub_expr[0] != 'AP':
                 child_text = '({})'.format(child_text)
             return 'NOT {}'.format(child_text)
 
-        child_exprs = expr[1]
+        sub_exprs = expr[1]
         separator = ' {} '.format(op)
         is_outermost = parent_op is None and op == self.outer_operator
         if is_outermost:
             separator = '\n{}\n'.format(op)
 
         formatted_children = []
-        for child_expr in child_exprs:
-            child_text = self.format_expression(child_expr, parent_op=op)
-            if is_outermost and child_expr[0] != 'AP':
+        for sub_expr in sub_exprs:
+            child_text = self.format_expression(sub_expr, parent_op=op)
+            if is_outermost and sub_expr[0] != 'AP':
                 if not (child_text.startswith('(') and child_text.endswith(')')):
                     child_text = '({})'.format(child_text)
             formatted_children.append(child_text)
@@ -210,54 +210,54 @@ class ExpandedFormula(object):
             ])])
 
             Each tree node is either ('AP', predicate) or
-            (op, [child_expr1, child_expr2, ...]), where op is 'NOT',
+            (op, [sub_expr1, sub_expr2, ...]), where op is 'NOT',
             'AND', or 'OR' and chid_expr is a nested expression tree.
         '''
         expr_terms = []
         bool_ops = []
-        token_index = start
-        while token_index < end:
-            token = tokens[token_index]
+        token_ids = start
+        while token_ids < end:
+            token = tokens[token_ids]
             if isinstance(token, AtomicPredicate):
                 predicate_time = 0 if token.t is None else token.t
                 shifted_time = predicate_time + time_offset
                 if self.isvalid_time(shifted_time):
                     expr_terms.append(('AP', token.at_time(shifted_time)))
-                token_index += 1
+                token_ids += 1
             elif isinstance(token, _NOT_):
-                next_index = token_index + 1
+                next_index = token_ids + 1
                 if next_index >= end:
                     raise RuntimeError('NOT must be followed by a subformula')
 
-                subformula_tokens, token_index = self.expand_subformula(tokens, next_index, end)
-                child_expr = self.getExpandedFormula(subformula_tokens, 0, len(subformula_tokens), time_offset)
-                if child_expr is not None:
-                    expr_terms.append(('NOT', [child_expr]))
+                sub_tokens, token_ids = self.expand_subformula(tokens, next_index, end)
+                sub_expr = self.getExpandedFormula(sub_tokens, 0, len(sub_tokens), time_offset)
+                if sub_expr is not None:
+                    expr_terms.append(('NOT', [sub_expr]))
             elif isinstance(token, _NEXT_):
-                next_index = token_index + 1
+                next_index = token_ids + 1
                 if next_index >= end:
                     raise RuntimeError('NEXT must be followed by a subformula')
 
-                subformula_tokens, token_index = self.expand_subformula(tokens, next_index, end)
-                child_expr = self.getExpandedFormula(
-                    subformula_tokens, 0, len(subformula_tokens), time_offset + 1
+                sub_tokens, token_ids = self.expand_subformula(tokens, next_index, end)
+                sub_expr = self.getExpandedFormula(
+                    sub_tokens, 0, len(sub_tokens), time_offset + 1
                 )
-                if child_expr is not None:
-                    expr_terms.append(child_expr)
+                if sub_expr is not None:
+                    expr_terms.append(sub_expr)
             elif isinstance(token, _ALWAYS_) or isinstance(token, _EVENTUALLY_):
-                next_index = token_index + 1
+                next_index = token_ids + 1
                 if next_index >= end:
                     raise RuntimeError('temporal operator must be followed by a subformula')
 
-                subformula_tokens, token_index = self.expand_subformula(tokens, next_index, end)
+                sub_tokens, token_ids = self.expand_subformula(tokens, next_index, end)
 
                 expanded_terms = []
                 for dt in self.get_time_range(token):
-                    child_expr = self.getExpandedFormula(
-                        subformula_tokens, 0, len(subformula_tokens), time_offset + dt
+                    sub_expr = self.getExpandedFormula(
+                        sub_tokens, 0, len(sub_tokens), time_offset + dt
                     )
-                    if child_expr is not None:
-                        expanded_terms.append(child_expr)
+                    if sub_expr is not None:
+                        expanded_terms.append(sub_expr)
                 if len(expanded_terms) == 0:
                     continue
                 if isinstance(token, _ALWAYS_):
@@ -268,30 +268,30 @@ class ExpandedFormula(object):
                 if len(expr_terms) == 0:
                     raise RuntimeError('UNTIL must have a left subformula')
 
-                next_index = token_index + 1
+                next_index = token_ids + 1
                 if next_index >= end:
                     raise RuntimeError('UNTIL must be followed by a right subformula')
 
                 left_expr = expr_terms.pop()
-                right_tokens, token_index = self.expand_subformula(tokens, next_index, end)
+                right_tokens, token_ids = self.expand_subformula(tokens, next_index, end)
                 expr_terms.append(
                     self.UNTIL_expand(left_expr, right_tokens, token, time_offset)
                 )
             elif isinstance(token, _LeftBracket_):
-                right_bracket_index = self.match_right_loop_id(tokens, token_index)
-                subformula_tokens = Formula(tokens).getSubFormula(token_index + 1, right_bracket_index)
-                child_expr = self.getExpandedFormula(subformula_tokens, 0, len(subformula_tokens), time_offset)
-                if child_expr is not None:
-                    expr_terms.append(child_expr)
-                token_index = right_bracket_index + 1
+                right_bracket_index = self.match_right_loop_id(tokens, token_ids)
+                sub_tokens = Formula(tokens).getSubFormula(token_ids + 1, right_bracket_index)
+                sub_expr = self.getExpandedFormula(sub_tokens, 0, len(sub_tokens), time_offset)
+                if sub_expr is not None:
+                    expr_terms.append(sub_expr)
+                token_ids = right_bracket_index + 1
             elif isinstance(token, _AND_):
                 bool_ops.append('AND')
-                token_index += 1
+                token_ids += 1
             elif isinstance(token, _OR_):
                 bool_ops.append('OR')
-                token_index += 1
+                token_ids += 1
             elif isinstance(token, _RightBracket_):
-                token_index += 1
+                token_ids += 1
             else:
                 raise RuntimeError('unsupported item in formula: {}'.format(type(token)))
 
@@ -367,12 +367,12 @@ class ExpandedFormula(object):
             return ('AP', predicate.at_time(shifted_time))
 
         shifted_children = [
-            self.shift_time(child_expr, time_offset)
-            for child_expr in expr[1]
+            self.shift_time(sub_expr, time_offset)
+            for sub_expr in expr[1]
         ]
         shifted_children = [
-            child_expr for child_expr in shifted_children
-            if child_expr is not None
+            sub_expr for sub_expr in shifted_children
+            if sub_expr is not None
         ]
         if len(shifted_children) == 0:
             return None
@@ -408,7 +408,7 @@ class ExpandedFormula(object):
 
 
 def getRobustnessInterval(R, expanded_formula, lp_solver='linprog'):
-    r'''
+    '''
     Compute the robustness interval of a temporal formula given a reachable set sequence.
     \rho_{\phi}_lb is the lower bound of the robustness interval, which is the minimum robustness value within predicate-space range.
     \rho_{\phi}_ub is the upper bound of the robustness interval, which is the maximum robustness value within predicate-space range.
@@ -437,13 +437,13 @@ def getExpandedRobustnessInterval(R, expr, lp_solver='linprog'):
     if op == 'AP':
         return getAtomicRobustnessInterval(R, children_or_predicate, lp_solver)
 
-    child_exprs = children_or_predicate
-    if not isinstance(child_exprs, list) or len(child_exprs) == 0:
+    sub_exprs = children_or_predicate
+    if not isinstance(sub_exprs, list) or len(sub_exprs) == 0:
         raise RuntimeError('{} operator should contain a nonempty list of subformulas'.format(op))
 
     child_intervals = []
-    for child_expr in child_exprs:
-        child_interval = getExpandedRobustnessInterval(R, child_expr, lp_solver)
+    for sub_expr in sub_exprs:
+        child_interval = getExpandedRobustnessInterval(R, sub_expr, lp_solver)
         child_intervals.append(child_interval)
 
     if op == 'NOT':
@@ -621,7 +621,7 @@ def computeSatFraction(R, expanded_formula):
         dnf_clauses
     )
 
-    print("\n======== Compute volumeo of Polytope of each DNF cluase ========")
+    print("\n======== Compute volume of Polytope of each DNF cluase ========")
     satisfying_volume = getVolumeOfPolytopes(clause_polytopes)
     fraction = satisfying_volume / total_volume
     return min(1.0, max(0.0, fraction))
@@ -839,7 +839,6 @@ if __name__ == "__main__":
     )
     print("R mixed DNF satisfaction fraction: {}".format(R_mixed_dnf_result))
     # Result is : {'method': 'exact-DNF', 'rho_lb': -0.25, 'rho_ub': 0.25, 'satisfying_fraction': 0.5}
-
 
 
     # Example 5: Test exact satisfaction fraction for a nested mixed specification
