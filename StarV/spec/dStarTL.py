@@ -378,11 +378,11 @@ class ExpandedFormula(object):
             return None
         return (op, shifted_children)
 
-    def isvalid_time(self, time_index):
-        """Return False when time_index is outside the reachable sequence."""
-        if time_index < 0:
+    def isvalid_time(self, time_idx):
+        """Return False when time_idx is outside the reachable sequence."""
+        if time_idx < 0:
             return False
-        return self.T is None or time_index < self.T
+        return self.T is None or time_idx < self.T
 
     def match_right_loop_id(self, tokens, left_index):
         if left_index >= len(tokens) or not isinstance(tokens[left_index], _LeftBracket_):
@@ -662,20 +662,20 @@ def createDNFPolytopes(R, base_star, dnf_clauses):
             if not isinstance(predicate, AtomicPredicate):
                 raise RuntimeError('Missing an AtomicPredicate')
 
-            time_index =  predicate.t
-            if time_index < 0 or time_index >= T:
+            time_idx =  predicate.t
+            if time_idx < 0 or time_idx >= T:
                 C = None
                 d = None
                 break
 
-            reachable_set = R[time_index]
+            reachable_set = R[time_idx]
 
             if not isinstance(reachable_set, Star):
                 raise RuntimeError('reachable set should be a Star')
 
             if reachable_set.nVars != base_star.nVars:
                 raise RuntimeError(
-                    'reachable set at time {} does not use the base alpha dimension'.format(time_index)
+                    'reachable set at time {} does not use the base alpha dimension'.format(time_idx)
                 )
 
             C1 = np.matmul(
@@ -695,8 +695,8 @@ def createDNFPolytopes(R, base_star, dnf_clauses):
                 C = np.vstack((C, C1))
                 d = np.concatenate((d, d1))
 
-            referenced_times.add(time_index)
-            reachable_sets[time_index] = reachable_set
+            referenced_times.add(time_idx)
+            reachable_sets[time_idx] = reachable_set
 
         if C is not None:
             constraints.append([C, d, referenced_times, reachable_sets])
@@ -708,8 +708,8 @@ def createDNFPolytopes(R, base_star, dnf_clauses):
         A.append(C)
         B.append(d)
 
-        for time_index in sorted(referenced_times):
-            reachable_set = reachable_sets[time_index]
+        for time_idx in sorted(referenced_times):
+            reachable_set = reachable_sets[time_idx]
             if len(reachable_set.C) != 0:
                 A.append(reachable_set.C)
                 B.append(reachable_set.d)
@@ -839,7 +839,6 @@ if __name__ == "__main__":
     )
     print("R mixed DNF satisfaction fraction: {}".format(R_mixed_dnf_result))
     # Result is : {'method': 'exact-DNF', 'rho_lb': -0.25, 'rho_ub': 0.25, 'satisfying_fraction': 0.5}
-
 
     # Example 5: Test exact satisfaction fraction for a nested mixed specification
     # EVENTUALLY_[0,1] (y <= 0.05 AND EVENTUALLY_[1,2] (x <= 0.75))
