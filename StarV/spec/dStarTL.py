@@ -157,10 +157,10 @@ class ExpandedFormula(object):
             return str(predicate)
         if op == 'NOT':
             sub_expr = expr[1][0]
-            child_text = self.format_expression(sub_expr, parent_op=op)
+            sub_text = self.format_expression(sub_expr, parent_op=op)
             if sub_expr[0] != 'AP':
-                child_text = '({})'.format(child_text)
-            return 'NOT {}'.format(child_text)
+                sub_text = '({})'.format(sub_text)
+            return 'NOT {}'.format(sub_text)
 
         sub_exprs = expr[1]
         separator = ' {} '.format(op)
@@ -168,14 +168,14 @@ class ExpandedFormula(object):
         if is_outermost:
             separator = '\n{}\n'.format(op)
 
-        formatted_children = []
+        formatted_text = []
         for sub_expr in sub_exprs:
-            child_text = self.format_expression(sub_expr, parent_op=op)
+            sub_text = self.format_expression(sub_expr, parent_op=op)
             if is_outermost and sub_expr[0] != 'AP':
-                if not (child_text.startswith('(') and child_text.endswith(')')):
-                    child_text = '({})'.format(child_text)
-            formatted_children.append(child_text)
-        text = separator.join(formatted_children)
+                if not (sub_text.startswith('(') and sub_text.endswith(')')):
+                    sub_text = '({})'.format(sub_text)
+            formatted_text.append(sub_text)
+        text = separator.join(formatted_text)
         if parent_op == 'AND' and op == 'OR':
             return '({})'.format(text)
         if parent_op == 'OR' and op == 'AND':
@@ -366,17 +366,17 @@ class ExpandedFormula(object):
                 return None
             return ('AP', predicate.at_time(shifted_time))
 
-        shifted_children = [
+        shifted_subformula = [
             self.shift_time(sub_expr, time_offset)
             for sub_expr in expr[1]
         ]
-        shifted_children = [
-            sub_expr for sub_expr in shifted_children
+        shifted_subformula = [
+            sub_expr for sub_expr in shifted_subformula
             if sub_expr is not None
         ]
-        if len(shifted_children) == 0:
+        if len(shifted_subformula) == 0:
             return None
-        return (op, shifted_children)
+        return (op, shifted_subformula)
 
     def isvalid_time(self, time_idx):
         """Return False when time_idx is outside the reachable sequence."""
@@ -433,37 +433,37 @@ def getRobustnessInterval(R, expanded_formula, lp_solver='linprog'):
 
 def getExpandedRobustnessInterval(R, expr, lp_solver='linprog'):
     """Recursively compute the robustness interval of an expanded expression."""
-    op, children_or_predicate = expr
+    op, subformulas = expr
     if op == 'AP':
-        return getAtomicRobustnessInterval(R, children_or_predicate, lp_solver)
+        return getAtomicRobustnessInterval(R, subformulas, lp_solver)
 
-    sub_exprs = children_or_predicate
+    sub_exprs = subformulas
     if not isinstance(sub_exprs, list) or len(sub_exprs) == 0:
         raise RuntimeError('{} operator should contain a nonempty list of subformulas'.format(op))
 
-    child_intervals = []
+    sub_intervals = []
     for sub_expr in sub_exprs:
-        child_interval = getExpandedRobustnessInterval(R, sub_expr, lp_solver)
-        child_intervals.append(child_interval)
+        sub_interval = getExpandedRobustnessInterval(R, sub_expr, lp_solver)
+        sub_intervals.append(sub_interval)
 
     if op == 'NOT':
-        if len(child_intervals) != 1:
+        if len(sub_intervals) != 1:
             raise RuntimeError('NOT operator should have exactly one subformula')
-        rho_lb, rho_ub = child_intervals[0]
+        rho_lb, rho_ub = sub_intervals[0]
         return -rho_ub, -rho_lb
 
     if op == 'AND':
         # rho(phi1 AND ... AND phin) = min rho(phi,...,phin)
         return (
-            min(rho_lb for rho_lb, _ in child_intervals),
-            min(rho_ub for _, rho_ub in child_intervals)
+            min(rho_lb for rho_lb, _ in sub_intervals),
+            min(rho_ub for _, rho_ub in sub_intervals)
         )
 
     if op == 'OR':
         # rho(phi1 OR ... OR phin) = max rho(phi,...,phin)
         return (
-            max(rho_lb for rho_lb, _ in child_intervals),
-            max(rho_ub for _, rho_ub in child_intervals)
+            max(rho_lb for rho_lb, _ in sub_intervals),
+            max(rho_ub for _, rho_ub in sub_intervals)
         )
 
     raise RuntimeError('unsupported expanded formula operator: {}'.format(op))
