@@ -1,4 +1,4 @@
-'''
+r'''
 
 Star Temporal Logic Specification Language in discrete-time domain
 
@@ -228,7 +228,6 @@ class ExpandedFormula(object):
                 next_index = token_ids + 1
                 if next_index >= end:
                     raise RuntimeError('NOT must be followed by a subformula')
-
                 sub_tokens, token_ids = self.expand_subformula(tokens, next_index, end)
                 sub_expr = self.getExpandedFormula(sub_tokens, 0, len(sub_tokens), time_offset)
                 if sub_expr is not None:
@@ -237,7 +236,6 @@ class ExpandedFormula(object):
                 next_index = token_ids + 1
                 if next_index >= end:
                     raise RuntimeError('NEXT must be followed by a subformula')
-
                 sub_tokens, token_ids = self.expand_subformula(tokens, next_index, end)
                 sub_expr = self.getExpandedFormula(
                     sub_tokens, 0, len(sub_tokens), time_offset + 1
@@ -248,22 +246,22 @@ class ExpandedFormula(object):
                 next_index = token_ids + 1
                 if next_index >= end:
                     raise RuntimeError('temporal operator must be followed by a subformula')
-
                 sub_tokens, token_ids = self.expand_subformula(tokens, next_index, end)
 
-                expanded_terms = []
-                for dt in self.get_time_range(token):
-                    sub_expr = self.getExpandedFormula(
-                        sub_tokens, 0, len(sub_tokens), time_offset + dt
-                    )
-                    if sub_expr is not None:
-                        expanded_terms.append(sub_expr)
+                expanded_terms = [
+                    sub_expr
+                    for dt in self.get_time_range(token)
+                    for sub_expr in [
+                        self.getExpandedFormula(
+                            sub_tokens, 0, len(sub_tokens), time_offset + dt
+                        )
+                    ]
+                    if sub_expr is not None
+                ]
                 if len(expanded_terms) == 0:
                     continue
-                if isinstance(token, _ALWAYS_):
-                    expr_terms.append(('AND', expanded_terms))
-                else:
-                    expr_terms.append(('OR', expanded_terms))
+                op = 'AND' if isinstance(token, _ALWAYS_) else 'OR'
+                expr_terms.append((op, expanded_terms))
             elif isinstance(token, _UNTIL_):
                 if len(expr_terms) == 0:
                     raise RuntimeError('UNTIL must have a left subformula')
@@ -302,19 +300,16 @@ class ExpandedFormula(object):
         if len(bool_ops) == 0 or len(expr_terms) == 1:
             return expr_terms[0]
 
-        op_types = set(bool_ops)
-        if len(op_types) > 1:
+        if len(set(bool_ops)) > 1:
             raise RuntimeError(
                 'mixed AND/OR operations must be bracketed, e.g., '
                 '(P1 OR P2) AND P3 or P1 OR (P2 AND P3)'
             )
 
         op = bool_ops[0]
-        if op == 'AND':
-            return ('AND', expr_terms)
-        if op == 'OR':
-            return ('OR', expr_terms)
-        raise RuntimeError('unknown operator {}'.format(op))
+        if op not in ('AND', 'OR'):
+            raise RuntimeError('unknown operator {}'.format(op))
+        return (op, expr_terms)
 
     def expand_subformula(self, tokens, start_index, end):
         """Return the single term or bracketed subformula that starts at start_index."""
@@ -408,7 +403,7 @@ class ExpandedFormula(object):
 
 
 def getRobustnessInterval(R, expanded_formula, lp_solver='linprog'):
-    '''
+    r'''
     Compute the robustness interval of a temporal formula given a reachable set sequence.
     \rho_{\phi}_lb is the lower bound of the robustness interval, which is the minimum robustness value within predicate-space range.
     \rho_{\phi}_ub is the upper bound of the robustness interval, which is the maximum robustness value within predicate-space range.
