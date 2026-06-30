@@ -76,6 +76,8 @@ The satisfaction (|=) of a formula p by a reachable set X at time step 1 <= t <=
 '''
 
 import numpy as np
+from itertools import combinations
+import polytope as pc
 from StarV.set.star import Star
 from StarV.spec.dProbStarTL import (
     _UNTIL_,
@@ -110,19 +112,31 @@ class ExpandedFormula(object):
         (P1[t=1] AND (P2[t=1] OR P2[t=2]))
     """
 
-    def __init__(self, formula):
+    def __init__(self, formula, T=None):
+        """
+        Args:
+            formula: Formula object or formula token list.
+            T: reachable sequence length
+        """
 
         if isinstance(formula, Formula):
+            self.original_formula = formula
             self.formula_tokens = formula.formula
         elif isinstance(formula, list):
+            self.original_formula = Formula(formula)
             self.formula_tokens = formula
         else:
             raise RuntimeError('input should be a Formula object or list')
+        if T is not None and (not isinstance(T, int) or T < 1):
+            raise RuntimeError('T should be a positive integer')
 
         self.formula = self.formula_tokens
+        self.T = T
         self.outer_operator = self.get_outer_operator()
         self.expr = self.getExpandedFormula(self.formula_tokens, 0, len(self.formula_tokens), 0)
-        self.F = self.expr  # Backward-compatible alias for older examples.
+        if self.expr is None:
+            raise RuntimeError('expanded formula is empty within the given T')
+        self.F = self.expr
 
     def print(self):
         print(self)
@@ -206,7 +220,9 @@ class ExpandedFormula(object):
             token = tokens[token_index]
             if isinstance(token, AtomicPredicate):
                 predicate_time = 0 if token.t is None else token.t
-                expr_terms.append(('AP', token.at_time(predicate_time + time_offset)))
+                shifted_time = predicate_time + time_offset
+                if self.isvalid_time(shifted_time):
+                    expr_terms.append(('AP', token.at_time(shifted_time)))
                 token_index += 1
             elif isinstance(token, _NOT_):
                 next_index = token_index + 1
@@ -214,21 +230,20 @@ class ExpandedFormula(object):
                     raise RuntimeError('NOT must be followed by a subformula')
 
                 subformula_tokens, token_index = self.expand_subformula(tokens, next_index, end)
-                expr_terms.append((
-                    'NOT',
-                    [self.getExpandedFormula(subformula_tokens, 0, len(subformula_tokens), time_offset)]
-                ))
+                child_expr = self.getExpandedFormula(subformula_tokens, 0, len(subformula_tokens), time_offset)
+                if child_expr is not None:
+                    expr_terms.append(('NOT', [child_expr]))
             elif isinstance(token, _NEXT_):
                 next_index = token_index + 1
                 if next_index >= end:
                     raise RuntimeError('NEXT must be followed by a subformula')
 
                 subformula_tokens, token_index = self.expand_subformula(tokens, next_index, end)
-                expr_terms.append(
-                    self.getExpandedFormula(
-                        subformula_tokens, 0, len(subformula_tokens), time_offset + 1
-                    )
+                child_expr = self.getExpandedFormula(
+                    subformula_tokens, 0, len(subformula_tokens), time_offset + 1
                 )
+                if child_expr is not None:
+                    expr_terms.append(child_expr)
             elif isinstance(token, _ALWAYS_) or isinstance(token, _EVENTUALLY_):
                 next_index = token_index + 1
                 if next_index >= end:
@@ -238,9 +253,13 @@ class ExpandedFormula(object):
 
                 expanded_terms = []
                 for dt in self.get_time_range(token):
-                    expanded_terms.append(
-                        self.getExpandedFormula(subformula_tokens, 0, len(subformula_tokens), time_offset + dt)
+                    child_expr = self.getExpandedFormula(
+                        subformula_tokens, 0, len(subformula_tokens), time_offset + dt
                     )
+                    if child_expr is not None:
+                        expanded_terms.append(child_expr)
+                if len(expanded_terms) == 0:
+                    continue
                 if isinstance(token, _ALWAYS_):
                     expr_terms.append(('AND', expanded_terms))
                 else:
@@ -261,7 +280,9 @@ class ExpandedFormula(object):
             elif isinstance(token, _LeftBracket_):
                 right_bracket_index = self.match_right_loop_id(tokens, token_index)
                 subformula_tokens = Formula(tokens).getSubFormula(token_index + 1, right_bracket_index)
-                expr_terms.append(self.getExpandedFormula(subformula_tokens, 0, len(subformula_tokens), time_offset))
+                child_expr = self.getExpandedFormula(subformula_tokens, 0, len(subformula_tokens), time_offset)
+                if child_expr is not None:
+                    expr_terms.append(child_expr)
                 token_index = right_bracket_index + 1
             elif isinstance(token, _AND_):
                 bool_ops.append('AND')
@@ -275,10 +296,10 @@ class ExpandedFormula(object):
                 raise RuntimeError('unsupported item in formula: {}'.format(type(token)))
 
         if len(expr_terms) == 0:
-            raise RuntimeError('empty subformula segment')
-        if len(bool_ops) != len(expr_terms) - 1:
+            return None
+        if len(bool_ops) != len(expr_terms) - 1 and len(set(bool_ops)) > 1:
             raise RuntimeError('invalid subformula segment: operators and terms do not match')
-        if len(bool_ops) == 0:
+        if len(bool_ops) == 0 or len(expr_terms) == 1:
             return expr_terms[0]
 
         op_types = set(bool_ops)
@@ -317,10 +338,15 @@ class ExpandedFormula(object):
                 self.shift_time(left_expr, dt)
                 for dt in range(0, witness_time)
             ]
+            left_terms = [term for term in left_terms if term is not None]
             right_terms = self.getExpandedFormula(
                 right_tokens, 0, len(right_tokens), time_offset + witness_time
             )
+            if right_terms is None:
+                continue
             until_terms.append(('AND', left_terms + [right_terms]))
+        if len(until_terms) == 0:
+            return None
         return ('OR', until_terms)
 
     @staticmethod
@@ -335,8 +361,28 @@ class ExpandedFormula(object):
         op = expr[0]
         if op == 'AP':
             predicate = expr[1]
-            return ('AP', predicate.at_time(predicate.t + time_offset))
-        return (op, [self.shift_time(child_expr, time_offset) for child_expr in expr[1]])
+            shifted_time = predicate.t + time_offset
+            if not self.isvalid_time(shifted_time):
+                return None
+            return ('AP', predicate.at_time(shifted_time))
+
+        shifted_children = [
+            self.shift_time(child_expr, time_offset)
+            for child_expr in expr[1]
+        ]
+        shifted_children = [
+            child_expr for child_expr in shifted_children
+            if child_expr is not None
+        ]
+        if len(shifted_children) == 0:
+            return None
+        return (op, shifted_children)
+
+    def isvalid_time(self, time_index):
+        """Return False when time_index is outside the reachable sequence."""
+        if time_index < 0:
+            return False
+        return self.T is None or time_index < self.T
 
     def match_right_loop_id(self, tokens, left_index):
         if left_index >= len(tokens) or not isinstance(tokens[left_index], _LeftBracket_):
@@ -454,19 +500,22 @@ def getAtomicRobustnessInterval(R, predicate, lp_solver='linprog'):
     return min(lower_bounds), max(upper_bounds)
 
 
-def computeSatisfactionFraction(
+def getSatisfactionFraction(
         R, expanded_formula, num_samples=10000, lp_solver='linprog',
         error=1e-10, method=None):
     '''
     Compute the fraction of the feasible predicate space satisfying a TL formula.
 
     '''
-    if not isinstance(R, (list, tuple)):
-        raise RuntimeError('R should be a reachable set sequence as a list or tuple')
+    if not isinstance(R,list):
+        raise RuntimeError('R should be a reachable set sequence as a list')
     if not isinstance(num_samples, int) or num_samples < 1:
         raise RuntimeError('num_samples should be a positive integer')
-    if method not in (None, 'polytope', 'sampling'):
-        raise RuntimeError("method should be None, 'polytope', or 'sampling'")
+    if method not in (
+            None, 'base-polytope', 'exact', 'expanded',
+            'expanded-polytope', 'exact-DNF', 'exact-expanded',
+            'sampling'):
+        raise RuntimeError(" Unkown satisfaction fraction compuation method")
     if not isinstance(expanded_formula, ExpandedFormula):
         raise RuntimeError('expanded_formula should be an ExpandedFormula object')
 
@@ -477,7 +526,9 @@ def computeSatisfactionFraction(
         'rho_ub': rho_ub,
         'satisfying_fraction': None,
     }
+    print("Robustness reslts: lb ={}, ub ={}".format(rho_lb,rho_ub))
 
+    # Since the atomic predicate is A*x <= b, rho == 0 is satisfying.
     if rho_lb >= 0.0:
         result['method'] = 'robustness'
         result['satisfying_fraction'] = 1.0
@@ -485,16 +536,224 @@ def computeSatisfactionFraction(
         result['method'] = 'robustness'
         result['satisfying_fraction'] = 0.0
     else:
-        # TODO: compute the mixed case with exact polytope volume for small
-        # fixed predicate spaces, or sampling for larger spaces.
-        result['method'] = method
+        if method is None:
+            method = 'exact-expanded'
+        if method in ('exact', 'base-polytope', 'exact-DNF'):
+            # Use DNF to compute SAT fraction.
+            result['method'] = 'exact-DNF'
+            result['satisfying_fraction'] = computeSatFraction(
+                R,
+                expanded_formula
+            )
+        elif method == 'sampling':
+            # TODO: implement sampling for high-dimensional predicate spaces.
+            result['method'] = 'sampling'
 
     return result
+
+
+def computePolyVolume(A, b, tol=1e-9):
+    """Compute the exact volume of a bounded polytope {x | A*x <= b}.
+    """
+    A = np.asarray(A, dtype=float)
+    b = np.asarray(b, dtype=float).reshape(-1)
+    if A.ndim != 2:
+        raise RuntimeError('A should be a 2D numpy array')
+    if A.shape[0] != b.shape[0]:
+        raise RuntimeError('A and b should have the same number of constraints')
+
+    poly = pc.Polytope(A, b)
+    if pc.is_empty(poly):
+        return 0.0
+
+    return float(pc.volume(poly))
+
+
+def computeSatFraction(R, expanded_formula):
+    """Compute exact fraction over the initial Star predicate space using DNF.
+
+    The base Star is always R[0]. This is for reachable sequences whose time-step Stars share the same
+    original predicate variable alpha
+    """
+    if not isinstance(R, list):
+        raise RuntimeError('R should be a reachable set sequence as a list')
+
+    base_star = R[0]
+    if isinstance(base_star, tuple):
+        base_star = list(base_star)
+    if isinstance(base_star, list):
+        if len(base_star) != 1:
+            raise RuntimeError(
+                'base-polytope satisfaction fraction supports one Star set per time step'
+            )
+        base_star = base_star[0]
+
+    if not isinstance(base_star, Star):
+        raise RuntimeError('reachable set should be a Star')
+
+    if not isinstance(expanded_formula, ExpandedFormula):
+        raise RuntimeError('expanded_formula should be an ExpandedFormula object')
+
+    A = []
+    B = []
+    if len(base_star.C) != 0:
+        A.append(base_star.C)
+        B.append(base_star.d)
+    A.append(np.eye(base_star.nVars))
+    B.append(base_star.pred_ub)
+    A.append(-np.eye(base_star.nVars))
+    B.append(-base_star.pred_lb)
+    base_A = np.vstack(A)
+    base_b = np.hstack(B)
+
+    total_volume = computePolyVolume(base_A, base_b)
+    if total_volume == 0.0:
+        raise RuntimeError('base predicate space has zero volume')
+
+    # use DNF for satisfaction computation
+    dynamic_formula = expanded_formula.original_formula.getDynamicFormula() # convert formula to DNF
+    dnf_clauses = dynamic_formula.F
+
+    print("\n======== Create Polytope of each DNF cluase ========")
+    clause_polytopes = createDNFPolytopes(
+        R,
+        base_star,
+        dnf_clauses
+    )
+
+    print("\n======== Compute volumeo of Polytope of each DNF cluase ========")
+    satisfying_volume = getVolumeOfPolytopes(clause_polytopes)
+    fraction = satisfying_volume / total_volume
+    return min(1.0, max(0.0, fraction))
+
+
+def createDNFPolytopes(R, base_star, dnf_clauses):
+
+    """Realize DNF clauses and build one predicate-space polytope per disjucnt.
+    F = ( P1 or P2 or P3 ,..., or Pn), each Pi is a polytope
+    """
+    if not isinstance(base_star, Star):
+        raise RuntimeError('base_star should be a Star')
+
+    T = len(R)
+    nVars = base_star.nVars
+
+    A = []
+    b = []
+
+    if len(base_star.C) != 0:
+        A.append(base_star.C)
+        b.append(base_star.d)
+    A.append(np.eye(nVars))
+    b.append(base_star.pred_ub)
+    A.append(-np.eye(nVars))
+    b.append(-base_star.pred_lb)
+    base_A = np.vstack(A)
+    base_b = np.hstack(b)
+
+    # store the realized constraints for each valid DNF clause.
+    constraints = []
+    for clause in dnf_clauses:
+        C = None
+        d = None
+        referenced_times = set()
+        reachable_sets = {}
+        for predicate in clause:
+            if not isinstance(predicate, AtomicPredicate):
+                raise RuntimeError('Missing an AtomicPredicate')
+
+            time_index =  predicate.t
+            if time_index < 0 or time_index >= T:
+                C = None
+                d = None
+                break
+
+            reachable_set = R[time_index]
+
+            if not isinstance(reachable_set, Star):
+                raise RuntimeError('reachable set should be a Star')
+
+            if reachable_set.nVars != base_star.nVars:
+                raise RuntimeError(
+                    'reachable set at time {} does not use the base alpha dimension'.format(time_index)
+                )
+
+            C1 = np.matmul(
+                predicate.A.reshape(1, -1),
+                reachable_set.V[:, 1:]
+            ).reshape(1, -1)
+            d1 = predicate.b - np.matmul(
+                predicate.A.reshape(1, -1),
+                reachable_set.V[:, 0]
+            )
+            d1 = d1.reshape(-1)
+
+            if C is None:
+                C = C1
+                d = d1
+            else:
+                C = np.vstack((C, C1))
+                d = np.concatenate((d, d1))
+
+            referenced_times.add(time_index)
+            reachable_sets[time_index] = reachable_set
+
+        if C is not None:
+            constraints.append([C, d, referenced_times, reachable_sets])
+
+    clause_polytopes = []
+    for C, d, referenced_times, reachable_sets in constraints:
+        A = [base_A]
+        B = [base_b]
+        A.append(C)
+        B.append(d)
+
+        for time_index in sorted(referenced_times):
+            reachable_set = reachable_sets[time_index]
+            if len(reachable_set.C) != 0:
+                A.append(reachable_set.C)
+                B.append(reachable_set.d)
+
+        # Combines all constraints(base_star + each Pi) into one polytope:
+        clause_A = np.vstack(A)
+        clause_b = np.hstack(B)
+        if computePolyVolume(clause_A, clause_b) > 0.0:
+            clause_polytopes.append((clause_A, clause_b))
+
+    return clause_polytopes
+
+
+def getVolumeOfPolytopes(clause_polytopes):
+    """ compute the union volume of all satisfying clause polytopes."""
+    if len(clause_polytopes) == 0:
+        return 0.0
+
+    VOL = 0.0
+
+    N = range(0,len(clause_polytopes)) # number of polytope needed tobe unioned ( P1 or P2 or P3,...)
+    for i in range(0, len(clause_polytopes)):
+        volume = 0.0
+        comb = combinations(N, i+1)
+        for j in comb:
+            A = []
+            B = []
+            for clause_id in j:
+                clause_A, clause_b = clause_polytopes[clause_id]
+                A.append(clause_A)
+                B.append(clause_b)
+            print("\n======== Compute Polytope volume of each combination ========")
+            vol = computePolyVolume(np.vstack(A), np.hstack(B))
+            volume = volume + (-1)**i * vol
+
+        VOL = volume + VOL
+
+    return max(0.0, VOL)
 
 
 if __name__ == "__main__":
 
     EVOT = _EVENTUALLY_(0, 1)
+    EV12 = _EVENTUALLY_(1, 2)
     AWOT = _ALWAYS_(0, 1)
     AW03 = _ALWAYS_(0, 3)
     lb  = _LeftBracket_()
@@ -519,7 +778,7 @@ if __name__ == "__main__":
     print("Expanded formula:")
     Ex_F.print()
 
-    # Test getRobustnessInterval function
+    # Example 1: Test getRobustnessInterval function
     X0 = Star(np.array([0.0, 0.0]), np.array([0.4, 0.2]))
     X1 = Star(np.array([0.5, -0.1]), np.array([1.0, 0.1]))
     X2 = Star(np.array([1.0, 0.0]), np.array([1.6, 0.3]))
@@ -529,7 +788,7 @@ if __name__ == "__main__":
     for t, R_t in enumerate(R):
         print("R[{}]: {}".format(t, R_t))
 
-    # Test Always operator Robustness Interval
+    # Example 2:  Test Always operator Robustness Interval
     # Always_[0,3] (x <= 2.0)
     P_safe = AtomicPredicate(np.array([1.0, 0.0]), np.array([2.0]))
     always_spec = Formula([AW03, lb, P_safe, rb])
@@ -545,7 +804,7 @@ if __name__ == "__main__":
     # which means the reachable set sequence satisfies the specification, and the robustness interval is [0.2, 0.5].
 
 
-    # Test nested operator Robustness Interval
+    # Example 3: Test nested operator Robustness Interval
     # EVENTUALLY_[0,1] (x <= -0.5 AND ALWAYS_[0,1] (y <= 1.0))
     P_x = AtomicPredicate(np.array([1.0, 0.0]), np.array([-0.5]))
     P_y = AtomicPredicate(np.array([0.0, 1.0]), np.array([1.0]))
@@ -561,3 +820,97 @@ if __name__ == "__main__":
     # Result is Nested: ==> rho_lb = -0.8999999999999999, rho_ub = -0.49999999999999994
     # which means the reachable set sequence violates the specification, and the robustness interval is [-0.9, -0.5].
 
+    # Example 4: Test exact satisfaction fraction in a mixed case on R
+    # EVENTUALLY_[1,2] (x <= 0.75) checks R[1] and R[2].
+    # R[1] has x in [0.5, 1.0], so part of the predicate space satisfies it.
+    # R[2] does not add any satisfying region for this threshold.
+    P_mixed = AtomicPredicate(np.array([1.0, 0.0]), np.array([0.75]))
+    mixed_spec = Formula([EV12, lb, P_mixed, rb])
+    mixed_spec.print()
+    Ex_mixed = ExpandedFormula(mixed_spec, T=len(R))
+    print("Expanded mixed formula:")
+    Ex_mixed.print()
+
+    R_mixed_dnf_result = getSatisfactionFraction(
+        R,
+        Ex_mixed,
+        method='exact-DNF',
+        lp_solver='linprog'
+    )
+    print("R mixed DNF satisfaction fraction: {}".format(R_mixed_dnf_result))
+    # Result is : {'method': 'exact-DNF', 'rho_lb': -0.25, 'rho_ub': 0.25, 'satisfying_fraction': 0.5}
+
+
+
+    # Example 5: Test exact satisfaction fraction for a nested mixed specification
+    # EVENTUALLY_[0,1] (y <= 0.05 AND EVENTUALLY_[1,2] (x <= 0.75))
+    P_mixed_y = AtomicPredicate(np.array([0.0, 1.0]), np.array([0.05]))
+    P_mixed_x = AtomicPredicate(np.array([1.0, 0.0]), np.array([0.75]))
+    nested_mixed_spec = Formula([
+        EVOT, lb, P_mixed_y, AND, lb, EV12, lb, P_mixed_x, rb, rb, rb
+    ])
+    nested_mixed_spec.print()
+    Ex_nested_mixed = ExpandedFormula(nested_mixed_spec, T=len(R))
+    print("Expanded nested mixed formula:")
+    Ex_nested_mixed.print()
+
+    nested_mixed_dnf_result = getSatisfactionFraction(
+        R,
+        Ex_nested_mixed,
+        method='exact-DNF',
+        lp_solver='linprog'
+    )
+    print("Nested mixed DNF satisfaction fraction: {}".format(nested_mixed_dnf_result))
+    # Result is:{'method': 'exact-DNF', 'rho_lb': -0.25, 'rho_ub': 0.05, 'satisfying_fraction': 0.125}
+    '''
+    ======================== Exaplanation of Example 5 ============================
+    Example 5 uses the nested specification:
+    EVENTUALLY_[0,1] (y <= 0.05 AND EVENTUALLY_[1,2] (x <= 0.75))
+    After expansion, the exapaned formula this becomes:
+    (y[t=0] <= 0.05 AND (x[t=1] <= 0.75 OR x[t=2] <= 0.75))
+    OR
+    (y[t=1] <= 0.05 AND (x[t=2] <= 0.75 OR x[t=3] <= 0.75))
+    
+    The reachable set sequence is R = [X0, X1, X2, X3], which is defined above begin from line 786
+    For X0, we have:
+        x[t=0] in [0.0, 0.4]
+        y[t=0] in [0.0, 0.2]
+    For X1, we have:
+        x[t=1] in [0.5, 1.0]
+        y[t=1] in [-0.1, 0.1]
+    For X2, we have:
+        x[t=2] in [1.0, 1.6]
+        y[t=2] in [0.0, 0.3]
+    For X3, we have:
+        x[t=3] in [1.5, 1.8]
+        y[t=3] in [-0.2, 0.2]
+    
+    Based on exapaned formula, we can see that x[t=2] <= 0.75 and x[t=3] <= 0.75 are infeasible, because the smallest x value at time 2 is 1.0 and the smallest x value at time 3 is 1.5. Both are larger than 0.75.
+    Therefore, the second part of the expanded formula does not contribute a satisfying region, and the useful part is:
+    y[t=0] <= 0.05 AND x[t=1] <= 0.75
+    
+    Now we compute this in the base predicate space. The base predicate variables are alpha1 and alpha2, with:
+    alpha1 in [-1, 1]
+    alpha2 in [-1, 1]
+    So the total base predicate-space area is: 2 * 2 = 4
+    At time 0, y is represented as: y[t=0] = 0.1 + 0.1 alpha2
+    The predicate y[t=0] <= 0.05 gives:0.1 + 0.1 alpha2 <= 0.05
+    So alpha2 <= -0.5
+    Inside alpha2 in [-1, 1], this keeps the interval: alpha2 in [-1, -0.5]
+    The length of this interval is 0.5, which is 1/4 of the full alpha2 range.
+    
+    At time 1, x is represented as:  x[t=1] = 0.75 + 0.25 alpha1
+    The predicate x[t=1] <= 0.75 gives: 0.75 + 0.25 alpha1 <= 0.75
+    So alpha1 <= 0
+    Inside alpha1 in [-1, 1], this keeps the interval: alpha1 in [-1, 0]
+    The length of this interval is 1, which is 1/2 of the full alpha1 range.
+    
+    Therefore, the satisfying region in predicate space has area: 1 * 0.5 = 0.5
+    The total base predicate-space area is: 4
+    So the satisfaction fraction is: 0.5 / 4 = 0.125
+    Equivalently: 1/2 * 1/4 = 1/8 = 0.125
+    Therefore, the result of Example 5 is:
+    rho_lb = -0.25
+    rho_ub = 0.05
+    satisfying_fraction = 0.125
+'''
