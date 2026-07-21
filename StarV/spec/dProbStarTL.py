@@ -215,6 +215,17 @@ class _OR_(object):
     def print(self):
 
         return self.operator
+    
+class _NEXT_(object):
+
+    def __init__(self):
+
+        self.type = 'TemporalOperator'
+        self.operator = 'NEXT '
+
+    def print(self):
+
+        return self.operator
 
 class _NOT_(object):
 
@@ -1321,7 +1332,9 @@ class DynamicFormula(object):
         if cdnf.length != 0:
             for i in range(0, cdnf.length):
                 print(f"compute prob for each CDNF term, i = {i}")
-                SAT.append(cdnf.estimateProbability((i,)))
+                prob = cdnf.estimateProbability((i,))
+                print(f"prob = {prob:.12f}")
+                SAT.append(prob)
             if cdnf.length > 11:
                 print('*****WARNING*****: CDNF (len = {}) is too large for exact verification'.format(cdnf.length))
                 print('We ignore this CDNF, return the estimate probability uperbound')
@@ -1341,7 +1354,9 @@ class DynamicFormula(object):
                     # print(f"number of combinations for i = {i} is {len_comb}")
                     for j in list(comb):
                         # print(f'=== start in combination loop ===')
-                        prob = (-1)**i * cdnf.estimateProbability(j)
+                        prob = cdnf.estimateProbability(j)
+                        prob = (-1)**i * prob
+                        print(f"combination = {j}, prob = {prob:.12f}")
                         SAT1 = SAT1 + prob
                         print(f" prob = {prob}, SAT1 = {SAT1}")
                     p_SAT_MAX = p_SAT_MAX + SAT1

@@ -6,7 +6,7 @@ Date: 9/28/2025
 
 from curses.ascii import RS
 import numpy as np
-from StarV.RNN_ProbStar_rechability import  verify_tl_over_branches
+from StarV.RNN_TL_verification import  verify_tl_over_branches
 from StarV.set.star import Star
 from StarV.set.probstar import ProbStar
 from StarV.layer.RecurrentLayer import RecurrentLayer

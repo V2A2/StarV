@@ -281,6 +281,8 @@ class RecurrentLayer(object):
             new_branches = []
             hidden_sets_step = []
             hidden_output_step = []
+            p_ignored_step = 0.0
+            best_pruned_candidate = None  # (p_y, h_next, new_trace)
 
             WIn = I.affineMap(self.Whx, self.bhx)
 
@@ -312,23 +314,37 @@ class RecurrentLayer(object):
                                 new_branches.append((h_next, new_trace))
                             if  p_filter > 0.0:
                                 p_y = y.estimateProbability()
-                                print(f"Step {t}: Branch {i} with output set probability {p_y:.12f} evaluated against threshold {p_filter}")
+                                # print(f"Step {t}: Branch {i} with output set probability {p_y:.12f} evaluated against threshold {p_filter}")
+                                new_trace = trace.copy()
+                                new_trace.append(y)
                                 if  p_y <= p_filter:
-                                    p_ignored += p_y
-                                    print(f"Step {t}: Branch {i} with output set probability {p_y:.12f} ignored (threshold {p_filter})")
+                                    p_ignored_step += p_y
+                                    if best_pruned_candidate is None or p_y > best_pruned_candidate[0]:
+                                        best_pruned_candidate = (p_y, h_next, new_trace)
+                                    # print(f"Step {t}: Branch {i} with output set probability {p_y:.12f} ignored (threshold {p_filter})")
                                     continue
                                 else:
-                                    print(f"Step {t}: Branch {i} with output set probability {p_y:.12f} kept (threshold {p_filter})")
-                                    new_trace = trace.copy()
-                                    new_trace.append(y)
+                                    # print(f"Step {t}: Branch {i} with output set probability {p_y:.12f} kept (threshold {p_filter})")
                                     new_branches.append((h_next, new_trace))
 
             hidden_states_all_steps.append(hidden_sets_step)
             hidden_output_all_steps.append(hidden_output_step)
 
+            # if all candidates are pruned at this step, keep the best pruned one.
+            if p_filter > 0.0 and t >= post_start_t and len(new_branches) == 0 and best_pruned_candidate is not None:
+                p_best, h_best, trace_best = best_pruned_candidate
+                new_branches.append((h_best, trace_best))
+                p_ignored_step -= p_best
+                if show:
+                    print(
+                        f"Step {t}: all branches pruned by p_filter={p_filter}; "
+                        f"kept best pruned branch with p={p_best:.12g}."
+                    )
+
+            p_ignored += p_ignored_step
             branches = new_branches
             if show:
-                print(f"number of output sets in step {t} for hidden states(after relu):{len(hidden_sets_step)}")
+                # print(f"number of output sets in step {t} for hidden states(after relu):{len(hidden_sets_step)}")
                 print(f"number of branches after step {t}: {len(branches)}")
 
         branch_signals = []

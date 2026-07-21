@@ -27,23 +27,23 @@ def load_trained_CMAPSS_data():
         test_processed = pd.read_csv(data_path + '/test_FD001_processed_4f.csv',sep=',',header=0,index_col=False)
         y_test = pd.read_csv(rul_path + '/RUL_FD001.txt',sep='\s+',header=None,index_col=False,names=['RUL'])
 
-        print("all_train_data_shape:",train_processed.shape)
-        print("all_test_data_shape:",test_processed.shape)
-        print("all_test_URL_shape:",y_test.shape)
+        # print("all_train_data_shape:",train_processed.shape)
+        # print("all_test_data_shape:",test_processed.shape)
+        # print("all_test_URL_shape:",y_test.shape)
         # print("test_data_info:",test_processed.describe())
 
         # group by engine unit
         grouped_engine_data = train_processed.groupby("unit_number")
-        print("grouped_engine_data.size:",grouped_engine_data.size())
-        print("type of all grouped_engine_data :",type(grouped_engine_data))
-        print("grouped_engine_data first cycle in each groups:",grouped_engine_data.first())   
+        # print("grouped_engine_data.size:",grouped_engine_data.size())
+        # print("type of all grouped_engine_data :",type(grouped_engine_data))
+        # print("grouped_engine_data first cycle in each groups:",grouped_engine_data.first())   
 
         return train_processed,test_processed,y_test
 
 def load_trained_params_CMAPSS():
         ''' Load Weights and Biases ''' 
         directory = os.path.dirname(os.path.abspath(__file__)) 
-        params_path = directory + "/data/CMAPSS/saved_models/RNN_model_parameters_4_8_win20_h32_f64.npz"
+        params_path = directory + "/data/CMAPSS/saved_models/RNN_CMAPSS_model_parameters.npz"
         params = np.load(params_path)
         W_hx = params["rnn.weight_ih_l0"]
         W_hh = params["rnn.weight_hh_l0"]
@@ -99,7 +99,7 @@ def load_LIMO_data():
 def load_trained_params_LIMO():
         ''' Load Weights and Biases ''' 
         directory = os.path.dirname(os.path.abspath(__file__)) 
-        params_path = directory + "/data/LIMO_trajectories/saved_models/RNN_model_parameters_LIMO_with_weights.npz"
+        params_path = directory + "/data/LIMO_trajectories/saved_models/RNN_LIMO_model_parameters.npz"
         params = np.load(params_path)
         W_hx = params["rnn.weight_ih_l0"]
         W_hh = params["rnn.weight_hh_l0"]
@@ -175,7 +175,8 @@ def get_Star_set(col_point, eps,Ti):
    
     return X
 
-def get_input_ProbStar_CMAPSS(input_data,noises,feature_idx,):
+def get_input_ProbStar_CMAPSS(input_data,noises,feature_idx):
+
 
     temperature_noise= noises[0]
     pressure_noise = noises[1]
@@ -198,29 +199,41 @@ def get_input_ProbStar_CMAPSS(input_data,noises,feature_idx,):
             if dim in temperature_sensor_indices:
                 # print("temp_dim:",dim)
                 # print("tempreture noise:",temperature_noise)
-                # if temperature_noise <0:
-                #     temperature_noise = -temperature_noise
-                sig = temperature_noise * np.abs(single_data_point[dim])
-                sig = np.maximum(sig, 1e-6)
-                delta = 3 * sig
-                lb = single_data_point[dim] - delta
-                ub = single_data_point[dim] + delta
+                if temperature_noise <0:
+                    temperature_noise = -temperature_noise
+                # sig = temperature_noise * np.abs(single_data_point[dim])
+                # sig = np.maximum(sig, 1e-6)
+                if temperature_noise >0:
+                    delta = temperature_noise
+                    lb = single_data_point[dim] - delta
+                    ub = single_data_point[dim] + delta
+                else:
+                    lb=ub=single_data_point[dim]
+                    
             elif dim in pressure_sensor_indices:
                 # print("pressure_dim:",dim)
                 # print("pressure noise:",pressure_noise)
-                # if pressure_noise <0:
-                #     pressure_noise = -pressure_noise
-                sig = pressure_noise * np.abs(single_data_point[dim])
-                sig = np.maximum(sig, 1e-6)
-                delta = 3 * sig
-                lb = single_data_point[dim] - delta
-                ub = single_data_point[dim] + delta 
+                if pressure_noise <0:
+                    pressure_noise = -pressure_noise
+                # sig = pressure_noise * np.abs(single_data_point[dim])
+                # sig = np.maximum(sig, 1e-6)
+                if pressure_noise >0:
+                    delta = pressure_noise
+                    lb = single_data_point[dim] - delta
+                    ub = single_data_point[dim] + delta
+                else:
+                    lb=ub=single_data_point[dim]
             elif dim in speed_sensor_indices:
-                sig = speed_noise * np.abs(single_data_point[dim])
-                sig = np.maximum(sig, 1e-6)
-                delta = 3 * sig
-                lb = single_data_point[dim] - delta
-                ub = single_data_point[dim] + delta
+                # sig = speed_noise * np.abs(single_data_point[dim])
+                # sig = np.maximum(sig, 1e-6)
+                if speed_noise <0:
+                    speed_noise = -speed_noise
+                if speed_noise >0:
+                    delta = speed_noise
+                    lb = single_data_point[dim] - delta
+                    ub = single_data_point[dim] + delta
+                else:
+                    lb = ub = single_data_point[dim]
             elif dim in range(dims):
                 lb = single_data_point[dim] 
                 ub = single_data_point[dim] 
@@ -250,7 +263,7 @@ def get_input_ProbStar_CMAPSS(input_data,noises,feature_idx,):
         pred_ub = X0.pred_ub
 
         X0_probstar = ProbStar(X0.V, X0.C, X0.d, mu, Sig, pred_lb, pred_ub)
-        print(f"probability of the initial ProbStar set {i}:{X0_probstar.estimateProbability()}")
+        # print(f"probability of the initial ProbStar set {i}:{X0_probstar.estimateProbability()}")
         X.append(X0_probstar)
 
     return X
@@ -265,11 +278,11 @@ def get_input_ProbStar_LIMO(input_data,noise):
         # print("single_data_point:",single_data_point)
         dims = single_data_point.shape[0]
         for dim in range(dims):
-            if dim < dims -2:
+            if dim >=5:
+                lb = ub = single_data_point[dim]
+            elif dim <5:
                 lb = single_data_point[dim] - noise
                 ub = single_data_point[dim] + noise
-            elif dim >=5:
-                lb = ub =single_data_point[dim]
             else:  
                 raise ValueError("Dimension index out of range")
             single_data_points_bounds.append((lb, ub))
@@ -296,7 +309,8 @@ def get_input_ProbStar_LIMO(input_data,noise):
         pred_ub = X0.pred_ub
 
         X0_probstar = ProbStar(X0.V, X0.C, X0.d, mu, Sig, pred_lb, pred_ub)
-        print(f"probability of the initial ProbStar set {i}:{X0_probstar.estimateProbability()}")
+        prob = X0_probstar.estimateProbability()
+        print(f"probability of the initial ProbStar set {i}:{prob}")
         X.append(X0_probstar)
 
 
