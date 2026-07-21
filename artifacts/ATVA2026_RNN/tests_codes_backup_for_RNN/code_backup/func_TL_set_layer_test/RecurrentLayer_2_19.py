@@ -1,0 +1,338 @@
+"""
+Recurrent Layer Class
+Qing Liu, 07/15/2025
+"""
+from scipy.io import loadmat
+import os
+import mat73
+import numpy as np
+from StarV.set.star import Star
+from StarV.set.probstar import ProbStar
+from StarV.layer.ReLULayer import ReLULayer
+from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
+from StarV.net.network import NeuralNetwork
+from StarV.util.load_rnn import load_simple_rnn, get_Star_set,get_ProbStar_set
+
+
+class RecurrentLayer(object):
+    """ RecurrentLayer class
+        properties: 
+            Whx: weights_mat for input states to hidden ststes
+            Whh: weights mat for hidden states to hiedden states
+            bh: bias vector for hidden states
+            fh: activation function for hidden nodes
+            Woh:  weights mat for hidden states to output states
+            bo:  bias vector for output states
+            fo: activation function for output nodes
+    """
+    def __init__(self,Whx, Whh, bhx, Woh, bo,bhh=None):
+        assert isinstance(Whh, np.ndarray), " Weights mat for hidden states to hiedden states should be a 2d numpy array"
+        assert isinstance(bhx, np.ndarray), "Input to hidden layer bias vector should be a 1d numpy array"
+        assert isinstance(Whx, np.ndarray), "Weights_mat for input states should be a 2d numpy array"
+        if bhh is not None:
+            assert isinstance(bhh, np.ndarray), "Bias between hidden states should be a 1d numpy array"
+        assert isinstance(Woh, np.ndarray), "Weight mat for hidden states to output states should be a 2d numpy array"
+        assert isinstance(bo, np.ndarray), "Output later bias vector should be a 1d numpy array"
+
+        self.Whx = Whx
+        self.Whh = Whh
+        self.bhx = bhx
+        if bhh is not None:
+            self.bhh = bhh
+        self.Woh = Woh
+        self.bo = bo
+        self.in_dim = Whx.shape[1] 
+        self.out_dim = Woh.shape[0] 
+
+    @classmethod
+    def rand(cls,in_dim, out_dim):
+        Whx = np.round(np.random.rand(out_dim, in_dim),2)
+        Whh = np.random.rand(out_dim, out_dim)
+        bh =np.round(np.random.rand(out_dim),2)
+        Woh = np.random.rand(out_dim, out_dim)
+        bo = np.random.rand(out_dim)
+        bhh = np.random.rand(out_dim)
+        return RecurrentLayer( Whx,Whh, bh, Woh, bo,bhh)
+    
+    def __str__(self):
+        print('Layer type: {}'.format(self.__class__.__name__))
+        print('Input state to Hiiden state weight matrix: {}'.format(self.Whx))
+        print('Hidden state bias vector: {}'.format(self.bhx))
+        print('Hidden state to Output state weight matrix: {}'.format(self.Woh))
+        print('Output state bias vector: {}'.format(self.bo))
+        print('')
+        return '\n'
+
+    def info(self):
+        print(self)
+
+
+
+    def reachExact(self, In, method="exact", lp_solver="gurobi", pool=None, RF=0.0, DR=0):
+        """
+        Perform exact reachability analysis of an RNN with ReLU activation.
+
+        Args:
+            In (list): List of input sets (one per timestep).
+            method (str): Reachability method, default "exact".
+            lp_solver (str): Linear programming solver, default 'gurobi'.
+            pool: Optional multiprocessing pool.
+            RF (float): Reserved for future use.
+            DR (int): Reserved for future use.
+
+        Returns:
+            list: List of reachable output sets at each timestep.
+        """
+         
+        assert isinstance(In,list), 'error: input must be a list'
+
+        print(f"\n~~~~~~~~ Using {method} method for reachability ~~~~~~~~")
+
+        H = []  # Hidden state reachable sets per timestep
+        O = []  # Output reachable sets per timestep
+
+        for t, I in enumerate(In):
+            print(f"\n----- Processing timestep {t} -----")
+            print(f"=========== number of input sets in step {t}:{len(I)}==========")
+
+            if t == 0:
+                # First timestep: h0 = ReLU(Whx * x + bhx)
+        
+                WIn = I.affineMap(self.Whx, self.bhx)
+                h_out  = ReLULayer.reach([WIn], method=method)
+                hidden_states = h_out
+
+            else:
+                # Subsequent timesteps: h_t = ReLU(Whx * x_t + bhx + Whh * h_{t-1})
+                hidden_states = []
+                prev_hidden = H[t - 1]
+                # print("===== first affine for initial input set ========")
+                WIn = I.affineMap(self.Whx, self.bhx)
+                # print(f" for minsum === \n WIn{t}: V_shape:{WIn.V.shape}, C:{WIn.C},C_shape:{WIn.C.shape}d:{WIn.d}")
+
+                for k, h_prev in enumerate(prev_hidden):
+                    # print("==== second affine for h_recurrent====")
+                    if self.bhh is not None:
+                        h_recurrent = h_prev.affineMap(self.Whh,self.bhh)
+                    else:
+                        h_recurrent = h_prev.affineMap(self.Whh)
+                    # print("\n====== end affine======")
+
+                    # if len(h_recurrent.C) == 0 :
+                        # print(f"\n h_recurrent  V_type:{(type(h_recurrent.V))}, V_shape:{h_recurrent.V.shape},\n C_type:{type(h_recurrent.C)},C: {h_recurrent.C}d:{h_recurrent.d},h_pred_lb:{h_recurrent.pred_lb}")
+                    # else:
+                        # print(f"\n h_recurrent  V_type:{(type(h_recurrent.V))}, V_shape:{h_recurrent.V.shape},\n C_type:{type(h_recurrent.C.shape)},C: {h_recurrent.C}d:{h_recurrent.d},h_pred_lb:{h_recurrent.pred_lb}")
+
+                    summed = h_recurrent.minKowskiSum(WIn)
+                    # print(f"summed V_type:{(type(summed.V))}, V_shape:{summed.V.shape},\n C_type:{type(summed.C)},C: {summed.C}d:{summed.d},h_pred_lb:{summed.pred_lb}")
+                    # Apply ReLU
+                    h_out = ReLULayer.reach([summed], method=method)
+                    # print(f"Number of h_out sets after relu in step {t}:{len(h_out)}")
+                    hidden_states.extend(h_out)
+                # print(f"Number of hidden_states sets after minsum in step {t}:{len(hidden_states)}")
+
+            # Save hidden states
+            H.append(hidden_states)
+
+            oi = []
+            print(f"number of output sets in step {t} for hidden states:{len(hidden_states)}")
+            for h in hidden_states:
+                 outputs_t = h.affineMap(self.Woh, self.bo) 
+                 oi.append(outputs_t)
+            O.append(oi)
+
+        print("\n===== Reachability analysis using exactReach complete =====")
+        print(f"Total timesteps: {len(O)}")
+
+
+        return O
+
+
+
+    def reachApprox(self, In, method="approx", lp_solver="gurobi", pool=None, RF=0.0, DR=0):
+        """
+        Perform approximate reachability analysis of an RNN with ReLU activation.
+
+        Args:
+            In (list): List of input sets (one per timestep).
+            method (str): Reachability method, default "approx".
+            lp_solver (str): Linear programming solver, default 'gurobi'.
+            pool: Optional multiprocessing pool.
+            RF (float): Reserved for future use.
+            DR (int): Reserved for future use.
+
+        Returns:
+            list: List of reachable output sets at each timestep.
+        """
+        print(f"\n~~~~~~~~ Using {method} method for reachability ~~~~~~~~")
+
+        assert isinstance(In,list), 'error: input must be a list'
+        # assert isinstance(In[0],Star), 'error: input set is not a Star set'
+
+        H = []  # Hidden state reachable sets
+        O = []  # Output reachable sets
+
+        for t, I in enumerate(In):
+            print(f"\n----- Processing timestep {t} -----")
+
+            if t == 0:
+                WIn= I.affineMap(self.Whx, self.bhx)
+                hidden_states = ReLULayer.reach(WIn, method=method, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=False)
+
+            else:
+                h_prev = H[t - 1]
+                # Remaining timesteps: h_t = ReLU(Whx * x_t + bhx + Whh * h_{t-1})
+                WIn = I.affineMap(self.Whx, self.bhx)
+                if self.bhh is not None:
+                    h_recurrent = h_prev.affineMap(self.Whh,self.bhh)
+                else:
+                    h_recurrent = h_prev.affineMap(self.Whh)
+                h_sum = h_recurrent.minKowskiSum(WIn)
+                hidden_states = ReLULayer.reach(
+                    h_sum, method=method, lp_solver=lp_solver, pool=pool,
+                    RF=RF, DR=DR, show=False
+                )
+
+            # Save hidden state
+            print(f"number of output sets in step {t} for hidden states:{len(hidden_states)}")
+            H.append(hidden_states)
+
+            # Compute output: y_t = Woh * h_t + bo
+            o_t = hidden_states.affineMap(self.Woh, self.bo)
+            O.append(o_t)
+
+        print("\n===== Approximate reachability analysis with reachApprox complete =====")
+        print(f"Total timesteps: {len(O)}")
+        print(f"type of each out set:{type(O[0])}")
+        return O
+
+
+    def reachExactBranches(self, In, post_layers=None, lp_solver="gurobi", pool=None,
+                           p_filter=None, show=False):
+        """Exact reachability with branch tracking (for ProbStarTL).
+
+        This returns *branch signals* instead of per-time unions:
+            branch_k = [Y0, Y1, ..., Y(T-1)]
+
+        Notes for RNNs with predicate growth:
+        - Each timestep may introduce new predicate variables via minKowskiSum.
+        - Branch consistency is preserved by propagating constraints through time.
+        - For TL evaluation, use the last set of each branch as the base probstar.
+        """
+
+        assert isinstance(In, list), 'error: input must be a list'
+        assert len(In) > 0, 'error: input is empty'
+        assert all(isinstance(s, ProbStar) for s in In), 'error: input must be a list of ProbStars'
+
+        if post_layers is None:
+            post_layers = []
+        assert isinstance(post_layers, list), 'error: post_layers must be a list'
+
+        def propagate_hidden_through_post_layers(h, h_out):
+            """Apply post layers to one RNN output and return (h_next, y) pairs."""
+
+            current = [h_out]
+            for layer in post_layers:
+                if isinstance(layer, FullyConnectedLayer):
+                    nxt = []
+                    for S in current:
+                        nxt.append(S.affineMap(layer.W, layer.b))
+                    current = nxt
+                elif isinstance(layer, ReLULayer):
+                    current = ReLULayer.reach(
+                        current,
+                        method="exact",
+                        lp_solver=lp_solver,
+                        pool=pool,
+                        RF=0.0,
+                        DR=0,
+                        show=False,
+                    )
+                else:
+                    raise Exception(f"error: unsupported post layer type: {type(layer)}")
+
+            h_pairs = []
+            for net_out in current:
+                if len(net_out.C) == 0:
+                    h_next_set = h
+                else:
+                    h_next_set = ProbStar(h.V, net_out.C, net_out.d, h.mu, h.Sig, h.pred_lb, h.pred_ub)
+                h_pairs.append((h_next_set, net_out))
+            return h_pairs
+
+        branches = []  # list of (hidden_state, signal)
+        hidden_states_all_steps = []
+        hidden_output_all_steps = []
+
+        for t, I in enumerate(In):
+            if show:
+                print(f"[reachExactBranches] timestep {t}: {len(branches) if t > 0 else 0} active branches")
+            new_branches = []
+            hidden_sets_step = []
+            hidden_output_step = []
+            if t == 0:
+                WIn = I.affineMap(self.Whx, self.bhx)
+                hidden_sets = ReLULayer.reach([WIn], method="exact", lp_solver=lp_solver, pool=pool, show=False)
+                hidden_sets_step.extend(hidden_sets)
+                if show:
+                    print(f"number of output sets in step {t} for hidden states:{len(hidden_sets)}")
+                for h in hidden_sets:
+                    h_out = h.affineMap(self.Woh, self.bo)
+                    hidden_output_step.append(h_out)
+                    h_pairs = propagate_hidden_through_post_layers(h, h_out)
+                    for h_next, y in h_pairs:
+                        if p_filter is not None and h_next.estimateProbability() < p_filter:
+                            continue
+                        new_branches.append((h_next, [y]))
+                branches = new_branches
+            else:
+                WIn = I.affineMap(self.Whx, self.bhx)
+                for h_prev_post, trace in branches:
+                    if self.bhh is not None:
+                        h_recurrent = h_prev_post.affineMap(self.Whh, self.bhh)
+                    else:
+                        h_recurrent = h_prev_post.affineMap(self.Whh)
+                    summed = h_recurrent.minKowskiSum(WIn)
+                    hidden_sets = ReLULayer.reach([summed], method="exact", lp_solver=lp_solver, pool=pool, show=False)
+                    hidden_sets_step.extend(hidden_sets)
+                    for h in hidden_sets:
+                        h_out = h.affineMap(self.Woh, self.bo)
+                        hidden_output_step.append(h_out)
+                        h_pairs = propagate_hidden_through_post_layers(h, h_out)
+                        for h_next, y in h_pairs:
+                            if p_filter is not None and h_next.estimateProbability() < p_filter:
+                                continue
+                            new_trace = trace.copy()
+                            new_trace.append(y)
+                            new_branches.append((h_next, new_trace))
+                branches = new_branches
+                if show:
+                    print(f"number of output sets in step {t} for hidden states:{len(hidden_sets_step)}")
+
+            hidden_states_all_steps.append(hidden_sets_step)
+            hidden_output_all_steps.append(hidden_output_step)
+
+        self.hidden_states_all_steps = hidden_states_all_steps
+        self.hidden_output_all_steps = hidden_output_all_steps
+        if show:
+            print(f"Total branches after {len(In)} steps: {len(branches)}")
+        branch_signals = []
+        for _, sig in branches:
+            if show:
+                print(f"each branch signal length (number of sets): {len(sig)}")
+            branch_signals.append(sig)
+
+        return branch_signals
+
+
+
+    def reach(self,In, method = "exact", lp_solver='gurobi', pool=None, RF=0.0, DR=0):
+        if method is None:
+            method = "exact"
+        if method == "exact":
+            S = self.reachExact(In, method, lp_solver, pool, RF, DR)
+            return S
+        elif method == "approx":
+            return self.reachApprox(In, method, lp_solver, pool, RF, DR)
+        else:
+            raise Exception(f"error: unknown reachability method: {method}")
