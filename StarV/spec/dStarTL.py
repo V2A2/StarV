@@ -405,488 +405,456 @@ class ExpandedFormula(object):
                     return bracket_id
         raise RuntimeError('unbalanced brackets')
 
+class GetRobustnessInterval(object):
+    """Compute robustness intervals for expanded StarTL formulas."""
 
-def getRobustnessInterval(R, expanded_formula, lp_solver='linprog'):
-    '''
-    Compute the robustness interval of a temporal formula given a reachable set sequence.
-    \rho_{\phi}_lb is the lower bound of the robustness interval, which is the minimum robustness value within predicate-space range.
-    \rho_{\phi}_ub is the upper bound of the robustness interval, which is the maximum robustness value within predicate-space range.
+    def __init__(self, R, lp_solver='linprog'):
+        if not isinstance(R, (list, tuple)):
+            raise RuntimeError('R should be a reachable set sequence stored as a list or tuple')
+        self.R = R
+        self.lp_solver = lp_solver
 
-    Args:
-        R: reachable set sequence. R[t] is the Star reachable set at
-           time t. R[t] may also be a list of reachable sets due to ReLU.
-        expanded_formula: ExpandedFormula object, for example
-                 Ex_F = ExpandedFormula(spec).
-        lp_solver: LP solver passed to Star getMin/getMax.
+    def getRobustnessInterval(self, expanded_formula):
+        '''
+        Compute the robustness interval of a temporal formula given a reachable set sequence.
+        \rho_{\phi}_lb is the lower bound of the robustness interval, which is the minimum robustness value within predicate-space range.
+        \rho_{\phi}_ub is the upper bound of the robustness interval, which is the maximum robustness value within predicate-space range.
 
-    Returns:
-        (rho_lb, rho_ub): robustness interval of the expanded formula.
-    '''
-    if not isinstance(R, (list, tuple)):
-        raise RuntimeError('R should be a reachable set sequence stored as a list or tuple')
-    if isinstance(expanded_formula, ExpandedFormula):
-        expr = expanded_formula.expr
-    elif isinstance(expanded_formula, tuple):
-        expr = expanded_formula
-    else:
-        raise RuntimeError('expanded_formula should be an ExpandedFormula object or expression tuple')
+        Args:
+            expanded_formula: ExpandedFormula object or expanded expression tuple.
 
-    return getExpandedRobustnessInterval(R, expr, lp_solver)
+        Returns:
+            (rho_lb, rho_ub): robustness interval of the expanded formula.
+        '''
+        if isinstance(expanded_formula, ExpandedFormula):
+            expr = expanded_formula.expr
+        elif isinstance(expanded_formula, tuple):
+            expr = expanded_formula
+        else:
+            raise RuntimeError('expanded_formula should be an ExpandedFormula object or expression tuple')
 
+        return self.getExpandedRobustnessInterval(expr)
 
-def getExpandedRobustnessInterval(R, expr, lp_solver='linprog'):
-    """Recursively compute the robustness interval of an expanded expression."""
-    if isinstance(expr, ExpandedFormula):
-        expr = expr.expr
-    if not isinstance(expr, tuple) or len(expr) != 2:
-        raise RuntimeError('invalid expanded expression: {}'.format(expr))
+    def getExpandedRobustnessInterval(self, expr):
+        """Recursively compute the robustness interval of an expanded expression."""
+        if isinstance(expr, ExpandedFormula):
+            expr = expr.expr
+        if not isinstance(expr, tuple) or len(expr) != 2:
+            raise RuntimeError('invalid expanded expression: {}'.format(expr))
 
-    op, children_or_predicate = expr
-    if op == 'AP':
-        return getAtomicRobustnessInterval(R, children_or_predicate, lp_solver)
+        op, children_or_predicate = expr
+        if op == 'AP':
+            return self.getAtomicRobustnessInterval(children_or_predicate)
 
-    child_exprs = children_or_predicate
-    if not isinstance(child_exprs, list) or len(child_exprs) == 0:
-        raise RuntimeError('{} operator should contain a nonempty list of subformulas'.format(op))
+        child_exprs = children_or_predicate
+        if not isinstance(child_exprs, list) or len(child_exprs) == 0:
+            raise RuntimeError('{} operator should contain a nonempty list of subformulas'.format(op))
 
-    child_intervals = []
-    for child_expr in child_exprs:
-        child_interval = getExpandedRobustnessInterval(R, child_expr, lp_solver)
-        child_intervals.append(child_interval)
+        child_intervals = []
+        for child_expr in child_exprs:
+            child_interval = self.getExpandedRobustnessInterval(child_expr)
+            child_intervals.append(child_interval)
 
-    if op == 'NOT':
-        if len(child_intervals) != 1:
-            raise RuntimeError('NOT operator should have exactly one subformula')
-        rho_lb, rho_ub = child_intervals[0]
-        return -rho_ub, -rho_lb
+        if op == 'NOT':
+            if len(child_intervals) != 1:
+                raise RuntimeError('NOT operator should have exactly one subformula')
+            rho_lb, rho_ub = child_intervals[0]
+            return -rho_ub, -rho_lb
 
-    if op == 'AND':
-        # rho(phi1 AND ... AND phin) = min rho(phi,...,phin)
-        return (
-            min(rho_lb for rho_lb, _ in child_intervals),
-            min(rho_ub for _, rho_ub in child_intervals)
-        )
-
-    if op == 'OR':
-        # rho(phi1 OR ... OR phin) = max rho(phi,...,phin)
-        return (
-            max(rho_lb for rho_lb, _ in child_intervals),
-            max(rho_ub for _, rho_ub in child_intervals)
-        )
-
-    raise RuntimeError('unsupported expanded formula operator: {}'.format(op))
-
-
-def getAtomicRobustnessInterval(R, predicate, lp_solver='linprog'):
-    """Compute min/max of atomic robustness b - A*x[t] over reachable set R[t]."""
-    if not isinstance(predicate, AtomicPredicate):
-        raise RuntimeError('Missing an AtomicPredicate')
-
-    t = 0 if predicate.t is None else predicate.t
-    if t < 0 or t >= len(R):
-        raise RuntimeError('invalid time t={}'.format(t))
-
-    reachable_sets = R[t]
-    if isinstance(reachable_sets, tuple):
-        reachable_sets = list(reachable_sets)
-    if not isinstance(reachable_sets, list):
-        reachable_sets = [reachable_sets]
-    if len(reachable_sets) == 0:
-        raise RuntimeError('reachable set at time {} is empty'.format(t))
-
-    lower_bounds = []
-    upper_bounds = []
-    robustness_map = -predicate.A.reshape(1, predicate.A.shape[0])
-    robustness_offset = predicate.b
-    for reachable_set in reachable_sets:
-        # Predicate A*x <= b has robustness rho = b - A*x. If R[t] has
-        # several Star sets, take the min/max over their union.
-        robustness_set = reachable_set.affineMap(robustness_map, robustness_offset)
-        lower_bounds.append(robustness_set.getMin(0, lp_solver))
-        upper_bounds.append(robustness_set.getMax(0, lp_solver))
-
-    return min(lower_bounds), max(upper_bounds)
-
-
-def getSatisfactionFraction(
-        R, expanded_formula, num_samples=10000, lp_solver='linprog',
-        error=1e-10, method=None, seed=None, burn_in=None, thinning=1):
-    '''
-    Compute the fraction of the feasible predicate space satisfying a TL formula.
-
-    '''
-    if not isinstance(R,list):
-        raise RuntimeError('R should be a reachable set sequence as a list')
-    if not isinstance(num_samples, int) or num_samples < 1:
-        raise RuntimeError('num_samples should be a positive integer')
-    if method not in (
-            None, 'exact', 'exact-tree', 'tree',
-            'exact-expanded', 'expanded', 'expanded-polytope',
-            'base-polytope', 'exact-DNF', 'dnf', 'sampling'):
-        raise RuntimeError(" Unkown satisfaction fraction compuation method")
-    if not isinstance(expanded_formula, ExpandedFormula):
-        raise RuntimeError('expanded_formula should be an ExpandedFormula object')
-    
-    expr = expanded_formula.expr # exapnded expression tree of the temporal logic formula
-
-    rho_lb, rho_ub = getRobustnessInterval(R, expr, lp_solver)
-    result = {
-        'method': None,
-        'rho_lb': rho_lb,
-        'rho_ub': rho_ub,
-        'satisfying_fraction': None,
-    }
-    print("Robustness reslts: lb ={}, ub ={}".format(rho_lb,rho_ub))
-
-    # Since the atomic predicate is A*x <= b, rho == 0 is satisfying.
-    if rho_lb >= 0.0:
-        result['method'] = 'robustness'
-        result['satisfying_fraction'] = 1.0
-    elif rho_ub < 0.0:
-        result['method'] = 'robustness'
-        result['satisfying_fraction'] = 0.0
-    else:
-        if method is None:
-            method = 'exact'
-        if method is None or method in 'exact-tree':
-            result['method'] = 'exact-tree'
-            result['satisfying_fraction'] = computeSatFractionExact(
-                R,
-                expanded_formula
-            )
-        # elif method in ('exact-DNF', 'dnf', 'base-polytope'):
-        #     # Keep the old DNF-based exact path available for comparison.
-        #     result['method'] = 'exact-DNF'
-        #     result['satisfying_fraction'] = computeSatFractionDNF(
-        #         R,
-        #         expanded_formula
-        #     )
-        elif method == 'sampling':
-            result['method'] = 'sampling'
-            sampling_result = computeSatFractionSampling(
-                R,
-                expanded_formula,
-                num_samples=num_samples,
-                seed=seed,
-                burn_in=burn_in,
-                thinning=thinning,
-                feasibility_tol=error
-            )
-            result.update(sampling_result)
-
-    return result
-
-
-def computeBaseVolume(A, b):
-    """Compute the exact volume of a bounded polytope {x | A*x <= b}.
-    """
-    A = np.asarray(A, dtype=float)
-    b = np.asarray(b, dtype=float).reshape(-1)
-    if A.ndim != 2:
-        raise RuntimeError('A should be a 2D numpy array')
-    if A.shape[0] != b.shape[0]:
-        raise RuntimeError('A and b should have the same number of constraints')
-
-    poly = pc.Polytope(A, b)
-    if pc.is_empty(poly):
-        return 0.0
-
-    return float(pc.volume(poly))
-
-
-def getAtomicPredicateConstraints(R, base_star, atomic_predicate):
-    if not isinstance(atomic_predicate, AtomicPredicate):
-        raise RuntimeError('Missing an AtomicPredicate')
-
-    time_idx = 0 if atomic_predicate.t is None else atomic_predicate.t
-
-    if time_idx < 0 or time_idx >= len(R):
-        raise RuntimeError('invalid time t={}'.format(time_idx))
-
-    current_set = R[time_idx]
-    context = 'reachable set at time {}'.format(time_idx)
-    if isinstance(current_set, tuple):
-        current_set = list(current_set)
-    if isinstance(current_set, list):
-        if len(current_set) != 1:
-            raise RuntimeError(
-                '{} supports one Star set per time step'.format(context)
+        if op == 'AND':
+            # rho(phi1 AND ... AND phin) = min rho(phi,...,phin)
+            return (
+                min(rho_lb for rho_lb, _ in child_intervals),
+                min(rho_ub for _, rho_ub in child_intervals)
             )
 
-    assert isinstance(current_set, Star), '{} should be a Star'.format(context)
-    assert current_set.nVars == base_star.nVars, (
-        'reachable set at time {} does not use the base alpha dimension'
-        .format(time_idx)
-    )
+        if op == 'OR':
+            # rho(phi1 OR ... OR phin) = max rho(phi,...,phin)
+            return (
+                max(rho_lb for rho_lb, _ in child_intervals),
+                max(rho_ub for _, rho_ub in child_intervals)
+            )
 
-    C = np.matmul(
-        atomic_predicate.A.reshape(1, -1),
-        current_set.V[:, 1:]
-    ).reshape(1, -1)
-    d = atomic_predicate.b - np.matmul(
-        atomic_predicate.A.reshape(1, -1),
-        current_set.V[:, 0]
-    )
-    d = d.reshape(-1)
+        raise RuntimeError('unsupported expanded formula operator: {}'.format(op))
 
-    if len(current_set.C) != 0:
-        C = np.vstack((C, current_set.C))
-        d = np.hstack((d, current_set.d))
+    def getAtomicRobustnessInterval(self, predicate):
+        """Compute min/max of atomic robustness b - A*x[t] over reachable set R[t]."""
+        if not isinstance(predicate, AtomicPredicate):
+            raise RuntimeError('Missing an AtomicPredicate')
 
-    return C, d
+        t = 0 if predicate.t is None else predicate.t
+        if t < 0 or t >= len(self.R):
+            raise RuntimeError('invalid time t={}'.format(t))
 
+        reachable_sets = self.R[t]
+        if isinstance(reachable_sets, tuple):
+            reachable_sets = list(reachable_sets)
+        if not isinstance(reachable_sets, list):
+            reachable_sets = [reachable_sets]
+        if len(reachable_sets) == 0:
+            raise RuntimeError('reachable set at time {} is empty'.format(t))
 
-def getBasePredicateConstraints(base_star):
-    base_A = []
-    base_b = []
-    if len(base_star.C) != 0:
-        base_A.append(np.asarray(base_star.C, dtype=float))
-        base_b.append(np.asarray(base_star.d, dtype=float).reshape(-1))
-    base_A.append(np.eye(base_star.nVars))
-    base_b.append(np.asarray(base_star.pred_ub, dtype=float).reshape(-1))
-    base_A.append(-np.eye(base_star.nVars))
-    base_b.append(-np.asarray(base_star.pred_lb, dtype=float).reshape(-1))
-    base_A = np.vstack(base_A)
-    base_b = np.hstack(base_b)
-    return base_A, base_b
+        lower_bounds = []
+        upper_bounds = []
+        robustness_map = -predicate.A.reshape(1, predicate.A.shape[0])
+        robustness_offset = predicate.b
+        for reachable_set in reachable_sets:
+            # Predicate A*x <= b has robustness rho = b - A*x. If R[t] has
+            # several Star sets, take the min/max over their union.
+            robustness_set = reachable_set.affineMap(robustness_map, robustness_offset)
+            lower_bounds.append(robustness_set.getMin(0, self.lp_solver))
+            upper_bounds.append(robustness_set.getMax(0, self.lp_solver))
 
+        return min(lower_bounds), max(upper_bounds)
 
-def computeSatFractionExact(R, expanded_formula):
-    """Compute exact satisfaction fraction from the expanded formula tree.
+class GetSatisfactionFraction(object):
+    def __init__(self, R, expanded_formula, num_samples=10000, lp_solver='linprog', error=1e-10, method=None, seed=None, burn_in=None, thinning=1):
+        if not isinstance(R,list):
+            raise RuntimeError('R should be a reachable set sequence as a list')
+        if not isinstance(num_samples, int) or num_samples < 1:
+            raise RuntimeError('num_samples should be a positive integer')
+        if not isinstance(thinning, int) or thinning < 1:
+            raise RuntimeError('thinning should be a positive integer')
+        if method not in (None, 'exact', 'sampling'):
+            raise RuntimeError(" Unkown satisfaction fraction compuation method")
+        if not isinstance(expanded_formula, ExpandedFormula):
+            raise RuntimeError('expanded_formula should be an ExpandedFormula object')
 
-    The base Star is R[0]. This is for reachable sequences whose time-step Stars share the same
-    original predicate variable alpha
-    """
-    if not isinstance(expanded_formula, ExpandedFormula):
-        raise RuntimeError('expanded_formula should be an ExpandedFormula object')
+        self.R = R
+        self.expanded_formula = expanded_formula
+        self.num_samples = num_samples
+        self.lp_solver = lp_solver
+        self.error = error
+        self.method = method
+        self.seed = seed
+        self.burn_in = burn_in
+        self.thinning = thinning
 
-    base_star = R[0]
-    base_A, base_b = getBasePredicateConstraints(base_star)
-    # base_A = []
-    # base_b = []
-    # if len(base_star.C) != 0:
-    #     base_A.append(np.asarray(base_star.C, dtype=float))
-    #     base_b.append(np.asarray(base_star.d, dtype=float).reshape(-1))
-    # base_A.append(np.eye(base_star.nVars))
-    # base_b.append(np.asarray(base_star.pred_ub, dtype=float).reshape(-1))
-    # base_A.append(-np.eye(base_star.nVars))
-    # base_b.append(-np.asarray(base_star.pred_lb, dtype=float).reshape(-1))
-    # base_A = np.vstack(base_A)
-    # base_b = np.hstack(base_b)
+    def getSatisfactionFraction(self):
+        """Compute the fraction of the feasible predicate space satisfying a TL formula."""
+        expr = self.expanded_formula.expr # exapnded expression tree of the temporal logic formula
 
-    total_volume = computeBaseVolume(base_A, base_b)
-    if total_volume == 0.0:
-        raise RuntimeError('base predicate space has zero volume')
+        robustness_interval = GetRobustnessInterval(self.R, self.lp_solver)
+        rho_lb, rho_ub = robustness_interval.getRobustnessInterval(expr)
+        result = {
+            'method': None,
+            'rho_lb': rho_lb,
+            'rho_ub': rho_ub,
+            'satisfying_fraction': None,
+        }
+        print("Robustness reslts: lb ={}, ub ={}".format(rho_lb,rho_ub))
 
-    satisfying_volume = evaluateFormulaVolumeExact(
-        R,
-        base_star,
-        [expanded_formula.expr],
-        base_A,
-        base_b
-    )
-    fraction = satisfying_volume / total_volume
-    return min(1.0, max(0.0, fraction))
+        # Since the atomic predicate is A*x <= b, rho == 0 is satisfying.
+        if rho_lb >= 0.0:
+            result['method'] = 'robustness'
+            result['satisfying_fraction'] = 1.0
+        elif rho_ub < 0.0:
+            result['method'] = 'robustness'
+            result['satisfying_fraction'] = 0.0
+        else:
+            method = 'exact' if self.method is None else self.method
+            if method == 'exact':
+                result['method'] = 'exact'
+                result['satisfying_fraction'] = self.computeSatFractionExact()
+            # elif method in ('exact-DNF', 'dnf'):
+            #     # Keep the old DNF-based exact path available for comparison.
+            #     result['method'] = 'exact-DNF'
+            #     result['satisfying_fraction'] = computeSatFractionDNF(
+            #         self.R,
+            #         self.expanded_formula
+            #     )
+            elif method == 'sampling':
+                result['method'] = 'sampling'
+                sampling_result = self.computeSatFractionSampling()
+                result.update(sampling_result)
 
+        return result
 
-def evaluateFormulaVolumeExact(R, base_star, exprs, base_A, base_b):
-    """Compute volume of region satisfying a conjunction of expression trees."""
-    if len(exprs) == 0:
-        return computeBaseVolume(base_A, base_b)
+    def computeSatFractionExact(self):
+        """Compute exact satisfaction fraction from the expanded formula tree.
 
-    expr = exprs[0]
-    rest_exprs = exprs[1:]
-    op, subformulas = expr
-
-    if op == 'AP':
-        C, d = getAtomicPredicateConstraints(R, base_star, subformulas)
-        next_A = np.vstack((base_A, C))
-        next_b= np.hstack((base_b, d))
-        return evaluateFormulaVolumeExact(R, base_star, rest_exprs, next_A, next_b)
-
-    if op == 'NOT':
-        if not isinstance(subformulas, list) or len(subformulas) != 1:
-            raise RuntimeError('NOT operator should have exactly one subformula')
-        total_volume = evaluateFormulaVolumeExact(
-            R, base_star, rest_exprs, base_A, base_b
-        )
-        excluded_volume = evaluateFormulaVolumeExact(
-            R, base_star, [subformulas[0]] + rest_exprs, base_A, base_b
-        )
-        return max(0.0, total_volume - excluded_volume)
-
-    if op == 'AND':
-        if not isinstance(subformulas, list) or len(subformulas) == 0:
-            raise RuntimeError('AND operator should contain subformulas')
-        return evaluateFormulaVolumeExact(
-            R, base_star, subformulas + rest_exprs, base_A, base_b
-        )
-
-    if op == 'OR':
-        if not isinstance(subformulas, list) or len(subformulas) == 0:
-            raise RuntimeError('OR operator should contain subformulas')
-        union_volume = 0.0
-        child_ids = range(len(subformulas))
-        for size in range(1, len(subformulas) + 1):
-            sign = 1.0 if size % 2 == 1 else -1.0
-            for selected_ids in combinations(child_ids, size):
-                selected_exprs = [subformulas[i] for i in selected_ids]
-                union_volume += sign * evaluateFormulaVolumeExact(
-                    R,
-                    base_star,
-                    selected_exprs + rest_exprs,
-                    base_A,
-                    base_b
-                )
-        return max(0.0, union_volume)
-
-    raise RuntimeError('Unknown expanded expression operator {}'.format(op))
-
-
-def computeSatFractionSampling(
-        R, expanded_formula, num_samples=10000, seed=None, burn_in=None,
-        thinning=1, feasibility_tol=1e-10):
-    """Estimate satisfaction fraction by hit-and-run samples in base alpha space."""
-    if not isinstance(expanded_formula, ExpandedFormula):
-        raise RuntimeError('expanded_formula should be an ExpandedFormula object')
-    if not isinstance(num_samples, int) or num_samples < 1:
-        raise RuntimeError('num_samples should be a positive integer')
-    if not isinstance(thinning, int) or thinning < 1:
-        raise RuntimeError('thinning should be a positive integer')
-
-    base_star = R[0]
-    base_A, base_b = getBasePredicateConstraints(base_star)
-    samples_base= hitAndRunSampling(base_A,base_b, num_samples=num_samples,seed=seed,burn_in=burn_in,thinning=thinning,feasibility_tol=feasibility_tol) #generates random samples of the Star predicate variables alpha from the base polytope
-    satisfied = evaluateFormulaVolumeSampling(
-        R,
-        base_star,
-        expanded_formula.expr,
-        samples_base,
-        feasibility_tol=feasibility_tol
-    )
-    n_satisfied = int(np.count_nonzero(satisfied))
-    fraction = float(n_satisfied) / float(num_samples)
-    return {
-        'satisfying_fraction': fraction,
-        'num_samples': num_samples,
-        'n_satisfied': n_satisfied
-    }
-
-
-def findFeasiblePoint(A, b, feasibility_tol=1e-10):
-    """Find a feasible point inside the polytope."""
-    A = np.asarray(A, dtype=float)
-    b = np.asarray(b, dtype=float).reshape(-1)
-    m, n = A.shape
-    row_norm = np.linalg.norm(A, axis=1)
-    objective = np.hstack((np.zeros(n), -1.0))
-    A_ub = np.hstack((A, row_norm.reshape(m, 1)))
-    bounds = [(None, None)] * n + [(0.0, None)]
-    res = linprog(objective, A_ub=A_ub, b_ub=b, bounds=bounds, method='highs')
-    if res.success and np.all(A @ res.x[:n] <= b + feasibility_tol):
-        return res.x[:n]
-
-    res = linprog(
-        np.zeros(n),
-        A_ub=A,
-        b_ub=b,
-        bounds=[(None, None)] * n,
-        method='highs'
-    )
-    if res.success and np.all(A @ res.x <= b + feasibility_tol):
-        return res.x
-    raise RuntimeError('could not find a feasible point in base predicate space')
-
-
-def hitAndRunSampling(A, b, num_samples=10000, seed=None, burn_in=None, thinning=1,
-        feasibility_tol=1e-10):
-    """ Uniform hit-and-run sampler for bounded polytopes A*alpha <= b.
-        step 1. Find one feasible starting point alpha_0 inside the polytope.
-        step 2. Pick a random direction (u) through the current point.
-        step 3. Find the interval of lambda values that keeps the point inside the polytope: A alpha_k + lambda A u <= b
-        step 4. Sample random point uniformly on that interval and move to the next point.
-        step 5. Repeat steps 2-4.
-        step 6. Discard the first burn_in steps.
-        step 7. Keep every thinning-th sample.
+        The shared base Star is R[-1]. This is for reachable sequences whose time-step Stars share the same
+        original predicate variable alpha and have the maximum number of constraints
         """
-    A = np.asarray(A, dtype=float)
-    b = np.asarray(b, dtype=float).reshape(-1)
-    if A.ndim != 2:
-        raise RuntimeError('A should be a 2D numpy array')
-    if A.shape[0] != b.shape[0]:
-        raise RuntimeError('A and b should have the same number of constraints')
+        base_star = self.R[-1]
+        base_A, base_b = self.getBasePredicateConstraints(base_star)
 
-    n_vars = A.shape[1]
-    if n_vars == 0:
-        return np.zeros((num_samples, 0))
+        total_volume = self.computeBaseVolume(base_A, base_b)
+        if total_volume == 0.0:
+            raise RuntimeError('shared base predicate space has zero volume')
 
-    rng = np.random.default_rng(seed)
-    alpha = findFeasiblePoint(A, b, feasibility_tol=feasibility_tol)  # step 1: find a feasible starting point
-    if burn_in is None:
-        burn_in = max(100, 10 * n_vars)
-    if burn_in < 0:
-        raise RuntimeError('burn_in should be nonnegative')
+        satisfying_volume = self.evaluateFormulaVolumeExact(
+            base_star,
+            [self.expanded_formula.expr],
+            base_A,
+            base_b
+        )
+        fraction = satisfying_volume / total_volume
+        return min(1.0, max(0.0, fraction))
 
-    samples = []
-    total_steps = burn_in + num_samples * thinning
-    for step in range(total_steps): # step 5: Repeat
-        direction = rng.normal(size=n_vars) # step 2: pick a random direction
-        direction_norm = np.linalg.norm(direction)
-        while direction_norm == 0.0:
-            direction = rng.normal(size=n_vars)
-            direction_norm = np.linalg.norm(direction)
-        direction = direction / direction_norm 
+    def evaluateFormulaVolumeExact(self, base_star, exprs, base_A, base_b):
+        """Compute volume of region satisfying a conjunction of expression trees."""
+        if len(exprs) == 0:
+            return self.computeBaseVolume(base_A, base_b)
 
-        A_u = A @ direction # step 3: compute the line interval that stays inside A alpha <= b
-        right_side = b - A @ alpha
-        lambda_lower = -np.inf
-        lambda_upper = np.inf
+        expr = exprs[0]
+        rest_exprs = exprs[1:]
+        op, subformulas = expr
 
-        positive = A_u > feasibility_tol
-        negative = A_u < -feasibility_tol
-        if np.any(positive):
-            lambda_upper = min(lambda_upper, np.min(right_side[positive] / A_u[positive]))
-        if np.any(negative):
-            lambda_lower = max(lambda_lower, np.max(right_side[negative] / A_u[negative]))
-        if not np.isfinite(lambda_lower) or not np.isfinite(lambda_upper):
-            raise RuntimeError('hit-and-run requires a bounded predicate polytope')
+        if op == 'AP':
+            C, d = self.getAtomicPredicateConstraints(base_star, subformulas)
+            next_A = np.vstack((base_A, C))
+            next_b= np.hstack((base_b, d))
+            return self.evaluateFormulaVolumeExact(base_star, rest_exprs, next_A, next_b)
 
-        if lambda_lower > lambda_upper:
-            raise RuntimeError('hit-and-run encountered an empty line interval')
+        if op == 'NOT':
+            if not isinstance(subformulas, list) or len(subformulas) != 1:
+                raise RuntimeError('NOT operator should have exactly one subformula')
+            total_volume = self.evaluateFormulaVolumeExact(
+                base_star, rest_exprs, base_A, base_b
+            )
+            excluded_volume = self.evaluateFormulaVolumeExact(
+                base_star, [subformulas[0]] + rest_exprs, base_A, base_b
+            )
+            return max(0.0, total_volume - excluded_volume)
 
-        alpha = alpha + rng.uniform(lambda_lower, lambda_upper) * direction # step 4: sample random point uniformly on that interval and move to the next point
-        if step >= burn_in and (step - burn_in) % thinning == 0: # step 6: Discard the first burn_in steps and step 7: Keep every thinning-th sample
-            samples.append(alpha.copy())
+        if op == 'AND':
+            if not isinstance(subformulas, list) or len(subformulas) == 0:
+                raise RuntimeError('AND operator should contain subformulas')
+            return self.evaluateFormulaVolumeExact(
+                base_star, subformulas + rest_exprs, base_A, base_b
+            )
 
-    return np.asarray(samples[:num_samples])
+        if op == 'OR':
+            if not isinstance(subformulas, list) or len(subformulas) == 0:
+                raise RuntimeError('OR operator should contain subformulas')
+            union_volume = 0.0
+            child_ids = range(len(subformulas))
+            for size in range(1, len(subformulas) + 1):
+                sign = 1.0 if size % 2 == 1 else -1.0
+                for selected_ids in combinations(child_ids, size):
+                    selected_exprs = [subformulas[i] for i in selected_ids]
+                    union_volume += sign * self.evaluateFormulaVolumeExact(
+                        base_star,
+                        selected_exprs + rest_exprs,
+                        base_A,
+                        base_b
+                    )
+            return max(0.0, union_volume)
 
+        raise RuntimeError('Unknown expanded expression operator {}'.format(op))
 
-def evaluateFormulaVolumeSampling(
-        R, base_star, expr, samples, feasibility_tol=1e-10):
-    """Evaluate an expanded formula tree on predicate-space samples."""
-    op, subformulas = expr
+    def computeSatFractionSampling(self):
+        """Estimate satisfaction fraction by hit-and-run samples in base alpha space."""
+        base_star = self.R[-1]
+        base_A, base_b = self.getBasePredicateConstraints(base_star)
+        samples_base= self.hitAndRunSampling(base_A,base_b, num_samples=self.num_samples,seed=self.seed,burn_in=self.burn_in,thinning=self.thinning,feasibility_tol=self.error) #generates random samples of the Star predicate variables alpha from the base polytope
+        satisfied = self.evaluateFormulaVolumeSampling(
+            base_star,
+            self.expanded_formula.expr,
+            samples_base
+        )
+        n_satisfied = int(np.count_nonzero(satisfied))
+        fraction = float(n_satisfied) / float(self.num_samples)
+        return {
+            'satisfying_fraction': fraction,
+            'num_samples': self.num_samples,
+            'n_satisfied': n_satisfied
+        }
 
-    if op == 'AP':
-        C, d = getAtomicPredicateConstraints(R, base_star, subformulas)
-        return np.all(
-            C @ samples.T <= d[:, np.newaxis] + feasibility_tol,
-            axis=0
+    def evaluateFormulaVolumeSampling(self, base_star, expr, samples):
+        """Evaluate an expanded formula tree on predicate-space samples."""
+        op, subformulas = expr
+
+        if op == 'AP':
+            C, d = self.getAtomicPredicateConstraints(base_star, subformulas)
+            return np.all(
+                C @ samples.T <= d[:, np.newaxis] + self.error,
+                axis=0
+            )
+
+        values= []
+        for sub_expr in subformulas:
+            value = self.evaluateFormulaVolumeSampling(base_star, sub_expr, samples)
+            values.append(value)
+
+        if op == 'NOT':
+            if len(values) != 1:
+                raise RuntimeError('NOT operator should have exactly one subformula')
+            return np.logical_not(values[0])
+        if op == 'AND':
+            return np.logical_and.reduce(values)
+        if op == 'OR':
+            return np.logical_or.reduce(values)
+        raise RuntimeError('Unknown expanded expression operator {}'.format(op))
+
+    def computeBaseVolume(self, A, b):
+        """Compute the exact volume of a bounded polytope {x | A*x <= b}."""
+        A = np.asarray(A, dtype=float)
+        b = np.asarray(b, dtype=float).reshape(-1)
+        if A.ndim != 2:
+            raise RuntimeError('A should be a 2D numpy array')
+        if A.shape[0] != b.shape[0]:
+            raise RuntimeError('A and b should have the same number of constraints')
+
+        poly = pc.Polytope(A, b)
+        if pc.is_empty(poly):
+            return 0.0
+
+        return float(pc.volume(poly))
+
+    def getAtomicPredicateConstraints(self, base_star, atomic_predicate):
+        if not isinstance(atomic_predicate, AtomicPredicate):
+            raise RuntimeError('Missing an AtomicPredicate')
+
+        time_idx = 0 if atomic_predicate.t is None else atomic_predicate.t
+
+        if time_idx < 0 or time_idx >= len(self.R):
+            raise RuntimeError('invalid time t={}'.format(time_idx))
+
+        current_set = self.R[time_idx]
+        context = 'reachable set at time {}'.format(time_idx)
+        if isinstance(current_set, tuple):
+            current_set = list(current_set)
+        if isinstance(current_set, list):
+            if len(current_set) != 1:
+                raise RuntimeError(
+                    '{} supports one Star set per time step'.format(context)
+                )
+            current_set = current_set[0]
+
+        assert isinstance(current_set, Star), '{} should be a Star'.format(context)
+        assert current_set.nVars == base_star.nVars, (
+            'reachable set at time {} does not use the shared alpha dimension'
+            .format(time_idx)
         )
 
-    values= []
-    for sub_expr in subformulas:
-        value = evaluateFormulaVolumeSampling(R, base_star, sub_expr, samples, feasibility_tol)
-        values.append(value)
-    
-    if op == 'NOT':
-        if len(values) != 1:
-            raise RuntimeError('NOT operator should have exactly one subformula')
-        return np.logical_not(values[0])
-    if op == 'AND':
-        return np.logical_and.reduce(values)
-    if op == 'OR':
-        return np.logical_or.reduce(values)
-    raise RuntimeError('Unknown expanded expression operator {}'.format(op))
+        C = np.matmul(
+            atomic_predicate.A.reshape(1, -1),
+            current_set.V[:, 1:]
+        ).reshape(1, -1)
+        d = atomic_predicate.b - np.matmul(
+            atomic_predicate.A.reshape(1, -1),
+            current_set.V[:, 0]
+        )
+        d = d.reshape(-1)
+
+        if len(current_set.C) != 0:
+            C = np.vstack((C, current_set.C))
+            d = np.hstack((d, current_set.d))
+
+        return C, d
+
+    def getBasePredicateConstraints(self, base_star):
+        base_A = []
+        base_b = []
+        if len(base_star.C) != 0:
+            base_A.append(np.asarray(base_star.C, dtype=float))
+            base_b.append(np.asarray(base_star.d, dtype=float).reshape(-1))
+        base_A.append(np.eye(base_star.nVars))
+        base_b.append(np.asarray(base_star.pred_ub, dtype=float).reshape(-1))
+        base_A.append(-np.eye(base_star.nVars))
+        base_b.append(-np.asarray(base_star.pred_lb, dtype=float).reshape(-1))
+        base_A = np.vstack(base_A)
+        base_b = np.hstack(base_b)
+        return base_A, base_b
+
+    def findFeasiblePoint(self, A, b, feasibility_tol=None):
+        """Find a feasible point inside the polytope."""
+        if feasibility_tol is None:
+            feasibility_tol = self.error
+        A = np.asarray(A, dtype=float)
+        b = np.asarray(b, dtype=float).reshape(-1)
+        m, n = A.shape
+        row_norm = np.linalg.norm(A, axis=1)
+        objective = np.hstack((np.zeros(n), -1.0))
+        A_ub = np.hstack((A, row_norm.reshape(m, 1)))
+        bounds = [(None, None)] * n + [(0.0, None)]
+        res = linprog(objective, A_ub=A_ub, b_ub=b, bounds=bounds, method='highs')
+        if res.success and np.all(A @ res.x[:n] <= b + feasibility_tol):
+            return res.x[:n]
+
+        res = linprog(
+            np.zeros(n),
+            A_ub=A,
+            b_ub=b,
+            bounds=[(None, None)] * n,
+            method='highs'
+        )
+        if res.success and np.all(A @ res.x <= b + feasibility_tol):
+            return res.x
+        raise RuntimeError('could not find a feasible point in shared predicate space')
+
+    def hitAndRunSampling(self, A, b, num_samples=None, seed=None, burn_in=None, thinning=None,
+            feasibility_tol=None):
+        """ Uniform hit-and-run sampler for bounded polytopes A*alpha <= b.
+            step 1. Find one feasible starting point alpha_0 inside the polytope.
+            step 2. Pick a random direction (u) through the current point.
+            step 3. Find the interval of lambda values that keeps the point inside the polytope: A alpha_k + lambda A u <= b
+            step 4. Sample random point uniformly on that interval and move to the next point.
+            step 5. Repeat steps 2-4.
+            step 6. Discard the first burn_in steps.
+            step 7. Keep every thinning-th sample.
+            """
+        if num_samples is None:
+            num_samples = self.num_samples
+        if seed is None:
+            seed = self.seed
+        if thinning is None:
+            thinning = self.thinning
+        if feasibility_tol is None:
+            feasibility_tol = self.error
+
+        A = np.asarray(A, dtype=float)
+        b = np.asarray(b, dtype=float).reshape(-1)
+        if A.ndim != 2:
+            raise RuntimeError('A should be a 2D numpy array')
+        if A.shape[0] != b.shape[0]:
+            raise RuntimeError('A and b should have the same number of constraints')
+
+        n_vars = A.shape[1]
+        if n_vars == 0:
+            return np.zeros((num_samples, 0))
+
+        rng = np.random.default_rng(seed)
+        alpha = self.findFeasiblePoint(A, b, feasibility_tol=feasibility_tol)  # step 1: find a feasible starting point
+        if burn_in is None:
+            burn_in = max(100, 10 * n_vars)
+        if burn_in < 0:
+            raise RuntimeError('burn_in should be nonnegative')
+
+        samples = []
+        total_steps = burn_in + num_samples * thinning
+        for step in range(total_steps): # step 5: Repeat
+            direction = rng.normal(size=n_vars) # step 2: pick a random direction
+            direction_norm = np.linalg.norm(direction)
+            while direction_norm == 0.0:
+                direction = rng.normal(size=n_vars)
+                direction_norm = np.linalg.norm(direction)
+            direction = direction / direction_norm
+
+            A_u = A @ direction # step 3: compute the line interval that stays inside A alpha <= b
+            right_side = b - A @ alpha
+            lambda_lower = -np.inf
+            lambda_upper = np.inf
+
+            positive = A_u > feasibility_tol
+            negative = A_u < -feasibility_tol
+            if np.any(positive):
+                lambda_upper = min(lambda_upper, np.min(right_side[positive] / A_u[positive]))
+            if np.any(negative):
+                lambda_lower = max(lambda_lower, np.max(right_side[negative] / A_u[negative]))
+            if not np.isfinite(lambda_lower) or not np.isfinite(lambda_upper):
+                raise RuntimeError('hit-and-run requires a bounded predicate polytope')
+
+            if lambda_lower > lambda_upper:
+                raise RuntimeError('hit-and-run encountered an empty line interval')
+
+            alpha = alpha + rng.uniform(lambda_lower, lambda_upper) * direction # step 4: sample random point uniformly on that interval and move to the next point
+            if step >= burn_in and (step - burn_in) % thinning == 0: # step 6: Discard the first burn_in steps and step 7: Keep every thinning-th sample
+                samples.append(alpha.copy())
+
+        return np.asarray(samples[:num_samples])
 
 
 
@@ -938,9 +906,8 @@ if __name__ == "__main__":
     Ex_P2 = ExpandedFormula(P2_spec)
     print("Expanded ALWAYS formula:")
     Ex_P2.print()
-    rho_lb, rho_ub = getExpandedRobustnessInterval(
-        R, Ex_P2, lp_solver='linprog'
-    )
+    RI_2 = GetRobustnessInterval(R,lp_solver='linprog')
+    rho_lb, rho_ub = RI_2.getRobustnessInterval(Ex_P2)
     print("Always: ==> rho_lb = {}, rho_ub = {}".format(rho_lb, rho_ub))
     # Result is Always: ==> rho_lb = 0.20000000000000007, rho_ub = 0.5000000000000001
     # which means the reachable set sequence satisfies the specification, and the robustness interval is [0.2, 0.5].
@@ -956,9 +923,8 @@ if __name__ == "__main__":
     Ex_P3 = ExpandedFormula(P3_spec)
     print("Expanded nested formula:")
     Ex_P3.print()
-    rho_lb, rho_ub = getExpandedRobustnessInterval(
-        R, Ex_P3, lp_solver='linprog'
-    )
+    RI_3 = GetRobustnessInterval(R, lp_solver='linprog')
+    rho_lb, rho_ub = RI_3.getRobustnessInterval(Ex_P3)
     print("Nested: ==> rho_lb = {}, rho_ub = {}".format(rho_lb, rho_ub))
     # Result is Nested: ==> rho_lb = -0.8999999999999999, rho_ub = -0.49999999999999994
     # which means the reachable set sequence violates the specification, and the robustness interval is [-0.9, -0.5].
@@ -976,14 +942,10 @@ if __name__ == "__main__":
     print("Expanded mixed formula:")
     Ex_P4.print()
 
-    R_mixed_dnf_result = getSatisfactionFraction(
-        R,
-        Ex_P4,
-        method='exact-DNF',
-        lp_solver='linprog'
-    )
-    print("R mixed DNF satisfaction fraction: {}".format(R_mixed_dnf_result))
-    # Result is : {'method': 'exact-DNF', 'rho_lb': -0.25, 'rho_ub': 0.25, 'satisfying_fraction': 0.5}
+    SAT_4 = GetSatisfactionFraction(R,Ex_P4,method='exact',lp_solver='linprog')
+    R_mixed_dnf_result = SAT_4.getSatisfactionFraction()
+    print("R mixed satisfaction fraction: {}".format(R_mixed_dnf_result))
+    # Result is : {'method': 'exact', 'rho_lb': -0.25, 'rho_ub': 0.25, 'satisfying_fraction': 0.5}
 
     # Example 5: Test exact satisfaction fraction for a nested mixed specification
     # EVENTUALLY_[0,1] (y <= 0.05 AND EVENTUALLY_[1,2] (x <= 0.75))
@@ -999,14 +961,10 @@ if __name__ == "__main__":
     print("Expanded nested mixed formula:")
     Ex_P5.print()
 
-    nested_mixed_dnf_result = getSatisfactionFraction(
-        R,
-        Ex_P5,
-        method='exact-DNF',
-        lp_solver='linprog'
-    )
-    print("Nested mixed DNF satisfaction fraction: {}".format(nested_mixed_dnf_result))
-    # Result is:{'method': 'exact-DNF', 'rho_lb': -0.25, 'rho_ub': 0.05, 'satisfying_fraction': 0.125}
+    SAT_5 = GetSatisfactionFraction( R,Ex_P5,method='exact',lp_solver='linprog')
+    nested_mixed_dnf_result = SAT_5.getSatisfactionFraction()
+    print("Nested mixed satisfaction fraction: {}".format(nested_mixed_dnf_result))
+    # Result is:{'method': 'exact', 'rho_lb': -0.25, 'rho_ub': 0.05, 'satisfying_fraction': 0.125}
     '''
     ======================== Exaplanation of Example 5 ============================
     Example 5 uses the nested specification:
@@ -1034,10 +992,10 @@ if __name__ == "__main__":
     Therefore, the second part of the expanded formula does not contribute a satisfying region, and the useful part is:
     y[t=0] <= 0.05 AND x[t=1] <= 0.75
     
-    Now we compute this in the base predicate space. The base predicate variables are alpha1 and alpha2, with:
+    Now we compute this in the shared base predicate space. The shared base predicate variables are alpha1 and alpha2, with:
     alpha1 in [-1, 1]
     alpha2 in [-1, 1]
-    So the total base predicate-space area is: 2 * 2 = 4
+    So the total shared base predicate-space area is: 2 * 2 = 4
     At time 0, y is represented as: y[t=0] = 0.1 + 0.1 alpha2
     The predicate y[t=0] <= 0.05 gives:0.1 + 0.1 alpha2 <= 0.05
     So alpha2 <= -0.5
@@ -1051,7 +1009,7 @@ if __name__ == "__main__":
     The length of this interval is 1, which is 1/2 of the full alpha1 range.
     
     Therefore, the satisfying region in predicate space has area: 1 * 0.5 = 0.5
-    The total base predicate-space area is: 4
+    The total shared base predicate-space area is: 4
     So the satisfaction fraction is: 0.5 / 4 = 0.125
     Equivalently: 1/2 * 1/4 = 1/8 = 0.125
     Therefore, the result of Example 5 is:
@@ -1073,24 +1031,15 @@ if __name__ == "__main__":
     print("Expanded nested mixed tree formula:")
     Ex_P6.print()
 
-    exact_result = getSatisfactionFraction(
-        R,
-        Ex_P6,
-        method='exact',
-        lp_solver='linprog'
-    )
+    SAT_6 = GetSatisfactionFraction( R,Ex_P6,method='exact',lp_solver='linprog')
+
+    exact_result = SAT_6.getSatisfactionFraction()
     print("Nested mixed tree exact satisfaction fraction: {}".format(exact_result))
     # Expected result is approximately:
     # {'method': 'exact-tree', 'rho_lb': -0.25, 'rho_ub': 0.1, 'satisfying_fraction': 0.3125}
 
-    sampling_result = getSatisfactionFraction(
-        R,
-        Ex_P6,
-        method='sampling',
-        num_samples=20000,
-        seed=1,
-        lp_solver='linprog'
-    )
+    SAT_6_sampling = GetSatisfactionFraction( R,Ex_P6,method='sampling',num_samples=20000,seed=1,lp_solver='linprog')
+    sampling_result = SAT_6_sampling.getSatisfactionFraction()
     print("Nested mixed tree sampling satisfaction fraction: {}".format(sampling_result))
     # Sampling result should be close to 0.3125.
 
@@ -1108,90 +1057,3 @@ if __name__ == "__main__":
     #     total_satisfying_volume += branch_satisfying_volume
 
     # branch_aggregated_fraction = total_satisfying_volume / base_volume
-
-
-    '''
-    ======================== Exaplanation of Example 6 ============================
-    Example 6 uses the nested mixed specification:
-    EVENTUALLY_[0,1] ((y <= 0.05 AND EVENTUALLY_[1,2] (x <= 0.75)) OR x <= 0.10)
-
-    After expansion, the exapaned formula becomes:
-    ((y[t=0] <= 0.05 AND (x[t=1] <= 0.75 OR x[t=2] <= 0.75)) OR x[t=0] <= 0.10)
-    OR
-    ((y[t=1] <= 0.05 AND (x[t=2] <= 0.75 OR x[t=3] <= 0.75)) OR x[t=1] <= 0.10)
-
-    This example is useful because it directly tests the formula-tree exact method.
-    The code should not first expand the formula into DNF.  Instead, it should compute:
-    Vol((y[t=0] <= 0.05 AND x[t=1] <= 0.75) OR x[t=0] <= 0.10)
-
-    The reachable set sequence is the same R = [X0, X1, X2, X3].
-    For X0, we have:
-        x[t=0] in [0.0, 0.4]
-        y[t=0] in [0.0, 0.2]
-    For X1, we have:
-        x[t=1] in [0.5, 1.0]
-        y[t=1] in [-0.1, 0.1]
-    For X2, we have:
-        x[t=2] in [1.0, 1.6]
-        y[t=2] in [0.0, 0.3]
-    For X3, we have:
-        x[t=3] in [1.5, 1.8]
-        y[t=3] in [-0.2, 0.2]
-
-    Based on exapaned formula, we can see that x[t=2] <= 0.75,
-    x[t=3] <= 0.75, and x[t=1] <= 0.10 are infeasible.
-    Therefore, the second outer EVENTUALLY branch does not contribute a satisfying region,
-    and the useful part is:
-    (y[t=0] <= 0.05 AND x[t=1] <= 0.75) OR x[t=0] <= 0.10
-
-    In the base predicate space, the base predicate variables are alpha1 and alpha2, with:
-    alpha1 in [-1, 1]
-    alpha2 in [-1, 1]
-    So the total base predicate-space area is: 2 * 2 = 4
-
-    At time 0, y is represented as:
-    y[t=0] = 0.1 + 0.1 alpha2
-    The predicate y[t=0] <= 0.05 gives:
-    0.1 + 0.1 alpha2 <= 0.05
-    So alpha2 <= -0.5
-    Inside alpha2 in [-1, 1], this keeps alpha2 in [-1, -0.5].
-    The length of this interval is 0.5.
-
-    At time 1, x is represented as:
-    x[t=1] = 0.75 + 0.25 alpha1
-    The predicate x[t=1] <= 0.75 gives:
-    0.75 + 0.25 alpha1 <= 0.75
-    So alpha1 <= 0
-    Inside alpha1 in [-1, 1], this keeps alpha1 in [-1, 0].
-    The length of this interval is 1.
-
-    Therefore, the area of y[t=0] <= 0.05 AND x[t=1] <= 0.75 is:
-    0.5 * 1 = 0.5
-
-    At time 0, x is represented as:
-    x[t=0] = 0.2 + 0.2 alpha1
-    The predicate x[t=0] <= 0.10 gives:
-    0.2 + 0.2 alpha1 <= 0.10
-    So alpha1 <= -0.5
-    Inside alpha1 in [-1, 1], this keeps alpha1 in [-1, -0.5].
-    The length of this interval is 0.5.
-    Since alpha2 can be anywhere in [-1, 1], the area of x[t=0] <= 0.10 is:
-    0.5 * 2 = 1.0
-
-    The overlap between these two satisfying regions is:
-    alpha1 in [-1, -0.5] and alpha2 in [-1, -0.5]
-    Its area is:
-    0.5 * 0.5 = 0.25
-
-    Therefore, the satisfying region has area:
-    0.5 + 1.0 - 0.25 = 1.25
-
-    The total base predicate-space area is 4, so the satisfaction fraction is:
-    1.25 / 4 = 0.3125
-
-    Therefore, the expected result of Example 6 is:
-    rho_lb = -0.25
-    rho_ub = 0.1
-    satisfying_fraction = 0.3125
-
-'''
