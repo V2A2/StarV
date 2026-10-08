@@ -12,6 +12,7 @@ from StarV.net.network import NeuralNetwork, reachExactBFS, reachApproxBFS
 from StarV.plant.dlode import DLODE
 from StarV.plant.lode import LODE
 from StarV.set.probstar import ProbStar
+from StarV.set.star import Star
 from StarV.spec.dProbStarTL import Formula, DynamicFormula
 import multiprocessing
 from multiprocessing import Process, Queue
@@ -439,8 +440,12 @@ def stepReach_DLNNCS(ncs, Xi, reachPRM):
     filterProb = reachPRM.filterProb
     numCores = reachPRM.numCores
     lp_solver = reachPRM.lpSolver
-    net = ncs.controller
-    plant = ncs.plant
+    if isinstance(ncs, NNCS):
+        net = ncs.ncs.controller
+        plant = ncs.ncs.plant
+    else:
+        net = ncs.controller
+        plant = ncs.plant
 
     # Xi: set of state of the plant at step i
     # Yi: feedback to the network controller at step i
@@ -484,11 +489,13 @@ def stepReach_DLNNCS_extended(ncs, Xi, reachPRM):
     elif isinstance(ncs, AEBS_NNCS):   # AEBS system, two networks, one plant
 
         if reachPRM.numCores > 1:
-            pool = multiprocessing.Pool(reachPRM.numCores)
+            with multiprocessing.Pool(reachPRM.numCores) as pool:
+                Xi1 = stepReach_AEBS(ncs, Xi, pool)
         else:
-            pool = None       
+            Xi1 = stepReach_AEBS(ncs, Xi, None)
+      
 
-        Xi1 = stepReach_AEBS(ncs, Xi, pool)    # this is AEBS NNCS
+        # Xi1 = stepReach_AEBS(ncs, Xi, pool)    # this is AEBS NNCS
 
         if reachPRM.filterProb == 0:
             RX = Xi1
@@ -603,7 +610,12 @@ def stepReach_AEBS(AEBS, X0, pool):
     speed_brake = [] # exact inputs to transformer
     for i in range(0, m):
         V = np.vstack((norm_X.V[1, :], brake[i].V))
-        speed_brake_i = ProbStar(V, brake[i].C, brake[i].d, brake[i].mu, brake[i].Sig, brake[i].pred_lb, brake[i].pred_ub)
+        if isinstance(brake[i], ProbStar):
+            speed_brake_i = ProbStar(V, brake[i].C, brake[i].d, brake[i].mu, brake[i].Sig, brake[i].pred_lb, brake[i].pred_ub)
+        elif isinstance(brake[i], Star):
+            speed_brake_i = Star(V, brake[i].C, brake[i].d, brake[i].pred_lb, brake[i].pred_ub)
+        else:
+            raise RuntimeError('unsupported brake set type {}'.format(type(brake[i])))
         speed_brake.append(speed_brake_i)
 
 
@@ -620,7 +632,12 @@ def stepReach_AEBS(AEBS, X0, pool):
     controls = []
     for i in range(0, n):
         V = np.vstack((norm_X.V[1, :], tf_outs[i].V))
-        control = ProbStar(V, tf_outs[i].C, tf_outs[i].d, tf_outs[i].mu, tf_outs[i].Sig, tf_outs[i].pred_lb, tf_outs[i].pred_ub)
+        if isinstance(tf_outs[i], ProbStar):
+            control = ProbStar(V, tf_outs[i].C, tf_outs[i].d, tf_outs[i].mu, tf_outs[i].Sig, tf_outs[i].pred_lb, tf_outs[i].pred_ub)
+        elif isinstance(tf_outs[i], Star):
+            control = Star(V, tf_outs[i].C, tf_outs[i].d, tf_outs[i].pred_lb, tf_outs[i].pred_ub)
+        else:
+            raise RuntimeError('unsupported transformer output set type {}'.format(type(tf_outs[i])))
         controls.append(control.affineMap(scale_mat)) # scale the control inputs
 
     print('Compute the next step reachable set for the plant ...\n')
@@ -734,8 +751,14 @@ def reachDFS_DLNNCS(ncs, reachPRM):
         n = len(trace)
         trace1 = []
         for i in range(0, n):
-            R = ProbStar(trace[i].V, trace[n-1].C, trace[n-1].d, trace[n-1].mu, \
-                         trace[n-1].Sig, trace[n-1].pred_lb, trace[n-1].pred_ub)
+            if isinstance(trace[n-1], ProbStar):
+                R = ProbStar(trace[i].V, trace[n-1].C, trace[n-1].d, trace[n-1].mu, \
+                             trace[n-1].Sig, trace[n-1].pred_lb, trace[n-1].pred_ub)
+            elif isinstance(trace[n-1], Star):
+                R = Star(trace[i].V, trace[n-1].C, trace[n-1].d, \
+                         trace[n-1].pred_lb, trace[n-1].pred_ub)
+            else:
+                raise RuntimeError('unsupported trace set type {}'.format(type(trace[n-1])))
             trace1.append(R)
         traces1.append(trace1)         
     
