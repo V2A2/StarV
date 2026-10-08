@@ -1142,11 +1142,11 @@ class DynamicFormula(object):
                     break
                 else:  
                     if C is None:
-                        d = Pi.b - np.matmul(Pi.A, base_probstar.V[:, 0])
-                        C = np.matmul(Pi.A, base_probstar.V[:, 1:nVars+1])
+                        d = Pi.b - np.matmul(Pi.A,  probstar_sig[Pi.t].V[:,0])
+                        C = np.matmul(Pi.A, probstar_sig[Pi.t].V[:, 1:nVars+1])
                     else:
-                        d1 = Pi.b - np.matmul(Pi.A, base_probstar.V[:, 0])
-                        C1 = np.matmul(Pi.A, base_probstar.V[:, 1:nVars+1])
+                        d1 = Pi.b - np.matmul(Pi.A,  probstar_sig[Pi.t].V[:,0])
+                        C1 = np.matmul(Pi.A,  probstar_sig[Pi.t].V[:, 1:nVars+1])
 
                         C = np.vstack((C, C1))
                         d = np.concatenate((d, d1))
