@@ -2,16 +2,13 @@
 Recurrent Layer Class
 Qing Liu, 07/15/2025
 """
-from scipy.io import loadmat
-import os
-import mat73
+import multiprocessing
 import numpy as np
+from scipy.optimize import linprog
 from StarV.set.star import Star
 from StarV.set.probstar import ProbStar
 from StarV.layer.ReLULayer import ReLULayer
 from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
-from StarV.net.network import NeuralNetwork
-from StarV.util.load_rnn import load_simple_rnn, get_Star_set,get_ProbStar_set
 
 
 class RecurrentLayer(object):
@@ -66,153 +63,96 @@ class RecurrentLayer(object):
     def info(self):
         print(self)
 
+    def _hidden_affine_map(self, h):
+        if self.bhh is None:
+            return h.affineMap(self.Whh)
+        return h.affineMap(self.Whh, self.bhh)
 
+    def reachExact(self, In, lp_solver="gurobi", pool=None, show=False):
+        """Exact RNN reachability for Star or ProbStar input sequences."""
+        assert isinstance(In, list), 'error: input must be a list'
+        assert all(isinstance(s, (Star, ProbStar)) for s in In), \
+            'error: exact RNN reachability supports Star or ProbStar inputs'
 
-    def reachExact(self, In, method="exact", lp_solver="gurobi", pool=None, RF=0.0, DR=0):
-        """
-        Perform exact reachability analysis of an RNN with ReLU activation.
+        hidden_sets_by_time = []
+        outputs_by_time = []
 
-        Args:
-            In (list): List of input sets (one per timestep).
-            method (str): Reachability method, default "exact".
-            lp_solver (str): Linear programming solver, default 'gurobi'.
-            pool: Optional multiprocessing pool.
-            RF (float): Reserved for future use.
-            DR (int): Reserved for future use.
-
-        Returns:
-            list: List of reachable output sets at each timestep.
-        """
-         
-        assert isinstance(In,list), 'error: input must be a list'
-
-        print(f"\n~~~~~~~~ Using {method} method for reachability ~~~~~~~~")
-
-        H = []  # Hidden state reachable sets per timestep
-        O = []  # Output reachable sets per timestep
-
-        for t, I in enumerate(In):
-            print(f"\n----- Processing timestep {t} -----")
-            print(f"=========== number of input sets in step {t}:{len(I)}==========")
-
+        for t, input_set in enumerate(In):
+            WIn = input_set.affineMap(self.Whx, self.bhx)
             if t == 0:
-                # First timestep: h0 = ReLU(Whx * x + bhx)
-                WIn = I.affineMap(self.Whx, self.bhx)
-                h_out  = ReLULayer.reach([WIn], method=method)
-                hidden_states = h_out
-
-            else:
-                # Subsequent timesteps: h_t = ReLU(Whx * x_t + bhx + Whh * h_{t-1})
-                hidden_states = []
-                prev_hidden = H[t - 1]
-                WIn = I.affineMap(self.Whx, self.bhx)
-
-                for k, h_prev in enumerate(prev_hidden):
-                    if self.bhh is not None:
-                        h_recurrent = h_prev.affineMap(self.Whh,self.bhh)
-                    else:
-                        h_recurrent = h_prev.affineMap(self.Whh)
-                    summed = h_recurrent.minKowskiSum(WIn)
-                    # Apply ReLU
-                    h_out = ReLULayer.reach([summed], method=method)
-                    hidden_states.extend(h_out)
-
-            # Save hidden states
-            H.append(hidden_states)
-
-            oi = []
-            print(f"number of output sets in step {t} for hidden states:{len(hidden_states)}")
-            for h in hidden_states:
-                 outputs_t = h.affineMap(self.Woh, self.bo) 
-                 oi.append(outputs_t)
-            O.append(oi)
-
-        print("\n===== Reachability analysis using exactReach complete =====")
-        print(f"Total timesteps: {len(O)}")
-
-
-        return O
-
-
-    def reachApprox(self, In, method="approx", lp_solver="gurobi", pool=None, RF=0.0, DR=0):
-        """
-        Perform approximate reachability analysis of an RNN with ReLU activation.
-
-        Args:
-            In (list): List of input sets (one per timestep).
-            method (str): Reachability method, default "approx".
-            lp_solver (str): Linear programming solver, default 'gurobi'.
-            pool: Optional multiprocessing pool.
-            RF (float): Reserved for future use.
-            DR (int): Reserved for future use.
-
-        Returns:
-            list: List of reachable output sets at each timestep.
-        """
-        print(f"\n~~~~~~~~ Using {method} method for reachability ~~~~~~~~")
-
-        assert isinstance(In,list), 'error: input must be a list'
-        # assert isinstance(In[0],Star), 'error: input set is not a Star set'
-
-        H = []  # Hidden state reachable sets
-        O = []  # Output reachable sets
-
-        for t, I in enumerate(In):
-            print(f"\n----- Processing timestep {t} -----")
-
-            if t == 0:
-                WIn= I.affineMap(self.Whx, self.bhx)
-                hidden_states = ReLULayer.reach(WIn, method=method, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=False)
-
-            else:
-                h_prev = H[t - 1]
-                # Remaining timesteps: h_t = ReLU(Whx * x_t + bhx + Whh * h_{t-1})
-                WIn = I.affineMap(self.Whx, self.bhx)
-                if self.bhh is not None:
-                    h_recurrent = h_prev.affineMap(self.Whh,self.bhh)
-                else:
-                    h_recurrent = h_prev.affineMap(self.Whh)
-                h_sum = h_recurrent.minKowskiSum(WIn)
-                hidden_states = ReLULayer.reach(
-                    h_sum, method=method, lp_solver=lp_solver, pool=pool,
-                    RF=RF, DR=DR, show=False
+                hidden_sets = ReLULayer.reach(
+                    [WIn], method='exact', lp_solver=lp_solver,
+                    pool=pool, show=False
                 )
+            else:
+                hidden_sets = []
+                for h_prev in hidden_sets_by_time[t - 1]:
+                    summed = self._hidden_affine_map(h_prev).minKowskiSum(WIn)
+                    hidden_sets.extend(ReLULayer.reach(
+                        [summed], method='exact', lp_solver=lp_solver,
+                        pool=pool, show=False
+                    ))
 
-            # Save hidden state
-            print(f"number of output sets in step {t} for hidden states:{len(hidden_states)}")
-            H.append(hidden_states)
+            hidden_sets_by_time.append(hidden_sets)
+            outputs_by_time.append([h.affineMap(self.Woh, self.bo) for h in hidden_sets])
 
-            # Compute output: y_t = Woh * h_t + bo
-            o_t = hidden_states.affineMap(self.Woh, self.bo)
-            O.append(o_t)
+            if show:
+                print('RNN exact step {}: {} output sets'.format(t, len(hidden_sets)))
 
-        print("\n===== Approximate reachability analysis with reachApprox complete =====")
-        print(f"Total timesteps: {len(O)}")
-        print(f"type of each out set:{type(O[0])}")
-        return O
-
+        return outputs_by_time
 
     def reachExactBranches(self, In, post_layers=None, lp_solver="gurobi", pool=None,
-                           p_filter=None, show=False, post_start_t=None):
+                           p_filter=None, show=False, post_start_t=None,
+                           numCores=1):
+        """Branch-based exact RNN reachability.
+        """
+        if numCores is None:
+            numCores = 1
+        assert isinstance(numCores, int), 'error: numCores should be an int'
+        assert numCores >= 1, 'error: numCores should be >= 1'
+
+        if pool is not None or numCores == 1:
+            return self.reachExactBranchesWithPool(
+                In, post_layers=post_layers, lp_solver=lp_solver,
+                pool=pool, p_filter=p_filter, show=show,
+                post_start_t=post_start_t
+            )
+
+        if show:
+            print(f"Using {numCores} cores for RNN ReLU reachability")
+        with multiprocessing.Pool(numCores) as reach_pool:
+            return self.reachExactBranchesWithPool(
+                In, post_layers=post_layers, lp_solver=lp_solver,
+                pool=reach_pool, p_filter=p_filter, show=show,
+                post_start_t=post_start_t
+            )
+
+    def reachExactBranchesWithPool(self, In, post_layers=None, lp_solver="gurobi",
+                                    pool=None, p_filter=None, show=False,
+                                    post_start_t=None):
         """  Branch-based reachability for RNNs
 
         Args:
+            pool:
+                Optional multiprocessing pool used by ReLU exact reachability.
             post_layers:
                 List of post layers to apply to each RNN output after post_start_t. Supported layer types: FullyConnectedLayer, ReLULayer. Default: None (no post layers).
             p_filter:
                 Branch pruning threshold at/after post_start_t based on output
-                set probability. If p_filter = 0, no pruning (exact method); if > 0, prune branches with estimated output probability < p_filter (approximate method).
+                set probability. If p_filter = 0, no pruning; if > 0, prune branches with estimated output probability < p_filter.
             post_start_t:
                 Start timestep to record outputs into branch traces.
                 Default: len(In)//2.
         """
-
         # Qing Liu, 02/15/2026
         # Update: post-reachability branch filtering with time tags, 04/03/2026
 
         assert isinstance(In, list), 'error: input must be a list'
         assert len(In) > 0, 'error: input is empty'
-        assert all(isinstance(s, ProbStar) for s in In), 'error: input must be a list of ProbStars'
+        is_star_input = all(isinstance(s, Star) for s in In)
+        is_probstar_input = all(isinstance(s, ProbStar) for s in In)
+        assert is_star_input or is_probstar_input, \
+            'error: input must be a list of Stars or a list of ProbStars'
 
         if post_layers is None:
             post_layers = []
@@ -228,12 +168,14 @@ class RecurrentLayer(object):
             p_filter = 0.0
         if p_filter < 0.0:
             raise RuntimeError('error: p_filter should be >= 0')
+        if is_star_input and p_filter > 0.0:
+            raise RuntimeError('Star branch reachability does not support p_filter')
         
         if show:
             if p_filter == 0.0:
-                print(f"Using exact reachability with branch tracing and no pruning (p_filter=0.0)")
+                print("Using exact ReLU reachability with branch tracing and no pruning (p_filter=0.0)")
             else:
-                print(f"Using approximate reachability with branch tracing and pruning threshold p_filter={p_filter}")
+                print(f"Using exact ReLU reachability with branch tracing and pruning threshold p_filter={p_filter}")
         
         p_ignored = 0.0
 
@@ -242,6 +184,89 @@ class RecurrentLayer(object):
         branches = [(None, [])]
         hidden_states_all_steps = []
         hidden_output_all_steps = []
+
+        def reach_relu_sets(input_sets):
+            """Apply exact ReLU reachability and always return a list."""
+            if not isinstance(input_sets, list):
+                input_sets = [input_sets]
+
+            return ReLULayer.reach(
+                input_sets,
+                method='exact',
+                lp_solver=lp_solver,
+                pool=pool,
+                show=False,
+            )
+
+        def is_feasible_star(star_set):
+            """Return False only when the predicate polytope is LP-infeasible."""
+            if star_set.nVars == 0:
+                return len(star_set.d) == 0 or np.all(star_set.d >= 0.0)
+
+            constraints = star_set.C if len(star_set.C) > 0 else None
+            bounds = list(zip(star_set.pred_lb, star_set.pred_ub))
+            result = linprog(
+                np.zeros(star_set.nVars),
+                A_ub=constraints,
+                b_ub=star_set.d if constraints is not None else None,
+                bounds=bounds,
+                method='highs',
+            )
+            if result.status == 0:
+                return True
+            if result.status == 2:
+                return False
+            raise RuntimeError(
+                'RNN Star feasibility LP failed with status {}: {}'
+                .format(result.status, result.message)
+            )
+
+        def lift_hidden_set_to_output_predicates(hidden_set, output_set):
+            """Use output predicate constraints on hidden dynamics."""
+            target_nvars = output_set.nVars
+            if target_nvars < hidden_set.nVars:
+                raise RuntimeError(
+                    'post-layer output has fewer predicate variables than hidden state'
+                )
+
+            if target_nvars == hidden_set.nVars:
+                lifted_V = hidden_set.V
+            else:
+                zero_generators = np.zeros(
+                    (hidden_set.dim, target_nvars - hidden_set.nVars),
+                    dtype=hidden_set.V.dtype
+                )
+                lifted_V = np.hstack((hidden_set.V, zero_generators))
+
+            if isinstance(hidden_set, Star):
+                return Star(
+                    lifted_V,
+                    output_set.C,
+                    output_set.d,
+                    output_set.pred_lb,
+                    output_set.pred_ub
+                )
+
+            if isinstance(output_set, ProbStar):
+                return ProbStar(
+                    lifted_V,
+                    output_set.C,
+                    output_set.d,
+                    output_set.mu,
+                    output_set.Sig,
+                    output_set.pred_lb,
+                    output_set.pred_ub
+                )
+
+            return ProbStar(
+                lifted_V,
+                output_set.C,
+                output_set.d,
+                hidden_set.mu,
+                hidden_set.Sig,
+                output_set.pred_lb,
+                output_set.pred_ub
+            )
 
         def propagate_hidden_through_post_layers(h, h_out):
             """Apply post layers to one RNN output and return (h_next, y) pairs."""
@@ -254,15 +279,7 @@ class RecurrentLayer(object):
                         nxt.append(S1)
                     current = nxt
                 elif isinstance(layer, ReLULayer):
-                    current = ReLULayer.reach(
-                        current,
-                        method="exact",
-                        lp_solver=lp_solver,
-                        pool=pool,
-                        RF=0.0,
-                        DR=0,
-                        show=False,
-                    )
+                    current = reach_relu_sets(current)
                 else:
                     raise Exception(f"error: unsupported post layer type: {type(layer)}")
 
@@ -270,16 +287,17 @@ class RecurrentLayer(object):
             for net_out in current:
                 # Keep predicate consistency across branch evolution by reusing
                 # post-layer constraints on hidden state for next recurrent step.
-                if len(net_out.C) == 0:
+                if len(net_out.C) == 0 and net_out.nVars == h.nVars:
                     h_next_set = h
                 else:
-                    h_next_set = ProbStar(h.V, net_out.C, net_out.d, h.mu, h.Sig, h.pred_lb, h.pred_ub)
+                    h_next_set = lift_hidden_set_to_output_predicates(h, net_out)
                 h_pairs.append((h_next_set, net_out))
             return h_pairs
 
         for t, I in enumerate(In):
             new_branches = []
             hidden_sets_step = []
+            infeasible_pruned_step = 0
             hidden_output_step = []
             p_ignored_step = 0.0
             best_pruned_candidate = None  # (p_y, h_next, new_trace)
@@ -288,18 +306,22 @@ class RecurrentLayer(object):
 
             for i, (h_prev_post, trace) in enumerate(branches):
                 if t == 0:
-                    hidden_sets = ReLULayer.reach([WIn], method="exact", lp_solver=lp_solver, pool=pool, show=False)
+                    hidden_sets = reach_relu_sets([WIn])
                 else:
                     if self.bhh is not None:
                         h_recurrent = h_prev_post.affineMap(self.Whh, self.bhh)
                     else:
                         h_recurrent = h_prev_post.affineMap(self.Whh)
                     summed = h_recurrent.minKowskiSum(WIn)
-                    hidden_sets = ReLULayer.reach([summed], method="exact", lp_solver=lp_solver, pool=pool, show=False)
+                    hidden_sets = reach_relu_sets([summed])
 
                 hidden_sets_step.extend(hidden_sets)
 
                 for h in hidden_sets:
+                    if is_star_input and not is_feasible_star(h):
+                        infeasible_pruned_step += 1
+                        continue
+
                     h_out = h.affineMap(self.Woh, self.bo)
                     hidden_output_step.append(h_out)
 
@@ -308,6 +330,10 @@ class RecurrentLayer(object):
                     else:
                         h_pairs = propagate_hidden_through_post_layers(h, h_out)
                         for h_next, y in h_pairs:
+                            if is_star_input and not is_feasible_star(y):
+                                infeasible_pruned_step += 1
+                                continue
+
                             if p_filter == 0.0 :
                                 new_trace = trace.copy()
                                 new_trace.append(y)
@@ -341,11 +367,21 @@ class RecurrentLayer(object):
                         f"kept best pruned branch with p={p_best:.12g}."
                     )
 
+            if is_star_input and len(new_branches) == 0:
+                raise RuntimeError(
+                    'all RNN Star branches are infeasible at step {}'.format(t)
+                )
+
             p_ignored += p_ignored_step
             branches = new_branches
             if show:
                 # print(f"number of output sets in step {t} for hidden states(after relu):{len(hidden_sets_step)}")
                 print(f"number of branches after step {t}: {len(branches)}")
+                if infeasible_pruned_step > 0:
+                    print(
+                        'pruned {} infeasible RNN Star branches at step {}'
+                        .format(infeasible_pruned_step, t)
+                    )
 
         branch_signals = []
         for _, sig in branches:
@@ -355,13 +391,14 @@ class RecurrentLayer(object):
 
 
 
-    def reach(self,In, method = "exact", lp_solver='gurobi', pool=None, RF=0.0, DR=0):
+    def reach(self, In, method="exact", lp_solver='gurobi', pool=None,
+              show=False):
+        """Exact RNN reachability."""
         if method is None:
             method = "exact"
         if method == "exact":
-            S = self.reachExact(In, method, lp_solver, pool, RF, DR)
-            return S
-        elif method == "approx":
-            return self.reachApprox(In, method, lp_solver, pool, RF, DR)
+            return self.reachExact(
+                In, lp_solver=lp_solver, pool=pool, show=show
+            )
         else:
-            raise Exception(f"error: unknown reachability method: {method}")
+            raise Exception("error: RecurrentLayer only supports exact reachability")

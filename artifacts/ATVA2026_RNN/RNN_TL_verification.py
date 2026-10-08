@@ -19,7 +19,7 @@ from StarV.net.network import NeuralNetwork
 from StarV.set.probstar import ProbStar
 from StarV.verifier.verifier import checkSafetyProbStar, reachExactBFS,reachApproxBFS
 from StarV.util.plot import plot_probstar_signal,plot_probstar
-from StarV.util.load_rnn import load_trained_CMAPSS_data, load_trained_params_CMAPSS,load_trained_params_LIMO,load_LIMO_data,get_input_ProbStar_CMAPSS,get_input_ProbStar_LIMO
+from StarV.util.load_rnn import load_trained_CMAPSS_data, load_trained_params_CMAPSS,load_trained_params_LIMO,load_LIMO_data,get_input_set_CMAPSS,get_input_set_LIMO
 from StarV.spec.dProbStarTL import _ALWAYS_, _EVENTUALLY_, AtomicPredicate, Formula, _LeftBracket_, _RightBracket_, _AND_,_OR_
 
 np.set_printoptions(precision=12, suppress=False)
@@ -73,7 +73,7 @@ def construct_CMAPSS_input_probstar(time_step, shifts,engine_id):
     feature_idx.append(speed_sensor_indices)
 
 
-    X = get_input_ProbStar_CMAPSS(input_engine_data, noises=all_noises, feature_idx=feature_idx)
+    X = get_input_set_CMAPSS(input_engine_data, noises=all_noises, feature_idx=feature_idx,set = "ProbStar")
     print(f"probability of the initial ProbStar set : {X[0].estimateProbability()}")
 
 
@@ -96,7 +96,7 @@ def construct_LIMO_input_probstar(time_step, shifts):
     rng = np.random.default_rng(25)
     noise = np.round(rng.normal(0.0, 0.0125),decimals=4)
 
-    X = get_input_ProbStar_LIMO(input_data=input_LIMO_data,noise=noise)
+    X = get_input_set_LIMO(input_data=input_LIMO_data,noise=noise,set = "ProbStar")
     print(f"probability of the initial ProbStar set : {X[0].estimateProbability()}")
     return X
 
@@ -510,105 +510,6 @@ def result_to_summary_row(result):
 
 
 
-def plot_analysis_time_two_case_studies(summary_df, out_dir=None, file_name="analysis_time_two_case_studies.png"):
-    """
-    Create a 2x2 figure:
-      Row 1: LIMO
-      Row 2: CMAPSS
-      Col 1: time vs T (averaged over p_f)
-      Col 2: time vs p_f (averaged over T)
-    """
-    if not isinstance(summary_df, pd.DataFrame):
-        summary_df = pd.DataFrame(summary_df)
-
-    required_cols = {"case", "T", "p_filter", "t_r", "t_c", "t_v"}
-    missing = required_cols.difference(summary_df.columns)
-    if missing:
-        raise RuntimeError(f"summary_df is missing columns: {sorted(list(missing))}")
-
-    if out_dir is None:
-        out_dir = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
-            "results",
-            "TL_verification_benchmark",
-        )
-    os.makedirs(out_dir, exist_ok=True)
-
-    metric_styles = {
-        "t_r": {"label": r"$t_r$", "color": "blue", "marker": "o"},
-        "t_c": {"label": r"$t_c$", "color": "red", "marker": "x"},
-        "t_v": {"label": r"$t_v$", "color": "#1f77b4", "marker": ">"},
-    }
-    case_order = ["LIMO", "CMAPSS"]
-
-    fig, axes = plt.subplots(2, 2, figsize=(14, 9))
-
-    for row, case_name in enumerate(case_order):
-        df_case = summary_df[summary_df["case"].str.upper() == case_name].copy()
-
-        # Left panel: x-axis is T
-        ax_t = axes[row, 0]
-        ax_t.set_facecolor("#ececec")
-        if df_case.empty:
-            ax_t.text(0.5, 0.5, f"No data for {case_name}", ha="center", va="center")
-        else:
-            by_T = (
-                df_case.groupby("T", as_index=False)[["t_r", "t_c", "t_v"]]
-                .mean()
-                .sort_values("T")
-            )
-            for metric, style in metric_styles.items():
-                ax_t.plot(
-                    by_T["T"],
-                    by_T[metric],
-                    color=style["color"],
-                    marker=style["marker"],
-                    linewidth=2,
-                    markersize=7,
-                    label=style["label"],
-                )
-        ax_t.set_xlabel(r"$T$ (number of steps)", fontsize=18)
-        ax_t.set_ylabel("Analysis Time (s)", fontsize=18)
-        ax_t.tick_params(axis="both", labelsize=12)
-        ax_t.legend(fontsize=18, loc="best")
-
-        # Right panel: x-axis is p_f
-        ax_pf = axes[row, 1]
-        ax_pf.set_facecolor("#ececec")
-        if df_case.empty:
-            ax_pf.text(0.5, 0.5, f"No data for {case_name}", ha="center", va="center")
-        else:
-            by_pf = (
-                df_case.groupby("p_filter", as_index=False)[["t_r", "t_c", "t_v"]]
-                .mean()
-                .sort_values("p_filter")
-            )
-            for metric, style in metric_styles.items():
-                ax_pf.plot(
-                    by_pf["p_filter"],
-                    by_pf[metric],
-                    color=style["color"],
-                    marker=style["marker"],
-                    linewidth=2,
-                    markersize=7,
-                    label=style["label"],
-                )
-        ax_pf.set_xlabel(r"$p_f$", fontsize=18)
-        ax_pf.set_ylabel("Analysis Time (s)", fontsize=18)
-        ax_pf.tick_params(axis="both", labelsize=12)
-        ax_pf.legend(fontsize=18, loc="best")
-
-        # axes[row, 0].set_title(f"{case_name}: vs T (mean over $p_f$)", fontsize=15)
-        # axes[row, 1].set_title(f"{case_name}: vs $p_f$ (mean over T)", fontsize=15)
-
-    plt.tight_layout()
-    fig_path = os.path.join(out_dir, file_name)
-    fig.savefig(fig_path, dpi=300, bbox_inches="tight")
-    plt.close(fig)
-    print(f"Saved analysis-time figure: {fig_path}")
-    return fig_path
-
-
 def _format_pf_tag(pf):
     return str(float(pf)).replace(".", "p")
 
@@ -652,278 +553,6 @@ def _render_table(rows, headers, tablefmt=None):
     if tablefmt == "latex":
         return df.to_latex(index=False)
     return df.to_string(index=False)
-
-
-# def plot_analysis_time_single_case(summary_df, case_name, out_dir=None, file_name=None):
-#     """
-#     Create one 2x1 figure for a single case:
-#       Left: analysis time vs T (mean over p_f)
-#       Right: analysis time vs p_f (mean over T)
-#     """
-#     if not isinstance(summary_df, pd.DataFrame):
-#         summary_df = pd.DataFrame(summary_df)
-
-#     case_key = case_name.upper()
-#     df_case = summary_df[summary_df["case"].str.upper() == case_key].copy()
-#     if df_case.empty:
-#         raise RuntimeError(f"No summary rows for case {case_key}")
-
-#     if out_dir is None:
-#         out_dir = os.path.join(
-#             os.path.dirname(os.path.abspath(__file__)),
-#             "results",
-#             "TL_verification_benchmark",
-#             case_key,
-#         )
-#     os.makedirs(out_dir, exist_ok=True)
-
-#     if file_name is None:
-#         file_name = f"{case_key.lower()}_analysis_time_2x1.png"
-
-#     metric_styles = {
-#         "t_r": {"label": r"$t_r$", "color": "blue", "marker": "o"},
-#         "t_c": {"label": r"$t_c$", "color": "red", "marker": "x"},
-#         "t_v": {"label": r"$t_v$", "color": "#1f77b4", "marker": ">"},
-#     }
-
-#     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-#     ax_t, ax_pf = axes
-
-#     by_T = (
-#         df_case.groupby("T", as_index=False)[["t_r", "t_c", "t_v"]]
-#         .mean()
-#         .sort_values("T")
-#     )
-#     by_pf = (
-#         df_case.groupby("p_filter", as_index=False)[["t_r", "t_c", "t_v"]]
-#         .mean()
-#         .sort_values("p_filter")
-#     )
-
-#     for metric, style in metric_styles.items():
-#         ax_t.plot(
-#             by_T["T"],
-#             by_T[metric],
-#             color=style["color"],
-#             marker=style["marker"],
-#             linewidth=2,
-#             markersize=7,
-#             label=style["label"],
-#         )
-#         ax_pf.plot(
-#             by_pf["p_filter"],
-#             by_pf[metric],
-#             color=style["color"],
-#             marker=style["marker"],
-#             linewidth=2,
-#             markersize=7,
-#             label=style["label"],
-#         )
-
-#     ax_t.set_facecolor("#ececec")
-#     ax_t.set_xlabel(r"$T$ (number of steps)", fontsize=16)
-#     ax_t.set_ylabel("Analysis Time (s)", fontsize=16)
-#     ax_t.tick_params(axis="both", labelsize=12)
-#     ax_t.set_title(f"{case_key}: vs T (mean over $p_f$)", fontsize=14)
-#     ax_t.legend(fontsize=14, loc="best")
-
-#     ax_pf.set_facecolor("#ececec")
-#     ax_pf.set_xlabel(r"$p_f$", fontsize=16)
-#     ax_pf.set_ylabel("Analysis Time (s)", fontsize=16)
-#     ax_pf.tick_params(axis="both", labelsize=12)
-#     ax_pf.set_title(f"{case_key}: vs $p_f$ (mean over T)", fontsize=14)
-#     ax_pf.legend(fontsize=14, loc="best")
-
-#     plt.tight_layout()
-#     fig_path = os.path.join(out_dir, file_name)
-#     fig.savefig(fig_path, dpi=300, bbox_inches="tight")
-#     plt.close(fig)
-#     print(f"Saved 2x1 analysis-time figure: {fig_path}")
-#     return fig_path
-
-
-def plot_conserv_constitution_vs_T_per_spec(detail_df, case_name, out_dir=None):
-    """
-    Create one 1x2 figure per specification:
-      Left: conservativeness vs T (curves for p_f)
-      Right: constitution vs T (curves for p_f)
-    """
-    if not isinstance(detail_df, pd.DataFrame):
-        detail_df = pd.DataFrame(detail_df)
-
-    required_cols = {"case", "spec_name", "T", "p_filter", "conserv_list", "consist_list"}
-    missing = required_cols.difference(detail_df.columns)
-    if missing:
-        raise RuntimeError(f"detail_df is missing columns: {sorted(list(missing))}")
-
-    case_key = case_name.upper()
-    df_case = detail_df[detail_df["case"].str.upper() == case_key].copy()
-    if df_case.empty:
-        raise RuntimeError(f"No detail rows for case {case_key}")
-
-    if out_dir is None:
-        out_dir = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
-            "results",
-            "TL_verification_benchmark",
-            case_key,
-        )
-    fig_dir = os.path.join(out_dir, "figures_conserv_constitution_per_spec")
-    os.makedirs(fig_dir, exist_ok=True)
-
-    markers = ["o", "x", ">", "s", "d", "^", "v", "P", "*"]
-    colors = plt.rcParams["axes.prop_cycle"].by_key().get("color", ["blue", "red", "#1f77b4"])
-    figure_paths = []
-    spec_names = list(dict.fromkeys(df_case["spec_name"].tolist()))
-
-    for spec_idx, spec_name in enumerate(spec_names):
-        df_spec = df_case[df_case["spec_name"] == spec_name].copy()
-        if df_spec.empty:
-            continue
-
-        p_filters_sorted = sorted(df_spec["p_filter"].dropna().unique().tolist())
-
-        fig, (ax_cons, ax_constit) = plt.subplots(1, 2, figsize=(14, 5))
-        ax_cons.set_facecolor("#ececec")
-        ax_constit.set_facecolor("#ececec")
-
-        for i, pf in enumerate(p_filters_sorted):
-            df_curve = (
-                df_spec[df_spec["p_filter"] == pf]
-                .groupby("T", as_index=False)[["conserv_list", "consist_list"]]
-                .mean()
-                .sort_values("T")
-            )
-
-            color = colors[i % len(colors)]
-            marker = markers[i % len(markers)]
-            label = rf"$p_f = {_format_pf_label(pf)}$"
-
-            ax_cons.plot(
-                df_curve["T"],
-                df_curve["conserv_list"],
-                color=color,
-                marker=marker,
-                linewidth=1.2,
-                markersize=6,
-                label=label,
-            )
-            ax_constit.plot(
-                df_curve["T"],
-                df_curve["consist_list"],
-                color=color,
-                marker=marker,
-                linewidth=1.2,
-                markersize=6,
-                label=label,
-            )
-
-        spec_title = f"{case_key} {spec_name}"
-        ax_cons.set_xlabel(r"$T$ (number of steps)", fontsize=13)
-        ax_cons.set_ylabel("Conservativeness (%)", fontsize=13)
-        # ax_cons.set_title(f"{spec_title}: Conservativeness", fontsize=13)
-        ax_cons.tick_params(axis="both", labelsize=11)
-        ax_cons.legend(fontsize=12, loc="best")
-
-        ax_constit.set_xlabel(r"$T$ (number of steps)", fontsize=13)
-        ax_constit.set_ylabel("Constitution (%)", fontsize=13)
-        # ax_constit.set_title(f"{spec_title}: Constitution", fontsize=13)
-        ax_constit.tick_params(axis="both", labelsize=11)
-        ax_constit.legend(fontsize=12, loc="best")
-
-        plt.tight_layout()
-        spec_tag = _sanitize_spec_tag(spec_name, fallback_idx=spec_idx)
-        fig_path = os.path.join(
-            fig_dir,
-            f"{case_key.lower()}_{spec_tag}_conserv_constitution_vs_T.png",
-        )
-        fig.savefig(fig_path, dpi=300, bbox_inches="tight")
-        plt.close(fig)
-        print(f"Saved conserv/constitution figure: {fig_path}")
-        figure_paths.append(fig_path)
-
-    return figure_paths
-
-
-def plot_analysis_time_vs_T_per_spec(detail_df, case_name, out_dir=None):
-    """
-    Create one 1x1 figure per specification:
-      Analysis time vs T (mean over p_f), with t_r, t_c, t_v.
-    """
-    if not isinstance(detail_df, pd.DataFrame):
-        detail_df = pd.DataFrame(detail_df)
-
-    required_cols = {"case", "spec_name", "T", "t_r", "t_c", "t_v"}
-    missing = required_cols.difference(detail_df.columns)
-    if missing:
-        raise RuntimeError(f"detail_df is missing columns: {sorted(list(missing))}")
-
-    case_key = case_name.upper()
-    df_case = detail_df[detail_df["case"].str.upper() == case_key].copy()
-    if df_case.empty:
-        raise RuntimeError(f"No detail rows for case {case_key}")
-
-    if out_dir is None:
-        out_dir = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
-            "results",
-            "TL_verification_benchmark",
-            case_key,
-        )
-    fig_dir = os.path.join(out_dir, "figures_analysis_time_per_spec")
-    os.makedirs(fig_dir, exist_ok=True)
-
-    metric_styles = {
-        "t_r": {"label": r"$t_r$", "color": "blue", "marker": "o"},
-        "t_c": {"label": r"$t_c$", "color": "red", "marker": "x"},
-        "t_v": {"label": r"$t_v$", "color": "#1f77b4", "marker": ">"},
-    }
-    figure_paths = []
-    spec_names = list(dict.fromkeys(df_case["spec_name"].tolist()))
-
-    for spec_idx, spec_name in enumerate(spec_names):
-        df_spec = df_case[df_case["spec_name"] == spec_name].copy()
-        if df_spec.empty:
-            continue
-
-        by_T = (
-            df_spec.groupby("T", as_index=False)[["t_r", "t_c", "t_v"]]
-            .mean()
-            .sort_values("T")
-        )
-
-        fig, ax = plt.subplots(1, 1, figsize=(8, 5))
-        ax.set_facecolor("#ececec")
-
-        for metric, style in metric_styles.items():
-            ax.plot(
-                by_T["T"],
-                by_T[metric],
-                color=style["color"],
-                marker=style["marker"],
-                linewidth=2,
-                markersize=7,
-                label=style["label"],
-            )
-
-        ax.set_xlabel(r"$T$ (number of steps)", fontsize=13)
-        ax.set_ylabel("Analysis Time (s)", fontsize=13)
-        # ax.set_title(f"{case_key} {spec_name}: Analysis Time vs $T$", fontsize=13)
-        ax.tick_params(axis="both", labelsize=11)
-        ax.legend(fontsize=12, loc="best")
-
-        plt.tight_layout()
-        spec_tag = _sanitize_spec_tag(spec_name, fallback_idx=spec_idx)
-        fig_path = os.path.join(
-            fig_dir,
-            f"{case_key.lower()}_{spec_tag}_analysis_time_vs_T.png",
-        )
-        fig.savefig(fig_path, dpi=300, bbox_inches="tight")
-        plt.close(fig)
-        print(f"Saved per-spec analysis-time figure: {fig_path}")
-        figure_paths.append(fig_path)
-
-    return figure_paths
 
 
 def verify_temporal_specs_RNN_case(
@@ -1045,63 +674,17 @@ def verify_temporal_specs_RNN_case(
 
             table_files.extend([txt_path, tex_path])
 
-        # figure_path = plot_analysis_time_single_case(summary_df, case_name=case_name, out_dir=out_dir)
-        per_spec_conserv_constitution_figures = plot_conserv_constitution_vs_T_per_spec(
-            detail_df=detail_df,
-            case_name=case_name,
-            out_dir=out_dir,
-        )
-        per_spec_analysis_time_figures = plot_analysis_time_vs_T_per_spec(
-            detail_df=detail_df,
-            case_name=case_name,
-            out_dir=out_dir,
-        )
 
     return {
-        # "detail_csv": detail_csv,
-        # "summary_csv": summary_csv,
-        # "table_files": table_files,
-        # "figure_path": figure_path,
-        # "per_spec_conserv_constitution_figures": per_spec_conserv_constitution_figures,
-        # "per_spec_analysis_time_figures": per_spec_analysis_time_figures,
-        # "detail_df": detail_df,
-        # "summary_df": summary_df,
+        "detail_csv": detail_csv,
+        "summary_csv": summary_csv,
+        "table_files": table_files,
+        "figure_path": figure_path,
+        "per_spec_conserv_constitution_figures": per_spec_conserv_constitution_figures,
+        "per_spec_analysis_time_figures": per_spec_analysis_time_figures,
+        "detail_df": detail_df,
+        "summary_df": summary_df,
     }
-
-
-# def verify_temporal_specs_LIMO(time_steps=None, p_filters=None, shifts=1, numCores=1, verbose=True, out_dir=None):
-#     """ LIMO temporal verification."""
-#     return verify_temporal_specs_RNN_case(
-#         case_name="LIMO",
-#         time_steps=time_steps,
-#         p_filters=p_filters,
-#         shifts=shifts,
-#         numCores=numCores,
-#         verbose=verbose,
-#         out_dir=out_dir,
-#     )
-
-
-# def verify_temporal_specs_CMAPSS(
-#     time_steps=None,
-#     p_filters=None,
-#     shifts=1,
-#     engine_id=1,
-#     numCores=1,
-#     verbose=True,
-#     out_dir=None,
-# ):
-#     return verify_temporal_specs_RNN_case(
-#         case_name="CMAPSS",
-#         time_steps=time_steps,
-#         p_filters=p_filters,
-#         shifts=shifts,
-#         engine_id=engine_id,
-#         numCores=numCores,
-#         verbose=verbose,
-#         out_dir=out_dir,
-#     )
-
 
 
     
@@ -1120,34 +703,7 @@ if __name__ == "__main__":
         "TL_verification_benchmark_LIMO",
     )
 
-    # verify_temporal_specs_LIMO(
-    #     time_steps=time_steps,
-    #     p_filters=p_filters,
-    #     shifts=shifts,
-    #     numCores=num_cores,
-    #     verbose=verbose,
-    #     out_dir=os.path.join(result_out_dir, "LIMO"),
-    # )
 
-    # verify_temporal_specs_CMAPSS(
-    #     time_steps=time_steps,
-    #     p_filters=p_filters,
-    #     shifts=shifts,
-    #     engine_id=engine_id,
-    #     numCores=num_cores,
-    #     verbose=verbose,
-    #     out_dir=os.path.join(result_out_dir, "CMAPSS"),
-    # )
-    # verify_temporal_specs_RNN_case(
-    #     case_name="CMAPSS",
-    #     time_steps=time_steps,
-    #     p_filters=p_filters,
-    #     shifts=shifts,
-    #     engine_id=engine_id,
-    #     numCores=num_cores,
-    #     verbose=verbose,
-    #     out_dir=result_out_dir,
-    # )
 
     verify_temporal_specs_RNN_case(
         case_name="LIMO",
