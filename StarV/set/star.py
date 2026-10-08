@@ -648,14 +648,37 @@ class Star(object):
         V = np.hstack((V1, V3))
         pred_lb = np.concatenate((self.pred_lb, Y.pred_lb))
         pred_ub = np.concatenate((self.pred_ub, Y.pred_ub))  
-        C = block_diag(self.C, Y.C)
-        d = np.concatenate((self.d, Y.d))
+
+        if len(Y.C) == 0 and len(self.C) !=0:  # used for RNN, where Xt.C is empyty but ht.C is not empty
+            Y1=copy.deepcopy(Y)
+            Y1.C = np.zeros((self.C.shape[0], Y.nVars))
+            C = np.hstack((self.C, Y1.C))
+            d = self.d
+        else:
+            C = block_diag(self.C,Y.C)
+            d = np.concatenate((self.d, Y.d))
+
         if len(d) == 0:
             C = []
             d = []
         R = Star(V, C, d, pred_lb, pred_ub)
 
         return R
+
+    def concatenate_with_vector(self, v=[]):
+        """Concatenate a constant vector in front of a Star."""
+        if len(v) != 0:
+            assert isinstance(v, np.ndarray), 'error: input should be a 1-d array'
+            assert len(v.shape) == 1, 'error: input should be a 1-d array'
+
+            n = v.shape[0]
+            v1 = v.reshape(n, 1)
+            V1 = np.zeros((n, self.nVars))
+            V1 = np.hstack((v1, V1))
+            newV = np.vstack((V1, self.V))
+            return Star(newV, self.C, self.d, self.pred_lb, self.pred_ub)
+        else:
+            return self
         
 
     def isEmptySet(self, lp_solver='gurobi'):
