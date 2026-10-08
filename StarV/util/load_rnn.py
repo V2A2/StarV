@@ -175,7 +175,7 @@ def get_Star_set(col_point, eps,Ti):
    
     return X
 
-def get_input_ProbStar_CMAPSS(input_data,noises,feature_idx):
+def get_input_set_CMAPSS(input_data,noises,feature_idx, set = None):
 
 
     temperature_noise= noises[0]
@@ -253,22 +253,25 @@ def get_input_ProbStar_CMAPSS(input_data,noises,feature_idx):
         # print("init_state_ub:",init_state_ub)
 
         X0 = Star(init_state_lb,init_state_ub)
-        mu = 0.5*(X0.pred_lb + X0.pred_ub)
-        a = 3.5
-        sig = (mu - X0.pred_lb)/a
-        epsilon = 1e-6
-        sig = np.maximum(sig, epsilon)
-        Sig = np.diag(np.square(sig))
-        pred_lb = X0.pred_lb
-        pred_ub = X0.pred_ub
+        if set == "Star" or set == "star":
+            X.append(X0)
+        elif set == "ProbStar" or set == "probstar":
+            mu = 0.5*(X0.pred_lb + X0.pred_ub)
+            a = 3.5
+            sig = (mu - X0.pred_lb)/a
+            epsilon = 1e-6
+            sig = np.maximum(sig, epsilon)
+            Sig = np.diag(np.square(sig))
+            pred_lb = X0.pred_lb
+            pred_ub = X0.pred_ub
 
-        X0_probstar = ProbStar(X0.V, X0.C, X0.d, mu, Sig, pred_lb, pred_ub)
-        # print(f"probability of the initial ProbStar set {i}:{X0_probstar.estimateProbability()}")
-        X.append(X0_probstar)
+            X0_probstar = ProbStar(X0.V, X0.C, X0.d, mu, Sig, pred_lb, pred_ub)
+            # print(f"probability of the initial ProbStar set {i}:{X0_probstar.estimateProbability()}")
+            X.append(X0_probstar)
 
     return X
 
-def get_input_ProbStar_LIMO(input_data,noise):
+def get_input_set_LIMO(input_data,noise,set = None):
 
     # returns list of initial states bounds for each dimension, construct a ProbSatr for initial state
     init_state_bounds_list = []
@@ -299,19 +302,22 @@ def get_input_ProbStar_LIMO(input_data,noise):
         # print("init_state_ub:",init_state_ub)
 
         X0 = Star(init_state_lb,init_state_ub)
-        mu = 0.5*(X0.pred_lb + X0.pred_ub)
-        a = 3.5
-        sig = (mu - X0.pred_lb)/a
-        epsilon = 1e-6
-        sig = np.maximum(sig, epsilon)
-        Sig = np.diag(np.square(sig))
-        pred_lb = X0.pred_lb
-        pred_ub = X0.pred_ub
+        if set == "Star" or set == "star":
+            X.append(X0)
+        elif set == "ProbStar" or set == "probstar":
+            mu = 0.5*(X0.pred_lb + X0.pred_ub)
+            a = 3.5
+            sig = (mu - X0.pred_lb)/a
+            epsilon = 1e-6
+            sig = np.maximum(sig, epsilon)
+            Sig = np.diag(np.square(sig))
+            pred_lb = X0.pred_lb
+            pred_ub = X0.pred_ub
 
-        X0_probstar = ProbStar(X0.V, X0.C, X0.d, mu, Sig, pred_lb, pred_ub)
-        prob = X0_probstar.estimateProbability()
-        print(f"probability of the initial ProbStar set {i}:{prob}")
-        X.append(X0_probstar)
+            X0_probstar = ProbStar(X0.V, X0.C, X0.d, mu, Sig, pred_lb, pred_ub)
+            prob = X0_probstar.estimateProbability()
+            print(f"probability of the initial ProbStar set {i}:{prob}")
+            X.append(X0_probstar)
 
 
     return X

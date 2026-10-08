@@ -907,6 +907,60 @@ def load_AEBS_model():
 
     return controller, transformer, norm_mat, scale_mat, plant, initSets
     
+
+def load_AEBS_model_dStarTL():
+    """Load AEBS model with Star initial sets for dStarTL verification."""
+
+    cur_path = os.path.dirname(__file__)
+    controller_path = cur_path + '/data/nets/AEBS/controller.mat'
+    transform_path = cur_path + '/data/nets/AEBS/transform.mat'
+    controller_contents = loadmat(controller_path)
+    transform_contents = loadmat(transform_path)
+
+    control_W = controller_contents['W']
+    control_b = controller_contents['b']
+    transform_W = transform_contents['W']
+    transform_b = transform_contents['b']
+
+    FC1 = FullyConnectedLayer([control_W[0, 0], control_b[0, 0].reshape(control_b[0, 0].shape[1], )])
+    FC2 = FullyConnectedLayer([control_W[0, 1], control_b[0, 1].reshape(control_b[0, 1].shape[1], )])
+    FC3 = FullyConnectedLayer([control_W[0, 2], control_b[0, 2].reshape(control_b[0, 2].shape[1], )])
+    RL1 = ReLULayer()
+    RL2 = ReLULayer()
+    SL1 = SatLinLayer()
+    CLayers = [FC1, RL1, FC2, RL2, FC3, SL1]
+    controller = NeuralNetwork(CLayers, net_type='controller')
+
+    TFC1 = FullyConnectedLayer([transform_W[0, 0], transform_b[0, 0].reshape(transform_b[0, 0].shape[1], )])
+    TFC2 = FullyConnectedLayer([transform_W[0, 1], transform_b[0, 1].reshape(transform_b[0, 1].shape[1], )])
+    TFC3 = FullyConnectedLayer([transform_W[0, 2], transform_b[0, 2].reshape(transform_b[0, 2].shape[1], )])
+    TRL1 = ReLULayer()
+    TRL2 = ReLULayer()
+    TLayers = [TFC1, TRL1, TFC2, TRL2, TFC3]
+    transformer = NeuralNetwork(TLayers, net_type='transformer')
+
+    norm_mat = np.array([[1/250., 0., 0.], [0., 3.6/120., 0.], [0.,  0., 1/20.]])
+    scale_mat = np.array([[-15.0*120/3.6, 15.0*120/3.6]])
+
+    A = np.array([[1., -1/15., 0], [0., 1., 0.], [0., 0., 0.]])
+    B = np.array([[0.], [1/15], [1.]])
+    C = np.eye(3)
+    plant = DLODE(A, B, C)
+
+    d_lb = [97., 90., 48., 5.0]
+    d_ub = [97.5, 90.5, 48.5, 5.2]
+    v_lb = [25.2, 27., 30.2, 1.0]
+    v_ub = [25.5, 27.2, 30.4, 1.2]
+
+    initSets = []
+    for i in range(0, len(d_lb)):
+        lb = np.array([d_lb[i], v_lb[i], 0.0])
+        ub = np.array([d_ub[i], v_ub[i], 0.0])
+        S = Star(lb, ub)
+        initSets.append(S)
+
+    return controller, transformer, norm_mat, scale_mat, plant, initSets
+    
     
 def load_AEBS_temporal_specs():
     'temporal specification for AEBS model'
@@ -915,13 +969,12 @@ def load_AEBS_temporal_specs():
     #t = 10
 
     A1 = np.array([1.0, 0., 0.])
-    b1 = np.array([2.5])
+    b1 = np.array([30])
     P1 = AtomicPredicate(A1, b1)
     
     A2 = np.array([0., -1., 0])
     b2 = np.array([-0.2])
     P2 = AtomicPredicate(A2, b2)
-
     EV0T = _EVENTUALLY_(0,T)
     #EV0t = _EVENTUALLY_(0,t)
     AND = _AND_()
@@ -1732,3 +1785,193 @@ def load_onnx_network(filename, net_type=None, channel_last=True, num_pixel_clas
         layers.append(PixelClassificationLayer(num_pixel_classes))
 
     return NeuralNetwork(layers, net_type=net_type)
+
+
+def load_acc_model_dStarTL(netname='controller_5_20', plant='linear', spec_ids=None, initSet_id=None, T=None, t=None):
+    'load advanced neural network-controlled adaptive cruise control system'
+
+   
+    cur_path = os.path.dirname(__file__)
+    cur_path = cur_path + '/data/nets/ACC/' + netname
+    mat_contents = loadmat(cur_path)
+    W = mat_contents['W']
+    b = mat_contents['b']
+
+    n = W.shape[1]
+    layers = []
+    for i in range(0,n-1):
+        Wi = W[0,i]
+        bi = b[i,0]
+        bi = bi.reshape(bi.shape[0],)
+        L1 = FullyConnectedLayer([Wi, bi])
+        L2 = ReLULayer()
+        layers.append(L1)
+        layers.append(L2)
+
+
+    bi = b[n-1,0]
+    bi = bi.reshape(bi.shape[0],)
+    L1 = FullyConnectedLayer([W[0,n-1], bi])
+    layers.append(L1)
+    
+    net = NeuralNetwork(layers, netname)
+    # net.info()
+
+    if plant=='linear':
+
+        A = np.array([[0., 1., 0., 0., 0., 0., 0.],
+                      [0., 0., 1., 0., 0., 0., 0.],
+                      [0., 0., 0., 0., 0., 0., 1.],
+                      [0., 0., 0., 0., 1., 0., 0.],
+                      [0., 0., 0., 0., 0., 1., 0.],
+                      [0., 0., 0., 0., 0., -2., 0.],
+                      [0., 0., 0., 0., 0., 0., -2.]])
+        B = np.array([[0.], [0.], [0.], [0.], [0.], [2.], [0.]])
+        C = np.array([[1., 0., 0., -1., 0., 0., 0.],
+                      [0., 1., 0., 0., -1., 0., 0.],
+                      [0., 0., 0., 0., 1., 0., 0.]])
+        # feedbacks:
+        # 1) relative distance: x1 - x4
+        # 2) relative velocity: x2 - x5
+        # 3) longtitudinal velocity: x5
+
+        D = np.array([[0.], [0.], [0.]])
+
+        plant_model = LODE(A, B, C, D)
+        dplant = plant_model.toDLODE(0.1)  # dt = 0.1
+        
+    else:
+        raise RuntimeError("Unknown option: only have linear model for ACC for now")
+
+
+    sys = NNCS(net, dplant, type='DLNNCS')
+    #sys.info()
+
+    # reference inputs
+    refInputs = np.array([30., 1.4])
+
+    # input sets (multiple input set - 6 individual depending on v_lead_0)
+    x_lead_0 = [90., 92.]
+    v_lead_0 = [[29., 30.], [28., 29.], [27., 28.], [26., 27.], [25., 26.], [20., 21.]]
+    acc_lead_0 = [0., 0.]
+    x_ego_0 = [30., 31.,]
+    v_ego_0 = [30., 30.5]
+    acc_ego_0 = [0., 0.]
+    a_lead = -5.0
+    x7_0 = [2*a_lead, 2*a_lead]
+
+    initSets = []
+    for i in range(0, 6):
+        v_lead_0_i = v_lead_0[i]
+        lb = np.array([x_lead_0[0], v_lead_0_i[0], acc_lead_0[0], x_ego_0[0], v_ego_0[0], acc_ego_0[0], x7_0[0]])
+        ub = np.array([x_lead_0[1], v_lead_0_i[1], acc_lead_0[1], x_ego_0[1], v_ego_0[1], acc_ego_0[1], x7_0[1]])
+        S = Star(lb, ub)
+        initSets.append(S)
+
+    print('Number of initial sets : {}, and initset dimension: {}'.format(len(initSets), initSets[0].V.shape))
+
+
+    # unsafe constraints
+    # safety property: actual distance > alpha * safe distance <=> d = (x1 - x4) > alpha * d_safe = alpha * (1.4 * v_ego + 10)
+    # unsafe region: x1 - x4 <= alpha * (1.4 * v_ego + 10)
+
+    alpha = 1.0
+    unsafe_mat = np.array([[1.0, 0., 0., -1., -alpha*1.4, 0., 0.]])
+    unsafe_vec = np.array([alpha*10.0])
+
+    if spec_ids is None: # return systems with unsafe properties
+        
+        return sys, initSets, refInputs, unsafe_mat, unsafe_vec
+
+    else: # return system with temporal specifications
+
+        # Temporal Specifications
+
+        assert T is not None, 'error: T should be > 0'
+        assert t is not None, 'error: t should be > 0'
+
+        EV0T = _EVENTUALLY_(0,T)
+        EV0t = _EVENTUALLY_(0,t)
+        AND = _AND_()
+        OR = _OR_()
+        lb = _LeftBracket_()
+        rb = _RightBracket_()
+        AW0T = _ALWAYS_(0,T)
+        AW0t = _ALWAYS_(0,t)
+
+        # phi1 : eventually_[0, T](x_lead - x_ego <= D_safe = 10 + 1.4 v_ego) : A2x <= b2
+        A1 = np.array([1., 0., 0., -1., -1.4, 0., 0.])
+        b1 = np.array([10.])
+        P1 = AtomicPredicate(A1,b1)
+        phi1 = Formula([EV0T, lb, P1, rb])
+
+        #phi1c always_[0, T] (x_lead - x_ego >= D_safe = 10 + 1.4 v_ego): A1x <= b1
+        P1c = AtomicPredicate(-A1,-b1)
+        phi1c = Formula([AW0T, lb, P1c, rb])
+
+        # phi2 : eventually_[0, T](v_lead <= v_lead(0)_min - 0.1 OR v_ego <= v_ego(0)_min - 0.1): A3 <= b3
+
+        # phi2 IS DIFFERENT FOR DIFFERENT INITIAL CONDITION
+
+        A21 = np.array([0., 1., 0., 0., 0, 0., 0.])
+        b21 = np.array([min(v_lead_0[initSet_id]) - 0.1])
+        P21 = AtomicPredicate(A21,b21)
+
+        A22 = np.array([0., 0., 0., 0., 1., 0., 0.])
+        b22 = np.array([min(v_ego_0) - 0.1])
+        P22 = AtomicPredicate(A22,b22)
+
+        phi2= Formula([EV0T, lb, P21, OR, P22, rb]) #
+
+        P21c = AtomicPredicate(-A21, -b21)
+        P22c = AtomicPredicate(-A22, -b22)
+
+        # complement properties
+        phi2c = Formula([AW0T, lb, P21c, AND, P22c, rb])
+
+        # phi3 : eventually_[0, T](v_lead <= v_lead(0)_min - 0.1  AND eventually_[0, 10](v_ego <= v_ego(0)_min - 0.1))
+
+        # phi3 is different for different initial condition
+
+
+        A31 = np.array([0., 1., 0., 0., 0, 0., 0.])
+        b31 = np.array([min(v_lead_0[initSet_id]) - 0.1])
+        P31 = AtomicPredicate(A31,b31)
+
+        A32 = np.array([0., 0., 0., 0., 1., 0., 0.])
+        b32 = np.array([min(v_ego_0) - 0.1])
+        P32 = AtomicPredicate(A32,b32)
+
+        phi3 = Formula([EV0T, lb, P31, AND, lb, EV0t, P32, rb, rb])
+
+        # phi4 : always_[0, T](x_lead - x_ego <= D_safe -> eventually_[0,10](x_lead - x_ego >= D_safe))
+        # equivalent to : always_[0, T](x_lead - x_ego >= D_safe OR eventually_[0,t](x_lead - x_ego >= D_safe))
+        # P(phi5) = 1 - P(phi5')
+        # P(always(A or B)) = 1 - P(eventually (not A AND not B))
+        # not B = not eventually C = always not C
+
+        # phi4' = eventually_[0,T](x_lead-x_ego <= D_safe AND always_[0,t](x_lead - x_ego <= D_safe))
+
+        A41 = np.array([1., 0., 0., -1., -1.4, 0., 0.])
+        b41 = np.array([10.])
+        P41 = AtomicPredicate(A41,b41)
+        P42 = AtomicPredicate(-A41,-b41)
+
+        phi4 = Formula([AW0T, lb, P41, OR, lb, EV0t, P42 , rb, rb])
+
+        phi4c = Formula([EV0T, lb, P41, AND, lb, AW0t, P41, rb, rb])
+
+        phi = [phi1, phi1c, phi2, phi2c, phi3,phi4c]
+
+        assert isinstance(spec_ids, list), 'Error: spec_ids should be a list'
+        id_max = max(spec_ids)
+        id_min = min(spec_ids)
+
+        if id_min < 0 or id_max > 6:
+            raise RuntimeError('Invalid spec_ids, id should be between 0 and 4')
+
+        phi_v = []
+        for id in spec_ids:
+            phi_v.append(phi[id])
+        
+        return sys, phi_v, initSets[initSet_id], refInputs
