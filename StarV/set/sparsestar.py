@@ -26,7 +26,10 @@ import scipy.sparse as sp
 from scipy.optimize import linprog
 from scipy.linalg import block_diag
 import polytope as pc
-import glpk
+try:
+    import glpk
+except ImportError:
+    glpk = None
 import gurobipy as gp
 from gurobipy import GRB
 from StarV.set.star import Star

@@ -678,17 +678,126 @@ class IdentityXIdentity(object):
     #         S = S.depthReduction(DR)
     #     return S
 
+    @staticmethod
+    def reachApprox_star(X, H, lp_solver='gurobi', RF=0.0):
+        """
+        Approximate reachability of Hadamard product X * H for Star sets using McCormick envelopes.
+        """
+        assert isinstance(X, Star) and isinstance(H, Star), 'error: both input sets should be Star sets'
+        assert X.dim == H.dim, f'error: dimension mismatch between X ({X.dim}) and H ({H.dim})'
+        N = X.dim
+
+        xl, xu = X.getRanges(lp_solver=lp_solver, RF=RF)
+        hl, hu = H.getRanges(lp_solver=lp_solver, RF=RF)
+
+        map0 = np.where((xl != xu) & (hl != hu))[0]
+        m = len(map0)
+
+        nX = X.nVars
+        nH = H.nVars
+        nv = nX + nH + m
+
+        new_V = np.zeros((N, nv + 1))
+
+        # 1. Both inputs are point intervals:
+        map1 = np.where((xl == xu) & (hl == hu))[0]
+        if len(map1) > 0:
+            new_V[map1, 0] = xl[map1] * hl[map1]
+
+        # 2. X is a point, H is an interval:
+        map2 = np.where((xl == xu) & (hl != hu))[0]
+        if len(map2) > 0:
+            new_V[map2, 0] = xl[map2] * H.V[map2, 0]
+            new_V[map2, 1 + nX:1 + nX + nH] = xl[map2, None] * H.V[map2, 1:]
+
+        # 3. X is an interval, H is a point:
+        map3 = np.where((xl != xu) & (hl == hu))[0]
+        if len(map3) > 0:
+            new_V[map3, 0] = hl[map3] * X.V[map3, 0]
+            new_V[map3, 1:1 + nX] = hl[map3, None] * X.V[map3, 1:]
+
+        # 4. Both are intervals (bilinear cross terms):
+        for k, i in enumerate(map0):
+            new_V[i, 1 + nX + nH + k] = 1.0
+
+        C_list = []
+        d_list = []
+        if len(X.d) > 0 and len(H.d) > 0:
+            C_base = block_diag(X.C, H.C)
+            d_base = np.concatenate([X.d, H.d])
+            if m > 0:
+                C_base = np.hstack([C_base, np.zeros((C_base.shape[0], m))])
+            C_list.append(C_base)
+            d_list.append(d_base)
+        elif len(X.d) > 0:
+            C_base = np.hstack([X.C, np.zeros((X.C.shape[0], nH + m))])
+            C_list.append(C_base)
+            d_list.append(X.d)
+        elif len(H.d) > 0:
+            C_base = np.hstack([np.zeros((H.C.shape[0], nX)), H.C, np.zeros((H.C.shape[0], m))])
+            C_list.append(C_base)
+            d_list.append(H.d)
+
+        if m > 0:
+            Ux, Uh, Ub, Lx, Lh, Lb, zmax, zmin = IdentityXIdentity.getMultiConstraints(
+                xl[map0], xu[map0], hl[map0], hu[map0]
+            )
+
+            VX_map = X.V[map0, 1:]
+            VH_map = H.V[map0, 1:]
+            cX_map = X.V[map0, 0]
+            cH_map = H.V[map0, 0]
+            Zm = np.eye(m)
+
+            # 1. z <= Ux[0]*x + Uh[0]*h - Ub[0]
+            C1 = np.hstack([-Ux[0, :, None] * VX_map, -Uh[0, :, None] * VH_map, Zm])
+            d1 = Ux[0, :] * cX_map + Uh[0, :] * cH_map - Ub[0, :]
+
+            # 2. z <= Ux[1]*x + Uh[1]*h - Ub[1]
+            C2 = np.hstack([-Ux[1, :, None] * VX_map, -Uh[1, :, None] * VH_map, Zm])
+            d2 = Ux[1, :] * cX_map + Uh[1, :] * cH_map - Ub[1, :]
+
+            # 3. z >= Lx[0]*x + Lh[0]*h + Lb[0]
+            C3 = np.hstack([Lx[0, :, None] * VX_map, Lh[0, :, None] * VH_map, -Zm])
+            d3 = -Lx[0, :] * cX_map - Lh[0, :] * cH_map + Lb[0, :]
+
+            # 4. z >= Lx[1]*x + Lh[1]*h + Lb[1]
+            C4 = np.hstack([Lx[1, :, None] * VX_map, Lh[1, :, None] * VH_map, -Zm])
+            d4 = -Lx[1, :] * cX_map - Lh[1, :] * cH_map + Lb[1, :]
+
+            C_mccormick = np.vstack([C1, C2, C3, C4])
+            d_mccormick = np.hstack([d1, d2, d3, d4])
+
+            C_list.append(C_mccormick)
+            d_list.append(d_mccormick)
+
+            new_pred_lb = np.hstack([X.pred_lb, H.pred_lb, zmin])
+            new_pred_ub = np.hstack([X.pred_ub, H.pred_ub, zmax])
+        else:
+            new_pred_lb = np.hstack([X.pred_lb, H.pred_lb])
+            new_pred_ub = np.hstack([X.pred_ub, H.pred_ub])
+
+        if len(C_list) > 0:
+            new_C = np.vstack(C_list)
+            new_d = np.hstack(d_list)
+        else:
+            new_C = np.empty([0, nv])
+            new_d = np.empty(0)
+
+        return Star(new_V, new_C, new_d, new_pred_lb, new_pred_ub)
+
+    @staticmethod
     def reachApprox_sparse(X, H, lp_solver='gurobi', RF=0.0, DR=0):
         assert isinstance(X, SparseStar) and isinstance(H, SparseStar), 'error: both or one of input sets are not SparseStar sets'
         assert X.dim == H.dim, 'error: dimension of input sets does not match'
 
         return IdentityXIdentity.multiStep_sparse(X, H, lp_solver=lp_solver, RF=RF, DR=DR)
 
+    @staticmethod
     def reach(X, H, lp_solver='gurobi', pool=None, RF=0.0, DR=0):
         if isinstance(X, SparseStar) and isinstance(H, SparseStar):
             return IdentityXIdentity.reachApprox_sparse(X, H, lp_solver=lp_solver, RF=RF, DR=DR)
         elif isinstance(X, Star) and isinstance(H, Star):
-            # return IdentityXIdentity.reachApproxStar(X, H, lp_solver RF, DR)
-            raise Exception('error: under development')
+            return IdentityXIdentity.reachApprox_star(X, H, lp_solver=lp_solver, RF=RF)
         else:
             raise Exception('error: both input sets (X, H) should be SparseStar or Star')

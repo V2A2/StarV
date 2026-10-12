@@ -27,7 +27,10 @@ import gurobipy as gp
 from gurobipy import GRB
 from scipy.optimize import linprog
 from scipy.linalg import block_diag
-import glpk
+try:
+    import glpk
+except ImportError:
+    glpk = None
 import polytope as pc
 
 GUROBI_OPT_TOL = 1e-6
