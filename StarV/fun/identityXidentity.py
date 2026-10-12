@@ -679,112 +679,130 @@ class IdentityXIdentity(object):
     #     return S
 
     @staticmethod
+    def getMcCormick(xl, xu, yl, yu):
+        """
+        Closed-form McCormick envelope of z = x * y over the box [xl, xu] x [yl, yu].
+        (This is the exact convex/concave envelope of a bilinear term on a box.)
+
+        Returns ax, ay, b, zmin, zmax, where ax, ay, b have shape (4, m):
+            rows 0, 1 (under-estimators):  z >= ax*x + ay*y + b
+            rows 2, 3 (over-estimators):   z <= ax*x + ay*y + b
+        and [zmin, zmax] is the exact range of x*y over the box.
+
+        Unlike getMultiConstraints (vertex sorting), this never divides, so it is
+        well-defined when box corners tie in z (e.g. [0,1] x [0,1]).
+        """
+        xl, xu, yl, yu = [np.asarray(v, dtype=np.float64) for v in (xl, xu, yl, yu)]
+        ax = np.vstack([yl, yu, yl, yu])
+        ay = np.vstack([xl, xu, xu, xl])
+        b = np.vstack([-xl * yl, -xu * yu, -xu * yl, -xl * yu])
+        corners = np.vstack([xl * yl, xl * yu, xu * yl, xu * yu])
+        return ax, ay, b, corners.min(axis=0), corners.max(axis=0)
+
+    @staticmethod
+    def _hadamard_common(cX, VX, cH, VH, C, d, pred_lb, pred_ub, xl, xu, hl, hu):
+        """
+        Hadamard product of two affine expressions x = cX + VX a, h = cH + VH a that are
+        defined over the SAME predicate vector a (n variables, constraints C a <= d).
+
+        Appends one new predicate z_i per element whose two factors both have non-zero width,
+        constrained by the 4 McCormick inequalities. Degenerate (constant) factors are handled
+        exactly (no new variables). Returns a Star over [a, z].
+        """
+        N, n = VX.shape
+        tol = 0.0
+        x_pt = (xu - xl) <= tol
+        h_pt = (hu - hl) <= tol
+        map0 = np.where(~x_pt & ~h_pt)[0]
+        m = len(map0)
+
+        new_V = np.zeros((N, n + m + 1))
+
+        # constant * constant
+        idx = np.where(x_pt & h_pt)[0]
+        new_V[idx, 0] = xl[idx] * hl[idx]
+        # constant x * interval h  ->  x_value * h  (exact)
+        idx = np.where(x_pt & ~h_pt)[0]
+        new_V[idx, 0] = xl[idx] * cH[idx]
+        new_V[idx, 1:n + 1] = xl[idx, None] * VH[idx, :]
+        # interval x * constant h  ->  h_value * x  (exact)
+        idx = np.where(~x_pt & h_pt)[0]
+        new_V[idx, 0] = hl[idx] * cX[idx]
+        new_V[idx, 1:n + 1] = hl[idx, None] * VX[idx, :]
+        # interval * interval -> new variable z
+        for k, i in enumerate(map0):
+            new_V[i, n + 1 + k] = 1.0
+
+        C0 = np.hstack([C, np.zeros((C.shape[0], m))]) if len(d) > 0 else np.empty((0, n + m))
+        d0 = d if len(d) > 0 else np.empty(0)
+
+        if m > 0:
+            ax, ah, b, zmin, zmax = IdentityXIdentity.getMcCormick(xl[map0], xu[map0], hl[map0], hu[map0])
+            Vx, Vh, cx, ch = VX[map0], VH[map0], cX[map0], cH[map0]
+            I_m = np.eye(m)
+            rows_C, rows_d = [], []
+            for r in range(4):
+                lin = ax[r][:, None] * Vx + ah[r][:, None] * Vh        # coefficient of a
+                cst = ax[r] * cx + ah[r] * ch + b[r]                    # constant part
+                if r < 2:   # z >= lin a + cst   <=>   lin a - z <= -cst
+                    rows_C.append(np.hstack([lin, -I_m]))
+                    rows_d.append(-cst)
+                else:       # z <= lin a + cst   <=>  -lin a + z <= cst
+                    rows_C.append(np.hstack([-lin, I_m]))
+                    rows_d.append(cst)
+            new_C = np.vstack([C0] + rows_C)
+            new_d = np.hstack([d0] + rows_d)
+            new_lb = np.hstack([pred_lb, zmin])
+            new_ub = np.hstack([pred_ub, zmax])
+        else:
+            new_C, new_d, new_lb, new_ub = C0, d0, pred_lb, pred_ub
+
+        return Star(new_V, new_C, new_d, new_lb, new_ub)
+
+    @staticmethod
     def reachApprox_star(X, H, lp_solver='gurobi', RF=0.0):
         """
-        Approximate reachability of Hadamard product X * H for Star sets using McCormick envelopes.
+        McCormick over-approximation of X * H for two INDEPENDENT Star sets
+        (their predicate vectors are concatenated: a = [a_X, a_H]).
+        Use reachApprox_star_shared when X and H depend on the same predicates.
         """
         assert isinstance(X, Star) and isinstance(H, Star), 'error: both input sets should be Star sets'
         assert X.dim == H.dim, f'error: dimension mismatch between X ({X.dim}) and H ({H.dim})'
-        N = X.dim
 
         xl, xu = X.getRanges(lp_solver=lp_solver, RF=RF)
         hl, hu = H.getRanges(lp_solver=lp_solver, RF=RF)
 
-        map0 = np.where((xl != xu) & (hl != hu))[0]
-        m = len(map0)
+        nX, nH = X.nVars, H.nVars
+        VX = np.hstack([X.V[:, 1:], np.zeros((X.dim, nH))])
+        VH = np.hstack([np.zeros((H.dim, nX)), H.V[:, 1:]])
 
-        nX = X.nVars
-        nH = H.nVars
-        nv = nX + nH + m
+        CX = X.C if len(X.d) > 0 else np.empty((0, nX))
+        CH = H.C if len(H.d) > 0 else np.empty((0, nH))
+        C = block_diag(CX, CH) if (len(X.d) + len(H.d)) > 0 else np.empty((0, nX + nH))
+        d = np.concatenate([np.asarray(X.d, dtype=np.float64).reshape(-1),
+                            np.asarray(H.d, dtype=np.float64).reshape(-1)])
+        lb = np.hstack([X.pred_lb, H.pred_lb])
+        ub = np.hstack([X.pred_ub, H.pred_ub])
 
-        new_V = np.zeros((N, nv + 1))
+        return IdentityXIdentity._hadamard_common(X.V[:, 0], VX, H.V[:, 0], VH, C, d, lb, ub, xl, xu, hl, hu)
 
-        # 1. Both inputs are point intervals:
-        map1 = np.where((xl == xu) & (hl == hu))[0]
-        if len(map1) > 0:
-            new_V[map1, 0] = xl[map1] * hl[map1]
+    @staticmethod
+    def reachApprox_star_shared(X, H, lp_solver='gurobi', RF=0.0):
+        """
+        McCormick over-approximation of X * H when X and H are defined over the SAME
+        predicate vector (same nVars, same C, d, pred_lb, pred_ub), e.g. both derived from
+        one input set. Keeps the dependency between X and H (tighter, no duplicated predicates).
+        """
+        assert isinstance(X, Star) and isinstance(H, Star), 'error: both input sets should be Star sets'
+        assert X.dim == H.dim, f'error: dimension mismatch between X ({X.dim}) and H ({H.dim})'
+        assert X.nVars == H.nVars, 'error: X and H must share the same predicate vector'
 
-        # 2. X is a point, H is an interval:
-        map2 = np.where((xl == xu) & (hl != hu))[0]
-        if len(map2) > 0:
-            new_V[map2, 0] = xl[map2] * H.V[map2, 0]
-            new_V[map2, 1 + nX:1 + nX + nH] = xl[map2, None] * H.V[map2, 1:]
-
-        # 3. X is an interval, H is a point:
-        map3 = np.where((xl != xu) & (hl == hu))[0]
-        if len(map3) > 0:
-            new_V[map3, 0] = hl[map3] * X.V[map3, 0]
-            new_V[map3, 1:1 + nX] = hl[map3, None] * X.V[map3, 1:]
-
-        # 4. Both are intervals (bilinear cross terms):
-        for k, i in enumerate(map0):
-            new_V[i, 1 + nX + nH + k] = 1.0
-
-        C_list = []
-        d_list = []
-        if len(X.d) > 0 and len(H.d) > 0:
-            C_base = block_diag(X.C, H.C)
-            d_base = np.concatenate([X.d, H.d])
-            if m > 0:
-                C_base = np.hstack([C_base, np.zeros((C_base.shape[0], m))])
-            C_list.append(C_base)
-            d_list.append(d_base)
-        elif len(X.d) > 0:
-            C_base = np.hstack([X.C, np.zeros((X.C.shape[0], nH + m))])
-            C_list.append(C_base)
-            d_list.append(X.d)
-        elif len(H.d) > 0:
-            C_base = np.hstack([np.zeros((H.C.shape[0], nX)), H.C, np.zeros((H.C.shape[0], m))])
-            C_list.append(C_base)
-            d_list.append(H.d)
-
-        if m > 0:
-            Ux, Uh, Ub, Lx, Lh, Lb, zmax, zmin = IdentityXIdentity.getMultiConstraints(
-                xl[map0], xu[map0], hl[map0], hu[map0]
-            )
-
-            VX_map = X.V[map0, 1:]
-            VH_map = H.V[map0, 1:]
-            cX_map = X.V[map0, 0]
-            cH_map = H.V[map0, 0]
-            Zm = np.eye(m)
-
-            # 1. z <= Ux[0]*x + Uh[0]*h - Ub[0]
-            C1 = np.hstack([-Ux[0, :, None] * VX_map, -Uh[0, :, None] * VH_map, Zm])
-            d1 = Ux[0, :] * cX_map + Uh[0, :] * cH_map - Ub[0, :]
-
-            # 2. z <= Ux[1]*x + Uh[1]*h - Ub[1]
-            C2 = np.hstack([-Ux[1, :, None] * VX_map, -Uh[1, :, None] * VH_map, Zm])
-            d2 = Ux[1, :] * cX_map + Uh[1, :] * cH_map - Ub[1, :]
-
-            # 3. z >= Lx[0]*x + Lh[0]*h + Lb[0]
-            C3 = np.hstack([Lx[0, :, None] * VX_map, Lh[0, :, None] * VH_map, -Zm])
-            d3 = -Lx[0, :] * cX_map - Lh[0, :] * cH_map + Lb[0, :]
-
-            # 4. z >= Lx[1]*x + Lh[1]*h + Lb[1]
-            C4 = np.hstack([Lx[1, :, None] * VX_map, Lh[1, :, None] * VH_map, -Zm])
-            d4 = -Lx[1, :] * cX_map - Lh[1, :] * cH_map + Lb[1, :]
-
-            C_mccormick = np.vstack([C1, C2, C3, C4])
-            d_mccormick = np.hstack([d1, d2, d3, d4])
-
-            C_list.append(C_mccormick)
-            d_list.append(d_mccormick)
-
-            new_pred_lb = np.hstack([X.pred_lb, H.pred_lb, zmin])
-            new_pred_ub = np.hstack([X.pred_ub, H.pred_ub, zmax])
-        else:
-            new_pred_lb = np.hstack([X.pred_lb, H.pred_lb])
-            new_pred_ub = np.hstack([X.pred_ub, H.pred_ub])
-
-        if len(C_list) > 0:
-            new_C = np.vstack(C_list)
-            new_d = np.hstack(d_list)
-        else:
-            new_C = np.empty([0, nv])
-            new_d = np.empty(0)
-
-        return Star(new_V, new_C, new_d, new_pred_lb, new_pred_ub)
+        xl, xu = X.getRanges(lp_solver=lp_solver, RF=RF)
+        hl, hu = H.getRanges(lp_solver=lp_solver, RF=RF)
+        C = X.C if len(X.d) > 0 else np.empty((0, X.nVars))
+        d = np.asarray(X.d, dtype=np.float64).reshape(-1)
+        return IdentityXIdentity._hadamard_common(X.V[:, 0], X.V[:, 1:], H.V[:, 0], H.V[:, 1:],
+                                                  C, d, X.pred_lb, X.pred_ub, xl, xu, hl, hu)
 
     @staticmethod
     def reachApprox_sparse(X, H, lp_solver='gurobi', RF=0.0, DR=0):
