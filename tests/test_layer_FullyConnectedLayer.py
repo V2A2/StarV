@@ -93,7 +93,7 @@ class Test(object):
         In.append(I1)
         In.append(I1)
         print('Number of input sets: {}'.format(len(In)))
-        S = L.reach(inputSet=In, pool=pool)
+        S = L.reach(inputSet=In,pool=pool)
         print('Number of output Set: {}'.format(len(S)))
         pool.close()
                 

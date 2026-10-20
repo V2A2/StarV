@@ -1,0 +1,13 @@
+T,spec_idx,spec_label,LIMO_cdnf,CMAPSS_cdnf
+10,0,$\varphi_1$,10.0,1.0
+10,2,$\varphi_2$,20.0,18.0
+10,4,$\varphi_3^\prime$,3.0,5.0
+10,5,$\varphi_4$,45.0,45.0
+15,0,$\varphi_1$,15.0,1.0
+15,2,$\varphi_2$,30.0,28.0
+15,4,$\varphi_3^\prime$,8.0,10.0
+15,5,$\varphi_4$,75.0,75.0
+20,0,$\varphi_1$,20.0,8.0
+20,2,$\varphi_2$,40.0,30.0
+20,4,$\varphi_3^\prime$,15.0,15.0
+20,5,$\varphi_4$,105.0,105.0

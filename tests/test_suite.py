@@ -183,6 +183,28 @@ class TestStarVVerifierAndNNCS(unittest.TestCase):
         rb, vt, vt_total, Y = certifier.certify(net, sp_in, labels=0, show=False)
         self.assertEqual(rb, 1)
 
+    def test_recurrent_layer_and_dstartl(self):
+        from StarV.layer.RecurrentLayer import RecurrentLayer
+        from StarV.spec import dStarTL
+
+        rnn = RecurrentLayer.rand(2, 3)
+        x_seq = [Star(np.array([-0.1, -0.1]), np.array([0.1, 0.1])) for _ in range(2)]
+        out_exact = rnn.reachExact(x_seq, lp_solver='linprog')
+        self.assertEqual(len(out_exact), 2)
+
+        ap = dStarTL.AtomicPredicate(np.array([1.0, 0.0]), np.array([0.5]))
+        alw = dStarTL._ALWAYS_(0, 1)
+        lb = dStarTL._LeftBracket_()
+        rb = dStarTL._RightBracket_()
+        spec = dStarTL.Formula([alw, lb, ap, rb])
+        trace = [Star(np.array([-0.2, -0.2]), np.array([0.2, 0.2])),
+                 Star(np.array([-0.1, -0.1]), np.array([0.3, 0.3]))]
+        ex_f = dStarTL.ExpandedFormula(spec)
+        ri = dStarTL.GetRobustnessInterval(trace, lp_solver='linprog')
+        rho_lb, rho_ub = ri.getRobustnessInterval(ex_f)
+        self.assertGreater(rho_lb, 0.0)
+        self.assertGreaterEqual(rho_ub, rho_lb)
+
 
 class TestLegacyModules(unittest.TestCase):
     """Run legacy Test classes in tests/ and assert n_fails == 0."""

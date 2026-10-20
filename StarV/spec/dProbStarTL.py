@@ -139,8 +139,7 @@ class AtomicPredicate(object):
 
         return str
 
-    def print_info(self):
-        
+    def print_info(self, t=None):
         print('Atomic Predicate: \n')
         print('{} * x[t={}] <= {}\n'.format(self.A, self.t, self.b))
 
@@ -266,6 +265,17 @@ class _OR_(object):
     def print(self):
 
         return self.operator
+    
+class _NEXT_(object):
+
+    def __init__(self):
+
+        self.type = 'TemporalOperator'
+        self.operator = 'NEXT '
+
+    def print(self):
+
+        return self.operator
 
 class _NOT_(object):
 
@@ -277,6 +287,19 @@ class _NOT_(object):
     def print(self):
 
         return self.operator
+
+
+class _NEXT_(object):
+
+    def __init__(self):
+
+        self.type = 'TemporalOperator'
+        self.operator = 'NEXT '
+
+    def print(self):
+
+        return self.operator
+
 
 class _IMPLY_(object):
 
@@ -334,7 +357,24 @@ class _EVENTUALLY_(object):
 
 class _UNTIL_(object):
 
-    pass
+    def __init__(self, start_time, end_time=None):
+
+        assert start_time >= 0, 'error: invalid start_time'
+        self.start_time = start_time
+
+        if end_time is not None:
+            assert end_time > start_time, 'error: invalid end_time'
+            self.end_time = end_time
+            self.operator = 'UNTIL_[{},{}] '.format(start_time, end_time)
+        else:
+            self.end_time = float('inf')
+            self.operator = 'UNTIL_[{}, inf] '.format(start_time)
+
+        self.type = 'TemporalOperator'
+
+    def print(self):
+
+        return self.operator
 
 class _LeftBracket_(object):
 
@@ -424,6 +464,8 @@ class CDNF(object):
             C = C.reshape(1, self.base_probstar.nVars)
 
         S = ProbStar(self.base_probstar.V, C, d, self.base_probstar.mu, self.base_probstar.Sig, self.base_probstar.pred_lb, self.base_probstar.pred_ub)
+        # print(f'number of predicate variables in the combination {combination_ids} is {C.shape[1]}')
+        
 
         prob = S.estimateProbability()
 
@@ -584,7 +626,7 @@ class Formula(object):
         for obj in formula:
             
             if not isinstance(obj, AtomicPredicate) and not isinstance(obj, _AND_) and not isinstance(obj, _OR_) \
-               and not isinstance(obj, _ALWAYS_) and not isinstance(obj, _NOT_) and not isinstance(obj, _UNTIL_) \
+               and not isinstance(obj, _ALWAYS_) and not isinstance(obj, _NOT_) and not isinstance(obj, _NEXT_) and not isinstance(obj, _UNTIL_) \
                and not isinstance(obj, _EVENTUALLY_) and not isinstance(obj, _LeftBracket_) and not isinstance(obj, _RightBracket_):
 
                 raise RuntimeError('Invalid Spec, unknown object')
@@ -601,6 +643,8 @@ class Formula(object):
                     nORs = nORs + 1
                 elif obj.operator == 'IMPLY ':
                     nIMPLYs = nIMPLYs + 1
+                elif obj.operator == 'NOT ':
+                    pass
                 else:
                     raise RuntimeError('Unknown boolean operator')
     
@@ -685,13 +729,14 @@ class Formula(object):
         # Step 3: F0 = P1 AND F0
         # Step 4: F0 = EV_[0,5] F0
 
+        print(f"Generating dynamic formula for specifications")
+
         lb_idxes, rb_idxes = self.getLoopIds()
         inner_f = self.getInnerMostLoopFormula()
         # expand the formula from inner loop to outer loop
 
         DF = DynamicFormula(F=[])
-        DF.subFormula_expand(inner_f)
-        
+        DF.subFormula_expand(inner_f)        
 
         if len(lb_idxes) >= 2:
         
@@ -1078,6 +1123,7 @@ class DynamicFormula(object):
         constraints = []
         base_probstar = copy.deepcopy(probstar_sig[0])
         nVars = base_probstar.nVars
+
         for P in self.F:
             H = []
             C = None
@@ -1089,11 +1135,11 @@ class DynamicFormula(object):
                     break
                 else:  
                     if C is None:
-                        d = Pi.b - np.matmul(Pi.A, probstar_sig[Pi.t].V[:,0])
+                        d = Pi.b - np.matmul(Pi.A,  probstar_sig[Pi.t].V[:,0])
                         C = np.matmul(Pi.A, probstar_sig[Pi.t].V[:, 1:nVars+1])
                     else:
-                        d1 = Pi.b - np.matmul(Pi.A, probstar_sig[Pi.t].V[:,0])
-                        C1 = np.matmul(Pi.A, probstar_sig[Pi.t].V[:, 1:nVars+1])
+                        d1 = Pi.b - np.matmul(Pi.A,  probstar_sig[Pi.t].V[:,0])
+                        C1 = np.matmul(Pi.A,  probstar_sig[Pi.t].V[:, 1:nVars+1])
 
                         C = np.vstack((C, C1))
                         d = np.concatenate((d, d1))
@@ -1120,6 +1166,97 @@ class DynamicFormula(object):
 
         return cdnf
 
+    def realization_for_RNN(self, branch_signal):
+        """Realization for RNN branch_signal where each timestep has independent  set as input set.
+        Args:
+            branch_signal: list of ProbStar  sets(one per timestep)
+        """
+        # Qing Liu, 02/15/2026 
+
+        assert isinstance(branch_signal, list), 'error: probstar signal should be a list'
+        T = len(branch_signal)
+        if T == 0:
+            return CDNF([], ProbStar())
+
+        # choose a base probstar with the largest amount of predicate varibles, to be used as the base probstar for all constraints
+        # often the one at last time step
+        nVarMax = 0
+        nVarMaxID = 0
+        for i, p in enumerate(branch_signal):
+            if p.nVars > nVarMax:
+                nVarMax = p.nVars
+                nVarMaxID = i
+
+        # trace_probstar = copy.deepcopy(branch_signal[0])
+        base_probstar = copy.deepcopy(branch_signal[nVarMaxID])
+        max_nVars = base_probstar.nVars
+
+        def pad_target_C(C, target_nvars):
+            if C is None:
+                return None
+            if len(C) == 0:
+                return C
+            if len(C.shape) == 1:
+                C = C.reshape(1, C.shape[0])
+            m = C.shape[1] #nVars 
+            if m == target_nvars:
+                return C
+            if m < target_nvars:
+                pad = np.zeros((C.shape[0], target_nvars - m))
+                return np.hstack((C, pad))
+            return C
+
+        constraints = []
+
+        for P in self.F:
+            C = None
+            d = None
+            for Pi in P:
+                if Pi.t >= T:
+                    C = None
+                    d = None
+                    break
+            
+                Pi_t = branch_signal[Pi.t]
+                V_t = Pi_t.V
+                nVars_t = Pi_t.nVars
+
+                d1 = Pi.b - np.matmul(Pi.A, V_t[:, 0])
+                C1 = np.matmul(Pi.A, V_t[:, 1:nVars_t + 1])
+                if len(C1.shape) == 1:
+                    C1 = C1.reshape(1, nVars_t) #reshape to 2d array
+
+                C1 = pad_target_C(C1, max_nVars) # pad spec constraint to fit base_probstar predicate  dimension
+
+                if C is None:
+                    C = C1
+                    d = d1
+                else:
+                    C = np.vstack((C, C1))
+                    d = np.concatenate((d, d1))
+
+            if C is not None:
+                # print(f"C is not none in relaization")
+                if len(base_probstar.C) != 0:
+                    C_base = pad_target_C(base_probstar.C, max_nVars)
+                    d_base = base_probstar.d
+                    C = np.vstack((C, C_base))
+                    d = np.concatenate((d, d_base))
+
+                if len(C.shape) == 1:
+                    C = C.reshape(1, max_nVars)
+
+                S1 = ProbStar(base_probstar.V, C, d, base_probstar.mu, base_probstar.Sig,
+                              base_probstar.pred_lb, base_probstar.pred_ub)
+
+                if not S1.isEmptySet():
+                    print(f" \n add constraint for Pi at time {Pi.t}, not set empyty")
+                    constraints.append([C, d])
+
+                # print(f"S1 after relization is {S1.V}")
+        cdnf = CDNF(constraints, base_probstar)
+        return cdnf
+
 
     def evaluate(self, probstar_sig):
         'evaluate the satisfaction of the abtract-timed dyanmic formula on a probstar signal'
@@ -1128,6 +1265,8 @@ class DynamicFormula(object):
 
         print('Realizing Abstract DNF specification on a ProbStar Signal...')
         cdnf = self.realization(probstar_sig)
+        print(f"cndf.constraints = {len(cdnf.constraints)}")
+        # print(f"======== cdnf=========:\n {cdnf.print()}")
         print('Length of Computable DNF = {}'.format(cdnf.length))
 
         p_trace = cdnf.base_probstar.estimateProbability()  # probability of the probstar signal
@@ -1160,7 +1299,65 @@ class DynamicFormula(object):
 
 
         return SAT, p_SAT_MAX, p_SAT_MIN, cdnf.length
+    
 
+    def evaluate_for_RNN(self, branch_signal):
+        'evaluate the satisfaction of the abtract-timed dynamic formula on an RNN probstar signal'
+
+        # Qing Liu, 02/15/2026 
+
+        print('Realizing Abstract DNF specification on a ProbStar Signal (RNN)...')
+        cdnf = self.realization_for_RNN(branch_signal)
+        # print(f"======== cdnf=========:\n {cdnf.print()}")
+        print('Length of Computable DNF = {} for branch signal'.format(cdnf.length))
+
+        if isinstance(cdnf.base_probstar, ProbStar) and cdnf.base_probstar.nVars > 0:
+            p_base = cdnf.base_probstar.estimateProbability()
+        else:
+            p_base = 0.0
+        print(f"base probstar probability = {p_base:.12f}")
+        # p_trace = cdnf.trace_probstar.estimateProbability() 
+
+        SAT = []
+        p_SAT_MIN = 0.0
+        p_SAT_MAX = 0.0
+        p_ig = 0.0
+        if cdnf.length != 0:
+            for i in range(0, cdnf.length):
+                print(f"compute prob for each CDNF term, i = {i}")
+                prob = cdnf.estimateProbability((i,))
+                print(f"prob = {prob:.12f}")
+                SAT.append(prob)
+            if cdnf.length > 11:
+                print('*****WARNING*****: CDNF (len = {}) is too large for exact verification'.format(cdnf.length))
+                print('We ignore this CDNF, return the estimate probability uperbound')
+                p_SAT_MIN = max(SAT)
+                print(f"p_sat_MIN in cdnf > 11 = {p_SAT_MIN}")
+                p_SAT_MAX = max(p_SAT_MIN, p_base)
+                p_ig = p_base
+                print(f"p_sat_MAX in cdnf > 11 = {p_SAT_MAX}, p_ig = {p_ig}")
+            else:
+                N = range(0, cdnf.length)
+                print('Computing exact probability of satisfaction...')
+                for i in range(0, cdnf.length):
+                    print('i = {}/{}'.format(i, cdnf.length))
+                    SAT1 = 0.0
+                    comb = combinations(N, i+1)
+                    # len_comb = len(list(comb))
+                    # print(f"number of combinations for i = {i} is {len_comb}")
+                    for j in list(comb):
+                        # print(f'=== start in combination loop ===')
+                        prob = cdnf.estimateProbability(j)
+                        prob = (-1)**i * prob
+                        print(f"combination = {j}, prob = {prob:.12f}")
+                        SAT1 = SAT1 + prob
+                        print(f" prob = {prob}, SAT1 = {SAT1}")
+                    p_SAT_MAX = p_SAT_MAX + SAT1
+                    print(f"after combination for cdnf loop, p_SAT_MAX = {p_SAT_MAX}")
+                p_SAT_MIN = p_SAT_MAX
+                print(f"p_sat_MAX in cdnf <= 11 = {p_SAT_MAX}, p_sat_MIN = {p_SAT_MIN}")
+
+        return SAT, p_SAT_MAX, p_SAT_MIN, p_ig, cdnf.length
 
     def evaluate_for_full_analysis(self, probstar_sig):
         'evaluate the satisfaction of the abtract-timed dyanmic formula on a probstar signal'

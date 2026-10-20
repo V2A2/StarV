@@ -24,6 +24,7 @@ Update: 09/16/2025 (Yuntao Li)
 
 # !/usr/bin/python3
 import numpy as np
+import warnings
 import scipy.sparse as sp
 try:
     import gurobipy as gp
@@ -40,7 +41,7 @@ except ImportError:
     glpk = None
 import polytope as pc
 from StarV.util.minimax_tilting_sampler import TruncatedMVN
-from StarV.set.star import _resolve_lp_solver, _solve_lp
+from StarV.set.star import Star, _resolve_lp_solver, _solve_lp
 
 
 def _mvn_cdf(lb, ub, mu, Sig):
@@ -114,8 +115,8 @@ class ProbStar(object):
                 constraint vector should be a 1D numpy array'
                 assert V.shape[1] == C.shape[1] + 1, 'error: \
                 Inconsistency between basic matrix and constraint matrix'
-                assert C.shape[0] == d.shape[0], 'error: \
-                Inconsistency between constraint matrix and constraint vector'
+                assert C.shape[0] == d.shape[0], f'error: \
+                Inconsistency between constraint matrix and constraint vector, but it is {C.shape[0]} and {d.shape[0]}'
                 assert C.shape[1] == pred_lb.shape[0] and \
                     C.shape[1] == pred_ub.shape[0], 'error: \
                     Inconsistency between number of predicate variables and \
@@ -238,6 +239,27 @@ class ProbStar(object):
         'Print constraints of probstar'
         P = pc.Polytope(self.C, self.d)
         print(P)
+
+
+    # def mvn_rect_prob(sef,lb,ub,mean, cov, *, allow_singular=True, abseps=1e-5, releps=1e-5):
+    #     """
+    #     Probability that a Gaussian N(mean, cov) lies in the hyper-rectangle [lb, ub].
+    #     Replacement for scipy.stats.mvn.mvnun(lb, ub, mean, cov).
+    #     """
+    #     lb = np.asarray(lb, dtype=float)
+    #     ub = np.asarray(ub, dtype=float)
+    #     mean = np.asarray(mean, dtype=float)
+    #     cov = np.asarray(cov, dtype=float)
+
+    #     return multivariate_normal.cdf(
+    #         ub,
+    #         mean=mean,
+    #         cov=cov,
+    #         lower_limit=lb,
+    #         allow_singular=allow_singular,
+    #         abseps=abseps,
+    #         releps=releps,
+    #     )
 
     def estimateProbability(self):
         """estimate probability of a probstar
@@ -414,6 +436,20 @@ class ProbStar(object):
                 sense='max', lp_solver=lp_solver, gurobi_opt_tol=1e-6
             )
         return xmax
+    
+    def getMins(self, map, lp_solver='gurobi'):
+        n = len(map)
+        xmin = np.zeros(n)
+        for i in range(n):
+            xmin[i] = self.getMin(index=map[i], lp_solver=lp_solver)
+        return xmin
+
+    def getMaxs(self, map, lp_solver='gurobi'):
+        n = len(map)
+        xmax = np.zeros(n)
+        for i in range(n):
+            xmax[i] = self.getMax(index=map[i], lp_solver=lp_solver)
+        return xmax
 
     def getRanges(self, lp_solver='gurobi'):
         """get lower bound and upper bound by solving LP"""
@@ -443,7 +479,7 @@ class ProbStar(object):
             assert isinstance(A, np.ndarray), \
             'error: mapping matrix should be an 2D numpy array'
             assert A.shape[1] == self.dim, \
-            'error: inconsistency between mapping matrix and ProbStar dimension'
+            f'error: inconsistency between mapping matrix and ProbStar dimension, but it is {A.shape[1]} and {self.dim}'
 
         if b is not None:
             assert isinstance(b, np.ndarray), \
@@ -461,6 +497,8 @@ class ProbStar(object):
             V[:, 0] += b
         return ProbStar(V, self.C, self.d, self.mu, self.Sig, self.pred_lb, self.pred_ub)
 
+
+
     def minKowskiSum(self, Y):
         """MinKowskiSum of two probstars"""
 
@@ -469,6 +507,7 @@ class ProbStar(object):
 
         V1 = copy.deepcopy(self.V)
         V2 = copy.deepcopy(Y.V)
+        # print(f"shpe of V1:{V1.shape}, shpe of V2:{V2.shape}")
         V1[:, 0] = V1[:, 0] + V2[:, 0]
         V3 = np.delete(V2, 0, 1)
         V = np.hstack((V1, V3))
@@ -476,17 +515,26 @@ class ProbStar(object):
         pred_ub = np.concatenate((self.pred_ub, Y.pred_ub))
         mu = np.concatenate((self.mu, Y.mu))
         Sig = block_diag(self.Sig, Y.Sig)
-        C = block_diag(self.C, Y.C)
-        d = np.concatenate((self.d, Y.d))
+
+                
+        if len(Y.C) == 0 and len(self.C) !=0:  # used for RNN, where Xt.C is empyty but ht.C is not empty
+            Y1=copy.deepcopy(Y)
+            Y1.C = np.zeros((self.C.shape[0], Y.nVars))
+            C = np.hstack((self.C, Y1.C))
+            d = self.d
+        else:
+            C = block_diag(self.C,Y.C)
+            d = np.concatenate((self.d, Y.d))
+
         if len(d) == 0:
             C = []
             d = []
+
         R = ProbStar(V, C, d, mu, Sig, pred_lb, pred_ub)
 
         return R
-        
-        
 
+    
     def isEmptySet(self, lp_solver='gurobi'):
         """Check if a probstar is an empty set"""
 
@@ -815,7 +863,10 @@ class ProbStar(object):
         V = np.random.rand(dim, nVars + 1)
         if len(args) != 4:    
             pred_lb = -np.random.rand(nVars,)
-            pred_ub = np.random.rand(nVars,)
+            pred_ub = np.random.rand(nVars,) 
+        
+        # print(f"pred_lb:{pred_lb}")
+        # print(f"pred_ub:{pred_ub}")
             
         mu = 0.5*(pred_lb + pred_ub)
         a = 3.0

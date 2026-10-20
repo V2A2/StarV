@@ -31,6 +31,7 @@ from StarV.set.sparseimagestar2dcsr import SparseImageStar2DCSR
 
 import numpy as np
 import scipy.sparse as sp
+from scipy.linalg import block_diag
 import copy
 import multiprocessing
 import ipyparallel
@@ -134,6 +135,7 @@ class PosLin(object):
                     S = []
                     S.append(S1)
                     S.append(S2)
+                
         return S
 
     @staticmethod
@@ -203,6 +205,7 @@ class PosLin(object):
             S1 = PosLin.stepReachMultiInputs(S1, i, lp_solver)
 
         S.extend(S1)
+       
 
         return S
 
@@ -247,8 +250,6 @@ class PosLin(object):
             for i in range(0, len(S1)):
                 S.extend(S1[i])
         elif isinstance(pool, ipyparallel.client.view.DirectView):
-            # S1 = pool.map(PosLin.reachExactSingleInput, zip(In, [lp_solver]*len(In)))
-            # print('S1 = {}'.format(S1))
             raise Exception('error: ipyparallel option is under testing...')
         else:
             raise Exception('error: unknown/unsupport pool type')    
@@ -413,6 +414,8 @@ class PosLin(object):
 
         new_pred_lb = np.hstack([I.pred_lb, np.zeros(m, dtype=dtype)])
         new_pred_ub = np.hstack([I.pred_ub, u])
+
+
         return Star(new_V, new_C, new_d, new_pred_lb, new_pred_ub)
 
 
@@ -844,7 +847,7 @@ class PosLin(object):
 
             return SparseImageStar2DCSR(new_c, new_V, new_C, new_d, new_pred_lb, new_pred_ub, out_shape, copy_=False)
     
-    def stepReachApprox(In, lp_solver='gurobi', RF=0.0, DR=0, show=False):
+    def stepReachApprox(In, lp_solver='gurobi', RF=0.0, DR=0, show=False, relu_approx_mode="heuristic_gaussian"):
         """
         Approx reachability using multi stepReachApprox
         Args:
@@ -862,22 +865,31 @@ class PosLin(object):
         if show:
             print('Applying approximate reachability on \'poslin\' or \'relu\' activation function')
 
-        l, u = I.estimateRanges()
+        # NOTE:
+        # `l_all, u_all` are bounds for *all* neurons.
+        # The internal routines `approx` / `relax_by_area` return `l_u, u_u`
+        # only for *ambiguous* neurons (those with lb < 0 < ub), so these may
+        # legitimately be empty if no ambiguous neurons exist.
+        l_all, u_all = I.estimateRanges()
+        if show:
+            print(f"Estimated ranges (all neurons): |l|={l_all.shape}, |u|={u_all.shape}")
 
-        if (l > 0).all():
+        if (l_all > 0).all():
             return I
-        elif (u < 0).all():
+        elif (u_all < 0).all():
             return I.resetRows(np.arange(I.dim))
         
         if lp_solver == 'estimate':
             # approximation with estimate methods
-            I, l, u, map = PosLin.relax_by_area(I=I, l=l, u=u, lp_solver=lp_solver, RF=1.0, show=show)
+            I, l_u, u_u, map_amb = PosLin.relax_by_area(I=I, l=l_all, u=u_all, lp_solver=lp_solver, RF=1.0, show=show)
 
         # no relaxation; get bounds using LP solver
         elif RF == 0.0: # and lp_solver != 'estimate':
             if show:
                 print('Finding lower and upper bounds of neurons with LP solver')
-            I, l, u, map = PosLin.approx(I=I, l=l, u=u, lp_solver=lp_solver, show=show)
+            I, l_u, u_u, map_amb = PosLin.approx(I=I, l=l_all, u=u_all, lp_solver=lp_solver, show=show)
+            if show:
+                print(f"l and u in Poslin Approx, l:{l_u},u:{u_u}")
 
         # applying relaxation
         else:
@@ -888,15 +900,17 @@ class PosLin(object):
             'error: relaxation factor should be between 0.0 and 1.0, i.e. RF in [0.0, 1.0]' 
 
             # applying partial relaxation and partial LP solver
-            I, l, u, map = PosLin.relax_by_area(I=I, l=l, u=u, lp_solver=lp_solver, RF=RF, show=show)
+            I, l_u, u_u, map_amb = PosLin.relax_by_area(I=I, l=l_all, u=u_all, lp_solver=lp_solver, RF=RF, show=show)
 
         if isinstance(I, Star):
-            return PosLin.addConstraints(I=I, map=map, l=l, u=u)
+            if show:
+                print(f"Ambiguous neurons after bound tightening: {len(map_amb)} / {I.dim}")
+            return PosLin.addConstraints(I=I, map=map_amb, l=l_u, u=u_u)
 
         
         elif isinstance(I, ImageStar):
             S = I.toStar(copy_=False)
-            S = PosLin.addConstraints(I=S, map=map, l=l, u=u)
+            S = PosLin.addConstraints(I=S, map=map_amb, l=l_u, u=u_u)
             if I.V.ndim == 4:
                 new_V = S.V.reshape(I.height, I.width, I.num_channel, S.nVars + 1)
             else:
@@ -904,7 +918,7 @@ class PosLin(object):
             return ImageStar(new_V, S.C, S.d, S.pred_lb, S.pred_ub)
 
         elif isinstance(I, SparseStar):
-            S = PosLin.addConstraints_sparse(I=I, map=map, l=l, u=u)
+            S = PosLin.addConstraints_sparse(I=I, map=map_amb, l=l_u, u=u_u)
             if DR > 0:
                 if show:
                     if (S.pred_depth >= DR).any():
@@ -913,21 +927,21 @@ class PosLin(object):
             return S
         
         elif isinstance(I, SparseImageStar):
-            return PosLin.addConstraints_sparseimagestar(I=I, map=map, l=l, u=u)
+            return PosLin.addConstraints_sparseimagestar(I=I, map=map_amb, l=l_u, u=u_u)
         
         elif isinstance(I, SparseImageStar2DCOO):
-            return PosLin.addConstraints_sparseimagestar2d_coo(I=I, map=map, l=l, u=u)
+            return PosLin.addConstraints_sparseimagestar2d_coo(I=I, map=map_amb, l=l_u, u=u_u)
         
         elif isinstance(I, SparseImageStar2DCSR):
-            return PosLin.addConstraints_sparseimagestar2d_csr(I=I, map=map, l=l, u=u)
+            return PosLin.addConstraints_sparseimagestar2d_csr(I=I, map=map_amb, l=l_u, u=u_u)
         
         else:
             raise Exception(
-                    'error: approximate reachaiblity of \'relu\' or \'poslin\' supports Star, SparseStar'
+                    'error: approximate reachaiblity of \'relu\' or \'poslin\' supports Star, ProbStar, ImageStar, SparseStar, SparseImageStar'
                 )
 
     @staticmethod
-    def reachApproxSingleInput(In, lp_solver='gurobi', RF=0.0, DR=0.0, show=False):
+    def reachApproxSingleInput(In, lp_solver='gurobi', RF=0.0, DR=0.0, show=False, relu_approx_mode="heuristic_gaussian"):
         """
         Approx reachability using stepReach
         Args:
@@ -942,9 +956,9 @@ class PosLin(object):
         assert isinstance(In, Star) or isinstance(In, ImageStar) or \
             isinstance(In, SparseStar) or isinstance(In, SparseImageStar) or \
             isinstance(In, SparseImageStar2DCOO) or isinstance(In, SparseImageStar2DCSR), \
-            f"error: approximate reachaiblity of \'relu\' or \'poslin\' supports Star, ImageStar, SparseStar, SparseImageStar but received In={type(In)}"
+            f"error: approximate reachaiblity of 'relu' or 'poslin' supports Star, ImageStar, SparseStar, SparseImageStar but received In={type(In)}"
 
-        return PosLin.stepReachApprox(In=In, lp_solver=lp_solver, RF=RF, DR=0, show=show)
+        return PosLin.stepReachApprox(In=In, lp_solver=lp_solver, RF=RF, DR=DR, show=show, relu_approx_mode=relu_approx_mode)
 
                 
     @staticmethod

@@ -36,7 +36,7 @@ from StarV.layer.BatchNorm2DLayer import BatchNorm2DLayer
 from StarV.layer.LogSigLayer import LogSigLayer
 from StarV.layer.TanSigLayer import TanSigLayer
 from StarV.layer.PixelClassificationLayer import PixelClassificationLayer
-from StarV.layer.RecurrentLayer import RecurrentLayer
+# from StarV.layer.RecurrentLayer import RecurrentLayer
 
 from StarV.set.probstar import ProbStar
 from StarV.set.star import Star
@@ -205,6 +205,7 @@ def reachExactBFS(net, inputSet, lp_solver='gurobi', pool=None, show=True):
 
     return S
 
+    
 def reachApproxBFS(net, inputSet, p_filter=0.0, lp_solver='gurobi', pool=None, show=True):
     """Compute Approximate Reachable Set layer-by-layer"""
 
