@@ -153,7 +153,7 @@ class AtomicPredicate(object):
         b = np.random.rand(1)
         P = AtomicPredicate(A, b)
         if t is not None:
-            P.at_time(t)
+            P = P.at_time(t)
 
         return P
     
@@ -197,7 +197,7 @@ class Predicate(object):
         b = np.random.rand(nVars)
         P = Predicate(A, b)
         if t is not None:
-            P.at_time(t)
+            P = P.at_time(t)
 
         return P
 

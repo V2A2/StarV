@@ -20,7 +20,7 @@ def define_ha(stdout=True, use_safe=True, num_heli=1, full_io_space=False):
     ha = LinearHybridAutomaton()
 
     if stdout:
-        print "making a matrix"
+        print("making a matrix")
 
     mode = ha.new_mode('mode')
     a_matrix = heli_a_matrix(num_heli)
@@ -29,8 +29,8 @@ def define_ha(stdout=True, use_safe=True, num_heli=1, full_io_space=False):
     error = ha.new_mode('error')
 
     if stdout:
-        print "made heli_a_matrix ({} dims)... making output constriants with safe={}".format(
-            a_matrix.shape[0], use_safe)
+        print("made heli_a_matrix ({} dims)... making output constriants with safe={}".format(
+            a_matrix.shape[0], use_safe))
 
     error_threshold = 0.45 if use_safe else 0.4 # 0.45 = safe, 0.4 = unsafe
 
@@ -135,13 +135,13 @@ def run_hylaa():
     ha = define_ha()
     settings = define_settings(ha)
 
-    print "Defining initial states..."
+    print("Defining initial states...")
     init = make_init_star(ha, settings)
 
-    print "Making HylaaEngine..."
+    print("Making HylaaEngine...")
     engine = HylaaEngine(ha, settings)
 
-    print "Starting computation..."
+    print("Starting computation...")
     engine.run(init)
 
     return engine.result

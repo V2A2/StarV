@@ -18,3 +18,4 @@ build/
 # My IDE-specific files
 .idea/
 .vscode/
+*~

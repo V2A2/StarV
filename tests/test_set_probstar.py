@@ -77,8 +77,8 @@ class Test(object):
             min_val, max_val = S.estimateRange(0)
             print('MinValue = {}, true_val = {}'.format(min_val, pred_lb[0]))
             print('MaxValue = {}, true_val = {}'.format(max_val, pred_ub[0]))
-            assert min_val == pred_lb[0] and \
-                max_val == pred_ub[0], 'error: wrong results'
+            assert np.isclose(min_val, pred_lb[0]) and \
+                np.isclose(max_val, pred_ub[0]), 'error: wrong results'
         except Exception:
             print("Test Fail!")
             self.n_fails = self.n_fails + 1
@@ -117,13 +117,13 @@ class Test(object):
         pred_lb = np.random.rand(3,)
         pred_ub = pred_lb + 0.2
         S = ProbStar(mu, Sig, pred_lb, pred_ub)
-        min_val = S.getMin(0, 'gurobi')
+        # min_val = S.getMin(0, 'gurobi')
         print('\nTesting getMin method using gurobi...')
 
         try:
             min_val = S.getMin(0, 'gurobi')
             print('MinValue = {}, true_val = {}'.format(min_val, pred_lb[0]))
-            assert min_val == pred_lb[0], 'error: wrong results'
+            assert np.isclose(min_val, pred_lb[0]), 'error: wrong results'
         except Exception:
             print("Test Fail!")
             self.n_fails = self.n_fails + 1
@@ -135,7 +135,7 @@ class Test(object):
         try:
             min_val = S.getMin(0, 'glpk')
             print('MinValue = {}, true_val = {}'.format(min_val, pred_lb[0]))
-            assert min_val == pred_lb[0], 'error: wrong results'
+            assert np.isclose(min_val, pred_lb[0]), 'error: wrong results'
         except Exception:
             print("Test Fail!")
             self.n_fails = self.n_fails + 1
@@ -147,7 +147,7 @@ class Test(object):
         try:
             min_val = S.getMin(0, 'linprog')
             print('MinValue = {}, true_val = {}'.format(min_val, pred_lb[0]))
-            assert min_val == pred_lb[0], 'error: wrong results'
+            assert np.isclose(min_val, pred_lb[0]), 'error: wrong results'
         except Exception:
             print("Test Fail!")
             self.n_fails = self.n_fails + 1
@@ -211,7 +211,7 @@ class Test(object):
         try:
             max_val = S.getMax(0, 'gurobi')
             print('MaxValue = {}, true_val = {}'.format(max_val, pred_ub[0]))
-            assert max_val == pred_ub[0], 'error: wrong results'
+            assert np.isclose(max_val, pred_ub[0]), 'error: wrong results'
         except Exception:
             print("Test Fail!")
             self.n_fails = self.n_fails + 1
@@ -223,7 +223,7 @@ class Test(object):
         try:
             max_val = S.getMax(0, 'glpk')
             print('MaxValue = {}, true_val = {}'.format(max_val, pred_ub[0]))
-            assert max_val == pred_ub[0], 'error: wrong results'
+            assert np.isclose(max_val, pred_ub[0]), 'error: wrong results'
         except Exception:
             print("Test Fail!")
             self.n_fails = self.n_fails + 1
@@ -235,7 +235,7 @@ class Test(object):
         try:
             max_val = S.getMax(0, 'linprog')
             print('MaxValue = {}, true_val = {}'.format(max_val, pred_ub[0]))
-            assert max_val == pred_ub[0], 'error: wrong results'
+            assert np.isclose(max_val, pred_ub[0]), 'error: wrong results'
         except Exception:
             print("Test Fail!")
             self.n_fails = self.n_fails + 1

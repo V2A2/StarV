@@ -141,7 +141,7 @@ class GRULayer(object):
 
     def info(self):
         print('input dimension (input_size): {}'.format(self.in_dim))
-        print('output dimension (hidden_size): {}'.format(self.in_dim))
+        print('output dimension (hidden_size): {}'.format(self.out_dim))
         print('number of layers: {}'.format(self.num_layers))
         print('output mode: {}'.format(self.output_mode))
         print('bias: {}'.format(self.bias))
@@ -661,7 +661,7 @@ class GRULayer(object):
 
         
     @staticmethod
-    def rand(in_dim, out_dim, num_layers):
+    def rand(in_dim, out_dim, num_layers=1):
         """ Randomly generate a GRULayer
             Args:
                 @out_dim: number of hidden units
@@ -689,30 +689,11 @@ class GRULayer(object):
         assert in_dim > 0, 'error: invalid number of input units'
         assert num_layers > 0, 'error: invalid number of layers'
 
-        Wr, Wz, Wc = [], [], []
-        Rr, Rz, Rc = [], [], []
-        wr, wz, wc = [], [], []
-        rr, rz, rc = [], [], []
-
+        layer = []
         for l in range(num_layers):
-            Wr.append(np.random.rand(out_dim, in_dim))
-            Wz.append(np.random.rand(out_dim, in_dim))
-            Wc.append(np.random.rand(out_dim, in_dim))
-            
-            Rr.append(np.random.rand(out_dim, in_dim))
-            Rz.append(np.random.rand(out_dim, in_dim))
-            Rc.append(np.random.rand(out_dim, in_dim))
-
-            wr.append(np.random.rand(out_dim))
-            wz.append(np.random.rand(out_dim))
-            wc.append(np.random.rand(out_dim))
-
-            rr.append(np.random.rand(out_dim))
-            rz.append(np.random.rand(out_dim))
-            rc.append(np.random.rand(out_dim))
-        
-        W = [Wr, Wz, Wc]
-        R = [Rr, Rz, Rc]
-        w = [wr, wz, wc]
-        r = [rr, rz, rc]
-        return GRULayer([W, R, w, r], module='default')
+            cur_in_dim = in_dim if l == 0 else out_dim
+            W = np.random.rand(3 * out_dim, cur_in_dim)
+            R = np.random.rand(3 * out_dim, out_dim)
+            b = np.random.rand(6 * out_dim)
+            layer.append([W, R, b])
+        return GRULayer(layer, module='default')

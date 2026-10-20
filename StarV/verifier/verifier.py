@@ -37,14 +37,16 @@ class Verifier(object):
        Properties: (Verification Settings)
 
         @lp_solver: lp solver: 'gurobi' (default), 'glpk', 'linprog'
-        @method: verification method: BFS "bread-first-search" or DFS "depth-first-search"
+        @method: verification method: 'BFS' ("bread-first-search"), 'exact', 'approx', or 'MC' ("Monte Carlo")
         @n_processes: number of processes used for verification
-        @time_out: time_out for a single verification querry (single input)
+        @time_out: time_out for a single verification query (single input)
 
       Methods:
-        @verify: main verification method
-        @evaluate: evaluate method on a specific input 
-
+        @verify: main verification method (automatically dispatches qualitative/quantitative verification)
+        @quantiVerify: quantitative verification for ProbStar input sets
+        @qualiVerify: qualitative verification for Star input sets
+        @quantiVerifyMC: Monte Carlo quantitative verification for a ProbStar input set
+        @evaluate: evaluate network on a specific input or batch of samples
     """
 
     def __init__(self, lp_solver='gurobi', method='BFS', n_processes=1, time_out=None):
@@ -53,11 +55,66 @@ class Verifier(object):
         self.n_processes = n_processes
         self.time_out = time_out
 
-    def verify(self, net, inputSet):
-        """main verification method"""
+    def verify(self, net, inputSet, unsafe_mat, unsafe_vec, p_filter=0.0, reachMethod='exact', show=True):
+        """Main verification method.
 
+        Dispatches to quantitative verification if inputSet contains ProbStar(s),
+        or qualitative verification if inputSet contains Star(s).
+        """
         assert isinstance(net, NeuralNetwork), 'error: input is not a NeuralNetwork object'
-        pass
+        first_set = inputSet[0] if isinstance(inputSet, list) else inputSet
+        if isinstance(first_set, ProbStar):
+            if self.method == 'MC':
+                return self.quantiVerifyMC(net, first_set, unsafe_mat, unsafe_vec)
+            return self.quantiVerify(net, inputSet, unsafe_mat, unsafe_vec, p_filter=p_filter, show=show)
+        elif isinstance(first_set, Star):
+            return self.qualiVerify(net, inputSet, unsafe_mat, unsafe_vec, reachMethod=reachMethod, show=show)
+        else:
+            raise TypeError(f'Unsupported inputSet element type: {type(first_set)}')
+
+    def quantiVerify(self, net, inputSet, unsafe_mat, unsafe_vec, p_filter=0.0, show=True):
+        """Quantitative verification of a NeuralNetwork with ProbStar inputSet."""
+        assert isinstance(net, NeuralNetwork), 'error: input is not a NeuralNetwork object'
+        if isinstance(inputSet, ProbStar):
+            inputSet = [inputSet]
+        if p_filter == 0.0 and self.method == 'exact':
+            return quantiVerifyExactBFS(
+                net=net, inputSet=inputSet, unsafe_mat=unsafe_mat, unsafe_vec=unsafe_vec,
+                lp_solver=self.lp_solver, numCores=self.n_processes, show=show
+            )
+        return quantiVerifyBFS(
+            net=net, inputSet=inputSet, unsafe_mat=unsafe_mat, unsafe_vec=unsafe_vec,
+            p_filter=p_filter, lp_solver=self.lp_solver, numCores=self.n_processes, show=show
+        )
+
+    def qualiVerify(self, net, inputSet, unsafe_mat, unsafe_vec, reachMethod='exact', show=True):
+        """Qualitative verification of a NeuralNetwork with Star inputSet."""
+        assert isinstance(net, NeuralNetwork), 'error: input is not a NeuralNetwork object'
+        if reachMethod == 'approx' or self.method == 'approx':
+            single_set = inputSet[0] if isinstance(inputSet, list) else inputSet
+            return qualiVerifyApproxBFS(
+                net=net, inputSet=single_set, unsafe_mat=unsafe_mat, unsafe_vec=unsafe_vec,
+                lp_solver=self.lp_solver, show=show
+            )
+        if isinstance(inputSet, Star):
+            inputSet = [inputSet]
+        return qualiVerifyExactBFS(
+            net=net, inputSet=inputSet, unsafe_mat=unsafe_mat, unsafe_vec=unsafe_vec,
+            lp_solver=self.lp_solver, numCores=self.n_processes, show=show
+        )
+
+    def quantiVerifyMC(self, net, inputSet, unsafe_mat, unsafe_vec, numSamples=100000, nTimes=10):
+        """Monte Carlo quantitative verification of a NeuralNetwork with a ProbStar inputSet."""
+        assert isinstance(net, NeuralNetwork), 'error: input is not a NeuralNetwork object'
+        single_set = inputSet[0] if isinstance(inputSet, list) else inputSet
+        return quantiVerifyMC(
+            net=net, inputSet=single_set, unsafe_mat=unsafe_mat, unsafe_vec=unsafe_vec,
+            numSamples=numSamples, nTimes=nTimes, numCores=self.n_processes
+        )
+
+    def evaluate(self, net, samples):
+        """Evaluate network on a set of samples."""
+        return evaluate(net, samples)
 
 
 def checkSafetyStar(*args):
@@ -184,6 +241,7 @@ def quantiVerifyExactBFS(net, inputSet, unsafe_mat, unsafe_vec, lp_solver='gurob
     else:
         S1 = pool.map(checkSafetyProbStar, zip([unsafe_mat]*len(S), [unsafe_vec]*len(S), S))
         pool.close()
+        pool.join()
         for S2 in S1:
             if isinstance(S2[0], ProbStar):
                 P.append(S2[0])
@@ -197,11 +255,6 @@ def quantiVerifyBFS(net, inputSet, unsafe_mat, unsafe_vec,  p_filter=0.0, lp_sol
 
 
     inputProb = inputSet[0].estimateProbability()
-    
-    if numCores > 1:
-        pool = multiprocessing.Pool(numCores)
-    else:
-        pool = None
 
     assert p_filter >= 0.0, 'error: invalid filtering probability'
 
@@ -210,6 +263,10 @@ def quantiVerifyBFS(net, inputSet, unsafe_mat, unsafe_vec,  p_filter=0.0, lp_sol
         p_v_ub = p_v
         p_v_lb = p_v
     else:
+        if numCores > 1:
+            pool = multiprocessing.Pool(numCores)
+        else:
+            pool = None
         # compute and filter reachable sets
         I = copy.deepcopy(inputSet)
         p_ignored = 0.0
@@ -243,6 +300,9 @@ def quantiVerifyBFS(net, inputSet, unsafe_mat, unsafe_vec,  p_filter=0.0, lp_sol
                 break
             
         if len(I) == 0:
+            if pool is not None:
+                pool.close()
+                pool.join()
             p_v_lb = p_ignored
             p_v_ub = p_ignored
             S = [] # empty output set
@@ -260,6 +320,7 @@ def quantiVerifyBFS(net, inputSet, unsafe_mat, unsafe_vec,  p_filter=0.0, lp_sol
             else:           
                 S1 = pool.map(checkSafetyProbStar, zip([unsafe_mat]*len(I), [unsafe_vec]*len(I), I))
                 pool.close()
+                pool.join()
                 for S2 in S1:
                     if isinstance(S2[0], ProbStar):
                         P.append(S2[0])
@@ -345,13 +406,13 @@ def quantiVerifyMC(net, inputSet, unsafe_mat, unsafe_vec, numSamples=100000, nTi
             nBatchs = numCores
             batchSize = int(np.floor(numSamples/numCores))
             I = []
-            for i in (0, nBatchs):
-                if i==0:
+            for j in range(0, nBatchs):
+                if j == 0:
                     start_ID = 0
                 else:
                     start_ID = start_ID + batchSize
 
-                if i!= nBatchs-1:
+                if j != nBatchs-1:
                     y1 = samples[:, start_ID:start_ID+batchSize]
                 else:
                     y1 = samples[:, start_ID:samples.shape[1]]
@@ -368,6 +429,8 @@ def quantiVerifyMC(net, inputSet, unsafe_mat, unsafe_vec, numSamples=100000, nTi
         else:
             y = pool.map(evaluate, zip([net]*nBatchs, I))
             S = pool.map(checkSafetyPoints, zip([unsafe_mat]*nBatchs, [unsafe_vec]*nBatchs, y))
+            pool.close()
+            pool.join()
 
             nSAT = 0
             n = 0
@@ -404,6 +467,7 @@ def qualiVerifyExactBFS(net, inputSet, unsafe_mat, unsafe_vec, lp_solver='gurobi
     else:
         S1 = pool.map(checkSafetyStar, zip([unsafe_mat]*len(S), [unsafe_vec]*len(S), S))
         pool.close()
+        pool.join()
         for S2 in S1:
             if isinstance(S2, Star):
                 P.append(S2)

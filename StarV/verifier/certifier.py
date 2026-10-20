@@ -18,9 +18,11 @@ Main Ceritifier Class: certify robustness of classification neural networks
 Sung Woo Choi, 07/17/2023
 """
 
+import os
 import copy
 import time
 import pickle
+import multiprocessing
 import numpy as np
 from sklearn.metrics import jaccard_score
 from StarV.net.network import NeuralNetwork
@@ -38,10 +40,75 @@ class Certifier(object):
         Properties: (Certification Settings)
 
         @lp_solver: lp solver: 'gurobi' (default), 'glpk', 'linprog'
-        @method: ceritification method: BFS "bread-first-search" or DFS "depth-first-search"
-        @n_processes: number of processes used for verification
-
+        @method: certification method: 'BFS' ("bread-first-search") or 'DFS' ("depth-first-search")
+        @reachMethod: reachability method: 'approx' (default) or 'exact'
+        @n_processes: number of processes used for certification
+        @RF: relaxation factor in [0.0, 1.0]
+        @DR: depth reduction threshold
     """
+
+    def __init__(self, lp_solver='gurobi', method='BFS', reachMethod='approx', n_processes=1, RF=0.0, DR=0):
+        self.lp_solver = lp_solver
+        self.method = method
+        self.reachMethod = reachMethod
+        self.n_processes = n_processes
+        self.RF = RF
+        self.DR = DR
+
+    def _run_with_pool(self, fn, *args, **kwargs):
+        if self.n_processes > 1:
+            pool = multiprocessing.Pool(self.n_processes)
+            try:
+                return fn(*args, pool=pool, **kwargs)
+            finally:
+                pool.close()
+                pool.join()
+        return fn(*args, pool=None, **kwargs)
+
+    def reach(self, net, inputSet, show=False):
+        """Compute reachable set of net on inputSet."""
+        return self._run_with_pool(
+            reachBFS,
+            net=net, inputSet=inputSet, reachMethod=self.reachMethod,
+            lp_solver=self.lp_solver, RF=self.RF, DR=self.DR, show=show
+        )
+
+    def certify(self, net, inputs, labels=None, return_output=False, show=False):
+        """Certify robustness of classification neural network on inputs."""
+        return self._run_with_pool(
+            certifyRobustness,
+            net=net, inputs=inputs, labels=labels, veriMethod=self.method,
+            reachMethod=self.reachMethod, lp_solver=self.lp_solver,
+            RF=self.RF, DR=self.DR, return_output=return_output, show=show
+        )
+
+    def certify_sigmoid(self, net, input, label=None, epsilon=0.01, show=False):
+        """Certify robustness of sigmoidal neural network on input."""
+        return self._run_with_pool(
+            certifyRobustness_sigmoid,
+            net=net, input=input, label=label, epsilon=epsilon,
+            veriMethod=self.method, reachMethod=self.reachMethod,
+            lp_solver=self.lp_solver, RF=self.RF, DR=self.DR, show=show
+        )
+
+    def certify_sequence(self, net, inputs, epsilon=0.01, show=False):
+        """Certify robustness of sequence/recurrent neural network on inputs."""
+        return self._run_with_pool(
+            certifyRobustness_sequence,
+            net=net, inputs=inputs, epsilon=epsilon,
+            veriMethod=self.method, reachMethod=self.reachMethod,
+            lp_solver=self.lp_solver, RF=self.RF, DR=self.DR, show=show
+        )
+
+    def certify_pixel(self, net, in_sets, in_datas, num_classes, return_output=False, show=False):
+        """Certify pixel-level robustness of semantic segmentation neural network."""
+        return self._run_with_pool(
+            certifyRobustness_pixel,
+            net=net, in_sets=in_sets, in_datas=in_datas, num_classes=num_classes,
+            veriMethod=self.method, reachMethod=self.reachMethod,
+            lp_solver=self.lp_solver, RF=self.RF, DR=self.DR,
+            return_output=return_output, show=show
+        )
 
 
 def reachBFS(net, inputSet, reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
@@ -233,6 +300,7 @@ def certifyRobustness_sigmoid(net, input, label=None, epsilon=0.01, veriMethod='
 
                         cur_time = time.strftime('__%Y-%m-%d_%H-%M-%S__', time.localtime(time.time()))
                         save_dir = 'sigmoidalNet_eval/safety/' + net.type + cur_time + 'eval.pkl'
+                        os.makedirs(os.path.dirname(save_dir), exist_ok=True)
                         print('Saving the evaluation results to {}'.format(save_dir))
 
                         with open(save_dir, 'wb') as f:  

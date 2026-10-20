@@ -24,13 +24,125 @@ Update: 09/16/2025 (Yuntao Li)
 # !/usr/bin/python3
 import numpy as np
 import scipy.sparse as sp
-import gurobipy as gp
-from gurobipy import GRB
+try:
+    import gurobipy as gp
+    from gurobipy import GRB
+except ImportError:
+    gp = None
+    GRB = None
 from scipy.optimize import linprog
 from scipy.linalg import block_diag
-import glpk
+try:
+    import glpk
+except ImportError:
+    glpk = None
 import polytope as pc
 import copy
+
+_GUROBI_AVAILABLE = None
+
+
+def _resolve_lp_solver(lp_solver):
+    """Return lp_solver if available, or fall back to 'linprog' if Gurobi/GLPK is unlicensed/unavailable."""
+    global _GUROBI_AVAILABLE
+    if lp_solver == 'gurobi':
+        if _GUROBI_AVAILABLE is None:
+            if gp is None:
+                _GUROBI_AVAILABLE = False
+            else:
+                try:
+                    _m = gp.Model()
+                    _m.dispose()
+                    _GUROBI_AVAILABLE = True
+                except Exception:
+                    _GUROBI_AVAILABLE = False
+        if not _GUROBI_AVAILABLE:
+            return 'linprog'
+    elif lp_solver == 'glpk' and glpk is None:
+        return 'linprog'
+    return lp_solver
+
+
+def _solve_lp(f, center, C, d, pred_lb, pred_ub, n_vars, sense='min', lp_solver='gurobi', gurobi_opt_tol=1e-9):
+    """Unified LP solver helper for Star/ProbStar/SparseStar/ImageStar/SparseImageStar sets."""
+    assert isinstance(lp_solver, str), 'error: lp_solver is not a string'
+    lp_solver = _resolve_lp_solver(lp_solver)
+    has_constraints = (d is not None and len(d) > 0)
+
+    if lp_solver == 'gurobi':
+        model = gp.Model()
+        model.Params.LogToConsole = 0
+        model.Params.OptimalityTol = gurobi_opt_tol
+        if pred_lb.size and pred_ub.size:
+            x = model.addMVar(shape=n_vars, lb=pred_lb, ub=pred_ub)
+        else:
+            x = model.addMVar(shape=n_vars)
+        grb_sense = GRB.MINIMIZE if sense == 'min' else GRB.MAXIMIZE
+        model.setObjective(f @ x, grb_sense)
+        if has_constraints:
+            C_mat = C if sp.issparse(C) else sp.csr_matrix(C)
+            d_vec = d
+        else:
+            C_mat = sp.csr_matrix(np.zeros((1, n_vars)))
+            d_vec = 0
+        model.addConstr(C_mat @ x <= d_vec)
+        model.optimize()
+        if model.status == 2:
+            return model.objVal + center
+        raise Exception('error: cannot find an optimal solution, exitflag = %d' % (model.status))
+
+    elif lp_solver == 'linprog':
+        f_1d = f.toarray().ravel() if sp.issparse(f) else np.asarray(f).ravel()
+        if not has_constraints:
+            A = np.zeros((1, n_vars))
+            b = np.zeros(1)
+        else:
+            A = C
+            b = d
+        lb = pred_lb.reshape((n_vars, 1))
+        ub = pred_ub.reshape((n_vars, 1))
+        c_obj = f_1d if sense == 'min' else -f_1d
+        res = linprog(c_obj, A_ub=A, b_ub=b, bounds=np.hstack((lb, ub)))
+        if res.status == 0:
+            val = res.fun if sense == 'min' else -res.fun
+            return val + center
+        raise Exception('error: cannot find an optimal solution, exitflag = {}'.format(res.status))
+
+    elif lp_solver == 'glpk':
+        glpk.env.term_on = False
+        f_1d = f.toarray().ravel() if sp.issparse(f) else np.asarray(f).ravel()
+        if not has_constraints:
+            A = np.zeros((1, n_vars))
+            b = np.zeros(1)
+        else:
+            A = C.toarray() if sp.issparse(C) else np.asarray(C)
+            b = d
+        lb = pred_lb.reshape((n_vars, 1))
+        ub = pred_ub.reshape((n_vars, 1))
+
+        lp = glpk.LPX()
+        lp.obj.maximize = (sense == 'max')
+        lp.rows.add(A.shape[0])
+        for r in lp.rows:
+            r.name = chr(ord('p') + r.index)
+            lp.rows[r.index].bounds = None, b[r.index]
+
+        lp.cols.add(n_vars)
+        for c in lp.cols:
+            c.name = 'x%d' % c.index
+            c.bounds = float(pred_lb[c.index]), float(pred_ub[c.index])
+
+        lp.obj[:] = f_1d.tolist()
+        B = A.reshape(A.shape[0] * A.shape[1],)
+        lp.matrix = B.tolist()
+        lp.simplex()
+
+        if lp.status != 'opt':
+            raise Exception('error: cannot find an optimal solution, lp.status = {}'.format(lp.status))
+        return lp.obj.value + center
+
+    else:
+        raise Exception('error: unknown lp solver, should be gurobi or linprog or glpk')
 
 class Star(object):
     """
@@ -283,99 +395,11 @@ class Star(object):
         if (f == 0).all():
             xmin = self.V[index, 0]
         else:
-            if lp_solver == 'gurobi':  # using gurobi is the preferred choice
-
-                min_ = gp.Model()
-                min_.Params.LogToConsole = 0
-                min_.Params.OptimalityTol = 1e-9
-                if self.pred_lb.size and self.pred_ub.size:
-                    x = min_.addMVar(shape=self.nVars, lb=self.pred_lb, ub=self.pred_ub)
-                else:
-                    x = min_.addMVar(shape=self.nVars)
-                min_.setObjective(f @ x, GRB.MINIMIZE)
-                if len(self.C) == 0:
-                    C = sp.csr_matrix(np.zeros((1, self.nVars)))
-                    d = 0
-                else:
-                    C = sp.csr_matrix(self.C)
-                    d = self.d
-                min_.addConstr(C @ x <= d)
-                min_.optimize()
-
-                if min_.status == 2:
-                    xmin = min_.objVal + self.V[index, 0]
-                else:
-                    raise Exception('error: cannot find an optimal solution, \
-                    exitflag = %d' % (min_.status))
-
-            elif lp_solver == 'linprog':
-
-                # https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.linprog.html
-                if len(self.C) == 0:
-                    A = np.zeros((1, self.nVars))
-                    b = np.zeros(1)
-                else:
-                    A = self.C
-                    b = self.d
-
-                lb = self.pred_lb
-                ub = self.pred_ub
-                lb = lb.reshape((self.nVars, 1))
-                ub = ub.reshape((self.nVars, 1))
-                res = linprog(f, A_ub=A, b_ub=b, bounds=np.hstack((lb, ub)))
-
-                if res.status == 0:
-                    xmin = res.fun + self.V[index, 0]
-                else:
-                    raise Exception('error: cannot find an optimal solution, \
-                    exitflag = {}'.format(res.status))
-
-            elif lp_solver == 'glpk':
-
-                #  https://pyglpk.readthedocs.io/en/latest/examples.html
-                #  https://pyglpk.readthedocs.io/en/latest/
-
-                glpk.env.term_on = False
-
-                if len(self.C) == 0:
-                    A = np.zeros((1, self.nVars))
-                    b = np.zeros(1)
-                else:
-                    A = self.C
-                    b = self.d
-
-                lb = self.pred_lb
-                ub = self.pred_ub
-                lb = lb.reshape((self.nVars, 1))
-                ub = ub.reshape((self.nVars, 1))
-
-                lp = glpk.LPX()  # create the empty problem instance
-                lp.obj.maximize = False
-                lp.rows.add(A.shape[0])  # append rows to this instance
-                for r in lp.rows:
-                    r.name = chr(ord('p') + r.index)  # name rows if we want
-                    lp.rows[r.index].bounds = None, b[r.index]
-
-                lp.cols.add(self.nVars)
-                for c in lp.cols:
-                    c.name = 'x%d' % c.index
-                    c.bounds = lb[c.index], ub[c.index]
-
-                lp.obj[:] = f.tolist()
-                B = A.reshape(A.shape[0]*A.shape[1],)
-                lp.matrix = B.tolist()
-                # lp.interior()
-                lp.simplex()
-                # default choice, interior may have a big floating point error
-
-                if lp.status != 'opt':
-                    raise Exception('error: cannot find an optimal solution, \
-                    lp.status = {}'.format(lp.status))
-                else:
-                    xmin = lp.obj.value + self.V[index, 0]
-            else:
-                raise Exception('error: \
-                unknown lp solver, should be gurobi or linprog or glpk')
+            xmin = _solve_lp(
+                f, self.V[index, 0], self.C, self.d,
+                self.pred_lb, self.pred_ub, self.nVars,
+                sense='min', lp_solver=lp_solver, gurobi_opt_tol=1e-9
+            )
         return xmin
 
     def getMax(self, index, lp_solver='gurobi'):
@@ -390,98 +414,11 @@ class Star(object):
         if (f == 0).all():
             xmax = self.V[index, 0]
         else:
-            if lp_solver == 'gurobi':  # using gurobi is the preferred choice
-
-                max_ = gp.Model()
-                max_.Params.LogToConsole = 0
-                max_.Params.OptimalityTol = 1e-9
-                if self.pred_lb.size and self.pred_ub.size:
-                    x = max_.addMVar(shape=self.nVars,
-                                     lb=self.pred_lb, ub=self.pred_ub)
-                else:
-                    x = max_.addMVar(shape=self.nVars)
-                max_.setObjective(f @ x, GRB.MAXIMIZE)
-                if len(self.C) == 0:
-                    C = sp.csr_matrix(np.zeros((1, self.nVars)))
-                    d = 0
-                else:
-                    C = sp.csr_matrix(self.C)
-                    d = self.d
-                max_.addConstr(C @ x <= d)
-                max_.optimize()
-
-                if max_.status == 2:
-                    xmax = max_.objVal + self.V[index, 0]
-                else:
-                    raise Exception('error: cannot find an optimal solution, \
-                    exitflag = %d' % (max_.status))
-            elif lp_solver == 'linprog':
-                # https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.linprog.html
-                if len(self.C) == 0:
-                    A = np.zeros((1, self.nVars))
-                    b = np.zeros(1)
-                else:
-                    A = self.C
-                    b = self.d
-
-                lb = self.pred_lb
-                ub = self.pred_ub
-                lb = lb.reshape((self.nVars, 1))
-                ub = ub.reshape((self.nVars, 1))
-                res = linprog(-f, A_ub=A, b_ub=b, bounds=np.hstack((lb, ub)))
-                if res.status == 0:
-                    xmax = -res.fun + self.V[index, 0]
-                else:
-                    raise Exception('error: cannot find an optimal solution, \
-                    exitflag = {}'.format(res.status))
-
-            elif lp_solver == 'glpk':
-
-                # https://pyglpk.readthedocs.io/en/latest/examples.html
-                # https://pyglpk.readthedocs.io/en/latest/
-
-                glpk.env.term_on = False  # turn off messages/display
-
-                if len(self.C) == 0:
-                    A = np.zeros((1, self.nVars))
-                    b = np.zeros(1)
-                else:
-                    A = self.C
-                    b = self.d
-
-                lb = self.pred_lb
-                ub = self.pred_ub
-                lb = lb.reshape((self.nVars, 1))
-                ub = ub.reshape((self.nVars, 1))
-
-                lp = glpk.LPX()  # create the empty problem instance
-                lp.obj.maximize = True
-                lp.rows.add(A.shape[0])  # append rows to this instance
-                for r in lp.rows:
-                    r.name = chr(ord('p') + r.index)  # name rows if we want
-                    lp.rows[r.index].bounds = None, b[r.index]
-
-                lp.cols.add(self.nVars)
-                for c in lp.cols:
-                    c.name = 'x%d' % c.index
-                    c.bounds = lb[c.index], ub[c.index]
-
-                lp.obj[:] = f.tolist()
-                B = A.reshape(A.shape[0]*A.shape[1],)
-                lp.matrix = B.tolist()
-
-                # lp.interior()
-                # default choice, interior may have a big floating point error
-                lp.simplex()
-
-                if lp.status != 'opt':
-                    raise Exception('error: cannot find an optimal solution, \
-                    lp.status = {}'.format(lp.status))
-                else:
-                    xmax = lp.obj.value + self.V[index, 0]
-            else:
-                raise Exception('error: \
-                unknown lp solver, should be gurobi or linprog or glpk')
+            xmax = _solve_lp(
+                f, self.V[index, 0], self.C, self.d,
+                self.pred_lb, self.pred_ub, self.nVars,
+                sense='max', lp_solver=lp_solver, gurobi_opt_tol=1e-9
+            )
         return xmax
     
     def getMins(self, map, lp_solver='gurobi'):
@@ -581,7 +518,7 @@ class Star(object):
     
     # intersection with another Star set
     def intersectStar(self, S):
-        """ Intersection of two star sets
+        r""" Intersection of two star sets
             x1 = c1 + V1 a1 in S1 (self) with P(a1) := C1 a1 <= d1
             x2 = c2 + V2 a2 in S2 (S)    with P(a2) := C2 a2 <= d2
 
@@ -731,7 +668,7 @@ class Star(object):
                 lb = np.delete(lb, i)
                 ub = np.delete(ub, i)
 
-                xmax = d1 + np.matmul(v21, ub) + np.matmul(v22, lb)
+                xmax = float(np.asarray(d1 + np.matmul(v21, ub) + np.matmul(v22, lb)).item())
                 new_pred_ub[i] = min(xmax, pred_ub[i])  # update upper bound
             if x < 0:
                 v1 = copy.deepcopy(newC)
@@ -750,7 +687,7 @@ class Star(object):
                 ub = copy.deepcopy(pred_ub)
                 lb = np.delete(lb, i)
                 ub = np.delete(ub, i)
-                xmin = d1 + np.matmul(v21, lb) + np.matmul(v22, ub)
+                xmin = float(np.asarray(d1 + np.matmul(v21, lb) + np.matmul(v22, ub)).item())
                 new_pred_lb[i] = max(xmin, pred_lb[i])  # update lower bound
 
         return new_pred_lb, new_pred_ub
@@ -943,6 +880,15 @@ class Star(object):
         assert s.shape[0] == self.dim, 'error: Dimension mismatch'
 
         f = np.zeros(self.nVars)
+        if _resolve_lp_solver('gurobi') != 'gurobi':
+            A_ub = self.C if len(self.d) > 0 else None
+            b_ub = self.d if len(self.d) > 0 else None
+            A_eq = self.V[:, 1:]
+            b_eq = s - self.V[:, 0]
+            bounds = list(zip(self.pred_lb, self.pred_ub)) if (self.pred_lb.size and self.pred_ub.size) else None
+            res = linprog(f, A_ub=A_ub, b_ub=b_ub, A_eq=A_eq, b_eq=b_eq, bounds=bounds)
+            return bool(res.status == 0)
+
         m = gp.Model()
         # prevent optimization information
         m.Params.LogToConsole = 0

@@ -56,15 +56,15 @@ class LODE(object):
          nI: number of inputs
          nO: number of outputs
         """
-        isinstance(A, np.ndarray), 'error: matrix A should be a numpy array'
+        assert isinstance(A, np.ndarray), 'error: matrix A should be a numpy array'
         if B is not None:
-            isinstance(B, np.ndarray), 'error: matrix B should be a numpy array'
+            assert isinstance(B, np.ndarray), 'error: matrix B should be a numpy array'
             assert A.shape[0] == B.shape[0], 'error: inconsistent dimension between A and B'
 
         if C is not None:
-            isinstance(C, np.ndarray), 'error: matrix C should be a numpy array'
+            assert isinstance(C, np.ndarray), 'error: matrix C should be a numpy array'
         if D is not None:
-            isinstance (D, np.ndarray), 'error: matrix D should be a numpy array'
+            assert isinstance(D, np.ndarray), 'error: matrix D should be a numpy array'
 
         
         if D is not None and C is not None:

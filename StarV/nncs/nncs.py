@@ -232,10 +232,11 @@ class NNCS(object):
         #   7) reachPRM.show
 
         if self.type == 'DLNNCS': # discrete linear NNCS
-            self.RX, self.RY, self.RU = reachBFS_DLNNCS(self.ncs, reachPRM)
+            self.RX, p_ignored = reachBFS_DLNNCS(self, reachPRM)
+            return self.RX, p_ignored
         elif self.type == 'DynNN-NNCS': # dynamic neural network NNCS
-            RX, p_ignored = reachBFS_DynNN_NNCS(self.ncs, reachPRM)
-            return RX, p_ignored
+            self.RX, p_ignored = reachBFS_DynNN_NNCS(self, reachPRM)
+            return self.RX, p_ignored
         else:
             raise RuntimeError('We are have not support \
             reachability analysis for type = {} yet'.format(self.type))
@@ -412,11 +413,6 @@ def reachBFS_DLNNCS(ncs, reachPRM):
     assert isinstance(reachPRM, ReachPRM_NNCS), 'error: reachability parameter should be an ReachPRM_NNCS object'
     assert reachPRM.initSet is not None, 'error: there is no initial set for reachability'
     assert reachPRM.numSteps >= 1, 'error: number of time steps should be >= 1'
-    
-    if reachPRM.numCores > 1:
-        pool = multiprocessing.Pool(reachPRM.numCores)
-    else:
-        pool = None
 
     if reachPRM.show:
         print('\nReachability analysis of discrete linear NNCS for {} steps...'.format(reachPRM.numSteps))
@@ -471,6 +467,9 @@ def stepReach_DLNNCS(ncs, Xi, reachPRM):
     p_ig = 0.0
 
     RU = reachExactBFS(net, [fb_I], lp_solver, pool=pool, show=False)
+    if pool is not None:
+        pool.close()
+        pool.join()
     for U in RU:
         RX1, _ = plant.stepReach(X0=Xi, U=U, subSetPredicate=True)
         if filterProb == 0:
@@ -501,6 +500,9 @@ def stepReach_DLNNCS_extended(ncs, Xi, reachPRM):
             pool = None       
 
         Xi1 = stepReach_AEBS(ncs, Xi, pool)    # this is AEBS NNCS
+        if pool is not None:
+            pool.close()
+            pool.join()
 
         if reachPRM.filterProb == 0:
             RX = Xi1
@@ -533,13 +535,13 @@ def reachBFS_AEBS(AEBS, reachPRM):
     X0 = copy.deepcopy(reachPRM.initSet)
     T = reachPRM.numSteps
     pf = reachPRM.filterProb
+    if T < 1:
+        raise RuntimeError('Invalid number of steps')
+
     if reachPRM.numCores > 1:
         pool = multiprocessing.Pool(reachPRM.numCores)
     else:
         pool = None
-    
-    if T < 1:
-        raise RuntimeError('Invalid number of steps')
 
     X = []
     X.append([X0])
@@ -549,6 +551,10 @@ def reachBFS_AEBS(AEBS, reachPRM):
         X.append(X1)
         p_ign1 = p_ig1 + p_ignored[i]
         p_ignored.append(p_ign1)
+
+    if pool is not None:
+        pool.close()
+        pool.join()
 
     return X, p_ignored
 
@@ -877,11 +883,6 @@ def reachBFS_DynNN_NNCS(ncs, reachPRM):
     assert isinstance(reachPRM, ReachPRM_DYNNN_NNCS), 'error: reachability parameter should be an ReachPRM_NNCS object'
     assert reachPRM.initSet is not None, 'error: there is no initial set for reachability'
     assert reachPRM.numSteps >= 1, 'error: number of time steps should be >= 1'
-    
-    if reachPRM.numCores > 1:
-        pool = multiprocessing.Pool(reachPRM.numCores)
-    else:
-        pool = None
 
     if reachPRM.show:
         print('\nReachability analysis of dynamic NN NNCS for {} steps...'.format(reachPRM.numSteps))
@@ -983,6 +984,10 @@ def stepReach_DynNN_NNCS(ncs, Xi, reachPRM):
                     continue
         
         Y.append(Yi)
+
+    if pool is not None:
+        pool.close()
+        pool.join()
 
     return Y, p_ig
 
@@ -1102,6 +1107,10 @@ def verify_temporal_specs_DLNNCS_with_timeOut(ncs, verifyPRM):
             checking_time.append(ct)
             verifyTime.append(ct + reachTime)
 
+        if pool is not None:
+            pool.close()
+            pool.join()
+
         Q.put([traces, p_SAT, reachTime, checking_time, verifyTime])
        
         # end of internal function
@@ -1203,6 +1212,9 @@ def verify_temporal_specs_DLNNCS(ncs, verifyPRM):
         checking_time.append(ct)
         verifyTime.append(ct + reachTime)
 
+    if pool is not None:
+        pool.close()
+        pool.join()
    
     return traces, p_SAT_MAX, p_SAT_MIN, reachTime, checking_time, verifyTime
     
@@ -1315,7 +1327,9 @@ def verify_temporal_specs_DLNNCS_for_full_analysis(ncs, verifyPRM):
         checking_time.append(ct)
         verifyTime.append(ct + reachTime)
 
-        
+    if pool is not None:
+        pool.close()
+        pool.join()
    
     return traces, p_SAT_MAX, p_SAT_MIN, reachTime, checking_time, \
         verifyTime, p_IG, p_ig0, CDNF_SAT, CDNF_IG, conservativeness, constitution, SAT_traces

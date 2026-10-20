@@ -4,7 +4,10 @@ import scipy
 import scipy.linalg
 
 from StarV.set.imagestar import ImageStar
-from StarV.fun.matmul import MatMul
+try:
+    from StarV.fun.matmul import MatMul
+except ImportError:
+    MatMul = None
 from StarV.fun.identityXidentity import IdentityXIdentity
 
 class Test(object):
@@ -269,12 +272,13 @@ if __name__ == "__main__":
     ================================\
     ================================\
     ===============================\n')
-    # test_ImageStar.test_constructor()
+    test_ImageStar.test_constructor()
     # test_ImageStar.test_transpose()
     # test_ImageStar.test_sum()
     # test_ImageStar.test_sum2()
     # test_ImageStar.test_element_product()
-    test_ImageStar.test_matmul()
+    if MatMul is not None:
+        test_ImageStar.test_matmul()
     # test_ImageStar.test()
     print('\n========================\
     =================================\

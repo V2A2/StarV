@@ -101,8 +101,8 @@ if __name__ == "__main__":
     ================================\
     ================================\
     ===============================\n')
-    #test.test_constructor()
-    #test.test_reachDLNNCS()
+    test.test_constructor()
+    test.test_reachDLNNCS()
     test.test_getCurrentSpecConstraints()
     print('\n========================\
     =================================\

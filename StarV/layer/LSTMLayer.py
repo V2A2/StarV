@@ -150,7 +150,7 @@ class LSTMLayer(object):
     def info(self):
         print('LSTM Layer')
         print('input dimension (input_size): {}'.format(self.in_dim))
-        print('output dimension (hidden_size): {}'.format(self.in_dim))
+        print('output dimension (hidden_size): {}'.format(self.out_dim))
         print('number of layers: {}'.format(self.num_layers))
         print('output mode: {}'.format(self.output_mode))
         print('bias: {}'.format(self.bias))
@@ -1006,7 +1006,7 @@ class LSTMLayer(object):
 
 
     @staticmethod
-    def rand(in_dim, out_dim, num_layers):
+    def rand(in_dim, out_dim, num_layers=1):
         """ Randomly generate a LSTMLayer
             Args:
                 @out_dim: number of hidden units
@@ -1035,35 +1035,12 @@ class LSTMLayer(object):
         assert in_dim > 0, 'error: invalid number of input units'
         assert num_layers > 0, 'error: invalid number of layers'
         
-        Wi, Wf, Wg, Wo = [], [], [], []
-        Ri, Rf, Rg, Ro = [], [], [], []
-        wi, wf, wg, wo = [], [], [], []
-        ri, rf, rg, ro = [], [], [], []
-
+        layer = []
         for l in range(num_layers):
-            Wi.append(np.random.rand(out_dim, in_dim))
-            Wf.append(np.random.rand(out_dim, in_dim))
-            Wg.append(np.random.rand(out_dim, in_dim))
-            Wo.append(np.random.rand(out_dim, in_dim))
-
-            Ri.append(np.random.rand(out_dim, in_dim))
-            Rf.append(np.random.rand(out_dim, in_dim))
-            Rg.append(np.random.rand(out_dim, in_dim))
-            Ro.append(np.random.rand(out_dim, in_dim))
-
-            wi.append(np.random.rand(out_dim))
-            wf.append(np.random.rand(out_dim))
-            wg.append(np.random.rand(out_dim))
-            wo.append(np.random.rand(out_dim))
-
-            ri.append(np.random.rand(out_dim))
-            rf.append(np.random.rand(out_dim))
-            rg.append(np.random.rand(out_dim))
-            ro.append(np.random.rand(out_dim))
-
-        W = [Wi, Wf, Wg, Wo]
-        R = [Ri, Rf, Rg, Ro]
-        w = [wi, wf, wg, wo]
-        r = [ri, rf, rg, ro]
-        return LSTMLayer([W, R, w, r], module='default')
+            cur_in_dim = in_dim if l == 0 else out_dim
+            W = np.random.rand(4 * out_dim, cur_in_dim)
+            R = np.random.rand(4 * out_dim, out_dim)
+            b = np.random.rand(8 * out_dim)
+            layer.append([W, R, b])
+        return LSTMLayer(layer, module='default')
     

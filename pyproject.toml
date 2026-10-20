@@ -22,3 +22,14 @@ dependencies = {file = ["requirements.txt"]}
 
 [tool.setuptools.packages.find]
 where = ["."]
+include = ["StarV*"]
+
+[project.optional-dependencies]
+test = ["pytest>=7.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_suite.py", "test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+

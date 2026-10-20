@@ -18,7 +18,7 @@ Fairness Verifier
 Yuntao Li
 """
 
-from StarV.net.network import NeuralNetwork, reach_exact_bfs_star_relu
+from StarV.net.network import NeuralNetwork, reachExactBFS
 import copy
 import multiprocessing
 import numpy as np
@@ -248,10 +248,10 @@ def fairness_verification_exact_strict_both(net, inputSet1, inputSet2, lp_solver
         pool = multiprocessing.Pool(numCores) if numCores > 1 else None
         # Compute reachable sets once
         with timing_manager.timer('reach_S1'):
-            S1 = reach_exact_bfs_star_relu(net, [inputSet1], 'exact', lp_solver, pool, show)
+            S1 = reachExactBFS(net, [inputSet1], lp_solver, pool, show)
         
         with timing_manager.timer('reach_S2'):
-            S2 = reach_exact_bfs_star_relu(net, [inputSet2], 'exact', lp_solver, pool, show)
+            S2 = reachExactBFS(net, [inputSet2], lp_solver, pool, show)
             
         # Run verifications in both directions using the same reachable sets
         pos_results = fairness_verification_exact_strict_single(S1, S2, inputSet1, True, pool)

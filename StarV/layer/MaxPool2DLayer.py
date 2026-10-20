@@ -68,18 +68,18 @@ class MaxPool2DLayer(object):
             # check stride, padding, and dilation
 
             assert isinstance(kernel_size, tuple) or isinstance(kernel_size, list) or \
-                   isinstance(kernel_size, int) or isinstance(stride, np.ndarray), \
+                   isinstance(kernel_size, int) or isinstance(kernel_size, np.ndarray), \
             f'error: kernel_size should be a tuple, list, numpy ndarray, or int but received {type(kernel_size)}'
             assert isinstance(stride, tuple) or isinstance(stride, list) or \
                    isinstance(stride, int) or isinstance(stride, np.ndarray), \
             f'error: stride should be a tuple, list, numpy ndarray, or int but received {type(stride)}'
             assert isinstance(padding, tuple) or isinstance(padding, list) or \
-                   isinstance(padding, int) or isinstance(stride, np.ndarray), \
-            f'error: padding should be a tuple, list, numpy ndarray, or in tbut received {type(padding)}'
+                   isinstance(padding, int) or isinstance(padding, np.ndarray), \
+            f'error: padding should be a tuple, list, numpy ndarray, or int but received {type(padding)}'
 
             if isinstance(kernel_size, int):
                 assert kernel_size >= 0, 'error: kernel size should non-negative integer'
-                self.kernel_size = np.ones(2, dtype=np.uint16)*kernel_size[0]
+                self.kernel_size = np.ones(2, dtype=np.uint16)*kernel_size
             else:
                 if len(kernel_size) == 1:
                     assert kernel_size[0] >= 0, 'error: kernel size should non-negative integer'

@@ -24,11 +24,11 @@ def define_ha(samples_per_side):
     diffusity_const = 0.01
     heat_exchange_const = 0.5
 
-    print "Making {}x{}x{} ({} dims) 3d Heat Plate ODEs...".format(samples_per_side, samples_per_side, \
-                                                               samples_per_side, samples_per_side**3)
+    print("Making {}x{}x{} ({} dims) 3d Heat Plate ODEs...".format(samples_per_side, samples_per_side, \
+                                                               samples_per_side, samples_per_side**3))
     a_matrix = heat3d_dia(samples_per_side, diffusity_const, heat_exchange_const)
 
-    print "Finished Making ODEs"
+    print("Finished Making ODEs")
 
     mode.set_dynamics(a_matrix)
 

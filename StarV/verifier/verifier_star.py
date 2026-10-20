@@ -25,7 +25,7 @@ import multiprocessing
 import numpy as np
 import polytope as pc
 from StarV.util.print_util import print_util
-from typing import Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 
 class Verifier(object):
@@ -107,12 +107,12 @@ def quantiVerifyExactBFS(net, inputSet, unsafe_mat, unsafe_vec, lp_solver='gurob
             if isinstance(P1, Star):
                 P.append(P1)
     else:
-        # S1 = pool.starmap(checkSafetyStar, [(unsafe_mat, unsafe_vec, s) for s in S])
-        S1 = pool.map(checkSafetyStar, zip([unsafe_mat]*len(S), [unsafe_vec]*len(S), S))
+        S1 = pool.starmap(checkSafetyStar, [(unsafe_mat, unsafe_vec, s) for s in S])
         pool.close()
+        pool.join()
         for S2 in S1:
-            if isinstance(S2[0], Star):
-                P.append(S2[0])
+            if isinstance(S2, Star):
+                P.append(S2)
 
     print('length of unsafe sets: ', len(P))
           

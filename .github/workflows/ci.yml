@@ -1,0 +1,58 @@
+name: StarV CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install system dependencies (GLPK)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libglpk-dev glpk-utils libgmp-dev
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy>=1.24.0 scipy>=1.10.0 polytope pypoman pycddlib tabulate matplotlib scikit-learn pandas torch torchvision pytest
+
+      - name: Verify bytecode compilation
+        run: |
+          python -W error -m compileall -f -q StarV
+
+      - name: Run core unit test suite
+        env:
+          MPLBACKEND: Agg
+        run: |
+          pytest tests/test_suite.py \
+                 tests/test_set_star.py \
+                 tests/test_set_probstar.py \
+                 tests/test_set_sparsestar.py \
+                 tests/test_set_sparseimagestar.py \
+                 tests/test_fun_poslin.py \
+                 tests/test_fun_leakyrelu.py \
+                 tests/test_fun_satlin.py \
+                 tests/test_fun_satlins.py \
+                 tests/test_layer_FullyConnectedLayer.py \
+                 tests/test_plant_dlode.py \
+                 tests/test_plant_lode.py \
+                 tests/test_spec_dProbStar.py \
+                 tests/test_nncs.py \
+                 tests/test_verifier_star.py
