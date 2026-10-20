@@ -391,6 +391,8 @@ class BatchNorm2DLayer(object):
                 new_c = self.batchnorm2d(In.c.reshape(In.shape), bias=True).reshape(-1)
                 new_V = self.fbatchnorm2d_coo(In.V, In.shape)
                 
+            if hasattr(In, 'with_updated_state'):
+                return In.with_updated_state(c=new_c, V=new_V, shape=In.shape)
             return SparseImageStar2DCOO(new_c, new_V, In.C, In.d, In.pred_lb, In.pred_ub, In.shape)
         
         elif isinstance(In, SparseImageStar2DCSR):
@@ -403,13 +405,15 @@ class BatchNorm2DLayer(object):
                 new_c = self.batchnorm2d(In.c.reshape(In.shape), bias=True).reshape(-1)
                 new_V = self.fbatchnorm2d_csr(In.V, In.shape)
                 
+            if hasattr(In, 'with_updated_state'):
+                return In.with_updated_state(c=new_c, V=new_V, shape=In.shape)
             return SparseImageStar2DCSR(new_c, new_V, In.C, In.d, In.pred_lb, In.pred_ub, In.shape)
         
         else:
             raise Exception('error: Conv2DLayer support ImageStar only')
         
 
-    def reach(self, inputSet, method=None, lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
+    def reach(self, inputSet, method=None, lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False, **kwargs):
         """
             main reachability method
             Args:

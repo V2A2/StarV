@@ -58,8 +58,9 @@ class PixelClassificationLayer(object):
             for j in range(w):
                 cand = np.argwhere(ub[i, j, :] >= max_lb[i, j]).ravel()
                 if len(cand) > 1:
-                    cand = self.classes # unkown case; multiple classification for a single pixel
-                pix_label[i, j] = cand
+                    pix_label[i, j] = self.classes # unkown case; multiple classification for a single pixel
+                else:
+                    pix_label[i, j] = cand[0]
         return pix_label
         
     def reach_relax_single(self, input, RF=0.0, method='area', lp_solver='gurobi', show=False):
@@ -130,12 +131,13 @@ class PixelClassificationLayer(object):
             for j in range(w):
                 cand = np.argwhere(ub[i, j, :] >= max_lb[i, j]).ravel()
                 if len(cand) > 1:
-                    cand = self.classes  # unkown case; multiple classification for a single pixel
-                pix_label[i, j] = cand
+                    pix_label[i, j] = self.classes  # unkown case; multiple classification for a single pixel
+                else:
+                    pix_label[i, j] = cand[0]
         return pix_label
 
 
-    def reach(self, inputSet, method='area', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
+    def reach(self, inputSet, method='area', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False, **kwargs):
         assert method in ['approx', 'range', 'random', 'area', 'bound', None], \
         f"Invalid relaxation method. Options: 'approx', 'range', 'random', 'area', and 'bound'. Received {method}"
 

@@ -1,0 +1,12 @@
+tool,paradigm,output,vision_scale,memory_complexity
+NNV (Exact Star / ImageStar),Qualitative (Exact),Binary (SAT / UNSAT),Small CNNs (Exponential split),O(2^L * HWC * n)
+NNV (Approx ImageStar),Qualitative (Over-Approx),Ternary (RB / VIOL / UNK),Medium CNNs / VGG (Dense 4D),O(HWC * n) Dense
+nnenum,Qualitative (Zonotope + Star),Binary (SAT / UNSAT),Small/Med CNNs (OOM on Large),O(k * HWC * n)
+DeepPoly / ERAN,Qualitative (Abstract Domain),Ternary (RB / VIOL / UNK),Large CNNs / ResNets,O(HWC)
+Marabou,Qualitative (Reluplex SMT),Binary (SAT / UNSAT),Small/Med CNNs,O(n^2) Tableau
+"alpha,beta-CROWN",Qualitative (LiRPA + BaB),Binary / Ternary,Large CNNs / ResNets / ViTs,O(B * HWC)
+StarV SIM_CSR / SIM_COO,Qualitative (Sparse Over-Approx),Ternary (RB / VIOL / UNK),Large CNNs / SSNNs / VGG16,O(nnz(V) + nnz(C))
+Exact ProbStar (StarV),Quantitative (Exact BFS),Exact Probability p,Tiny MLPs (<100 neurons),O(2^L * n^2)
+Filtered ProbStar (StarV),Quantitative (Bounded BFS),"Sound Bounds [p_lb, p_ub]",Small MLPs (<500 neurons),O(K_kept * n^2)
+Monte Carlo (Clopper-Pearson),Quantitative (Statistical),Confidence Interval (1-alpha),All Models (No 100% Guarantee),O(N_samples * HWC)
+Approx ProbStar (PSIM_CSR / COO) [Ours],Quantitative + Qualitative (Sparse),"Sound [p_min, p_max] + Moment p_hat",Large CNNs / SSNNs / ResNets / ViTs,O(nnz(V) + n) Diagonal / Sparse

@@ -1,0 +1,21 @@
+% Auto-generated CAV 2027 Approximate ProbStar Benchmark Tables
+\begin{table}[t]
+\centering
+\caption{Comparison of Qualitative (SIM\_CSR) vs. Quantitative (PSIM\_CSR, PSIM\_COO, MC) Verification across Vision Models.}
+\begin{tabular}{llccccccc}
+\hline
+Model & $\epsilon$ & Qual Status & $[p_{\min}, p_{\max}]$ & $\hat{p}$ & $p_{\text{MC}}$ & $t_{\text{SIM}}$ (s) & $t_{\text{PSIM}}$ (s) & Mem (MB) \\
+\hline
+MNIST\_ConvNet\_Small & 0.02 & ROBUST & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.0040 & 0.0041 & 0.01 \\
+MNIST\_ConvNet\_Small & 0.08 & UNKNOWN & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.0048 & 0.0060 & 0.02 \\
+CIFAR10\_OVAL21\_CNN & 0.02 & UNKNOWN & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.0070 & 0.0105 & 0.09 \\
+CIFAR10\_OVAL21\_CNN & 0.08 & UNKNOWN & $[0.000, 1.000]$ & 1.000 & 1.000 & 0.0142 & 0.0138 & 0.38 \\
+VGG\_Stage\_CNN & 0.02 & ROBUST & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.0280 & 0.0288 & 0.24 \\
+VGG\_Stage\_CNN & 0.08 & UNKNOWN & $[0.000, 1.000]$ & 1.000 & 1.000 & 0.0289 & 0.0371 & 1.01 \\
+ResNet\_Block & 0.015 & UNKNOWN & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.0052 & 0.0053 & 0.069 \\
+ResNet\_Block & 0.045 & UNKNOWN & $[0.000, 1.000]$ & 1.000 & 1.000 & 0.0055 & 0.0092 & 0.392 \\
+ViT\_PatchNet & 0.015 & UNKNOWN & $[0.000, 1.000]$ & 0.937 & 1.000 & 0.0033 & 0.0051 & 0.035 \\
+ViT\_PatchNet & 0.045 & UNKNOWN & $[0.000, 1.000]$ & 1.000 & 1.000 & 0.0031 & 0.0051 & 0.035 \\
+\hline
+\end{tabular}
+\end{table}

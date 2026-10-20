@@ -27,34 +27,36 @@ class LeakyReLULayer(object):
         Date: 1/20/2024
     """
 
-    @staticmethod
-    def evaluate(x, gamma = 0.1):
-        return LeakyReLU.evaluate(x, gamma)
+    def __init__(self, gamma=0.1):
+        self.gamma = float(gamma)
+
+    def evaluate(self, x, gamma=None):
+        g = self.gamma if gamma is None else gamma
+        return LeakyReLU.evaluate(x, g)
     
-    
-    @staticmethod
-    def reach(In, method='exact', lp_solver='gurobi', pool=None, RF=0.0, show=False):
+    def reach(self, In, method='exact', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False, **kwargs):
         """main reachability method
            Args:
-               @I: a list of input set (Star or ProbStar)
+               @I: a list of input set (Star or ProbStar) or a single input set
                @method: method: 'exact', 'approx', or 'relax'
                @lp_solver: lp solver: 'gurobi' (default), 'glpk', or 'linprog'
                @pool: parallel pool: None or multiprocessing.pool.Pool
                @RF: relax-factor from 0 to 1 (0 by default)
 
             Return: 
-               @R: a list of reachable set
+               @R: a list of reachable set or single reachable set
         """
 
-        print("\nLeakyReLULayer reach function\n")
+        if show:
+            print("\nLeakyReLULayer reach function\n")
 
-        gamma = 0.1
+        gamma = getattr(self, 'gamma', 0.1)
         if method == 'exact':
             return LeakyReLU.reachExactMultiInputs(In, gamma, lp_solver, pool)
         elif method == 'approx':
-            return LeakyReLU.reachApprox(In=In, gamma=gamma, lp_solver=lp_solver, show=show)
+            return LeakyReLU.reachApprox(In=In, gamma=gamma, lp_solver=lp_solver, RF=RF, show=show)
         elif method == 'relax':
-            raise Exception('error: under development')
+            return LeakyReLU.reachApprox(In=In, gamma=gamma, lp_solver=lp_solver, RF=RF, show=show)
         else:
             raise Exception('error: unknown reachability method')
 

@@ -1812,6 +1812,8 @@ class Conv2DLayer(object):
                 else:
                     new_V, out_shape = self.fconv2d_coo_co_loop(In.V, In.shape)
 
+            if hasattr(In, 'with_updated_state'):
+                return In.with_updated_state(c=new_c, V=new_V, shape=out_shape)
             return SparseImageStar2DCOO(new_c, new_V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
         
         elif isinstance(In, SparseImageStar2DCSR):
@@ -1827,12 +1829,14 @@ class Conv2DLayer(object):
                 else:
                     new_V, out_shape = self.fconv2d_csr_co_loop(In.V, In.shape)
 
+            if hasattr(In, 'with_updated_state'):
+                return In.with_updated_state(c=new_c, V=new_V, shape=out_shape)
             return SparseImageStar2DCSR(new_c, new_V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
         
         else:
             raise Exception('error: Conv2DLayer supports ImageStar and SparseImageStar')
 
-    def reach(self, inputSet, method=None, lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
+    def reach(self, inputSet, method=None, lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False, **kwargs):
         """
             main reachability method
             Args:

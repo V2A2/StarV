@@ -22,6 +22,7 @@ Sung Woo Choi, 03/28/2024
 from StarV.set.imagestar import ImageStar
 from StarV.set.sparseimagestar2dcoo import SparseImageStar2DCOO
 from StarV.set.sparseimagestar2dcsr import SparseImageStar2DCSR
+from StarV.set.probsparse_base import propagate_maxpool_moments
 
 import time
 import copy
@@ -428,6 +429,9 @@ class MaxPool2DLayer(object):
 
         if len(max_pixels) == 0:
             max_indx = np.array([ind[max_lb_indx]])
+        elif lp_solver == 'estimate':
+            candidates = np.where(diff >= 0)[0]
+            max_indx = ind[candidates]
         else:
             candidates = np.where(diff >= 0)[0]
             new_points = ind[candidates]
@@ -470,6 +474,9 @@ class MaxPool2DLayer(object):
 
         if max_pixels.nnz == 0:
             max_indx = ind[max_lb_indx]
+        elif lp_solver == 'estimate':
+            candidates = np.where(diff >= 0)
+            max_indx = ind[candidates]
 
         else:
             candidates = np.where(diff >= 0)
@@ -938,10 +945,22 @@ class MaxPool2DLayer(object):
             new_pred_ub = np.hstack([I.pred_ub, ub])
 
             out_shape = (mo, no, c)
+            if hasattr(I, 'with_updated_state'):
+                mu_new, Sig_new, env_rec = propagate_maxpool_moments(
+                    V, center, state_lb, state_ub, max_index_list, lb, ub,
+                    I.mu, I.Sig, cov_mode=I.cov_mode, dtype=dtype
+                )
+                return I.with_updated_state(
+                    c=new_c, V=new_V, C=new_C, d=new_d,
+                    pred_lb=new_pred_lb, pred_ub=new_pred_ub, shape=out_shape,
+                    mu=mu_new, Sig=Sig_new, new_env_record=env_rec
+                )
             return SparseImageStar2DCOO(new_c, new_V, new_C, new_d, new_pred_lb, new_pred_ub, out_shape)
 
         new_V = sp.coo_array((np.hstack(max_data), (np.hstack(max_row).astype(np.int32), np.hstack(max_col))), shape=(ko, tPred))
         out_shape = (mo, no, c)
+        if hasattr(I, 'with_updated_state'):
+            return I.with_updated_state(c=new_c, V=new_V, shape=out_shape)
         return SparseImageStar2DCOO(new_c, new_V, I.C, I.d, I.pred_lb, I.pred_ub, out_shape)
     
 
@@ -1097,10 +1116,22 @@ class MaxPool2DLayer(object):
 
             out_shape = (mo, no, c)
 
+            if hasattr(I, 'with_updated_state'):
+                mu_new, Sig_new, env_rec = propagate_maxpool_moments(
+                    V, center, state_lb, state_ub, max_index_list, lb, ub,
+                    I.mu, I.Sig, cov_mode=I.cov_mode, dtype=dtype
+                )
+                return I.with_updated_state(
+                    c=new_c, V=new_V, C=new_C, d=new_d,
+                    pred_lb=new_pred_lb, pred_ub=new_pred_ub, shape=out_shape,
+                    mu=mu_new, Sig=Sig_new, new_env_record=env_rec
+                )
             return SparseImageStar2DCSR(new_c, new_V, new_C, new_d, new_pred_lb, new_pred_ub, out_shape)
 
         new_V = sp.csr_array((np.hstack(max_data), (np.hstack(max_row), np.hstack(max_col))), shape=(ko, tPred))
         out_shape = (mo, no, c)
+        if hasattr(I, 'with_updated_state'):
+            return I.with_updated_state(c=new_c, V=new_V, shape=out_shape)
         return SparseImageStar2DCSR(new_c, new_V, I.C, I.d, I.pred_lb, I.pred_ub, out_shape)
 
     def reachApproxSingleInput(self, In, lp_solver='gurobi', show=False):
@@ -1177,7 +1208,7 @@ class MaxPool2DLayer(object):
         return S
     
 
-    def reach(self, In, method=None, lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
+    def reach(self, In, method=None, lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False, **kwargs):
         """main reachability method
             Args:
                 @I: a list of input set
@@ -1187,7 +1218,9 @@ class MaxPool2DLayer(object):
         
         if method == 'exact':
             return self.reachExactMultiInputs(In, lp_solver, pool, show)
-        elif method == 'approx':
+        elif method in ('approx', 'relax', None):
+            if isinstance(In, list):
+                return [self.reachApproxSingleInput(x, lp_solver, show) for x in In]
             return self.reachApproxSingleInput(In, lp_solver, show)
         else:
             raise Exception('error: unknown reachability method')

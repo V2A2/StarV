@@ -73,9 +73,14 @@ class NeuralNetwork(object):
         self.type = net_type
         self.layers = layers
         self.n_layers = len(layers)
-        self.in_dim = layers[0].in_dim
+        self.in_dim = None
+        for i in range(len(layers)):
+            if hasattr(layers[i], 'in_dim') and layers[i].in_dim is not None:
+                self.in_dim = layers[i].in_dim
+                break
+        self.out_dim = None
         for i in range(len(layers) - 1, -1, -1):
-            if hasattr(layers[i], 'out_dim'):
+            if hasattr(layers[i], 'out_dim') and layers[i].out_dim is not None:
                 self.out_dim = layers[i].out_dim
                 break
 
@@ -206,11 +211,10 @@ def reachExactBFS(net, inputSet, lp_solver='gurobi', pool=None, show=True):
     return S
 
     
-def reachApproxBFS(net, inputSet, p_filter=0.0, lp_solver='gurobi', pool=None, show=True):
+def reachApproxBFS(net, inputSet, p_filter=0.0, lp_solver='gurobi', pool=None, show=True, RF=0.0, DR=0, relu_approx_mode='analytic_gaussian'):
     """Compute Approximate Reachable Set layer-by-layer"""
 
     assert isinstance(net, NeuralNetwork), 'error: first input should be a NeuralNetwork object'
-    assert isinstance(inputSet, list) or isinstance(inputSet, Star), 'error: second input should be a list of Star/ProbStar set or just a Star set'
 
     # compute and filter reachable sets
     I = copy.deepcopy(inputSet)
@@ -248,14 +252,21 @@ def reachApproxBFS(net, inputSet, p_filter=0.0, lp_solver='gurobi', pool=None, s
 
         return I, p_ignored
     
-    if isinstance(I, Star):
-        for i in range(0, net.n_layers):
-            if show:
-                print('Computing layer {} {} reachable set...'.format(i, net.layers[i].__class__.__name__))
-                # print('Computing layer {} reachable set...'.format(i))
-            S = net.layers[i].reach(I, method='approx', lp_solver=lp_solver, pool=pool)
-            I = S
-            if show:
-                print('Number of stars: {}'.format(len(S)))
-        return S
+    for i in range(0, net.n_layers):
+        if show:
+            print('Computing layer {} {} reachable set...'.format(i, net.layers[i].__class__.__name__))
+        if isinstance(net.layers[i], ReLULayer):
+            S = net.layers[i].reach(
+                I, method='approx', lp_solver=lp_solver, pool=pool,
+                RF=RF, DR=DR, show=show, relu_approx_mode=relu_approx_mode
+            )
+        else:
+            S = net.layers[i].reach(
+                I, method='approx', lp_solver=lp_solver, pool=pool,
+                RF=RF, DR=DR, show=show
+            )
+        I = S
+        if show:
+            print('Number of stars: {}'.format(len(S)))
+    return S
 

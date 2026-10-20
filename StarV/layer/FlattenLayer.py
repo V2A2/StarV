@@ -33,8 +33,10 @@ class FlattenLayer(object):
         Date: 12/18/2023
     """
 
-    def __init__(self, channel_last=True):
+    def __init__(self, channel_last=True, in_dim=None, out_dim=None):
         self.channel_last = channel_last
+        self.in_dim = in_dim
+        self.out_dim = out_dim
 
     def evaluate(self, x):
         """ flattens x """
@@ -70,17 +72,19 @@ class FlattenLayer(object):
             
             if self.channel_last:
                 if isinstance(In.V, sp.coo_array) or isinstance(In.V, sp.coo_matrix):
+                    if hasattr(In, 'with_updated_state'):
+                        return In.with_updated_state(c=In.c, V=In.V, shape=out_shape)
                     return SparseImageStar2DCOO(In.c, In.V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
                 else:
                     return In
             else:
-                # fron                                 H W C N
-                # print(self.V.transpose([3,2,0,1])) # N C H W
-                # H W C to
-                # C H W
-                # H W C N to
-                # C H W N
                 if isinstance(In.V, sp.coo_array) or isinstance(In.V, sp.coo_matrix):
+                    if hasattr(In, 'with_updated_state'):
+                        h, w, ch = In.shape
+                        perm = np.arange(h * w * ch, dtype=np.int32).reshape(h, w, ch).transpose(2, 0, 1).ravel()
+                        c_new = In.c[perm]
+                        V_new = In.V.tocsr()[perm, :].tocoo()
+                        return In.with_updated_state(c=c_new, V=V_new, shape=out_shape)
                     c = In.c.reshape(In.shape).transpose([2, 0, 1])
                     shape = In.shape + (In.num_pred, )
                     V = In.V.todense().reshape(shape).transpose([2, 0, 1, 3])
@@ -88,8 +92,6 @@ class FlattenLayer(object):
                     return SparseImageStar2DCOO(V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
                 else:
                     return In
-            # V = np.hstack([In.c[:, None], In.V.toarray()])
-            # return SparseImageStar2DCOO(V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
 
         elif isinstance(In, SparseImageStar2DCSR):
             if len(In.shape) <= 1:
@@ -98,11 +100,19 @@ class FlattenLayer(object):
             out_shape = (In.V.shape[0], )
             if self.channel_last:
                 if isinstance(In.V, sp.csr_array) or isinstance(In.V, sp.csr_matrix):
+                    if hasattr(In, 'with_updated_state'):
+                        return In.with_updated_state(c=In.c, V=In.V, shape=out_shape)
                     return SparseImageStar2DCSR(In.c, In.V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
                 else:
                     return In
             else:
                 if isinstance(In.V, sp.csr_array) or isinstance(In.V, sp.csr_matrix):
+                    if hasattr(In, 'with_updated_state'):
+                        h, w, ch = In.shape
+                        perm = np.arange(h * w * ch, dtype=np.int32).reshape(h, w, ch).transpose(2, 0, 1).ravel()
+                        c_new = In.c[perm]
+                        V_new = In.V[perm, :]
+                        return In.with_updated_state(c=c_new, V=V_new, shape=out_shape)
                     c = In.c.reshape(In.shape).transpose([2, 0, 1]) # transpose from (H, W, C) to (C, H, W)
                     shape = In.shape + (In.num_pred, )
                     V = In.V.todense().reshape(shape).transpose([2, 0, 1, 3])
@@ -111,12 +121,9 @@ class FlattenLayer(object):
                 else:
                     return In
 
-            # V = np.hstack([In.c[:, None], In.V.toarray()])
-            # return SparseImageStar2DCSR(V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
-        
         raise Exception('received unknown input set, {}'.format(In.__class__.__name__))
 
-    def reach(self, in_sets, method=None, lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
+    def reach(self, in_sets, method=None, lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False, **kwargs):
         """ main flatten layer method 
             Args:
                 @in_sets: a list of input sets or a single input set

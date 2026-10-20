@@ -304,6 +304,22 @@ class SparseImageStar2DCSR(object):
         else:
             raise Exception(
                 'error: invalid number of input arguments (should be 0, 1, 2, 6)')
+
+    @property
+    def dim(self):
+        return self.c.shape[0] if self.c is not None else int(np.prod(self.shape))
+
+    @property
+    def num_pixel(self):
+        return self.dim
+
+    def get_c_V(self):
+        if self.c is None and isinstance(self.V, np.ndarray):
+            V_sp = sp.csr_array(self.V[:, 1:])
+            V_sp.indices = V_sp.indices.astype(np.int32)
+            V_sp.indptr = V_sp.indptr.astype(np.int32)
+            return self.V[:, 0], V_sp
+        return self.c, self.V
         
 
     def __str__(self, to_dense=False, to_coo=False):

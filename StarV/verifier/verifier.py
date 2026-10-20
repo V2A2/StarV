@@ -21,12 +21,15 @@ Dung Tran, 9/10/2022
 from StarV.net.network import NeuralNetwork, reachExactBFS, reachApproxBFS
 from StarV.set.probstar import ProbStar
 from StarV.set.star import Star
+from StarV.set.probsparseimagestar2dcsr import ProbSparseImageStar2DCSR
+from StarV.set.probsparseimagestar2dcoo import ProbSparseImageStar2DCOO
 from StarV.spec.dProbStarTL import Formula
 from StarV.plant.dlode import DLODE
 from StarV.plant.lode import LODE
 import copy
 import multiprocessing
 import numpy as np
+from scipy.stats import beta as sp_beta
 import polytope as pc
 from StarV.util.print_util import print_util
 
@@ -58,14 +61,20 @@ class Verifier(object):
     def verify(self, net, inputSet, unsafe_mat, unsafe_vec, p_filter=0.0, reachMethod='exact', show=True):
         """Main verification method.
 
-        Dispatches to quantitative verification if inputSet contains ProbStar(s),
-        or qualitative verification if inputSet contains Star(s).
+        Dispatches to quantitative verification if inputSet contains ProbStar(s)
+        or ProbSparseImageStar2DCSR/COO, or qualitative verification if inputSet
+        contains Star(s).
         """
         assert isinstance(net, NeuralNetwork), 'error: input is not a NeuralNetwork object'
         first_set = inputSet[0] if isinstance(inputSet, list) else inputSet
-        if isinstance(first_set, ProbStar):
+        if isinstance(first_set, (ProbStar, ProbSparseImageStar2DCSR, ProbSparseImageStar2DCOO)):
             if self.method == 'MC':
                 return self.quantiVerifyMC(net, first_set, unsafe_mat, unsafe_vec)
+            if reachMethod == 'approx' or self.method == 'approx' or isinstance(first_set, (ProbSparseImageStar2DCSR, ProbSparseImageStar2DCOO)):
+                return quantiVerifyApproxBFS(
+                    net=net, inputSet=first_set, unsafe_mat=unsafe_mat, unsafe_vec=unsafe_vec,
+                    lp_solver=self.lp_solver, show=show
+                )
             return self.quantiVerify(net, inputSet, unsafe_mat, unsafe_vec, p_filter=p_filter, show=show)
         elif isinstance(first_set, Star):
             return self.qualiVerify(net, inputSet, unsafe_mat, unsafe_vec, reachMethod=reachMethod, show=show)
@@ -497,6 +506,121 @@ def qualiVerifyApproxBFS(net, inputSet, unsafe_mat, unsafe_vec, lp_solver='gurob
         Res = 'UNKNOWN'
 
     return S, P, Res
+
+
+def quantiVerifyApproxBFS(
+    net, inputSet, unsafe_mat, unsafe_vec,
+    lp_solver='gurobi', RF=0.0, DR=0,
+    relu_approx_mode='analytic_gaussian', use_lp=False, show=False
+):
+    """
+    Single-set approximate quantitative verification for ProbStar,
+    ProbSparseImageStar2DCSR, and ProbSparseImageStar2DCOO.
+
+    Propagates a single probabilistic star set through `net` using analytic
+    moment matching and linear envelope DAG recording, then verifies the
+    specification `unsafe_mat * y <= unsafe_vec` using Two-Stage LP +
+    Dual Back-Substitution + Moment Estimation.
+
+    Returns:
+        S_out: Output ProbStar / ProbSparseImageStar2DCSR / ProbSparseImageStar2DCOO
+        res: dict with keys:
+          'status', 'p_min', 'p_max', 'p_hat', 'p_input',
+          'cond_p_min', 'cond_p_max', 'cond_p_hat'
+    """
+    if isinstance(inputSet, list):
+        assert len(inputSet) == 1, 'quantiVerifyApproxBFS expects a single probabilistic star set'
+        inputSet = inputSet[0]
+
+    S_out = reachApproxBFS(
+        net, inputSet, lp_solver=lp_solver, show=show,
+        RF=RF, DR=DR, relu_approx_mode=relu_approx_mode
+    )
+    res = S_out.verifySpec(unsafe_mat, unsafe_vec, lp_solver=lp_solver, use_lp=use_lp)
+    return S_out, res
+
+
+def clopper_pearson_interval(k, n, confidence=0.99):
+    """Exact Clopper-Pearson binomial confidence interval for k successes out of n."""
+    alpha = 1.0 - float(confidence)
+    if k <= 0:
+        lo = 0.0
+    else:
+        lo = float(sp_beta.ppf(alpha / 2.0, k, n - k + 1))
+    if k >= n:
+        hi = 1.0
+    else:
+        hi = float(sp_beta.ppf(1.0 - alpha / 2.0, k + 1, n - k))
+    return lo, hi
+
+
+def quantiVerifyVisionMC(
+    net, inputSet, unsafe_mat=None, unsafe_vec=None, true_label=None,
+    numSamples=10000, seed=42, confidence=0.99
+):
+    """
+    Fast vectorized Monte Carlo quantitative verification for high-dimensional
+    vision models on ProbStar, ProbSparseImageStar2DCSR, or ProbSparseImageStar2DCOO.
+
+    Samples alpha_0 from the truncated Gaussian input distribution, evaluates `net`,
+    and returns both conditional (given input lies in box) and unconditional
+    probabilities along with exact Clopper-Pearson confidence intervals.
+    """
+    if isinstance(inputSet, list):
+        inputSet = inputSet[0]
+
+    p_input = inputSet.get_input_probability()
+    if isinstance(inputSet, ProbStar):
+        alpha0 = inputSet.sampling_alpha0(numSamples, seed=seed)
+        c0, V0 = inputSet.get_c_V()
+        samples = c0[:, None] + V0[:, :inputSet.nVars0] @ alpha0
+        y_out = net.evaluate(samples)
+    else:
+        # ProbSparseImageStar2DCSR or ProbSparseImageStar2DCOO
+        samples = inputSet.sampling(numSamples, seed=seed, reshape_4d=True)
+        # Evaluate batch or sample-by-sample depending on network layer support
+        try:
+            y_out = net.evaluate(samples)
+            if y_out.ndim > 2:
+                y_out = y_out.reshape(-1, numSamples)
+        except Exception:
+            y_list = []
+            for s_idx in range(numSamples):
+                yi = net.evaluate(samples[:, :, :, s_idx]).ravel()
+                y_list.append(yi)
+            y_out = np.column_stack(y_list)
+
+    if y_out.ndim == 1:
+        y_out = y_out[:, None]
+    if y_out.shape[1] != numSamples and y_out.shape[0] == numSamples:
+        y_out = y_out.T
+
+    if true_label is not None:
+        # Certify classification robustness: y[k] - y[true_label] <= 0 for all k != true_label
+        preds = np.argmax(y_out, axis=0)
+        sat_mask = (preds == int(true_label))
+    else:
+        assert unsafe_mat is not None and unsafe_vec is not None
+        U = np.asarray(unsafe_mat, dtype=np.float64)
+        u_v = np.asarray(unsafe_vec, dtype=np.float64).ravel()
+        lhs = U @ y_out  # (K, numSamples)
+        sat_mask = np.all(lhs <= u_v[:, None] + 1e-12, axis=0)
+
+    k_sat = int(np.sum(sat_mask))
+    cond_p_mc = float(k_sat) / float(numSamples)
+    cond_lo, cond_hi = clopper_pearson_interval(k_sat, numSamples, confidence=confidence)
+
+    return {
+        'k_sat': k_sat,
+        'num_samples': int(numSamples),
+        'p_input': float(p_input),
+        'cond_p_mc': cond_p_mc,
+        'cond_ci_low': cond_lo,
+        'cond_ci_high': cond_hi,
+        'p_mc': cond_p_mc * p_input,
+        'ci_low': cond_lo * p_input,
+        'ci_high': cond_hi * p_input,
+    }
 
 
 # def quantiVerifyProbStarTL(model, spec, timeStep, numSteps, X0=None, U=None):

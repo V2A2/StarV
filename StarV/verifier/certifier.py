@@ -28,10 +28,14 @@ from sklearn.metrics import jaccard_score
 from StarV.net.network import NeuralNetwork
 from StarV.set.sparsestar import SparseStar
 from StarV.set.star import Star
+from StarV.set.probstar import ProbStar
 from StarV.set.imagestar import ImageStar
 from StarV.set.sparseimagestar2dcoo import SparseImageStar2DCOO
 from StarV.set.sparseimagestar2dcsr import SparseImageStar2DCSR
+from StarV.set.probsparseimagestar2dcoo import ProbSparseImageStar2DCOO
+from StarV.set.probsparseimagestar2dcsr import ProbSparseImageStar2DCSR
 from StarV.layer.PixelClassificationLayer import PixelClassificationLayer
+from StarV.layer.ReLULayer import ReLULayer
 
 class Certifier(object):
     """
@@ -110,16 +114,41 @@ class Certifier(object):
             return_output=return_output, show=show
         )
 
+    def certify_probabilistic(
+        self, net, inputs, labels=None, relu_approx_mode='analytic_gaussian',
+        use_lp=False, return_output=False, show=False
+    ):
+        """Certify quantitative probabilistic robustness on ProbStar / ProbSparseImageStar inputs."""
+        return self._run_with_pool(
+            certifyProbabilisticRobustness,
+            net=net, inputs=inputs, labels=labels, veriMethod=self.method,
+            reachMethod=self.reachMethod, lp_solver=self.lp_solver,
+            RF=self.RF, DR=self.DR, relu_approx_mode=relu_approx_mode,
+            use_lp=use_lp, return_output=return_output, show=show
+        )
 
-def reachBFS(net, inputSet, reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
+    def certify_probabilistic_pixel(
+        self, net, in_sets, in_datas, num_classes, relu_approx_mode='analytic_gaussian',
+        use_lp=False, return_output=False, show=False
+    ):
+        """Certify quantitative pixel-level probabilistic robustness of segmentation network."""
+        return self._run_with_pool(
+            certifyProbabilisticRobustness_pixel,
+            net=net, in_sets=in_sets, in_datas=in_datas, num_classes=num_classes,
+            veriMethod=self.method, reachMethod=self.reachMethod,
+            lp_solver=self.lp_solver, RF=self.RF, DR=self.DR,
+            relu_approx_mode=relu_approx_mode, use_lp=use_lp,
+            return_output=return_output, show=show
+        )
+
+
+def reachBFS(net, inputSet, reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False, relu_approx_mode='analytic_gaussian'):
     """ Verification of neural network with over-apporoximation method.
         Compute Reachable set layer-by-layer
     """
 
     assert isinstance(net, NeuralNetwork), 'error: first input should be a NeuralNetwork object'
-    assert isinstance(inputSet, list) or isinstance(inputSet, SparseStar) \
-        or isinstance(inputSet, Star) or isinstance(inputSet, ImageStar) \
-        or  isinstance(inputSet, SparseImageStar2DCOO) or isinstance(inputSet, SparseImageStar2DCSR), \
+    assert isinstance(inputSet, (list, SparseStar, Star, ProbStar, ImageStar, SparseImageStar2DCOO, SparseImageStar2DCSR)), \
         'error: second input should be a list of Star/ImageStar/ProbStar/SparseStar/SparseImageStar2DCOO/SparseImageStar2DCSR sets or a single set'
 
     # compute reachable set
@@ -133,7 +162,10 @@ def reachBFS(net, inputSet, reachMethod='approx', lp_solver='gurobi', pool=None,
                 print(f"\nComputing {net.layers[i].__class__.__name__} layer {i} reachable set...")
             
             start = time.perf_counter()
-            In = net.layers[i].reach(In, method=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
+            if isinstance(net.layers[i], ReLULayer):
+                In = net.layers[i].reach(In, method=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show, relu_approx_mode=relu_approx_mode)
+            else:
+                In = net.layers[i].reach(In, method=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
             vt = time.perf_counter() - start
 
             # reachSet.append(In)
@@ -142,7 +174,7 @@ def reachBFS(net, inputSet, reachMethod='approx', lp_solver='gurobi', pool=None,
             if show:
                 print('Number of stars/sparsestars: {}'.format(len(In)))
                 if reachMethod == 'approx':
-                    print(f"Number of predicate variables: {In.num_pred}")
+                    print(f"Number of predicate variables: {getattr(In, 'num_pred', getattr(In, 'nVars', 0))}")
                     if isinstance(In, ImageStar) or isinstance(In, Star):
                         print(f"Shape of the set: {In.V.shape}")
                     elif isinstance(In, SparseImageStar2DCOO) or isinstance(In, SparseImageStar2DCSR):
@@ -159,7 +191,10 @@ def reachBFS(net, inputSet, reachMethod='approx', lp_solver='gurobi', pool=None,
             print(f"\nComputing {net.layers[i].__class__.__name__} layer {i} reachable set...")
         
         start = time.perf_counter()
-        In = net.layers[i].reach(In, method=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
+        if isinstance(net.layers[i], ReLULayer):
+            In = net.layers[i].reach(In, method=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show, relu_approx_mode=relu_approx_mode)
+        else:
+            In = net.layers[i].reach(In, method=reachMethod, lp_solver=lp_solver, pool=pool, RF=RF, DR=DR, show=show)
         vt = time.perf_counter() - start
 
         # reachSet.append(In)
@@ -609,7 +644,7 @@ def certifyPixelRobustness_single_input(net, in_set, in_data, veriMethod='BFS', 
     h, w = pixel_labels.shape
 
     ver_im = (classes + 1)*np.ones([h, w]) # initially define incorrect classification (unrobust / misslcassified pixels)
-    ver_im[ver_im < classes] = classes # unknown pixles
+    ver_im[pixel_labels == classes] = classes # unknown pixles
     eq = pixel_labels == gr_pix_id 
     ver_im[eq] = pixel_labels[eq] # robust pixels / correctly classified pixels
 
@@ -642,12 +677,14 @@ def certifyRobustness_single_input(net, in_set, label=None, veriMethod='BFS', re
         a = [max_cands == max_id][0]
         if sum(a) == 0:
             rb = 0
+        elif lp_solver == 'estimate':
+            rb = 2
         else:
             max_cands = np.delete(max_cands, max_cands == max_id)
             m = len(max_cands)
 
             for j in range(m):
-                if Y.is_p1_larger_than_p2(max_cands[j], max_id[0]):
+                if Y.is_p1_larger_than_p2(max_cands[j], max_id[0], lp_solver=lp_solver):
                     rb = 2
                     break
                 else:
@@ -655,3 +692,135 @@ def certifyRobustness_single_input(net, in_set, label=None, veriMethod='BFS', re
 
     vt = time.perf_counter() - start  
     return rb, vt, Y
+
+
+def certifyProbabilisticRobustness_single_input(
+    net, in_set, label, veriMethod='BFS', reachMethod='approx',
+    lp_solver='gurobi', pool=None, RF=0.0, DR=0,
+    relu_approx_mode='analytic_gaussian', use_lp=False, show=False
+):
+    """
+    Certify quantitative probabilistic robustness for a single classification input set
+    (ProbStar, ProbSparseImageStar2DCSR, or ProbSparseImageStar2DCOO).
+    Returns:
+      res: dict with keys:
+        'rb' (1=robust, 0=violated, 2=unknown),
+        'status', 'p_min', 'p_max', 'p_hat', 'p_input',
+        'cond_p_min', 'cond_p_max', 'cond_p_hat',
+        'reach_time', 'verify_time', 'total_time', 'mem_bytes', 'num_pred'
+      Y: output reachable set
+    """
+    t0 = time.perf_counter()
+    Y, reach_time = reachBFS(
+        net=net, inputSet=in_set, reachMethod=reachMethod,
+        lp_solver=lp_solver, pool=pool, RF=RF, DR=DR,
+        show=show, relu_approx_mode=relu_approx_mode
+    )
+    t_ver0 = time.perf_counter()
+    spec_res = Y.certifyLabel(int(label), lp_solver=lp_solver, use_lp=use_lp)
+    verify_time = time.perf_counter() - t_ver0
+    total_time = time.perf_counter() - t0
+
+    status = spec_res['status']
+    if status == 'ROBUST':
+        rb = 1
+    elif status == 'VIOLATED':
+        rb = 0
+    else:
+        rb = 2
+
+    mem_bytes = Y.nbytes() if hasattr(Y, 'nbytes') else (Y.V.nbytes + Y.mu.nbytes + Y.Sig.nbytes)
+    num_pred = getattr(Y, 'num_pred', getattr(Y, 'nVars', 0))
+
+    res = dict(spec_res)
+    res.update({
+        'rb': rb,
+        'reach_time': reach_time,
+        'verify_time': verify_time,
+        'total_time': total_time,
+        'mem_bytes': int(mem_bytes),
+        'num_pred': int(num_pred),
+    })
+    return res, Y
+
+
+def certifyProbabilisticRobustness(
+    net, inputs, labels, veriMethod='BFS', reachMethod='approx',
+    lp_solver='gurobi', pool=None, RF=0.0, DR=0,
+    relu_approx_mode='analytic_gaussian', use_lp=False,
+    return_output=False, show=False
+):
+    """
+    Certify quantitative probabilistic robustness over a single input set or list of input sets.
+    """
+    if not isinstance(inputs, list):
+        lbl = labels[0] if isinstance(labels, (list, np.ndarray)) else labels
+        res, Y = certifyProbabilisticRobustness_single_input(
+            net, inputs, lbl, veriMethod=veriMethod, reachMethod=reachMethod,
+            lp_solver=lp_solver, pool=pool, RF=RF, DR=DR,
+            relu_approx_mode=relu_approx_mode, use_lp=use_lp, show=show
+        )
+        return res, (Y if return_output else None)
+
+    results = []
+    outputs = []
+    for inp, lbl in zip(inputs, labels):
+        res, Y = certifyProbabilisticRobustness_single_input(
+            net, inp, int(lbl), veriMethod=veriMethod, reachMethod=reachMethod,
+            lp_solver=lp_solver, pool=pool, RF=RF, DR=DR,
+            relu_approx_mode=relu_approx_mode, use_lp=use_lp, show=show
+        )
+        results.append(res)
+        if return_output:
+            outputs.append(Y)
+    return results, outputs
+
+
+def certifyProbabilisticRobustness_pixel(
+    net, in_sets, in_datas, num_classes, veriMethod='BFS', reachMethod='approx',
+    lp_solver='estimate', pool=None, RF=0.0, DR=0,
+    relu_approx_mode='analytic_gaussian', use_lp=False,
+    return_output=False, show=False
+):
+    """
+    Certify pixel-wise probabilistic robustness for a semantic segmentation network.
+    For each input set, computes both qualitative pixel classification and
+    quantitative per-pixel probability bounds [p_min(h,w), p_max(h,w)] and p_hat(h,w).
+    """
+    assert isinstance(net.layers[-1], PixelClassificationLayer), (
+        f"Expected last layer to be PixelClassificationLayer, got {type(net.layers[-1])}"
+    )
+    if not isinstance(in_sets, list):
+        in_sets = [in_sets]
+    if not isinstance(in_datas, list):
+        in_datas = [in_datas]
+
+    results = []
+    out_sets = []
+    for in_set, in_data in zip(in_sets, in_datas):
+        t0 = time.perf_counter()
+        gr_pix_id = net.evaluate(in_data)
+        if gr_pix_id.ndim == 3 and gr_pix_id.shape[2] == 1:
+            gr_pix_id = gr_pix_id.squeeze(axis=2)
+        Y, reach_time, pixel_labels = reachBFS(
+            net=net, inputSet=in_set, reachMethod=reachMethod,
+            lp_solver=lp_solver, pool=pool, RF=RF, DR=DR,
+            show=show, relu_approx_mode=relu_approx_mode
+        )
+        t_ver0 = time.perf_counter()
+        seg_res = Y.certifySegmentationPixels(gr_pix_id, lp_solver=lp_solver, use_lp=use_lp)
+        verify_time = time.perf_counter() - t_ver0
+        total_time = time.perf_counter() - t0
+        seg_res.update({
+            'pixel_labels': pixel_labels,
+            'gr_pix_id': gr_pix_id,
+            'reach_time': reach_time,
+            'verify_time': verify_time,
+            'total_time': total_time,
+            'mem_bytes': int(Y.nbytes()) if hasattr(Y, 'nbytes') else 0,
+            'num_pred': int(getattr(Y, 'num_pred', 0)),
+        })
+        results.append(seg_res)
+        if return_output:
+            out_sets.append(Y)
+    return results, out_sets

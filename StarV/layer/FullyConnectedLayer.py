@@ -169,7 +169,7 @@ class FullyConnectedLayer(object):
             
 
         
-    def reach(self, inputSet, method='exact', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
+    def reach(self, inputSet, method='exact', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False, **kwargs):
         """main reachability method
            Args:
                @inputSet: a list of input set (Star, ProbStar, or SparseStar)

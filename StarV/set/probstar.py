@@ -42,6 +42,12 @@ except ImportError:
 import polytope as pc
 from StarV.util.minimax_tilting_sampler import TruncatedMVN
 from StarV.set.star import Star, _resolve_lp_solver, _solve_lp
+from StarV.set.probsparse_base import (
+    compute_box_input_probability,
+    compute_truncated_gaussian_moments_1d,
+    backsubstitute_linear_bounds,
+    verify_prob_spec,
+)
 
 
 def _mvn_cdf(lb, ub, mu, Sig):
@@ -75,7 +81,9 @@ class ProbStar(object):
         ==========================================================================
     """
 
-    def __init__(self, *args, copy_=True):
+    def __init__(self, *args, copy_=True, cov_mode=None, env_dag=None,
+                 mu0=None, Sig0=None, pred_lb0=None, pred_ub0=None,
+                 nVars0=None, check_psd=True):
         """
            Key Attributes:
            V = []; % basis matrix
@@ -123,19 +131,25 @@ class ProbStar(object):
                     predicate lower- or upper-bound vectors'
                 assert C.shape[1] == mu.shape[0], 'error: Inconsistency \
                 between the number of predicate variables and median vector'
-                assert C.shape[1] == Sig.shape[1] and \
-                    C.shape[1] == Sig.shape[0], 'error: Inconsistency between \
-                    the number of predicate variables and covariance matrix'
+                if Sig.ndim == 2:
+                    assert C.shape[1] == Sig.shape[1] and \
+                        C.shape[1] == Sig.shape[0], 'error: Inconsistency between \
+                        the number of predicate variables and covariance matrix'
+                else:
+                    assert C.shape[1] == Sig.shape[0], 'error: Inconsistency between \
+                    the number of predicate variables and diagonal variance vector'
             assert len(mu.shape) == 1, 'error: \
             median vector should be a 1D numpy array'
-            assert len(Sig.shape) == 2, 'error: \
-            covariance matrix should be a 2D numpy array'
+            if cov_mode != 'diagonal':
+                assert len(Sig.shape) == 2, 'error: \
+                covariance matrix should be a 2D numpy array'
             assert len(pred_lb.shape) == 1, 'error: \
             lower bound vector should be a 1D numpy array'
             assert len(pred_ub.shape) == 1, 'error: \
             upper bound vector should be a 1D numpy array'
-            assert np.all(np.linalg.eigvals(Sig) > 0), 'error: \
-            covariance matrix should be positive definite'
+            if check_psd and Sig.ndim == 2:
+                assert np.all(np.linalg.eigvals(Sig) > 0), 'error: \
+                covariance matrix should be positive definite'
 
             self.V = V
             self.C = C
@@ -164,8 +178,9 @@ class ProbStar(object):
             upper bound vector should be a 1D numpy array'
             assert len(mu.shape) == 1, 'error: \
             median vector should be a 1D numpy array'
-            assert len(Sig.shape) == 2, 'error: \
-            covariance matrix should be a 2D numpy array'
+            if cov_mode != 'diagonal':
+                assert len(Sig.shape) == 2, 'error: \
+                covariance matrix should be a 2D numpy array'
             assert len(pred_lb.shape) == 1, 'error: \
             lower bound vector should be a 1D numpy array'
             assert len(pred_ub.shape) == 1, 'error: \
@@ -175,11 +190,16 @@ class ProbStar(object):
             inconsistency between predicate lower bound and upper bound'
             assert pred_lb.shape[0] == mu.shape[0], 'error: \
             inconsitency between predicate lower bound and median vector'
-            assert mu.shape[0] == Sig.shape[0] and \
-                mu.shape[0] == Sig.shape[1], 'error: \
-                inconsistency between median vector and covariance matrix'
-            assert np.all(np.linalg.eigvals(Sig) > 0), 'error: \
-            covariance matrix should be positive definite'
+            if Sig.ndim == 2:
+                assert mu.shape[0] == Sig.shape[0] and \
+                    mu.shape[0] == Sig.shape[1], 'error: \
+                    inconsistency between median vector and covariance matrix'
+                if check_psd:
+                    assert np.all(np.linalg.eigvals(Sig) > 0), 'error: \
+                    covariance matrix should be positive definite'
+            else:
+                assert mu.shape[0] == Sig.shape[0], 'error: \
+                inconsistency between median vector and diagonal variance vector'
 
             self.dim = pred_lb.shape[0]
             self.nVars = pred_lb.shape[0]
@@ -204,6 +224,18 @@ class ProbStar(object):
         else:
             raise Exception('error: \
             Invalid number of input arguments (should be 4 or 7)')
+
+        if cov_mode is None:
+            self.cov_mode = 'diagonal' if (isinstance(self.Sig, np.ndarray) and self.Sig.ndim == 1) else 'full'
+        else:
+            self.cov_mode = cov_mode
+        self.env_dag = [] if env_dag is None else list(env_dag)
+        self.nVars0 = self.nVars if nVars0 is None else int(nVars0)
+        self.mu0 = self.mu.copy() if (mu0 is None and isinstance(self.mu, np.ndarray)) else mu0
+        self.Sig0 = self.Sig.copy() if (Sig0 is None and isinstance(self.Sig, np.ndarray)) else Sig0
+        self.pred_lb0 = self.pred_lb.copy() if (pred_lb0 is None and isinstance(self.pred_lb, np.ndarray)) else pred_lb0
+        self.pred_ub0 = self.pred_ub.copy() if (pred_ub0 is None and isinstance(self.pred_ub, np.ndarray)) else pred_ub0
+        self._p_input_cache = None
 
     def __str__(self):
         print('ProbStar Set:')
@@ -495,7 +527,12 @@ class ProbStar(object):
             V = np.matmul(A, V)
         if b is not None:
             V[:, 0] += b
-        return ProbStar(V, self.C, self.d, self.mu, self.Sig, self.pred_lb, self.pred_ub)
+        return ProbStar(
+            V, self.C, self.d, self.mu, self.Sig, self.pred_lb, self.pred_ub,
+            cov_mode=self.cov_mode, env_dag=self.env_dag,
+            mu0=self.mu0, Sig0=self.Sig0, pred_lb0=self.pred_lb0,
+            pred_ub0=self.pred_ub0, nVars0=self.nVars0, check_psd=False
+        )
 
 
 
@@ -648,7 +685,10 @@ class ProbStar(object):
             pred_lb_new, pred_ub_new = self.pred_lb, self.pred_ub
 
         return ProbStar(self.V, newC, newd, self.mu, self.Sig,
-                        pred_lb_new, pred_ub_new, copy_=copy_)
+                        pred_lb_new, pred_ub_new, copy_=copy_,
+                        cov_mode=self.cov_mode, env_dag=self.env_dag,
+                        mu0=self.mu0, Sig0=self.Sig0, pred_lb0=self.pred_lb0,
+                        pred_ub0=self.pred_ub0, nVars0=self.nVars0, check_psd=False)
 
 
     def addMultipleConstraints(self, C, d, copy_=True, tighten_bounds=True):
@@ -684,7 +724,10 @@ class ProbStar(object):
                 )
 
         return ProbStar(self.V, newC, newd, self.mu, self.Sig,
-                        pred_lb_cur, pred_ub_cur, copy_=copy_)
+                        pred_lb_cur, pred_ub_cur, copy_=copy_,
+                        cov_mode=self.cov_mode, env_dag=self.env_dag,
+                        mu0=self.mu0, Sig0=self.Sig0, pred_lb0=self.pred_lb0,
+                        pred_ub0=self.pred_ub0, nVars0=self.nVars0, check_psd=False)
     
 
     def resetRow(self, index, copy_=True):
@@ -698,7 +741,10 @@ class ProbStar(object):
         V = self.V.copy()
         V[index, :] = 0.0
         return ProbStar(V, self.C, self.d, self.mu, self.Sig,
-                        self.pred_lb, self.pred_ub, copy_=copy_)
+                        self.pred_lb, self.pred_ub, copy_=copy_,
+                        cov_mode=self.cov_mode, env_dag=self.env_dag,
+                        mu0=self.mu0, Sig0=self.Sig0, pred_lb0=self.pred_lb0,
+                        pred_ub0=self.pred_ub0, nVars0=self.nVars0, check_psd=False)
 
 
     def resetRows(self, map, copy_=True):
@@ -714,7 +760,10 @@ class ProbStar(object):
         V = self.V.copy()
         V[map, :] = 0.0
         return ProbStar(V, self.C, self.d, self.mu, self.Sig,
-                        self.pred_lb, self.pred_ub, copy_=copy_)
+                        self.pred_lb, self.pred_ub, copy_=copy_,
+                        cov_mode=self.cov_mode, env_dag=self.env_dag,
+                        mu0=self.mu0, Sig0=self.Sig0, pred_lb0=self.pred_lb0,
+                        pred_ub0=self.pred_ub0, nVars0=self.nVars0, check_psd=False)
 
 
     def resetRowWithFactor(self, index, factor, copy_=True):
@@ -729,7 +778,10 @@ class ProbStar(object):
         V = self.V.copy()
         V[index, :] *= factor
         return ProbStar(V, self.C, self.d, self.mu, self.Sig,
-                        self.pred_lb, self.pred_ub, copy_=copy_)
+                        self.pred_lb, self.pred_ub, copy_=copy_,
+                        cov_mode=self.cov_mode, env_dag=self.env_dag,
+                        mu0=self.mu0, Sig0=self.Sig0, pred_lb0=self.pred_lb0,
+                        pred_ub0=self.pred_ub0, nVars0=self.nVars0, check_psd=False)
 
 
     def resetRowsWithFactor(self, map, factor, copy_=True):
@@ -745,7 +797,10 @@ class ProbStar(object):
         V = self.V.copy()
         V[map, :] *= factor
         return ProbStar(V, self.C, self.d, self.mu, self.Sig,
-                        self.pred_lb, self.pred_ub, copy_=copy_)
+                        self.pred_lb, self.pred_ub, copy_=copy_,
+                        cov_mode=self.cov_mode, env_dag=self.env_dag,
+                        mu0=self.mu0, Sig0=self.Sig0, pred_lb0=self.pred_lb0,
+                        pred_ub0=self.pred_ub0, nVars0=self.nVars0, check_psd=False)
 
 
     def resetRowWithUpdatedCenter(self, index, new_c, copy_=True):
@@ -761,7 +816,10 @@ class ProbStar(object):
         V[index, :] = 0.0
         V[index, 0] = new_c
         return ProbStar(V, self.C, self.d, self.mu, self.Sig,
-                        self.pred_lb, self.pred_ub, copy_=copy_)
+                        self.pred_lb, self.pred_ub, copy_=copy_,
+                        cov_mode=self.cov_mode, env_dag=self.env_dag,
+                        mu0=self.mu0, Sig0=self.Sig0, pred_lb0=self.pred_lb0,
+                        pred_ub0=self.pred_ub0, nVars0=self.nVars0, check_psd=False)
 
 
     def resetRowsWithUpdatedCenter(self, map, new_c, copy_=True):
@@ -778,7 +836,10 @@ class ProbStar(object):
         V[map, :] = 0.0
         V[map, 0] = new_c
         return ProbStar(V, self.C, self.d, self.mu, self.Sig,
-                        self.pred_lb, self.pred_ub, copy_=copy_)
+                        self.pred_lb, self.pred_ub, copy_=copy_,
+                        cov_mode=self.cov_mode, env_dag=self.env_dag,
+                        mu0=self.mu0, Sig0=self.Sig0, pred_lb0=self.pred_lb0,
+                        pred_ub0=self.pred_ub0, nVars0=self.nVars0, check_psd=False)
 
 
     def concatenate_with_vector(self, v=[]):
@@ -796,7 +857,10 @@ class ProbStar(object):
             V1 = np.zeros((n, self.nVars))
             V1 = np.hstack((v1, V1))
             newV = np.vstack((V1, self.V))
-            S = ProbStar(newV, self.C, self.d, self.mu, self.Sig, self.pred_lb, self.pred_ub)
+            S = ProbStar(newV, self.C, self.d, self.mu, self.Sig, self.pred_lb, self.pred_ub,
+                         cov_mode=self.cov_mode, env_dag=self.env_dag,
+                         mu0=self.mu0, Sig0=self.Sig0, pred_lb0=self.pred_lb0,
+                         pred_ub0=self.pred_ub0, nVars0=self.nVars0, check_psd=False)
             return S
         else:
             return self
@@ -832,6 +896,207 @@ class ProbStar(object):
         new_pred_ub = np.concatenate([self.pred_ub, X.pred_ub])
 
         return ProbStar(new_V, new_C, new_d, new_mu, new_Sig, new_pred_lb, new_pred_ub)
+
+    def get_c_V(self):
+        """Return (c_flat, V_mat) where c_flat is (dim,) and V_mat is (dim, nVars)."""
+        return self.V[:, 0], self.V[:, 1:self.nVars + 1]
+
+    def has_constraints(self):
+        return self.C is not None and len(self.C) > 0
+
+    def get_input_probability(self):
+        """Compute input set probability P(pred_lb0 <= alpha0 <= pred_ub0)."""
+        if self._p_input_cache is None:
+            self._p_input_cache = compute_box_input_probability(
+                self.mu0, self.Sig0, self.pred_lb0, self.pred_ub0
+            )
+        return self._p_input_cache
+
+    def with_updated_state(
+        self, c=None, V=None, C=None, d=None,
+        pred_lb=None, pred_ub=None, shape=None,
+        mu=None, Sig=None, new_env_record=None, env_dag=None
+    ):
+        """Construct a child ProbStar preserving input distribution and DAG."""
+        if V is not None and c is not None:
+            c_col = np.asarray(c, dtype=np.float64).reshape(-1, 1)
+            V_mat = V.toarray() if sp.issparse(V) else np.asarray(V, dtype=np.float64)
+            full_V = np.hstack([c_col, V_mat])
+        elif V is not None:
+            V_mat = V.toarray() if sp.issparse(V) else np.asarray(V, dtype=np.float64)
+            if c is None and V_mat.shape[1] == (self.nVars if pred_lb is None else len(pred_lb)) + 1:
+                full_V = V_mat
+            else:
+                c_col = self.V[:, 0:1]
+                full_V = np.hstack([c_col, V_mat])
+        elif c is not None:
+            c_col = np.asarray(c, dtype=np.float64).reshape(-1, 1)
+            full_V = np.hstack([c_col, self.V[:, 1:]])
+        else:
+            full_V = self.V
+
+        C_use = self.C if C is None else (C.toarray() if sp.issparse(C) else C)
+        d_use = self.d if d is None else d
+        lb_use = self.pred_lb if pred_lb is None else pred_lb
+        ub_use = self.pred_ub if pred_ub is None else pred_ub
+        mu_use = self.mu if mu is None else mu
+        Sig_use = self.Sig if Sig is None else Sig
+        if self.cov_mode == 'full' and isinstance(Sig_use, np.ndarray) and Sig_use.ndim == 1:
+            Sig_use = np.diag(np.maximum(Sig_use, 1e-12))
+
+        dag_use = list(self.env_dag) if env_dag is None else list(env_dag)
+        if new_env_record is not None:
+            dag_use.append(new_env_record)
+
+        child = ProbStar(
+            full_V, C_use, d_use, mu_use, Sig_use, lb_use, ub_use,
+            copy_=False, cov_mode=self.cov_mode, env_dag=dag_use,
+            mu0=self.mu0, Sig0=self.Sig0, pred_lb0=self.pred_lb0,
+            pred_ub0=self.pred_ub0, nVars0=self.nVars0, check_psd=False
+        )
+        child._p_input_cache = self._p_input_cache
+        return child
+
+    def residualAdd(self, other):
+        """
+        Sound skip-connection addition Y = self + other sharing common ancestors.
+        """
+        assert isinstance(other, ProbStar), 'other must be ProbStar'
+        assert self.dim == other.dim, f'Dimension mismatch: {self.dim} vs {other.dim}'
+
+        c1, V1 = self.get_c_V()
+        c2, V2 = other.get_c_V()
+        c_new = c1 + c2
+        n1, n2 = self.nVars, other.nVars
+
+        if n1 == n2:
+            V_new = V1 + V2
+            C_new, d_new = self.C, self.d
+            lb_new = np.maximum(self.pred_lb, other.pred_lb)
+            ub_new = np.minimum(self.pred_ub, other.pred_ub)
+            mu_new = self.mu
+            Sig_new = self.Sig
+            dag_new = self.env_dag if len(self.env_dag) >= len(other.env_dag) else other.env_dag
+        elif n1 > n2:
+            V_new = V1.copy()
+            V_new[:, :n2] = V_new[:, :n2] + V2
+            C_new, d_new = self.C, self.d
+            lb_new, ub_new = self.pred_lb, self.pred_ub
+            mu_new, Sig_new = self.mu, self.Sig
+            dag_new = self.env_dag
+        else:
+            V_new = V2.copy()
+            V_new[:, :n1] = V_new[:, :n1] + V1
+            C_new, d_new = other.C, other.d
+            lb_new, ub_new = other.pred_lb, other.pred_ub
+            mu_new, Sig_new = other.mu, other.Sig
+            dag_new = other.env_dag
+
+        return self.with_updated_state(
+            c=c_new, V=V_new, C=C_new, d=d_new,
+            pred_lb=lb_new, pred_ub=ub_new,
+            mu=mu_new, Sig=Sig_new, env_dag=dag_new
+        )
+
+    def getOutputMoments(self, full_cov=False):
+        """Compute moment-matched output mean and variance/covariance."""
+        c, V = self.get_c_V()
+        mu_y = c + V @ self.mu
+        if self.Sig.ndim == 1:
+            if full_cov:
+                cov_y = (V * self.Sig[None, :]) @ V.T
+                return mu_y, cov_y
+            var_y = (V ** 2) @ self.Sig
+            return mu_y, np.maximum(var_y, 0.0)
+        else:
+            cov_y = V @ self.Sig @ V.T
+            if full_cov:
+                return mu_y, cov_y
+            return mu_y, np.maximum(np.diag(cov_y), 0.0)
+
+    def getSoundInputBounds(self, U=None, u_spec=None):
+        """Back-substitute linear bounds to the initial Gaussian predicates alpha_0."""
+        c, V = self.get_c_V()
+        d_lb, W_lb, d_ub, W_ub = backsubstitute_linear_bounds(
+            c, V, self.env_dag, self.nVars0, U=U, u_spec=u_spec
+        )
+        return W_lb, d_lb, W_ub, d_ub
+
+    def verifySpec(self, U, u_spec, lp_solver='gurobi', use_lp=False, use_lp_tightening=None):
+        """
+        Verify specification U y <= u_spec using Two-Stage LP + Dual/Moment bounds.
+        """
+        if use_lp_tightening is not None:
+            use_lp = use_lp_tightening
+        return verify_prob_spec(
+            self, U, u_spec, lp_solver=lp_solver, use_lp_tightening=use_lp
+        )
+
+    def certifyLabel(self, true_label, lp_solver='gurobi', use_lp=False, use_lp_tightening=None):
+        """Certify classification robustness for true_label."""
+        from StarV.set.probsparseimagestar2dcsr import ProbSparseImageStar2DCSR
+        if use_lp_tightening is not None:
+            use_lp = use_lp_tightening
+        return ProbSparseImageStar2DCSR.certifyLabel(
+            self, true_label, lp_solver=lp_solver, use_lp_tightening=use_lp
+        )
+
+    def sampling_alpha0(self, N, seed=None):
+        """Fast vectorized inverse-CDF sampling of initial truncated Gaussian alpha_0."""
+        from scipy.stats import norm
+        rng = np.random.default_rng(seed)
+        mu0 = np.asarray(self.mu0, dtype=np.float64).ravel()
+        lb0 = np.asarray(self.pred_lb0, dtype=np.float64).ravel()
+        ub0 = np.asarray(self.pred_ub0, dtype=np.float64).ravel()
+        if self.Sig0.ndim == 2:
+            std0 = np.sqrt(np.maximum(np.diag(self.Sig0), 1e-15))
+        else:
+            std0 = np.sqrt(np.maximum(np.asarray(self.Sig0, dtype=np.float64).ravel(), 1e-15))
+        n0 = len(mu0)
+        samples = np.empty((n0, N), dtype=np.float64)
+        fixed = (ub0 - lb0) <= 1e-12
+        if np.any(fixed):
+            samples[fixed, :] = lb0[fixed, None]
+        free = ~fixed
+        if np.any(free):
+            a = (lb0[free] - mu0[free]) / std0[free]
+            b = (ub0[free] - mu0[free]) / std0[free]
+            cdf_a = norm.cdf(a)[:, None]
+            cdf_b = norm.cdf(b)[:, None]
+            u = rng.uniform(0.0, 1.0, size=( int(np.sum(free)), N ))
+            p = np.clip(cdf_a + u * np.maximum(cdf_b - cdf_a, 0.0), 1e-15, 1.0 - 1e-15)
+            z = norm.ppf(p)
+            samples[free, :] = np.clip(
+                mu0[free, None] + std0[free, None] * z,
+                lb0[free, None], ub0[free, None]
+            )
+        return samples
+
+    @staticmethod
+    def inf_prob_attack(data, epsilon, std=None, trunc_sigma=3.0, clip_range=None, cov_mode='full'):
+        """Construct an input ProbStar from a vector/array under L_inf + Gaussian noise."""
+        x0 = np.asarray(data, dtype=np.float64).ravel()
+        lb = x0 - float(epsilon)
+        ub = x0 + float(epsilon)
+        if clip_range is not None:
+            lb = np.clip(lb, clip_range[0], clip_range[1])
+            ub = np.clip(ub, clip_range[0], clip_range[1])
+        mu = 0.5 * (lb + ub)
+        if std is None:
+            sig = np.maximum((ub - lb) / (2.0 * trunc_sigma), 1e-6)
+        else:
+            sig = np.broadcast_to(np.asarray(std, dtype=np.float64), x0.shape).ravel()
+            sig = np.maximum(sig, 1e-6)
+        n = len(x0)
+        V = np.hstack([np.zeros((n, 1), dtype=np.float64), np.eye(n, dtype=np.float64)])
+        if cov_mode == 'diagonal':
+            Sig = sig ** 2
+            return ProbStar(V, np.array([]), np.array([]), mu, Sig, lb, ub,
+                            cov_mode='diagonal', check_psd=False)
+        else:
+            Sig = np.diag(sig ** 2)
+            return ProbStar(V, np.array([]), np.array([]), mu, Sig, lb, ub,
+                            cov_mode='full', check_psd=False)
 
     @staticmethod
     def rand(*args):

@@ -22,7 +22,14 @@ Update: Yuntao Li, Date: 09/16/2025
 # !/usr/bin/python3
 from StarV.set.probstar import ProbStar
 from StarV.set.star import Star
+from StarV.set.imagestar import ImageStar
+from StarV.set.sparseimagestar2dcoo import SparseImageStar2DCOO
+from StarV.set.sparseimagestar2dcsr import SparseImageStar2DCSR
+from StarV.set.probsparseimagestar2dcoo import ProbSparseImageStar2DCOO
+from StarV.set.probsparseimagestar2dcsr import ProbSparseImageStar2DCSR
+from StarV.set.probsparse_base import propagate_leakyrelu_moments
 import numpy as np
+import scipy.sparse as sp
 import copy
 import multiprocessing
 import ipyparallel
@@ -233,3 +240,158 @@ class LeakyReLU:
         else:
             raise Exception('error: unknown/unsupport pool type')    
         return S
+
+    @staticmethod
+    def stepReachApprox(In, gamma=0.01, lp_solver='gurobi', RF=0.0, show=False):
+        """
+        Approximate reachability for LeakyReLU(x) = max(gamma * x, x) (for 0 <= gamma < 1).
+        Uses the exact triangle relaxation on ambiguous neurons l < 0 < u:
+          y >= gamma * x, y >= x, y <= ((u - gamma * l) / (u - l)) * (x - l) + gamma * l.
+        """
+        is_prob = isinstance(In, (ProbStar, ProbSparseImageStar2DCSR, ProbSparseImageStar2DCOO))
+        if is_prob:
+            c_pre_orig, V_pre_orig = In.get_c_V()
+            c_pre_orig = c_pre_orig.copy()
+            V_pre_orig = V_pre_orig.copy()
+
+        I = copy.deepcopy(In)
+        l_all, u_all = I.estimateRanges()
+
+        neg_idx = np.where(u_all <= 0)[0]
+        amb_idx = np.where((l_all < 0) & (u_all > 0))[0]
+
+        if len(neg_idx) > 0:
+            if hasattr(I, 'resetRowsWithFactor'):
+                I = I.resetRowsWithFactor(neg_idx, gamma)
+            else:
+                # SparseImageStar2DCSR / COO scale rows by gamma
+                I.c[neg_idx] *= gamma
+                if sp.issparse(I.V):
+                    scale = np.ones(I.dim, dtype=I.V.dtype)
+                    scale[neg_idx] = gamma
+                    I.V = I.V.multiply(scale[:, None]).tocsr() if isinstance(I, SparseImageStar2DCSR) else I.V.multiply(scale[:, None]).tocoo()
+                else:
+                    I.V[neg_idx, :] *= gamma
+
+        m = len(amb_idx)
+        if is_prob:
+            if m == 0:
+                c_cur, V_cur = I.get_c_V()
+                return In.with_updated_state(
+                    c=c_cur, V=V_cur, C=I.C, d=I.d,
+                    pred_lb=I.pred_lb, pred_ub=I.pred_ub,
+                    mu=In.mu.copy(), Sig=In.Sig.copy(), new_env_record=None
+                )
+            c_amb = c_pre_orig[amb_idx]
+            V_amb = V_pre_orig.tocsr()[amb_idx] if sp.issparse(V_pre_orig) else V_pre_orig[amb_idx]
+            mu_new, Sig_new, env_rec = propagate_leakyrelu_moments(
+                V_amb, c_amb, l_all[amb_idx], u_all[amb_idx],
+                gamma, In.mu, In.Sig, cov_mode=In.cov_mode
+            )
+        elif m == 0:
+            return I
+
+        l_u = l_all[amb_idx]
+        u_u = u_all[amb_idx]
+        slope_u = (u_u - gamma * l_u) / np.maximum(u_u - l_u, 1e-12)
+        int_u = gamma * l_u - slope_u * l_u  # ((1 - gamma) * u * l) / (u - l)
+
+        if isinstance(I, (Star, ProbStar)):
+            N = I.dim
+            n = I.nVars
+            dtype = I.V.dtype
+            V1 = I.V.copy()
+            V1[amb_idx, :] = 0.0
+            V2 = np.zeros((N, m), dtype=dtype)
+            V2[amb_idx, np.arange(m)] = 1.0
+            new_V = np.hstack([V1, V2])
+            if len(I.C) == 0:
+                C0 = np.empty((0, n + m), dtype=dtype)
+                d0 = np.empty((0,), dtype=dtype)
+            else:
+                C0 = np.hstack([I.C, np.zeros((I.C.shape[0], m), dtype=dtype)])
+                d0 = I.d
+            V_amb = I.V[amb_idx, 1:n + 1]
+            c_amb = I.V[amb_idx, 0]
+            E = np.eye(m, dtype=dtype)
+            # y >= gamma * x  =>  gamma * V_amb * alpha - y <= -gamma * c_amb
+            C1 = np.hstack([gamma * V_amb, -E])
+            d1 = -gamma * c_amb
+            # y >= x          =>  V_amb * alpha - y <= -c_amb
+            C2 = np.hstack([V_amb, -E])
+            d2 = -c_amb
+            # y <= slope_u * x + int_u  =>  -slope_u * V_amb * alpha + y <= slope_u * c_amb + int_u
+            C3 = np.hstack([-slope_u[:, None] * V_amb, E])
+            d3 = slope_u * c_amb + int_u
+            new_C = np.vstack([C0, C1, C2, C3])
+            new_d = np.hstack([d0, d1, d2, d3])
+            new_lb = np.hstack([I.pred_lb, gamma * l_u])
+            new_ub = np.hstack([I.pred_ub, u_u])
+            if isinstance(I, ProbStar):
+                return In.with_updated_state(
+                    V=new_V, C=new_C, d=new_d, pred_lb=new_lb, pred_ub=new_ub,
+                    mu=mu_new, Sig=Sig_new, new_env_record=env_rec
+                )
+            return Star(new_V, new_C, new_d, new_lb, new_ub)
+
+        elif isinstance(I, (SparseImageStar2DCSR, SparseImageStar2DCOO)):
+            amb_idx = amb_idx.astype(np.int32)
+            N = I.dim
+            n = I.num_pred
+            dtype = I.V.dtype
+            Ic = I.c[amb_idx].copy()
+            new_c = I.c.copy()
+            new_c[amb_idx] = 0.0
+            V_rem = I.resetRows_V(amb_idx).tocoo(copy=False)
+            V_rem.data = np.hstack([V_rem.data, np.ones(m, dtype=dtype)])
+            V_rem.row = np.hstack([V_rem.row, amb_idx])
+            V_rem.col = np.hstack([V_rem.col, np.arange(m, dtype=np.int32) + n])
+            V_rem._shape = (N, n + m)
+            new_V = V_rem.tocsr(copy=False) if isinstance(I, SparseImageStar2DCSR) else V_rem
+
+            V1 = I.V[amb_idx, :].tocoo() if isinstance(I, SparseImageStar2DCSR) else I.getRows(amb_idx)
+            V_g = V1.multiply(gamma).tocoo()
+            V3 = V1.multiply(-slope_u[:, None]).tocoo()
+            eye_data = np.ones(m, dtype=dtype)
+            eye_col = np.arange(m, dtype=np.int32) + n
+            eye_row = np.arange(m, dtype=np.int32)
+
+            d1 = -gamma * Ic
+            d2 = -Ic
+            d3 = slope_u * Ic + int_u
+
+            data = np.hstack([V_g.data, -eye_data, V1.data, -eye_data, V3.data, eye_data])
+            row = np.hstack([V_g.row, eye_row, V1.row + m, eye_row + m, V3.row + 2 * m, eye_row + 2 * m])
+            col = np.hstack([V_g.col, eye_col, V1.col, eye_col, V3.col, eye_col])
+            C = sp.csr_array((data, (row, col)), shape=(3 * m, n + m), copy=False)
+            if I.C.nnz > 0:
+                data_c = np.hstack([I.C.data, C.data])
+                indices_c = np.hstack([I.C.indices, C.indices])
+                indptr_c = np.hstack([I.C.indptr, C.indptr[1:] + I.C.nnz])
+                new_C = sp.csr_array((data_c, indices_c, indptr_c), shape=(I.C.shape[0] + C.shape[0], C.shape[1]), copy=False)
+                new_d = np.hstack([I.d, d1, d2, d3])
+            else:
+                new_C = C
+                new_d = np.hstack([d1, d2, d3])
+            new_lb = np.hstack([I.pred_lb, gamma * l_u])
+            new_ub = np.hstack([I.pred_ub, u_u])
+            if is_prob:
+                return In.with_updated_state(
+                    c=new_c, V=new_V, C=new_C, d=new_d,
+                    pred_lb=new_lb, pred_ub=new_ub, shape=I.shape,
+                    mu=mu_new, Sig=Sig_new, new_env_record=env_rec
+                )
+            cls = SparseImageStar2DCSR if isinstance(I, SparseImageStar2DCSR) else SparseImageStar2DCOO
+            return cls(new_c, new_V, new_C, new_d, new_lb, new_ub, I.shape, copy_=False)
+        else:
+            raise Exception(f'Unsupported set type for LeakyReLU.stepReachApprox: {type(I)}')
+
+    @staticmethod
+    def reachApproxSingleInput(In, gamma=0.01, lp_solver='gurobi', RF=0.0, show=False):
+        return LeakyReLU.stepReachApprox(In=In, gamma=gamma, lp_solver=lp_solver, RF=RF, show=show)
+
+    @staticmethod
+    def reachApprox(In, gamma=0.01, lp_solver='gurobi', RF=0.0, show=False):
+        if isinstance(In, list):
+            return [LeakyReLU.stepReachApprox(x, gamma=gamma, lp_solver=lp_solver, RF=RF, show=show) for x in In]
+        return LeakyReLU.stepReachApprox(In, gamma=gamma, lp_solver=lp_solver, RF=RF, show=show)

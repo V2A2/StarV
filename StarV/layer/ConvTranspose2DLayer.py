@@ -594,64 +594,7 @@ class ConvTranspose2DLayer(object):
             @R: transpose convolved dataset
 
         """
-        in_dim = input.ndim
-        dtype = input.dtype
-
-        assert isinstance(input, np.ndarray), \
-        'error: input should be numpy ndarray'
-        assert in_dim >= 2 and in_dim <= 4, \
-        'error: input should be 2D, 3D, or 4D numpy ndarray'
-
-        assert self.module == 'default', 'error: conv2d_sparse() supports \'default\' module'
-
-        stride = self.stride
-        dilation = self.dilation
-        weight = self.weight
-        opad = self.output_padding
-        pad = self.padding
-
-        h, w, _, m = input.shape
-        p, q, co, ci = weight.shape
-
-        ho = (h - 1)*self.stride[0] + dilation[0]*(p - 1) + 1 - pad[0] - pad[1] + opad[0]
-        wo = (w - 1)*self.stride[1] + dilation[1]*(q - 1) + 1 - pad[2] - pad[3] + opad[1]
-
-        Z = np.pad(weight, ((0, ho-p), (0, wo-q), (0, 0), (0,0)), mode='constant')
-        Z_ = sp.csr_array(Z.reshape(np.prod(Z.shape[:3]), ci).T, copy=False)
-        Z_ind = Z_.indices.copy()
-
-        if dilation[0] > 1:
-            q_ind = Z_.indices // co % q #col
-            Z_ind += q_ind*(dilation[0]-1)*co
-
-        if dilation[1] > 1:
-            p_ind = Z_.indices // (co*q) #row
-            Z_ind += p_ind*(dilation[1]-1)*co*q
-
-        i_shift = wo * stride[0] * co
-        j_shift = stride[1] * co
-
-        z = p*q*ci
-        ko = ho*wo
-        X = np.zeros([m, ko, z], dtype=dtype)
-        XF = input.reshape(h*w*ci, m)
-        print(f'Z_.indices: {Z_.indices.shape}')
-        print(f'XF: {XF.shape}')
-        print(f'X: {X.shape}')
-        for i in range(ko):
-            ind = (i//wo)*i_shift + (i%wo)*j_shift + Z_ind
-            print('XF[ind, :].T: ', XF[ind, :].T.sahpe)
-            X[:, i, :] = XF[ind, :].T
-        
-        K = weight.transpose([0, 1, 3, 2]).reshape(z, co)
-        output = X @ K # in [m , ko, co] shape
-        output = output.transpose([1, 2, 0]).reshape(ho, wo, co, m)
-        output = ConvTranspose2DLayer.apply_padding(output, pad, opad)
-
-        if bias is True:
-            if isinstance(self.bias, np.ndarray):
-                output += self.bias[None, None, :, None]
-        return output
+        return self.convtrans2d_basic(input, bias=bias)
     
 
     def convtrans2d2(self, input, bias=True):
@@ -1478,9 +1421,12 @@ class ConvTranspose2DLayer(object):
                     return SparseImageStar2DCSR(new_V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
                 
                 new_c = self.convtrans2d(In.c.reshape(In.shape), bias=True).reshape(-1)
-                # new_V, out_shape = self.fconvtrans2d_coo2(In.V, In.shape)
-                # new_V, out_shape = self.fconvtrans2d_coo_co_loop2(In.V, In.shape)
-                new_V, out_shape = self.fconvtrans2d_coo(In.V, In.shape)
+                new_V, out_shape = self.fconvtrans2d_coo2(In.V, In.shape)
+                new_V = new_V.tocoo()
+                new_V.row = new_V.row.astype(np.int32)
+                new_V.col = new_V.col.astype(np.int32)
+                if hasattr(In, 'with_updated_state'):
+                    return In.with_updated_state(c=new_c, V=new_V, shape=out_shape)
                 return SparseImageStar2DCOO(new_c, new_V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
             
             raise Exception(f'error: ConvTranspose2DLayer unsupported module: {self.module}')
@@ -1499,9 +1445,12 @@ class ConvTranspose2DLayer(object):
                     return SparseImageStar2DCSR(new_V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
                 
                 new_c = self.convtrans2d(In.c.reshape(In.shape), bias=True).reshape(-1)
-                # new_V, out_shape = self.fconvtrans2d_csr2(In.V, In.shape)
-                # new_V, out_shape = self.fconvtrans2d_csr_co_loop2(In.V, In.shape)
-                new_V, out_shape = self.fconvtrans2d_csr(In.V, In.shape)
+                new_V, out_shape = self.fconvtrans2d_csr2(In.V, In.shape)
+                new_V = new_V.tocsr()
+                new_V.indices = new_V.indices.astype(np.int32)
+                new_V.indptr = new_V.indptr.astype(np.int32)
+                if hasattr(In, 'with_updated_state'):
+                    return In.with_updated_state(c=new_c, V=new_V, shape=out_shape)
                 return SparseImageStar2DCSR(new_c, new_V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
 
             raise Exception(f'error: ConvTranspose2DLayer unsupported module: {self.module}')
@@ -1509,7 +1458,7 @@ class ConvTranspose2DLayer(object):
         else:
             raise Exception('error: Conv2DLayer supports ImageStar and SparseImageStar')
     
-    def reach(self, inputSet, method=None, lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
+    def reach(self, inputSet, method=None, lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False, **kwargs):
         """
             main reachability method
             Args:

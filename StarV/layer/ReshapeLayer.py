@@ -78,6 +78,8 @@ class ReshapeLayer(object):
                 V = np.concatenate([c1, V1], axis=3)
                 return SparseImageStar2DCOO(V, In.C, In.d, In.pred_lb, In.pred_ub, self.out_shape)
             
+            if hasattr(In, 'with_updated_state'):
+                return In.with_updated_state(c=In.c, V=In.V, shape=self.out_shape)
             return SparseImageStar2DCOO(In.c, In.V, In.C, In.d, In.pred_lb, In.pred_ub, self.out_shape)
 
         elif isinstance(In, SparseImageStar2DCSR):
@@ -93,17 +95,19 @@ class ReshapeLayer(object):
                 V = In.V.reshape(self.out_shape + (In.num_pred+1, ))
                 return SparseImageStar2DCSR(V, In.C, In.d, In.pred_lb, In.pred_ub, self.out_shape)
             
-            if self.to_dense:
+            if self.to_dense and not hasattr(In, 'with_updated_state'):
                 c1 = In.c.reshape(self.out_shape + (1,))
                 V1 = In.V.toarray().reshape(self.out_shape + (In.num_pred, ))
                 V = np.concatenate([c1, V1], axis=3)
                 return SparseImageStar2DCSR(V, In.C, In.d, In.pred_lb, In.pred_ub, self.out_shape)
             
+            if hasattr(In, 'with_updated_state'):
+                return In.with_updated_state(c=In.c, V=In.V, shape=self.out_shape)
             return SparseImageStar2DCSR(In.c, In.V, In.C, In.d, In.pred_lb, In.pred_ub, self.out_shape)
 
         raise Exception('unsupported input set, {}'.format(In.__class__.__name__))
 
-    def reach(self, in_sets, method=None, lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
+    def reach(self, in_sets, method=None, lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False, **kwargs):
         """ main reshape layer method 
             Args:
                 @in_sets: a list of input sets or a single input set

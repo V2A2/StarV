@@ -889,6 +889,8 @@ class AvgPool2DLayer(object):
                 new_c = self.avgpool2d(In.c.reshape(In.shape)).reshape(-1)
                 new_V, out_shape = self.favgpool2d_coo2(In.V, In.shape)
                 
+            if hasattr(In, 'with_updated_state'):
+                return In.with_updated_state(c=new_c, V=new_V, shape=out_shape)
             return SparseImageStar2DCOO(new_c, new_V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
         
         elif isinstance(In, SparseImageStar2DCSR):
@@ -901,6 +903,8 @@ class AvgPool2DLayer(object):
                 new_c = self.avgpool2d(In.c.reshape(In.shape)).reshape(-1)
                 new_V, out_shape = self.favgpool2d_csr2(In.V, In.shape)
                 
+            if hasattr(In, 'with_updated_state'):
+                return In.with_updated_state(c=new_c, V=new_V, shape=out_shape)
             return SparseImageStar2DCSR(new_c, new_V, In.C, In.d, In.pred_lb, In.pred_ub, out_shape)
         
         else:
@@ -908,7 +912,7 @@ class AvgPool2DLayer(object):
 
 
 
-    def reach(self, inputSet, method=None, lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
+    def reach(self, inputSet, method=None, lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False, **kwargs):
         """
             Args:
         
