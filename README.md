@@ -78,6 +78,9 @@ StarV/
 │   ├── layer/                      # Neural network layers (FC, Conv2D, Pool2D, BatchNorm2D, RNN, LSTM, GRU)
 │   ├── net/                        # NeuralNetwork container and BFS/DFS reachability engines
 │   ├── plant/                      # LODE and DLODE dynamical system models
+│   ├── dynamic/                    # Nonlinear dynamic lifting operations (Sine, Cosine, Power, Multiply)
+│   ├── lifting/                    # Expression DAG observable lifting (ExprNode, ExprGraph, LiftExecutor)
+│   ├── operators/                  # Nonlinear Star operator abstractions
 │   ├── nncs/                       # Closed-loop NNCS reachability and temporal verification
 │   ├── spec/                       # dProbStarTL and dStarTL temporal logic specifications
 │   ├── verifier/                   # Verifier and Certifier OOP & functional APIs

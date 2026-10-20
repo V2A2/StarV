@@ -205,6 +205,24 @@ class TestStarVVerifierAndNNCS(unittest.TestCase):
         self.assertGreater(rho_lb, 0.0)
         self.assertGreaterEqual(rho_ub, rho_lb)
 
+    def test_lifting_expr_dag(self):
+        from StarV.lifting.exprnode import ExprNode
+        from StarV.lifting.exprgraph import ExprGraph
+        from StarV.lifting.executor import LiftExecutor
+
+        n1 = ExprNode(id="x", op="var", params={"name": "x"})
+        n2 = ExprNode(id="theta", op="var", params={"name": "theta"})
+        n3 = ExprNode(id="x2", op="powEven", inputs=["x"], params={"n": 2})
+        n4 = ExprNode(id="sin_t", op="sin", inputs=["theta"])
+        n5 = ExprNode(id="mul", op="mul", inputs=["x2", "sin_t"])
+        graph = ExprGraph([n1, n2, n3, n4, n5])
+        order = graph.topoSort()
+        exe = LiftExecutor(lpSolver="linprog", RF=0.0, verbose=False)
+        s0 = Star(np.array([-0.1, -0.07]), np.array([0.1, 0.14]))
+        s_hat, idx_map = exe.run(initialStar=s0, orderedNodes=order, varIndexMap={"x": 0, "theta": 1})
+        self.assertEqual(s_hat.dim, 5)
+        self.assertIn("mul", idx_map)
+
 
 class TestLegacyModules(unittest.TestCase):
     """Run legacy Test classes in tests/ and assert n_fails == 0."""
