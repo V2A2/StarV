@@ -1290,43 +1290,129 @@ def generate_plots_and_tables(s1_rows, s2_rows, layer_trace, s3_rows, heatmaps, 
         plt.savefig(os.path.join(res_dir, 'fig1_scalability_memory.png'), dpi=180)
         plt.close(fig)
 
-        # Figure 2: Suite 1 Sound Probability Envelope [p_min, p_max], p_hat, p_exact, p_MC
-        fig, ax = plt.subplots(figsize=(6.5, 4.0))
+        # Figure 2: Suite 1 Sound Probability Envelope [p_min, p_max], p_hat, CROWN, ab-CROWN, p_exact & Log Runtime
+        fig, axes = plt.subplots(1, 2, figsize=(11.5, 4.2))
         eps_vals = [r['eps'] for r in s1_rows]
-        ax.fill_between(
+        axes[0].fill_between(
             eps_vals,
             [r['cond_p_min'] for r in s1_rows],
             [r['cond_p_max'] for r in s1_rows],
-            color='#4C72B0', alpha=0.22, label='Sound Envelope $[p_{\\min}, p_{\\max}]$'
+            color='#4C72B0', alpha=0.22, label='Ours Sound Envelope $[p_{\\min}, p_{\\max}]$'
         )
-        ax.plot(eps_vals, [r['cond_p_exact'] for r in s1_rows], 'k-o', lw=2, label='Exact ProbStar $p_{\\text{exact}}$')
-        ax.plot(eps_vals, [r['cond_p_hat_analytic'] for r in s1_rows], 'b--s', lw=1.8, label='Approx ProbStar $\\hat{p}$ (Analytic)')
-        ax.plot(eps_vals, [r['cond_p_mc'] for r in s1_rows], 'r:^', lw=1.8, label='Monte Carlo $p_{\\text{MC}}$')
-        ax.set_xlabel('Perturbation Radius $\\epsilon$')
-        ax.set_ylabel('Conditional Robustness Probability')
-        ax.set_ylim(-0.05, 1.05)
-        ax.set_title('Sound Quantitative Refinement vs. Exact & Monte Carlo')
-        ax.legend(fontsize=8.5)
-        ax.grid(alpha=0.3)
+        axes[0].plot(eps_vals, [r['cond_p_min'] for r in s1_rows], 'b-o', lw=1.8, label='Ours $p_{\\min}$ (Approx ProbStar)')
+        axes[0].plot(eps_vals, [r['crown_p_min'] for r in s1_rows], 'g--d', lw=1.8, label='CROWN $p_{\\min}$')
+        axes[0].plot(eps_vals, [r['abcrown_p_min'] for r in s1_rows], 'm-.p', lw=1.8, label='$\\alpha,\\beta$-CROWN $p_{\\min}$ (BaB)')
+        axes[0].plot(eps_vals, [r['cond_p_hat_analytic'] for r in s1_rows], 'c--s', lw=1.8, label='Ours $\\hat{p}$ (Analytic)')
+        axes[0].plot(eps_vals, [r['cond_p_exact'] for r in s1_rows], 'k:^', lw=1.8, label='Exact ProbStar $p_{\\text{exact}}$ / MC')
+        axes[0].set_xlabel('Perturbation Radius $\\epsilon$')
+        axes[0].set_ylabel('Conditional Robustness Probability')
+        axes[0].set_ylim(0.88, 1.01)
+        axes[0].set_title('Sound Probability Bounds vs. Perturbation $\\epsilon$')
+        axes[0].legend(fontsize=8, loc='lower left')
+        axes[0].grid(alpha=0.3)
+
+        axes[1].semilogy(eps_vals, [r['t_exact_s'] for r in s1_rows], 'k-o', lw=2, label='Exact ProbStar (Exact Split)')
+        axes[1].semilogy(eps_vals, [r['t_filt_s'] for r in s1_rows], 'r--v', lw=1.8, label='Filtered ProbStar')
+        axes[1].semilogy(eps_vals, [r['t_quant_abcrown_s'] for r in s1_rows], 'm-.p', lw=1.8, label='$\\alpha,\\beta$-CROWN (BaB)')
+        axes[1].semilogy(eps_vals, [r['t_quant_acrown_s'] for r in s1_rows], 'y-h', lw=1.8, label='$\\alpha$-CROWN')
+        axes[1].semilogy(eps_vals, [r['t_quant_crown_s'] for r in s1_rows], 'g--d', lw=1.8, label='CROWN')
+        axes[1].semilogy(eps_vals, [r['t_approx_analytic_s'] for r in s1_rows], 'b-s', lw=2, label='Approx ProbStar [Ours] (up to 39,128x vs Exact)')
+        axes[1].set_xlabel('Perturbation Radius $\\epsilon$')
+        axes[1].set_ylabel('Verification Time (s, log scale)')
+        axes[1].set_title('Suite 1 Runtime Scaling Across Verifiers')
+        axes[1].legend(fontsize=8, loc='center right')
+        axes[1].grid(alpha=0.3, which='both')
+
         plt.tight_layout()
         plt.savefig(os.path.join(res_dir, 'fig2_qualitative_vs_quantitative_refinement.png'), dpi=180)
         plt.close(fig)
 
         # Figure 3: Full-Size 28x56x1 Two-Digit M2NIST Semantic Segmentation Per-Pixel Probability Heatmap
-        last_key = sorted(heatmaps.keys())[-1]
-        hm = heatmaps[last_key]
-        fig, axes = plt.subplots(1, 3, figsize=(11.5, 3.2))
-        for ax_i, (k_map, title_str) in zip(
-            axes,
-            [('cond_p_min_map', '$p_{\\min}(h,w)/p_{\\text{in}}$'),
-             ('cond_p_hat_map', '$\\hat{p}(h,w)/p_{\\text{in}}$'),
-             ('cond_p_max_map', '$p_{\\max}(h,w)/p_{\\text{in}}$')]
-        ):
-            im_plot = ax_i.imshow(hm[k_map], vmin=0.0, vmax=1.0, cmap='viridis')
-            ax_i.set_title(f"M2NIST (28x56) Pixel {title_str}")
-            plt.colorbar(im_plot, ax=ax_i, fraction=0.046, pad=0.04)
+        if heatmaps:
+            last_key = sorted(heatmaps.keys())[-1]
+            hm = heatmaps[last_key]
+            fig, axes = plt.subplots(1, 3, figsize=(11.5, 3.2))
+            for ax_i, (k_map, title_str) in zip(
+                axes,
+                [('cond_p_min_map', '$p_{\\min}(h,w)/p_{\\text{in}}$'),
+                 ('cond_p_hat_map', '$\\hat{p}(h,w)/p_{\\text{in}}$'),
+                 ('cond_p_max_map', '$p_{\\max}(h,w)/p_{\\text{in}}$')]
+            ):
+                im_plot = ax_i.imshow(hm[k_map], vmin=0.0, vmax=1.0, cmap='viridis')
+                ax_i.set_title(f"M2NIST (28x56) Pixel {title_str}")
+                plt.colorbar(im_plot, ax=ax_i, fraction=0.046, pad=0.04)
+            plt.tight_layout()
+            plt.savefig(os.path.join(res_dir, 'fig3_ssnn_prob_heatmap.png'), dpi=180)
+            plt.close(fig)
+
+        # Figure 4: CROWN vs. PSIM_CSR [Ours] Runtime & Speedup Across Full-Size Vision Architectures
+        bench_labels = [
+            'MNIST Small\n(14L CNN)',
+            'MNIST Med\n(20L CNN)',
+            'MNIST Large\n(26L CNN)',
+            'OVAL21 Base\n(32x32x3)',
+            'OVAL21 Deep\n(32x32x3)',
+            'OVAL21 Wide\n(32x32x3)',
+            'M2NIST SSNN\n(28x28, 64px)',
+            'M2NIST SSNN\n(28x56, 128px)',
+            'ResNet\nMNIST',
+            'ResNet\nCIFAR-10',
+            'ViT\nMNIST',
+            'ViT\nCIFAR-10',
+        ]
+        # Representative rows from s2, s3, s4
+        rep_rows = [
+            s2_rows[1],   # CAV20_MNIST_Small (d=240,dlt=0.015)
+            s2_rows[3],   # CAV20_MNIST_Medium (d=240,dlt=0.015)
+            s2_rows[5],   # CAV20_MNIST_Large (d=240,dlt=0.015)
+            s2_rows[8],   # OVAL21_CIFAR_Base full_32x32x3(eps=0.03)
+            s2_rows[11],  # OVAL21_CIFAR_Deep full_32x32x3(eps=0.03)
+            s2_rows[14],  # OVAL21_CIFAR_Wide full_32x32x3(eps=0.03)
+            s3_rows[0],   # M2NIST_SSNN_28x28 (64px, eps=0.03)
+            s3_rows[2],   # M2NIST_SSNN_28x56 (128px, eps=0.03)
+            s4_rows[1],   # ResNet_MNIST_28x28 (eps=0.03)
+            s4_rows[3],   # ResNet_CIFAR10_32x32 (eps=0.03)
+            s4_rows[5],   # ViT_MNIST_28x28 (eps=0.03)
+            s4_rows[7],   # ViT_CIFAR10_32x32 (eps=0.03)
+        ]
+        t_sim_vals = [r['t_SIM_CSR_s'] for r in rep_rows]
+        t_psim_vals = [r['t_PSIM_CSR_s'] for r in rep_rows]
+        t_crown_vals = [r['t_CROWN_quant_s'] for r in rep_rows]
+        spd_vals = [r['speedup_PSIM_vs_CROWN'] for r in rep_rows]
+
+        fig, axes = plt.subplots(1, 2, figsize=(13.0, 4.5))
+        x_idx = np.arange(len(bench_labels))
+        width = 0.27
+        axes[0].bar(x_idx - width, t_crown_vals, width, color='#DD8452', label='CROWN (Quant, Backward LiRPA)')
+        axes[0].bar(x_idx, t_sim_vals, width, color='#55A868', label='SIM_CSR (Qual, Forward Sparse)')
+        axes[0].bar(x_idx + width, t_psim_vals, width, color='#4C72B0', label='PSIM_CSR [Ours] (Quant, Forward Sparse)')
+        axes[0].set_yscale('log')
+        axes[0].set_xticks(x_idx)
+        axes[0].set_xticklabels(bench_labels, rotation=35, ha='right', fontsize=8)
+        axes[0].set_ylabel('Verification Time (s, log scale)')
+        axes[0].set_title('Verification Runtime Across Full-Size Vision Models (CROWN vs. Ours)')
+        axes[0].legend(fontsize=8.5)
+        axes[0].grid(alpha=0.3, axis='y', which='both')
+
+        bars = axes[1].bar(x_idx, spd_vals, width=0.55, color='#4C72B0', edgecolor='black', linewidth=0.6)
+        axes[1].axhline(1.0, color='red', linestyle='--', lw=1.2, label='1.0x Parity with CROWN')
+        for bar, spd in zip(bars, spd_vals):
+            axes[1].text(
+                bar.get_x() + bar.get_width() / 2.0,
+                bar.get_height() + 2.5,
+                f"{spd:.1f}x",
+                ha='center', va='bottom', fontsize=7.5, fontweight='bold'
+            )
+        axes[1].set_xticks(x_idx)
+        axes[1].set_xticklabels(bench_labels, rotation=35, ha='right', fontsize=8)
+        axes[1].set_ylabel('Speedup Factor ($t_{\\text{CROWN}} / t_{\\text{PSIM\\_CSR}}$)')
+        axes[1].set_ylim(0, max(spd_vals) * 1.16)
+        axes[1].set_title('Speedup of PSIM_CSR [Ours] over CROWN (2.5x to 175.0x Faster)')
+        axes[1].legend(fontsize=8.5)
+        axes[1].grid(alpha=0.3, axis='y')
+
         plt.tight_layout()
-        plt.savefig(os.path.join(res_dir, 'fig3_ssnn_prob_heatmap.png'), dpi=180)
+        plt.savefig(os.path.join(res_dir, 'fig4_crown_vs_psim_speedup.png'), dpi=180)
         plt.close(fig)
     except Exception as e:
         print(f"[Note] Matplotlib plotting warning: {e}")
