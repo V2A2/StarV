@@ -192,7 +192,7 @@ class MultiHeadAttentionLayer(object):
         l_Q, u_Q = _bounds(c_Q, VQ)
         l_K, u_K = _bounds(c_K, VK)
         l_V, u_V = _bounds(c_V, VV)
-        return (l_Q, u_Q), (l_K, u_K), (l_V, u_V), c_V, VV
+        return (l_Q, u_Q), (l_K, u_K), (l_V, u_V), c_Q, VQ, c_K, VK, c_V, VV
 
     def reachSingleInput(self, In, lp_solver='estimate', RF=0.0, show=False):
         is_prob = isinstance(In, (ProbStar, ProbSparseImageStar2DCSR, ProbSparseImageStar2DCOO))
@@ -224,13 +224,11 @@ class MultiHeadAttentionLayer(object):
         assert N % D == 0, f"Input dimension {N} is not divisible by embed_dim {D}"
         T = N // D
 
-        (l_Q, u_Q), (l_K, u_K), (l_V, u_V), c_V, VV = self._compute_qkv_bounds(
+        (l_Q, u_Q), (l_K, u_K), (l_V, u_V), c_Q, VQ, c_K, VK, c_V, VV = self._compute_qkv_bounds(
             c_x, V_x, In.pred_lb, In.pred_ub, T
         )
 
-        # Step 1: Sound interval bounds [l_S, u_S] on scaled dot-product scores S_{h,i,j}
-        # For each head h, token i, token j, feature r:
-        # product q_{h,i,r} * k_{h,j,r} in [min(4 corners), max(4 corners)]
+        # Step 1: Sound interval + affine-generator bounds [l_S, u_S] on S_{h,i,j} = Q_{h,i,:} . K_{h,j,:} / sqrt(dk)
         q_l = l_Q[:, :, None, :]  # (H, T, 1, dk)
         q_u = u_Q[:, :, None, :]  # (H, T, 1, dk)
         k_l = l_K[:, None, :, :]  # (H, 1, T, dk)
@@ -243,56 +241,140 @@ class MultiHeadAttentionLayer(object):
         prod_lb = np.minimum(np.minimum(p1, p2), np.minimum(p3, p4))
         prod_ub = np.maximum(np.maximum(p1, p2), np.maximum(p3, p4))
 
-        l_S = np.sum(prod_lb, axis=-1) * self.scale  # (H, T, T)
-        u_S = np.sum(prod_ub, axis=-1) * self.scale  # (H, T, T)
+        l_S_box = np.sum(prod_lb, axis=-1) * self.scale  # (H, T, T)
+        u_S_box = np.sum(prod_ub, axis=-1) * self.scale  # (H, T, T)
 
-        # Step 2: Exact monotone componentwise Softmax bounds [l_A, u_A] of shape (H, T, T)
+        # Bilinear Taylor-McCormick decomposition around Q0 = 0.5*(l_Q+u_Q), K0 = 0.5*(l_K+u_K):
+        # q(a).k(a) = q0.k(a) + k0.q(a) - q0.k0 + (q(a)-q0).(k(a)-k0)
+        Q0 = 0.5 * (l_Q + u_Q)                 # (H, T, dk)
+        dQ = 0.5 * np.maximum(u_Q - l_Q, 0.0)  # (H, T, dk)
+        K0 = 0.5 * (l_K + u_K)                 # (H, T, dk)
+        dK = 0.5 * np.maximum(u_K - l_K, 0.0)  # (H, T, dk)
+
+        VQ_dense = VQ.toarray().reshape(T, H, dk, n).transpose(1, 0, 2, 3)  # (H, T, dk, n)
+        VK_dense = VK.toarray().reshape(T, H, dk, n).transpose(1, 0, 2, 3)  # (H, T, dk, n)
+        cQ_arr = c_Q.reshape(T, H, dk).transpose(1, 0, 2)                   # (H, T, dk)
+        cK_arr = c_K.reshape(T, H, dk).transpose(1, 0, 2)                   # (H, T, dk)
+
+        # c_S[h,i,j] and V_S[h,i,j,:] for the linearized score L_{h,i,j}(alpha)
+        c_S = (
+            np.einsum('hid,hjd->hij', Q0, cK_arr)
+            + np.einsum('hjd,hid->hij', K0, cQ_arr)
+            - np.einsum('hid,hjd->hij', Q0, K0)
+        ) * self.scale  # (H, T, T)
+        V_S = (
+            np.einsum('hid,hjdn->hijn', Q0, VK_dense)
+            + np.einsum('hjd,hidn->hijn', K0, VQ_dense)
+        ) * self.scale  # (H, T, T, n)
+        rem_S = np.einsum('hid,hjd->hij', dQ, dK) * self.scale  # (H, T, T)
+
+        VS_pos = np.maximum(V_S, 0.0)
+        VS_neg = np.minimum(V_S, 0.0)
+        l_S_aff = c_S + np.einsum('hijn,n->hij', VS_pos, In.pred_lb) + np.einsum('hijn,n->hij', VS_neg, In.pred_ub) - rem_S
+        u_S_aff = c_S + np.einsum('hijn,n->hij', VS_pos, In.pred_ub) + np.einsum('hijn,n->hij', VS_neg, In.pred_lb) + rem_S
+
+        l_S = np.maximum(l_S_box, l_S_aff)
+        u_S = np.minimum(u_S_box, u_S_aff)
+
+        # Step 2: Exact monotone componentwise Softmax bounds [l_A, u_A] with difference-generator cancellation
         l_A = np.zeros((H, T, T), dtype=np.float64)
         u_A = np.zeros((H, T, T), dtype=np.float64)
         for h in range(H):
             for i in range(T):
                 for j in range(T):
-                    # Lower bound of A_{h,i,j}: use l_S[h,i,j] and u_S[h,i,m] for m != j
-                    diff_u = u_S[h, i, :] - l_S[h, i, j]
+                    # Difference S[h,i,m] - S[h,i,j] via both interval and affine difference generators
+                    d_c = c_S[h, i, :] - c_S[h, i, j]          # (T,)
+                    d_V = V_S[h, i, :, :] - V_S[h, i, j, None, :]  # (T, n)
+                    d_rem = rem_S[h, i, :] + rem_S[h, i, j]    # (T,)
+                    d_rem[j] = 0.0
+                    dV_pos = np.maximum(d_V, 0.0)
+                    dV_neg = np.minimum(d_V, 0.0)
+                    diff_u_aff = d_c + dV_pos @ In.pred_ub + dV_neg @ In.pred_lb + d_rem
+                    diff_l_aff = d_c + dV_pos @ In.pred_lb + dV_neg @ In.pred_ub - d_rem
+
+                    diff_u = np.minimum(u_S[h, i, :] - l_S[h, i, j], diff_u_aff)
                     diff_u[j] = 0.0
                     l_A[h, i, j] = 1.0 / np.sum(np.exp(np.clip(diff_u, -60.0, 60.0)))
 
-                    # Upper bound of A_{h,i,j}: use u_S[h,i,j] and l_S[h,i,m] for m != j
-                    diff_l = l_S[h, i, :] - u_S[h, i, j]
+                    diff_l = np.maximum(l_S[h, i, :] - u_S[h, i, j], diff_l_aff)
                     diff_l[j] = 0.0
                     u_A[h, i, j] = 1.0 / np.sum(np.exp(np.clip(diff_l, -60.0, 60.0)))
 
-        # Center attention matrix A0_{h,i,j} in [l_A, u_A] and radius dA_{h,i,j}
-        A0 = 0.5 * (l_A + u_A)                # (H, T, T)
-        dA = 0.5 * np.maximum(u_A - l_A, 0.0) # (H, T, T)
+        # Simplex-consistent reference attention A0_{h,i,j} in [l_A, u_A] with sum_j A0_{h,i,j} = 1
+        span_A = np.maximum(u_A - l_A, 0.0)
+        sum_lA = np.sum(l_A, axis=-1, keepdims=True)
+        sum_spanA = np.sum(span_A, axis=-1, keepdims=True)
+        theta_A = np.where(sum_spanA > 1e-15, np.clip((1.0 - sum_lA) / np.where(sum_spanA > 1e-15, sum_spanA, 1.0), 0.0, 1.0), 0.5)
+        A0 = l_A + theta_A * span_A
+        dA = np.maximum(A0 - l_A, u_A - A0)  # (H, T, T)
 
-        # Step 3: Build linear operator M_attn_O mapping flattened V (T*D,) -> flattened Y (T*D,)
-        # Recall V is ordered as (T, H, dk) flattened -> index(t, h, r) = t*D + h*dk + r
-        # Context_0[i, h, r] = sum_j A0[h, i, j] * V[j, h, r]
-        # Output_0[i, d_out] = sum_{h, r} W_O[d_out, h*dk + r] * Context_0[i, h, r] + b_O[d_out]
+        def _box_simplex_extrema(l_vec, u_vec, v_vec):
+            """Exact min and max of sum_j a_j v_j s.t. l_j <= a_j <= u_j and sum_j a_j = 1."""
+            rem = max(0.0, 1.0 - float(np.sum(l_vec)))
+            cap = np.maximum(u_vec - l_vec, 0.0)
+            base = float(np.dot(l_vec, v_vec))
+            order_min = np.argsort(v_vec)
+            rem_min = rem
+            val_min = base
+            for idx in order_min:
+                take = min(rem_min, float(cap[idx]))
+                val_min += take * float(v_vec[idx])
+                rem_min -= take
+                if rem_min <= 1e-15:
+                    break
+            order_max = order_min[::-1]
+            rem_max = rem
+            val_max = base
+            for idx in order_max:
+                take = min(rem_max, float(cap[idx]))
+                val_max += take * float(v_vec[idx])
+                rem_max -= take
+                if rem_max <= 1e-15:
+                    break
+            return val_min, val_max
+
+        # Step 3: Project V_h into output space U_h = V_h @ W_{O,h}^T of shape (T, D) per head
+        # so box-simplex water-filling happens directly in output coordinates without |W_O| triangle loss
         W_lin = np.zeros((T * D, T * D), dtype=np.float64)
-        rad_context = np.zeros((T, H, dk), dtype=np.float64)
-        max_abs_V = np.maximum(np.abs(l_V), np.abs(u_V))  # (H, T, dk)
+        rad_Y_mat = np.zeros((T, D), dtype=np.float64)
+        shift_Y_mat = np.zeros((T, D), dtype=np.float64)
+        VV_dense = VV.toarray().reshape(T, H, dk, n)
+        cV_arr = c_V.reshape(T, H, dk)
 
         for h in range(H):
-            # rad_context[:, h, :] = dA[h] @ max_abs_V[h]  -> shape (T, dk)
-            rad_context[:, h, :] = dA[h] @ max_abs_V[h]
             W_O_h = self.W_O[:, h * dk:(h + 1) * dk]  # (D, dk)
-            # For token i and token j, block (i, j) maps V[j, h, :] (size dk) to Y[i, :] (size D)
-            # via A0[h, i, j] * W_O_h
+            cU_h = cV_arr[:, h, :] @ W_O_h.T          # (T, D)
+            VU_h = np.einsum('od,tdn->ton', W_O_h, VV_dense[:, h, :, :])  # (T, D, n)
+            VUp = np.maximum(VU_h, 0.0)
+            VUn = np.minimum(VU_h, 0.0)
+            lU_h = cU_h + np.einsum('ton,n->to', VUp, In.pred_lb) + np.einsum('ton,n->to', VUn, In.pred_ub)
+            uU_h = cU_h + np.einsum('ton,n->to', VUp, In.pred_ub) + np.einsum('ton,n->to', VUn, In.pred_lb)
+            U0_h = 0.5 * (lU_h + uU_h)                # (T, D)
+            dU_h = 0.5 * np.maximum(uU_h - lU_h, 0.0) # (T, D)
+
+            quad_rem_h = dA[h] @ dU_h                 # (T, D) O(eps^2) remainder in output space
+            for i in range(T):
+                for d_out in range(D):
+                    u_col = U0_h[:, d_out]
+                    umin, umax = _box_simplex_extrema(l_A[h, i, :], u_A[h, i, :], u_col)
+                    u_ref = float(np.dot(A0[h, i, :], u_col))
+                    d_min = umin - u_ref
+                    d_max = umax - u_ref
+                    shift_Y_mat[i, d_out] += 0.5 * (d_min + d_max)
+                    rad_Y_mat[i, d_out] += 0.5 * max(0.0, d_max - d_min) + quad_rem_h[i, d_out]
+
             for i in range(T):
                 row_slice = slice(i * D, (i + 1) * D)
                 for j in range(T):
                     col_slice = slice(j * D + h * dk, j * D + (h + 1) * dk)
                     W_lin[row_slice, col_slice] += A0[h, i, j] * W_O_h
 
-        rad_context_flat = rad_context.reshape(T, D)  # (T, D)
-        # Propagate context radius through |W_O|
-        rad_Y = (rad_context_flat @ np.abs(self.W_O).T).reshape(N)  # (T*D,)
+        rad_Y = rad_Y_mat.reshape(N)
+        shift_Y = shift_Y_mat.reshape(N)
 
         # Center affine output tilde_Y(alpha) = c_Y0 + V_Y0 * alpha
         b_O_tiled = np.tile(self.b_O, T)
-        c_Y0 = W_lin @ c_V + b_O_tiled
+        c_Y0 = W_lin @ c_V + b_O_tiled + shift_Y
         V_Y0_csr = (sp.csr_array(W_lin) @ VV).tocsr()
 
         # Bounds on tilde_Y(alpha)

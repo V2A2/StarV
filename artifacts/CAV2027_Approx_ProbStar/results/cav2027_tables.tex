@@ -1,21 +1,35 @@
-% Auto-generated CAV 2027 Approximate ProbStar Benchmark Tables
+% Auto-generated CAV 2027 Full-Size Pretrained Vision Benchmark Tables
 \begin{table}[t]
 \centering
-\caption{Comparison of Qualitative (SIM\_CSR) vs. Quantitative (PSIM\_CSR, PSIM\_COO, MC) Verification across Vision Models.}
-\begin{tabular}{llccccccc}
+\scriptsize
+\caption{Full-Size Pretrained Vision Benchmarks: Qualitative (SIM\_CSR, NNV) vs. Quantitative (PSIM\_CSR, MC).}
+\begin{tabular}{lllccccccc}
 \hline
-Model & $\epsilon$ & Qual Status & $[p_{\min}, p_{\max}]$ & $\hat{p}$ & $p_{\text{MC}}$ & $t_{\text{SIM}}$ (s) & $t_{\text{PSIM}}$ (s) & Mem (MB) \\
+Model & Shape & Spec / $\epsilon$ & \#Pred & Qual(CSR) & $[p_{\min}, p_{\max}]$ & $\hat{p}$ & $p_{\text{MC}}$ & $t_{\text{SIM}}$ / $t_{\text{PSIM}}$ (s) & Mem (MB) \\
 \hline
-MNIST\_ConvNet\_Small & 0.02 & ROBUST & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.0040 & 0.0041 & 0.01 \\
-MNIST\_ConvNet\_Small & 0.08 & UNKNOWN & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.0048 & 0.0060 & 0.02 \\
-CIFAR10\_OVAL21\_CNN & 0.02 & UNKNOWN & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.0070 & 0.0105 & 0.09 \\
-CIFAR10\_OVAL21\_CNN & 0.08 & UNKNOWN & $[0.000, 1.000]$ & 1.000 & 1.000 & 0.0142 & 0.0138 & 0.38 \\
-VGG\_Stage\_CNN & 0.02 & ROBUST & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.0280 & 0.0288 & 0.24 \\
-VGG\_Stage\_CNN & 0.08 & UNKNOWN & $[0.000, 1.000]$ & 1.000 & 1.000 & 0.0289 & 0.0371 & 1.01 \\
-ResNet\_Block & 0.015 & UNKNOWN & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.0052 & 0.0053 & 0.069 \\
-ResNet\_Block & 0.045 & UNKNOWN & $[0.000, 1.000]$ & 1.000 & 1.000 & 0.0055 & 0.0092 & 0.392 \\
-ViT\_PatchNet & 0.015 & UNKNOWN & $[0.000, 1.000]$ & 0.937 & 1.000 & 0.0033 & 0.0051 & 0.035 \\
-ViT\_PatchNet & 0.045 & UNKNOWN & $[0.000, 1.000]$ & 1.000 & 1.000 & 0.0031 & 0.0051 & 0.035 \\
+CAV20\_MNIST\_Small & $28 \times 28 \times 1$ & bright(d=250,dlt=0.005) & 16 & ROBUST & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.050 / 0.036 & 0.00 \\
+CAV20\_MNIST\_Small & $28 \times 28 \times 1$ & bright(d=240,dlt=0.015) & 96 & ROBUST & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.048 / 0.051 & 0.04 \\
+CAV20\_MNIST\_Medium & $28 \times 28 \times 1$ & bright(d=250,dlt=0.005) & 19 & ROBUST & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.073 / 0.081 & 0.01 \\
+CAV20\_MNIST\_Medium & $28 \times 28 \times 1$ & bright(d=240,dlt=0.015) & 139 & ROBUST & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.111 / 0.113 & 0.14 \\
+CAV20\_MNIST\_Large & $28 \times 28 \times 1$ & bright(d=250,dlt=0.005) & 31 & ROBUST & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.152 / 0.162 & 0.01 \\
+CAV20\_MNIST\_Large & $28 \times 28 \times 1$ & bright(d=240,dlt=0.015) & 187 & ROBUST & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.364 / 0.400 & 0.27 \\
+OVAL21\_CIFAR\_Base & $32 \times 32 \times 3$ & patch\_8x8x3(eps=0.05) & 196 & ROBUST & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.013 / 0.010 & 0.04 \\
+OVAL21\_CIFAR\_Base & $32 \times 32 \times 3$ & full\_32x32x3(eps=0.005) & 3141 & ROBUST & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.070 / 0.057 & 1.28 \\
+OVAL21\_CIFAR\_Base & $32 \times 32 \times 3$ & full\_32x32x3(eps=0.03) & 3180 & ROBUST & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.063 / 0.064 & 1.53 \\
+OVAL21\_CIFAR\_Deep & $32 \times 32 \times 3$ & patch\_8x8x3(eps=0.05) & 209 & ROBUST & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.017 / 0.017 & 0.12 \\
+OVAL21\_CIFAR\_Deep & $32 \times 32 \times 3$ & full\_32x32x3(eps=0.005) & 3198 & UNKNOWN & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.171 / 0.244 & 2.12 \\
+OVAL21\_CIFAR\_Deep & $32 \times 32 \times 3$ & full\_32x32x3(eps=0.03) & 3252 & UNKNOWN & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.214 / 0.188 & 2.90 \\
+OVAL21\_CIFAR\_Wide & $32 \times 32 \times 3$ & patch\_8x8x3(eps=0.05) & 204 & ROBUST & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.025 / 0.021 & 0.08 \\
+OVAL21\_CIFAR\_Wide & $32 \times 32 \times 3$ & full\_32x32x3(eps=0.005) & 3230 & ROBUST & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.155 / 0.125 & 1.65 \\
+OVAL21\_CIFAR\_Wide & $32 \times 32 \times 3$ & full\_32x32x3(eps=0.03) & 3296 & UNKNOWN & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.180 / 0.131 & 2.08 \\
+ResNet\_MNIST\_28x28 & $28 \times 28 \times 1$ & $\epsilon=0.008$ & 91 & ROBUST & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.021 / 0.022 & 0.06 \\
+ResNet\_MNIST\_28x28 & $28 \times 28 \times 1$ & $\epsilon=0.030$ & 227 & ROBUST & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.035 / 0.028 & 0.45 \\
+ResNet\_CIFAR10\_32x32 & $32 \times 32 \times 3$ & $\epsilon=0.008$ & 221 & ROBUST & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.041 / 0.044 & 0.16 \\
+ResNet\_CIFAR10\_32x32 & $32 \times 32 \times 3$ & $\epsilon=0.030$ & 358 & UNKNOWN & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.060 / 0.050 & 1.07 \\
+ViT\_MNIST\_28x28 & $28 \times 28 \times 1$ & $\epsilon=0.008$ & 683 & ROBUST & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.046 / 0.058 & 0.55 \\
+ViT\_MNIST\_28x28 & $28 \times 28 \times 1$ & $\epsilon=0.030$ & 719 & ROBUST & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.058 / 0.054 & 0.58 \\
+ViT\_CIFAR10\_32x32 & $32 \times 32 \times 3$ & $\epsilon=0.008$ & 1232 & ROBUST & $[1.000, 1.000]$ & 1.000 & 1.000 & 0.060 / 0.062 & 1.01 \\
+ViT\_CIFAR10\_32x32 & $32 \times 32 \times 3$ & $\epsilon=0.030$ & 1232 & UNKNOWN & $[0.000, 1.000]$ & 1.000 & 1.000 & 0.066 / 0.066 & 1.01 \\
 \hline
 \end{tabular}
 \end{table}

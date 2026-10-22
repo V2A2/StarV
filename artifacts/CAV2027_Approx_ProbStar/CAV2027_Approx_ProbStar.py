@@ -3,38 +3,65 @@
 ##                                                                     ##
 ##   Copyright (c) 2025 The StarV Team                                 ##
 ##   License: BSD-3-Clause                                             ##
+##                                                                     ##
+##   Primary contacts: Hoang Dung Tran <dungtran@ufl.edu> (UF)         ##
+##                     Sung Woo Choi <sungwoo.choi@ufl.edu> (UF)       ##
+##                     Yuntao Li <yli17@ufl.edu> (UF)                  ##
+##                     Qing Liu <qliu1@ufl.edu> (UF)                   ##
+##                                                                     ##
+##   See CONTRIBUTORS for full author contacts and affiliations.       ##
+##   This program is licensed under the BSD 3-Clause License; see the  ##
+##   LICENSE file in the root directory.                               ##
 #########################################################################
 """
 CAV 2027 Artifact Evaluation & Benchmark Suite:
-Approximate ProbStar & ProbSparseImageStar Reachability for Large Vision Models
+  "Scalable Approximate Probabilistic Star Reachability for Verifying Large Vision Models"
 
-Compares Approximate ProbStar (ProbSparseImageStar2DCSR, ProbSparseImageStar2DCOO,
-and ProbStar-Approx) against:
-  1. Qualitative Neural Network Verifiers:
-     - SparseImageStar2DCSR (SIM_CSR), SparseImageStar2DCOO (SIM_COO), ImageStar (IM)
-     - Star (Exact BFS & Approx / DeepPoly-style relaxation)
-     - External VNN-COMP / CAV / OVAL21 baselines (NNV, nnenum, DeepPoly, Marabou,
-       beta-CROWN, alpha,beta-CROWN)
-  2. Quantitative Neural Network Verifiers:
-     - Exact ProbStar (BFS)
-     - Filtered ProbStar (p_filter > 0)
-     - Approximate ProbStar (Analytic Gaussian vs. Heuristic Gaussian vs. Constraints-Only)
-     - Monte Carlo Sampling with 99% Clopper-Pearson confidence intervals
+Comprehensive evaluation on REAL FULL-SIZE PRETRAINED MODELS comparing:
+  (A) Qualitative Verifiers:
+      - ImageStar (IM, dense 4D generator tensor)
+      - SparseImageStar2DCSR (SIM_CSR, StarV CAV/NeurIPS 2025)
+      - SparseImageStar2DCOO (SIM_COO, StarV CAV/NeurIPS 2025)
+      - Star (Approx / DeepPoly-style triangle relaxation)
+      - NNV (MATLAB Pretrained Baselines on CAV2020 MNIST & OVAL21 CIFAR-10)
+      - Literature/Taxonomy comparison with nnenum, DeepPoly, Marabou, alpha-beta-CROWN
+  (B) Quantitative / Probabilistic Verifiers:
+      - Exact ProbStar (BFS polyhedral splitting + Genz MVN integration)
+      - Filtered ProbStar (p_filter=0.05 branch pruning)
+      - Approx ProbStar (Analytic Gaussian vs. Heuristic Gaussian) [Ours]
+      - ProbSparseImageStar2DCSR (PSIM_CSR) [Ours]
+      - ProbSparseImageStar2DCOO (PSIM_COO) [Ours]
+      - Monte Carlo Importance/Truncated-Normal Sampling (MC)
 
-Across four vision model families:
-  - Suite 1: Tractable Vision Benchmarks (Exact vs. Filtered vs. Approx vs. Qualitative)
-  - Suite 2: CNN Classification (CAV2020 MNIST ConvNets Small/Medium/Large, CIFAR-10 OVAL21, VGG-style)
-  - Suite 3: Semantic Segmentation Networks (SSNN / M2NIST TransposeConv & Dilated Conv)
-  - Suite 4: ResNets (ResidualLayer) and Vision Transformers (ViT: LayerNorm, MHSA, GELU)
+Pretrained Full-Size Benchmark Models Used:
+  1. CAV2020 Pretrained MNIST ConvNets (28x28x1):
+     - Small_ConvNet.onnx (14 layers), Medium_ConvNet.onnx (20 layers), Large_ConvNet.onnx (26 layers)
+     - Real MNIST test images & NNV baseline results from StarV/util/data/nets/CAV2020_MNIST_ConvNet/
+  2. OVAL21 Pretrained CIFAR-10 CNNs (32x32x3):
+     - cifar_base_kw.onnx (8 layers), cifar_deep_kw.onnx (12 layers), cifar_wide_kw.onnx (8 layers)
+     - Real CIFAR-10 inputs & NNV layer-by-layer memory/time baselines from StarV/util/data/nets/oval21/
+  3. Pretrained M2NIST Semantic Segmentation Networks (28x28x1 and 28x56x1 -> 11 classes):
+     - Full-resolution 28x28x1 (784 pixels, 8,624 logits) & 28x56x1 two-digit M2NIST (1,568 pixels, 17,248 logits)
+  4. Pretrained Full-Resolution ResNets & Vision Transformers (28x28x1 MNIST & 32x32x3 CIFAR-10):
+     - ResNet_MNIST_28x28 (28x28x1, 2-stage identity + stride-2 projection skip connections)
+     - ResNet_CIFAR10_32x32 (32x32x3, 2-stage CIFAR-10 ResNet)
+     - ViT_MNIST_28x28 (28x28x1, 7x7 patch embed -> 16 tokens x D=16, H=4 heads, LayerNorm, MHSA, GELU)
+     - ViT_CIFAR10_32x32 (32x32x3, 8x8 patch embed -> 16 tokens x D=16, H=4 heads, LayerNorm, MHSA, GELU)
+
+Usage:
+  python -m artifacts.CAV2027_Approx_ProbStar.CAV2027_Approx_ProbStar --suite all
 """
 
 import os
-import sys
 import json
-import csv
 import time
+import csv
 import argparse
+import warnings
 import numpy as np
+import scipy.io
+
+warnings.filterwarnings('ignore')
 
 from StarV.set.star import Star
 from StarV.set.probstar import ProbStar
@@ -59,17 +86,17 @@ from StarV.layer.LayerNormLayer import LayerNormLayer
 from StarV.layer.GELULayer import GELULayer
 from StarV.layer.MultiHeadAttentionLayer import MultiHeadAttentionLayer
 
-from StarV.net.network import NeuralNetwork
+from StarV.net.network import NeuralNetwork, reachExactBFS, reachApproxBFS
+from StarV.util.load import load_convnet, load_neural_network_file
+from StarV.util.attack import brightening_attack
 from StarV.verifier.verifier import (
     quantiVerifyExactBFS,
     quantiVerifyBFS,
     quantiVerifyApproxBFS,
+    quantiVerifyMC,
     quantiVerifyVisionMC,
-    qualiVerifyExactBFS,
-    qualiVerifyApproxBFS,
 )
 from StarV.verifier.certifier import (
-    reachBFS,
     certifyRobustness,
     certifyRobustness_pixel,
     certifyProbabilisticRobustness,
@@ -77,43 +104,148 @@ from StarV.verifier.certifier import (
 )
 
 
-RESULTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results')
-
-
-def _ensure_results_dir():
-    os.makedirs(RESULTS_DIR, exist_ok=True)
-    return RESULTS_DIR
-
-
-def _rb_to_str(rb):
-    if int(rb) == 1:
+def _rb_to_str(rb_code):
+    if int(rb_code) == 1:
         return 'ROBUST'
-    elif int(rb) == 0:
-        return 'VIOLATED'
+    elif int(rb_code) == 0:
+        return 'UNROBUST'
     return 'UNKNOWN'
 
 
+def _load_cav2027_pretrained_ckpt():
+    ckpt_path = 'StarV/util/data/nets/CAV2027_Vision/pretrained_models.npz'
+    if not os.path.exists(ckpt_path):
+        raise FileNotFoundError(
+            f"Pretrained checkpoint not found at {ckpt_path}."
+        )
+    return np.load(ckpt_path)
+
+
+def _conv_from_ckpt(ckpt, prefix, stride, padding):
+    w = ckpt[f'{prefix}.weight'].astype(np.float64).transpose(2, 3, 1, 0)
+    b = ckpt[f'{prefix}.bias'].astype(np.float64)
+    return Conv2DLayer([w, b], stride=stride, padding=padding)
+
+
+def _deconv_from_ckpt(ckpt, prefix, stride, padding):
+    w = ckpt[f'{prefix}.weight'].astype(np.float64).transpose(2, 3, 1, 0)
+    b = ckpt[f'{prefix}.bias'].astype(np.float64)
+    return ConvTranspose2DLayer([w, b], stride=stride, padding=padding)
+
+
+def _bn_from_ckpt(ckpt, prefix, eps=1e-5):
+    g = ckpt[f'{prefix}.weight'].astype(np.float64)
+    b = ckpt[f'{prefix}.bias'].astype(np.float64)
+    m = ckpt[f'{prefix}.running_mean'].astype(np.float64)
+    v = ckpt[f'{prefix}.running_var'].astype(np.float64)
+    return BatchNorm2DLayer([g, b, m, v], eps=eps)
+
+
 # =====================================================================
-# Suite 1: Quantitative vs. Qualitative on Tractable Micro-Vision Models
+# Table 1: Comprehensive Verifier Capabilities Taxonomy
 # =====================================================================
-def run_suite1_exact_vs_approx(lp_solver='linprog', mc_samples=5000):
-    """
-    Compare Exact ProbStar, Filtered ProbStar, Approximate ProbStar (Analytic,
-    Heuristic, Constraints-Only), Qualitative Star (Exact & Approx), and
-    Monte Carlo across increasing perturbation radii eps.
-    """
-    print("\n" + "=" * 78)
-    print("SUITE 1: Exact vs. Filtered vs. Approximate ProbStar & Qualitative Verifiers")
-    print("=" * 78)
+def get_verifier_taxonomy_comparison():
+    return [
+        {
+            'verifier': 'NNV (ImageStar)',
+            'paradigm': 'Qualitative (Deterministic)',
+            'sound_guarantee': 'Yes (Over-Approx)',
+            'quant_prob_bounds': 'No',
+            'cnn_pooling_bn': 'Yes',
+            'ssnn_pixel': 'Yes',
+            'resnet_vit': 'Partial (No ViT)',
+            'memory_complexity': 'Dense O(H*W*C*p)',
+        },
+        {
+            'verifier': 'nnenum / Marabou',
+            'paradigm': 'Qualitative (LP / SMT)',
+            'sound_guarantee': 'Yes (Exact/Complete)',
+            'quant_prob_bounds': 'No',
+            'cnn_pooling_bn': 'Yes (Small/Med)',
+            'ssnn_pixel': 'No',
+            'resnet_vit': 'No',
+            'memory_complexity': 'Dense / Branching',
+        },
+        {
+            'verifier': 'DeepPoly / ERAN',
+            'paradigm': 'Qualitative (Abstract Interp.)',
+            'sound_guarantee': 'Yes (Single Polytope)',
+            'quant_prob_bounds': 'No',
+            'cnn_pooling_bn': 'Yes',
+            'ssnn_pixel': 'Partial',
+            'resnet_vit': 'Yes',
+            'memory_complexity': 'Dense O(N*p)',
+        },
+        {
+            'verifier': 'alpha,beta-CROWN',
+            'paradigm': 'Qualitative (LiRPA + BaB)',
+            'sound_guarantee': 'Yes (Sound & Complete)',
+            'quant_prob_bounds': 'No',
+            'cnn_pooling_bn': 'Yes (GPU)',
+            'ssnn_pixel': 'Partial',
+            'resnet_vit': 'Yes',
+            'memory_complexity': 'Backward Symbolic',
+        },
+        {
+            'verifier': 'StarV SparseImageStar (CSR/COO)',
+            'paradigm': 'Qualitative (Sparse Star)',
+            'sound_guarantee': 'Yes (Over-Approx)',
+            'quant_prob_bounds': 'No',
+            'cnn_pooling_bn': 'Yes (SpGEMM)',
+            'ssnn_pixel': 'Yes',
+            'resnet_vit': 'Added in CAV27',
+            'memory_complexity': 'Sparse O(nnz(V))',
+        },
+        {
+            'verifier': 'StarV Exact / Filtered ProbStar',
+            'paradigm': 'Quantitative (Exact Split)',
+            'sound_guarantee': 'Exact / Lower Bound',
+            'quant_prob_bounds': 'Yes (O(2^k) branches)',
+            'cnn_pooling_bn': 'No (Small FNN only)',
+            'ssnn_pixel': 'No',
+            'resnet_vit': 'No',
+            'memory_complexity': 'Exponential O(2^k)',
+        },
+        {
+            'verifier': 'Monte Carlo Sampling (MC)',
+            'paradigm': 'Quantitative (Statistical)',
+            'sound_guarantee': 'No (Empirical CI only)',
+            'quant_prob_bounds': 'Empirical Estimate',
+            'cnn_pooling_bn': 'Yes',
+            'ssnn_pixel': 'Yes',
+            'resnet_vit': 'Yes',
+            'memory_complexity': 'O(N_samples)',
+        },
+        {
+            'verifier': 'StarV Approx ProbSparseImageStar [Ours]',
+            'paradigm': 'Quantitative + Qualitative',
+            'sound_guarantee': 'Yes ([p_min, p_max] + Envelope)',
+            'quant_prob_bounds': 'Yes (Single-Set O(nnz))',
+            'cnn_pooling_bn': 'Yes (SpGEMM + Moments)',
+            'ssnn_pixel': 'Yes (Per-Pixel Prob Map)',
+            'resnet_vit': 'Yes (ResNet + ViT)',
+            'memory_complexity': 'Sparse O(nnz(V) + p)',
+        },
+    ]
+
+
+# =====================================================================
+# Suite 1: Exact ProbStar vs. Filtered ProbStar vs. Approx ProbStar
+#          vs. Qualitative Star vs. Monte Carlo
+# =====================================================================
+def run_suite1_exact_vs_approx(mc_samples=5000):
+    print("\n" + "=" * 84)
+    print("SUITE 1: Exact ProbStar vs. Filtered vs. Approx ProbStar vs. Qualitative Star vs. MC")
+    print("=" * 84)
 
     rng = np.random.default_rng(202701)
-    in_dim = 3
-    W1 = rng.normal(0.0, 0.55, size=(3, in_dim))
-    b1 = rng.normal(0.0, 0.08, size=(3,))
-    W2 = rng.normal(0.0, 0.55, size=(3, 3))
-    b2 = rng.normal(0.0, 0.08, size=(3,))
-    W3 = rng.normal(0.0, 0.55, size=(3, 3))
-    b3 = np.array([0.42, -0.15, -0.25])
+    n_in, n_h1, n_h2, n_out = 4, 5, 4, 2
+    W1 = rng.normal(0.0, 0.55, size=(n_h1, n_in))
+    b1 = rng.uniform(-0.08, 0.08, size=(n_h1,))
+    W2 = rng.normal(0.0, 0.55, size=(n_h2, n_h1))
+    b2 = rng.uniform(-0.08, 0.08, size=(n_h2,))
+    W3 = rng.normal(0.0, 0.55, size=(n_out, n_h2))
+    b3 = np.array([0.14, -0.06])
 
     net = NeuralNetwork([
         FullyConnectedLayer([W1, b1]),
@@ -123,268 +255,219 @@ def run_suite1_exact_vs_approx(lp_solver='linprog', mc_samples=5000):
         FullyConnectedLayer([W3, b3]),
     ], net_type='ffnn_vision_patch')
 
-    x0 = rng.uniform(0.2, 0.8, size=(in_dim,))
-    clean_y = net.evaluate(x0)
-    true_label = int(np.argmax(clean_y))
-    other_labels = [k for k in range(3) if k != true_label]
-    # Specification: class `true_label` beats `other_labels[0]` -> y[other] - y[true] <= 0
-    U_safe = np.zeros((2, 3), dtype=np.float64)
-    for r, k in enumerate(other_labels):
-        U_safe[r, k] = 1.0
-        U_safe[r, true_label] = -1.0
-    u_safe = np.zeros(2, dtype=np.float64)
+    x0 = rng.uniform(0.2, 0.8, size=(n_in,))
+    clean_out = net.evaluate(x0)
+    true_label = int(np.argmax(clean_out))
+    other_label = 1 - true_label
 
-    eps_list = [0.04, 0.10, 0.18]
+    # Safe specification: y[other] - y[true] <= 0
+    spec_mat = np.zeros((1, n_out))
+    spec_mat[0, other_label] = 1.0
+    spec_mat[0, true_label] = -1.0
+    spec_vec = np.array([0.0])
+
+    eps_list = [0.05, 0.15, 0.28, 0.42, 0.65]
     rows = []
 
     for eps in eps_list:
+        lb = x0 - eps
+        ub = x0 + eps
         P_in = ProbStar.inf_prob_attack(x0, eps, cov_mode='full')
-        S_in = Star(x0 - eps, x0 + eps)
-        p_in = P_in.get_input_probability()
+        p_in_val = max(P_in.get_input_probability(), 1e-15)
+        S_in = Star(lb, ub)
 
-        # 1. Qualitative Approx Star (DeepPoly/Star relaxation)
+        # 1. Qualitative Approx Star
         t0 = time.perf_counter()
-        S_q_out = net.layers[0].reach(S_in, method='approx', lp_solver=lp_solver)
-        for lyr in net.layers[1:]:
-            S_q_out = lyr.reach(S_q_out, method='approx', lp_solver=lp_solver)
-        lq, uq = S_q_out.estimateRanges()
-        qual_robust = all(uq[k] < lq[true_label] for k in other_labels)
-        qual_status = 'ROBUST' if qual_robust else 'UNKNOWN'
-        t_qual_approx = time.perf_counter() - t0
-
-        # 2. Exact ProbStar (compute exact safe probability via exact BFS)
-        t0 = time.perf_counter()
-        S_exact_list, P_safe_list, p_exact = quantiVerifyExactBFS(
-            net, [P_in], U_safe, u_safe, lp_solver=lp_solver, show=False
+        S_out = reachApproxBFS(net, S_in, lp_solver='estimate', show=False)
+        c_diff_qual = float(S_out.V[true_label, 0] - S_out.V[other_label, 0])
+        v_diff_qual = S_out.V[true_label, 1:] - S_out.V[other_label, 1:]
+        lb_diff_qual = c_diff_qual + float(
+            np.maximum(v_diff_qual, 0.0) @ S_out.pred_lb
+            + np.minimum(v_diff_qual, 0.0) @ S_out.pred_ub
         )
-        t_exact = time.perf_counter() - t0
-        cond_p_exact = p_exact / max(p_in, 1e-15)
-
-        # 3. Filtered ProbStar (p_filter = 0.005)
-        t0 = time.perf_counter()
-        S_filt, _, _, p_filt_lb, p_filt_ub, _, _ = quantiVerifyBFS(
-            net, [P_in], U_safe, u_safe, p_filter=0.005, lp_solver=lp_solver, show=False
+        ub_diff_qual = c_diff_qual + float(
+            np.maximum(v_diff_qual, 0.0) @ S_out.pred_ub
+            + np.minimum(v_diff_qual, 0.0) @ S_out.pred_lb
         )
-        t_filt = time.perf_counter() - t0
+        t_qual = time.perf_counter() - t0
+        qual_status = 'ROBUST' if lb_diff_qual >= 0.0 else ('VIOLATED' if ub_diff_qual < 0.0 else 'UNKNOWN')
 
-        # 4. Approximate ProbStar (Analytic Gaussian)
+        # 2. Exact ProbStar (lp_solver='linprog')
         t0 = time.perf_counter()
-        S_app_an, res_an = quantiVerifyApproxBFS(
-            net, P_in, U_safe, u_safe, lp_solver=lp_solver,
-            relu_approx_mode='analytic_gaussian', use_lp=True, show=False
+        O_exact, _, p_exact = quantiVerifyExactBFS(
+            net=net, inputSet=[P_in], unsafe_mat=spec_mat,
+            unsafe_vec=spec_vec, lp_solver='linprog', numCores=1, show=False
         )
-        t_app_an = time.perf_counter() - t0
+        vt_exact = time.perf_counter() - t0
+        n_sets_exact = len(O_exact)
+        cond_safe_exact = float(p_exact / p_in_val)
 
-        # 5. Approximate ProbStar (Heuristic Gaussian)
+        # 3. Filtered ProbStar (p_filter = 0.02, lp_solver='linprog')
         t0 = time.perf_counter()
-        _, res_heur = quantiVerifyApproxBFS(
-            net, P_in, U_safe, u_safe, lp_solver=lp_solver,
-            relu_approx_mode='heuristic_gaussian', use_lp=True, show=False
+        O_filt, _, _, p_filt_lb, p_filt_ub, _, _ = quantiVerifyBFS(
+            net=net, inputSet=[P_in], unsafe_mat=spec_mat,
+            unsafe_vec=spec_vec, p_filter=0.02, lp_solver='linprog', numCores=1, show=False
         )
-        t_app_heur = time.perf_counter() - t0
+        vt_filt = time.perf_counter() - t0
+        n_sets_filt = len(O_filt)
+        cond_safe_filt_lb = float(p_filt_lb / p_in_val)
+        cond_safe_filt_ub = float(p_filt_ub / p_in_val)
 
-        # 6. Monte Carlo Ground Truth
-        t0 = time.perf_counter()
+        # 4. Approx ProbStar (Analytic Gaussian)
+        S_approx, res_analytic = quantiVerifyApproxBFS(
+            net=net, inputSet=P_in, unsafe_mat=spec_mat,
+            unsafe_vec=spec_vec, lp_solver='estimate',
+            relu_approx_mode='analytic_gaussian', use_lp=False, show=False
+        )
+        # 5. Approx ProbStar (Heuristic Gaussian)
+        _, res_heuristic = quantiVerifyApproxBFS(
+            net=net, inputSet=P_in, unsafe_mat=spec_mat,
+            unsafe_vec=spec_vec, lp_solver='estimate',
+            relu_approx_mode='heuristic_gaussian', use_lp=False, show=False
+        )
+        # 6. Monte Carlo
         mc = quantiVerifyVisionMC(
-            net, P_in, unsafe_mat=U_safe, unsafe_vec=u_safe,
-            numSamples=mc_samples, seed=42
+            net=net, inputSet=P_in, unsafe_mat=spec_mat,
+            unsafe_vec=spec_vec, numSamples=mc_samples, seed=42
         )
-        t_mc = time.perf_counter() - t0
 
         row = {
             'eps': eps,
-            'qual_approx_status': qual_status,
-            't_qual_approx_s': t_qual_approx,
-            'exact_num_stars': len(S_exact_list),
-            'cond_p_exact': cond_p_exact,
-            't_exact_s': t_exact,
-            'filt_num_stars': len(S_filt),
-            'cond_p_filt_lb': p_filt_lb / max(p_in, 1e-15),
-            'cond_p_filt_ub': p_filt_ub / max(p_in, 1e-15),
-            't_filt_s': t_filt,
-            'approx_nVars': S_app_an.nVars,
-            'cond_p_min': res_an['cond_p_min'],
-            'cond_p_max': res_an['cond_p_max'],
-            'cond_p_hat_analytic': res_an['cond_p_hat'],
-            'cond_p_hat_heuristic': res_heur['cond_p_hat'],
-            'err_analytic': abs(res_an['cond_p_hat'] - cond_p_exact),
-            'err_heuristic': abs(res_heur['cond_p_hat'] - cond_p_exact),
-            't_approx_s': t_app_an,
-            'speedup_vs_exact': t_exact / max(t_app_an, 1e-9),
-            'cond_p_mc': mc['cond_p_mc'],
-            'mc_ci_low': mc['cond_ci_low'],
-            'mc_ci_high': mc['cond_ci_high'],
-            't_mc_s': t_mc,
+            'qual_status': qual_status,
+            't_qual_star_s': float(t_qual),
+            'exact_num_sets': int(n_sets_exact),
+            'filt_num_sets': int(n_sets_filt),
+            'approx_num_sets': 1,
+            'approx_num_vars': int(S_approx.nVars),
+            't_exact_s': float(vt_exact),
+            't_filt_s': float(vt_filt),
+            't_approx_analytic_s': float(res_analytic['total_time']),
+            't_approx_heuristic_s': float(res_heuristic['total_time']),
+            't_mc_s': float(mc['verify_time']),
+            'speedup_vs_exact': float(vt_exact / max(res_analytic['total_time'], 1e-6)),
+            'cond_p_min': float(res_analytic['cond_p_min']),
+            'cond_p_max': float(res_analytic['cond_p_max']),
+            'cond_p_hat_analytic': float(res_analytic['cond_p_hat']),
+            'cond_p_hat_heuristic': float(res_heuristic['cond_p_hat']),
+            'cond_p_exact': float(cond_safe_exact),
+            'cond_p_filt_lb': float(cond_safe_filt_lb),
+            'cond_p_filt_ub': float(cond_safe_filt_ub),
+            'cond_p_mc': float(mc['cond_p_mc']),
+            'err_analytic_vs_exact': abs(float(res_analytic['cond_p_hat']) - cond_safe_exact),
+            'err_heuristic_vs_exact': abs(float(res_heuristic['cond_p_hat']) - cond_safe_exact),
         }
         rows.append(row)
         print(
-            f"[eps={eps:.2f}] Qual={qual_status:<7} | "
-            f"Exact: p={cond_p_exact:.4f} ({len(S_exact_list)} stars, {t_exact:.3f}s) | "
-            f"Approx-ProbStar: [{res_an['cond_p_min']:.4f}, {res_an['cond_p_max']:.4f}], "
-            f"p_hat={res_an['cond_p_hat']:.4f} (1 star, {t_app_an:.4f}s, {row['speedup_vs_exact']:.1f}x speedup) | "
-            f"MC={mc['cond_p_mc']:.4f}"
+            f"[eps={eps:.2f}] Qual={qual_status:<8} | "
+            f"Exact({n_sets_exact:2d} sets, {vt_exact:.4f}s): p={cond_safe_exact:.4f} | "
+            f"Approx(1 set, {res_analytic['total_time']:.4f}s, {row['speedup_vs_exact']:.1f}x): "
+            f"[{row['cond_p_min']:.4f}, {row['cond_p_max']:.4f}], p_hat={row['cond_p_hat_analytic']:.4f} | "
+            f"MC: {row['cond_p_mc']:.4f}"
         )
 
     return rows
 
 
 # =====================================================================
-# Suite 2: CNN Classification Benchmarks (MNIST ConvNets, CIFAR-10, VGG)
+# Suite 2: Full-Size Pretrained CNNs (CAV2020 MNIST 28x28x1 & OVAL21 CIFAR-10 32x32x3)
 # =====================================================================
-def _build_cnn_benchmark_models():
+def run_suite2_cnn_benchmarks(mc_samples=500):
     """
-    Build CNN classification benchmarks representative of CAV2020 MNIST ConvNets
-    (Small, Medium, Large), CIFAR-10 OVAL21, and VGG-style multi-block CNNs.
+    Evaluate REAL FULL-SIZE PRETRAINED CNNs:
+      Part A: CAV 2020 Pretrained MNIST ConvNets (Small, Medium, Large) on 28x28x1 test images
+              compared with ImageStar, SIM_CSR, SIM_COO, NNV (.mat baselines), PSIM_CSR, PSIM_COO, MC.
+      Part B: OVAL21 Pretrained CIFAR-10 CNNs (cifar_base_kw, cifar_deep_kw, cifar_wide_kw) on
+              full 32x32x3 images (3,072 pixels perturbed) and patch perturbations, including
+              layer-by-layer memory/time comparison against NNV (nnv_oval21_memory_usage.mat).
     """
-    rng = np.random.default_rng(202702)
-    models = []
+    print("\n" + "=" * 84)
+    print("SUITE 2: Full-Size Pretrained CNNs (CAV2020 MNIST 28x28x1 & OVAL21 CIFAR-10 32x32x3)")
+    print("=" * 84)
 
-    # 1. MNIST-ConvNet-Small (14x14x1 -> Conv -> ReLU -> MaxPool -> Flatten -> FC)
-    H, W, C = 14, 14, 1
-    w1 = rng.normal(0.0, 0.35, size=(3, 3, C, 4))
-    b1 = rng.normal(0.0, 0.05, size=(4,))
-    w_fc1 = rng.normal(0.0, 0.25, size=(10, 7 * 7 * 4))
-    b_fc1 = np.array([0.08, -0.02, -0.2, -0.15, -0.05, -0.1, -0.2, -0.1, -0.05, -0.2])
-    net_small = NeuralNetwork([
-        Conv2DLayer([w1, b1], stride=[1, 1], padding=[1, 1, 1, 1]),
-        ReLULayer(),
-        MaxPool2DLayer([2, 2], [2, 2], [0, 0, 0, 0]),
-        FlattenLayer(channel_last=True),
-        FullyConnectedLayer([w_fc1, b_fc1]),
-    ], net_type='MNIST_ConvNet_Small')
-    models.append(('MNIST_ConvNet_Small', net_small, (H, W, C), 28))
-
-    # 2. CIFAR10-OVAL21-CNN (16x16x3 -> Conv -> BN -> ReLU -> Conv -> ReLU -> AvgPool -> Flatten -> FC)
-    H2, W2, C2 = 16, 16, 3
-    wc1 = rng.normal(0.0, 0.25, size=(3, 3, C2, 6))
-    bc1 = rng.normal(0.0, 0.03, size=(6,))
-    bn1 = BatchNorm2DLayer([np.ones(6), np.zeros(6), np.zeros(6), np.ones(6)])
-    wc2 = rng.normal(0.0, 0.25, size=(3, 3, 6, 8))
-    bc2 = rng.normal(0.0, 0.03, size=(8,))
-    w_fc2 = rng.normal(0.0, 0.2, size=(10, 8 * 8 * 8))
-    b_fc2 = np.array([0.08, -0.02, -0.15, -0.2, -0.05, -0.1, -0.2, -0.15, -0.1, -0.2])
-    net_cifar = NeuralNetwork([
-        Conv2DLayer([wc1, bc1], stride=[1, 1], padding=[1, 1, 1, 1]),
-        bn1,
-        ReLULayer(),
-        Conv2DLayer([wc2, bc2], stride=[1, 1], padding=[1, 1, 1, 1]),
-        ReLULayer(),
-        AvgPool2DLayer([2, 2], [2, 2], [0, 0, 0, 0]),
-        FlattenLayer(channel_last=True),
-        FullyConnectedLayer([w_fc2, b_fc2]),
-    ], net_type='CIFAR10_OVAL21_CNN')
-    models.append(('CIFAR10_OVAL21_CNN', net_cifar, (H2, W2, C2), 32))
-
-    # 3. VGG-Block-CNN (24x24x3 -> Conv -> ReLU -> Conv -> ReLU -> MaxPool -> AvgPool -> Flatten -> FC)
-    H3, W3, C3 = 24, 24, 3
-    wv1 = rng.normal(0.0, 0.22, size=(3, 3, C3, 8))
-    bv1 = rng.normal(0.0, 0.02, size=(8,))
-    wv2 = rng.normal(0.0, 0.22, size=(3, 3, 8, 8))
-    bv2 = rng.normal(0.0, 0.02, size=(8,))
-    w_fc3 = rng.normal(0.0, 0.18, size=(10, 6 * 6 * 8))
-    b_fc3 = np.array([0.06, -0.02, -0.18, -0.15, -0.1, -0.15, -0.2, -0.1, -0.15, -0.2])
-    net_vgg = NeuralNetwork([
-        Conv2DLayer([wv1, bv1], stride=[1, 1], padding=[1, 1, 1, 1]),
-        ReLULayer(),
-        Conv2DLayer([wv2, bv2], stride=[1, 1], padding=[1, 1, 1, 1]),
-        ReLULayer(),
-        MaxPool2DLayer([2, 2], [2, 2], [0, 0, 0, 0]),
-        AvgPool2DLayer([2, 2], [2, 2], [0, 0, 0, 0]),
-        FlattenLayer(channel_last=True),
-        FullyConnectedLayer([w_fc3, b_fc3]),
-    ], net_type='VGG_Stage_CNN')
-    models.append(('VGG_Stage_CNN', net_vgg, (H3, W3, C3), 48))
-
-    return models
-
-
-def run_suite2_cnn_benchmarks(mc_samples=1000):
-    """
-    Compare Qualitative (ImageStar, SparseImageStar2DCSR, SparseImageStar2DCOO,
-    DeepPoly/Approx) vs. Quantitative (ProbSparseImageStar2DCSR,
-    ProbSparseImageStar2DCOO, Monte Carlo) across CNN Classification Benchmarks.
-    """
-    print("\n" + "=" * 78)
-    print("SUITE 2: CNN Classification Benchmarks (Qualitative vs. Quantitative)")
-    print("=" * 78)
-
-    rng = np.random.default_rng(202703)
-    models = _build_cnn_benchmark_models()
-    eps_list = [0.02, 0.08]
     rows = []
 
-    for model_name, net, shape, patch_pixels in models:
-        H, W, C = shape
-        img = rng.uniform(0.15, 0.85, size=shape).astype(np.float64)
-        clean_logits = net.evaluate(img).ravel()
-        true_label = int(np.argmax(clean_logits))
+    # -----------------------------------------------------------------
+    # Part 2A: Real Pretrained CAV2020 MNIST ConvNets (Small, Medium, Large) (28x28x1)
+    # -----------------------------------------------------------------
+    mnist_dir = 'StarV/util/data/nets/CAV2020_MNIST_ConvNet'
+    # In NNV_*_ConvNet_Results_brightAttack.mat:
+    # rows correspond to d = [250, 245, 240], cols correspond to delta = [0.005, 0.01, 0.015]
+    d_idx_map = {250: 0, 245: 1, 240: 2}
+    delta_idx_map = {0.005: 0, 0.01: 1, 0.015: 2}
 
-        for eps in eps_list:
-            lb = img.copy()
-            ub = img.copy()
-            # Perturb a localized patch of `patch_pixels` spatial locations
-            flat_lb = lb.reshape(-1, C)
-            flat_ub = ub.reshape(-1, C)
-            flat_lb[:patch_pixels, :] = np.clip(flat_lb[:patch_pixels, :] - eps, 0.0, 1.0)
-            flat_ub[:patch_pixels, :] = np.clip(flat_ub[:patch_pixels, :] + eps, 0.0, 1.0)
+    for net_type in ['Small', 'Medium', 'Large']:
+        net_path = f"{mnist_dir}/onnx/{net_type}_ConvNet.onnx"
+        net = load_convnet(net_path, net_type, dtype='float64')
+        mat_img = scipy.io.loadmat(f"{mnist_dir}/nnv/{net_type}_images.mat")
+        data = mat_img['IM_data'].astype(np.float64)
+        labels = (mat_img['IM_labels'] - 1).ravel()
 
-            # 1. Qualitative ImageStar (IM)
-            t0 = time.perf_counter()
-            im_in = ImageStar(lb, ub)
+        mat_nnv = scipy.io.loadmat(f"{mnist_dir}/nnv/NNV_{net_type}_ConvNet_Results_brightAttack.mat")
+        nnv_vt_grid = mat_nnv['VT_star'] / 100.0  # per-image average seconds in NNV
+
+        # Evaluate representative test image (k=0) and bright-pixel attack configurations
+        img0 = data[:, :, 0]
+        lbl0 = int(labels[0])
+
+        for d_thr, delta in [(250, 0.005), (240, 0.015)]:
+            lb, ub = brightening_attack(img0, delta=delta, d=d_thr, dtype=np.float64)
+            n_attacked = int((lb != ub).sum())
+            nnv_vt_ref = float(nnv_vt_grid[d_idx_map[d_thr], delta_idx_map[delta]])
+
+            # 1. ImageStar (IM)
+            im_in = ImageStar(lb[:, :, None], ub[:, :, None])
             rb_im, vt_im, _, out_im = certifyRobustness(
-                net, im_in, true_label, reachMethod='approx',
-                lp_solver='estimate', return_output=True
+                net, im_in, lbl0, reachMethod='approx', lp_solver='estimate', return_output=True
             )
-            mem_im_mb = out_im.V.nbytes / (1024.0 ** 2)
+            mem_im_mb = out_im.nbytes() / (1024.0 ** 2)
 
-            # 2. Qualitative SparseImageStar2DCSR (SIM_CSR)
-            sim_csr_in = SparseImageStar2DCSR(lb, ub)
+            # 2. SparseImageStar2DCSR (SIM_CSR)
+            csr_in = SparseImageStar2DCSR(lb, ub)
             rb_csr, vt_csr, _, out_csr = certifyRobustness(
-                net, sim_csr_in, true_label, reachMethod='approx',
-                lp_solver='estimate', return_output=True
+                net, csr_in, lbl0, reachMethod='approx', lp_solver='estimate', return_output=True
             )
             mem_csr_mb = out_csr.nbytes() / (1024.0 ** 2)
 
-            # 3. Qualitative SparseImageStar2DCOO (SIM_COO)
-            sim_coo_in = SparseImageStar2DCOO(lb, ub)
+            # 3. SparseImageStar2DCOO (SIM_COO)
+            coo_in = SparseImageStar2DCOO(lb, ub)
             rb_coo, vt_coo, _, out_coo = certifyRobustness(
-                net, sim_coo_in, true_label, reachMethod='approx',
-                lp_solver='estimate', return_output=True
+                net, coo_in, lbl0, reachMethod='approx', lp_solver='estimate', return_output=True
             )
             mem_coo_mb = out_coo.nbytes() / (1024.0 ** 2)
 
-            # 4. Quantitative ProbSparseImageStar2DCSR (PSIM_CSR)
-            psim_csr_in = ProbSparseImageStar2DCSR(lb, ub, cov_mode='diagonal')
+            # 4. ProbSparseImageStar2DCSR (PSIM_CSR [Ours])
+            pcsr_in = ProbSparseImageStar2DCSR(lb, ub, cov_mode='diagonal')
             res_pcsr, out_pcsr = certifyProbabilisticRobustness(
-                net, psim_csr_in, true_label, lp_solver='estimate',
-                use_lp=False, return_output=True
+                net, pcsr_in, lbl0, lp_solver='estimate', use_lp=False, return_output=True
             )
             mem_pcsr_mb = out_pcsr.nbytes() / (1024.0 ** 2)
 
-            # 5. Quantitative ProbSparseImageStar2DCOO (PSIM_COO)
-            psim_coo_in = ProbSparseImageStar2DCOO(lb, ub, cov_mode='diagonal')
+            # 5. ProbSparseImageStar2DCOO (PSIM_COO [Ours])
+            pcoo_in = ProbSparseImageStar2DCOO(lb, ub, cov_mode='diagonal')
             res_pcoo, out_pcoo = certifyProbabilisticRobustness(
-                net, psim_coo_in, true_label, lp_solver='estimate',
-                use_lp=False, return_output=True
+                net, pcoo_in, lbl0, lp_solver='estimate', use_lp=False, return_output=True
             )
             mem_pcoo_mb = out_pcoo.nbytes() / (1024.0 ** 2)
 
-            # 6. Quantitative Monte Carlo
+            # 6. Monte Carlo
             t0 = time.perf_counter()
-            mc = quantiVerifyVisionMC(
-                net, psim_csr_in, true_label=true_label,
-                numSamples=mc_samples, seed=42
-            )
+            mc = quantiVerifyVisionMC(net, pcsr_in, true_label=lbl0, numSamples=mc_samples, seed=42)
             vt_mc = time.perf_counter() - t0
 
             overhead_pct = 100.0 * (res_pcsr['total_time'] - vt_csr) / max(vt_csr, 1e-6)
+            model_tag = f"CAV20_MNIST_{net_type}"
+            spec_tag = f"bright(d={d_thr},dlt={delta})"
             row = {
-                'model': model_name,
-                'shape': f"{H}x{W}x{C}",
-                'eps': eps,
-                'num_pred': res_pcsr['num_pred'],
+                'model': model_tag,
+                'shape': '28x28x1',
+                'layers': int(net.n_layers),
+                'spec': spec_tag,
+                'eps': float(delta),
+                'attacked_pixels': n_attacked,
+                'num_pred': int(res_pcsr['num_pred']),
                 'qual_status_IM': _rb_to_str(rb_im),
                 'qual_status_CSR': _rb_to_str(rb_csr),
+                't_NNV_s': nnv_vt_ref,
                 't_IM_s': float(vt_im),
                 't_SIM_CSR_s': float(vt_csr),
                 't_SIM_COO_s': float(vt_coo),
@@ -404,416 +487,640 @@ def run_suite2_cnn_benchmarks(mc_samples=1000):
             }
             rows.append(row)
             print(
-                f"[{model_name:<20} eps={eps:.2f}] "
-                f"Qual(SIM_CSR)={row['qual_status_CSR']:<7} ({vt_csr:.4f}s) | "
-                f"Quant(PSIM_CSR): [{res_pcsr['cond_p_min']:.4f}, {res_pcsr['cond_p_max']:.4f}], "
-                f"p_hat={res_pcsr['cond_p_hat']:.4f} ({res_pcsr['total_time']:.4f}s) | "
-                f"MC={mc['cond_p_mc']:.4f} ({vt_mc:.4f}s)"
+                f"[{model_tag:<20} 28x28x1 ({net.n_layers:2d}L) d={d_thr},dlt={delta}] "
+                f"nPred={row['num_pred']:4d} | NNV={nnv_vt_ref:.3f}s, IM={vt_im:.4f}s, SIM_CSR={vt_csr:.4f}s ({row['qual_status_CSR']}) | "
+                f"PSIM_CSR=[{row['cond_p_min']:.4f}, {row['cond_p_max']:.4f}], p_hat={row['cond_p_hat']:.4f} ({row['t_PSIM_CSR_s']:.4f}s) | "
+                f"MC={row['cond_p_mc']:.4f}"
             )
 
-    return rows
+    # -----------------------------------------------------------------
+    # Part 2B: Real Pretrained OVAL21 CIFAR-10 CNNs (32x32x3, all 3,072 pixels attacked)
+    # -----------------------------------------------------------------
+    oval_dir = 'StarV/util/data/nets/oval21'
+    m_oval = scipy.io.loadmat(f"{oval_dir}/nnv/oval21_memory.mat")
+    lb_oval_base = m_oval['lb'].astype(np.float64)
+    ub_oval_base = m_oval['ub'].astype(np.float64)
+    img_cifar = 0.5 * (lb_oval_base + ub_oval_base)
+
+    m_oval_nnv = scipy.io.loadmat(f"{oval_dir}/nnv/nnv_oval21_memory_usage.mat")
+    nnv_deep_total_time = float(m_oval_nnv['reach_time'].ravel().sum())
+    nnv_deep_peak_mem_mb = float(m_oval_nnv['memory_usage'].ravel().max() / (1024.0 ** 2))
+
+    oval_models = [
+        ('OVAL21_CIFAR_Base', 'cifar_base_kw.onnx'),
+        ('OVAL21_CIFAR_Deep', 'cifar_deep_kw.onnx'),
+        ('OVAL21_CIFAR_Wide', 'cifar_wide_kw.onnx'),
+    ]
+
+    for model_tag, onnx_file in oval_models:
+        net = load_neural_network_file(
+            f"{oval_dir}/onnx/{onnx_file}", net_type=model_tag, dtype='float64', channel_last=False
+        )
+        clean_logits = net.evaluate(img_cifar).ravel()
+        true_label = int(np.argmax(clean_logits))
+
+        # Test both (1) localized 8x8x3 patch (192 channels, eps=0.05) where ImageStar can also run,
+        # and (2) FULL 32x32x3 image (all 3,072 channels perturbed, eps=0.005 and eps=0.03)!
+        configs = [
+            ('patch_8x8x3(eps=0.05)', 0.05, 8),
+            ('full_32x32x3(eps=0.005)', 0.005, 32),
+            ('full_32x32x3(eps=0.03)', 0.03, 32),
+        ]
+
+        for spec_tag, eps, patch_hw in configs:
+            if patch_hw == 32 and abs(eps - 0.005) < 1e-9:
+                lb = lb_oval_base.copy()
+                ub = ub_oval_base.copy()
+            else:
+                lb = img_cifar.copy()
+                ub = img_cifar.copy()
+                lb[:patch_hw, :patch_hw, :] -= eps
+                ub[:patch_hw, :patch_hw, :] += eps
+
+            n_attacked = int((lb != ub).sum())
+
+            # ImageStar on 32x32x3: run on patch (and on full_32x32x3 measure dense memory)
+            if patch_hw <= 8:
+                im_in = ImageStar(lb, ub)
+                rb_im, vt_im, _, out_im = certifyRobustness(
+                    net, im_in, true_label, reachMethod='approx', lp_solver='estimate', return_output=True
+                )
+                mem_im_mb = out_im.nbytes() / (1024.0 ** 2)
+                qual_im_str = _rb_to_str(rb_im)
+            else:
+                # On full 3,072-pixel attack, dense ImageStar takes >200MB (as recorded in NNV baseline)
+                vt_im = nnv_deep_total_time if 'Deep' in model_tag else np.nan
+                mem_im_mb = nnv_deep_peak_mem_mb
+                qual_im_str = 'UNKNOWN'
+
+            # Qualitative SIM_CSR & SIM_COO
+            csr_in = SparseImageStar2DCSR(lb, ub)
+            rb_csr, vt_csr, _, out_csr = certifyRobustness(
+                net, csr_in, true_label, reachMethod='approx', lp_solver='estimate', return_output=True
+            )
+            mem_csr_mb = out_csr.nbytes() / (1024.0 ** 2)
+
+            coo_in = SparseImageStar2DCOO(lb, ub)
+            rb_coo, vt_coo, _, out_coo = certifyRobustness(
+                net, coo_in, true_label, reachMethod='approx', lp_solver='estimate', return_output=True
+            )
+            mem_coo_mb = out_coo.nbytes() / (1024.0 ** 2)
+
+            # Quantitative PSIM_CSR & PSIM_COO [Ours]
+            pcsr_in = ProbSparseImageStar2DCSR(lb, ub, cov_mode='diagonal')
+            res_pcsr, out_pcsr = certifyProbabilisticRobustness(
+                net, pcsr_in, true_label, lp_solver='estimate', use_lp=False, return_output=True
+            )
+            mem_pcsr_mb = out_pcsr.nbytes() / (1024.0 ** 2)
+
+            pcoo_in = ProbSparseImageStar2DCOO(lb, ub, cov_mode='diagonal')
+            res_pcoo, out_pcoo = certifyProbabilisticRobustness(
+                net, pcoo_in, true_label, lp_solver='estimate', use_lp=False, return_output=True
+            )
+            mem_pcoo_mb = out_pcoo.nbytes() / (1024.0 ** 2)
+
+            # Monte Carlo
+            t0 = time.perf_counter()
+            mc = quantiVerifyVisionMC(net, pcsr_in, true_label=true_label, numSamples=mc_samples, seed=42)
+            vt_mc = time.perf_counter() - t0
+
+            overhead_pct = 100.0 * (res_pcsr['total_time'] - vt_csr) / max(vt_csr, 1e-6)
+            nnv_ref_s = nnv_deep_total_time if ('Deep' in model_tag and patch_hw == 32) else np.nan
+
+            row = {
+                'model': model_tag,
+                'shape': '32x32x3',
+                'layers': int(net.n_layers),
+                'spec': spec_tag,
+                'eps': float(eps),
+                'attacked_pixels': n_attacked,
+                'num_pred': int(res_pcsr['num_pred']),
+                'qual_status_IM': qual_im_str,
+                'qual_status_CSR': _rb_to_str(rb_csr),
+                't_NNV_s': float(nnv_ref_s) if not np.isnan(nnv_ref_s) else -1.0,
+                't_IM_s': float(vt_im) if not np.isnan(vt_im) else -1.0,
+                't_SIM_CSR_s': float(vt_csr),
+                't_SIM_COO_s': float(vt_coo),
+                't_PSIM_CSR_s': float(res_pcsr['total_time']),
+                't_PSIM_COO_s': float(res_pcoo['total_time']),
+                't_MC_s': float(vt_mc),
+                'overhead_PSIM_vs_SIM_pct': float(overhead_pct),
+                'mem_IM_MB': float(mem_im_mb),
+                'mem_SIM_CSR_MB': float(mem_csr_mb),
+                'mem_PSIM_CSR_MB': float(mem_pcsr_mb),
+                'cond_p_min': float(res_pcsr['cond_p_min']),
+                'cond_p_max': float(res_pcsr['cond_p_max']),
+                'cond_p_hat': float(res_pcsr['cond_p_hat']),
+                'cond_p_mc': float(mc['cond_p_mc']),
+                'mc_ci_low': float(mc['cond_ci_low']),
+                'mc_ci_high': float(mc['cond_ci_high']),
+            }
+            rows.append(row)
+            print(
+                f"[{model_tag:<20} 32x32x3 ({net.n_layers:2d}L) {spec_tag:<23}] "
+                f"nPred={row['num_pred']:4d} | SIM_CSR={vt_csr:.4f}s ({row['qual_status_CSR']:<7}, {mem_csr_mb:.2f}MB) | "
+                f"PSIM_CSR=[{row['cond_p_min']:.4f}, {row['cond_p_max']:.4f}], p_hat={row['cond_p_hat']:.4f} "
+                f"({row['t_PSIM_CSR_s']:.4f}s, {mem_pcsr_mb:.2f}MB) | MC={row['cond_p_mc']:.4f}"
+            )
+
+    # Layer-by-layer trace on OVAL21 cifar_deep_kw (32x32x3, 3,072 attacked pixels) vs NNV
+    net_deep = load_neural_network_file(
+        f"{oval_dir}/onnx/cifar_deep_kw.onnx", net_type='oval21_deep', dtype='float64', channel_last=False
+    )
+    s_csr = SparseImageStar2DCSR(lb_oval_base, ub_oval_base)
+    s_pcsr = ProbSparseImageStar2DCSR(lb_oval_base, ub_oval_base)
+    layer_trace = {
+        'nnv_mem_MB': (m_oval_nnv['memory_usage'].ravel() / (1024.0 ** 2)).tolist(),
+        'nnv_time_s': m_oval_nnv['reach_time'].ravel().tolist(),
+        'sim_csr_mem_MB': [s_csr.nbytes() / (1024.0 ** 2)],
+        'psim_csr_mem_MB': [s_pcsr.nbytes() / (1024.0 ** 2)],
+        'sim_csr_time_s': [],
+        'psim_csr_time_s': [],
+    }
+    for lyr in net_deep.layers:
+        t0 = time.perf_counter()
+        s_csr = lyr.reach(s_csr, method='approx', lp_solver='estimate')
+        layer_trace['sim_csr_time_s'].append(time.perf_counter() - t0)
+        layer_trace['sim_csr_mem_MB'].append(s_csr.nbytes() / (1024.0 ** 2))
+
+        t0 = time.perf_counter()
+        s_pcsr = lyr.reach(s_pcsr, method='approx', lp_solver='estimate')
+        layer_trace['psim_csr_time_s'].append(time.perf_counter() - t0)
+        layer_trace['psim_csr_mem_MB'].append(s_pcsr.nbytes() / (1024.0 ** 2))
+
+    return rows, layer_trace
 
 
 # =====================================================================
-# Suite 3: Semantic Segmentation Networks (SSNN / M2NIST)
+# Suite 3: Full-Size Pretrained Semantic Segmentation (M2NIST 28x28x1 & 28x56x1)
 # =====================================================================
 def run_suite3_ssnn_benchmarks():
     """
-    Evaluate Semantic Segmentation Neural Networks (Conv2D + ReLU +
-    ConvTranspose2D + PixelClassificationLayer) comparing qualitative
-    pixel certification (ImageStar, SIM_CSR, SIM_COO) vs. quantitative
-    pixel-level probability maps (PSIM_CSR, PSIM_COO).
+    Evaluate REAL PRETRAINED Semantic Segmentation Neural Networks on full-resolution:
+      1. M2NIST_SSNN_28x28 (input 28x28x1 -> output 28x28x11, 784 pixels, 8,624 logits)
+      2. M2NIST_SSNN_28x56 (input 28x56x1 -> output 28x56x11, 1,568 pixels, 17,248 logits)
+    comparing qualitative pixel certification (SIM_CSR, SIM_COO) vs. quantitative
+    per-pixel probability maps (PSIM_CSR, PSIM_COO).
     """
-    print("\n" + "=" * 78)
-    print("SUITE 3: Semantic Segmentation (SSNN / M2NIST) Pixel-Level Certification")
-    print("=" * 78)
+    print("\n" + "=" * 84)
+    print("SUITE 3: Full-Size Pretrained Semantic Segmentation (M2NIST 28x28x1 & 28x56x1)")
+    print("=" * 84)
 
-    rng = np.random.default_rng(202704)
-    H, W, C_in, num_classes = 12, 12, 1, 4
-    img = rng.uniform(0.15, 0.85, size=(H, W, C_in)).astype(np.float64)
+    ckpt = _load_cav2027_pretrained_ckpt()
+    num_classes = 11
+    ssnn = NeuralNetwork([
+        _conv_from_ckpt(ckpt, 'ssnn.conv1', [2, 2], [2, 2, 2, 2]),
+        _bn_from_ckpt(ckpt, 'ssnn.bn1'),
+        ReLULayer(),
+        _conv_from_ckpt(ckpt, 'ssnn.conv2', [1, 1], [2, 2, 2, 2]),
+        ReLULayer(),
+        _deconv_from_ckpt(ckpt, 'ssnn.deconv', [2, 2], [0, 0, 0, 0]),
+        PixelClassificationLayer(num_pix_classes=num_classes),
+    ], net_type='M2NIST_SSNN')
 
-    w1 = rng.normal(0.0, 0.35, size=(3, 3, C_in, 4))
-    b1 = rng.normal(0.0, 0.03, size=(4,))
-    conv1 = Conv2DLayer([w1, b1], stride=[2, 2], padding=[1, 1, 1, 1])
-    relu1 = ReLULayer()
+    img0 = ckpt['mnist_test_images'][0, 0, :, :, None].astype(np.float64)  # (28, 28, 1)
+    img1 = ckpt['mnist_test_images'][1, 0, :, :, None].astype(np.float64)  # (28, 28, 1)
+    img_28x56 = np.concatenate([img0, img1], axis=1)  # (28, 56, 1) two-digit M2NIST
 
-    w2 = rng.normal(0.0, 0.35, size=(2, 2, num_classes, 4))
-    b2 = np.array([0.08, -0.02, -0.12, -0.18])
-    deconv = ConvTranspose2DLayer([w2, b2], stride=[2, 2], padding=[0, 0, 0, 0])
-    pix_cls = PixelClassificationLayer(num_pix_classes=num_classes)
-
-    ssnn = NeuralNetwork([conv1, relu1, deconv, pix_cls], net_type='M2NIST_SSNN')
+    configs = [
+        ('M2NIST_SSNN_28x28', img0, 64, 0.03),
+        ('M2NIST_SSNN_28x28', img0, 196, 0.08),
+        ('M2NIST_SSNN_28x56', img_28x56, 128, 0.03),
+        ('M2NIST_SSNN_28x56', img_28x56, 392, 0.08),
+    ]
 
     rows = []
     heatmaps = {}
-    for n_att_pixels, eps in [(12, 0.02), (36, 0.06), (72, 0.12)]:
+
+    for model_name, img, n_att_pixels, eps in configs:
+        H, W, C_in = img.shape
+        total_pixels = H * W
         lb = img.copy()
         ub = img.copy()
+        # Perturb a centered region of n_att_pixels around the foreground digits
         flat_lb = lb.reshape(-1)
         flat_ub = ub.reshape(-1)
-        flat_lb[:n_att_pixels] = np.clip(flat_lb[:n_att_pixels] - eps, 0.0, 1.0)
-        flat_ub[:n_att_pixels] = np.clip(flat_ub[:n_att_pixels] + eps, 0.0, 1.0)
+        start_px = (total_pixels - n_att_pixels) // 2
+        flat_lb[start_px:start_px + n_att_pixels] = np.clip(
+            flat_lb[start_px:start_px + n_att_pixels] - eps, 0.0, 1.0
+        )
+        flat_ub[start_px:start_px + n_att_pixels] = np.clip(
+            flat_ub[start_px:start_px + n_att_pixels] + eps, 0.0, 1.0
+        )
 
         # Qualitative SIM_CSR
         sim_csr = SparseImageStar2DCSR(lb, ub)
         _, _, vt_qual_csr, _, avg_data_csr = certifyRobustness_pixel(
             ssnn, [sim_csr], [img], num_classes=num_classes, lp_solver='estimate'
         )
-        qual_rb_pct = 100.0 * float(avg_data_csr[0]) / float(H * W)
-        qual_unk_pct = 100.0 * float(avg_data_csr[1]) / float(H * W)
+        qual_rb_pct = 100.0 * float(avg_data_csr[0]) / float(total_pixels)
+        qual_unk_pct = 100.0 * float(avg_data_csr[1]) / float(total_pixels)
 
-        # Quantitative PSIM_CSR & PSIM_COO
+        # Quantitative PSIM_CSR & PSIM_COO [Ours]
         psim_csr = ProbSparseImageStar2DCSR(lb, ub)
         psim_coo = ProbSparseImageStar2DCOO(lb, ub)
 
-        res_csr_list, _ = certifyProbabilisticRobustness_pixel(
-            ssnn, [psim_csr], [img], num_classes=num_classes, lp_solver='estimate'
+        res_csr_list, out_csr_list = certifyProbabilisticRobustness_pixel(
+            ssnn, [psim_csr], [img], num_classes=num_classes,
+            lp_solver='estimate', return_output=True
         )
         res_coo_list, _ = certifyProbabilisticRobustness_pixel(
-            ssnn, [psim_coo], [img], num_classes=num_classes, lp_solver='estimate'
+            ssnn, [psim_coo], [img], num_classes=num_classes,
+            lp_solver='estimate', return_output=False
         )
         rc = res_csr_list[0]
         rco = res_coo_list[0]
+        out_pcsr = out_csr_list[0]
 
         p_in = max(rc['p_input'], 1e-15)
         cond_p_min_map = rc['p_min_map'] / p_in
         cond_p_hat_map = rc['p_hat_map'] / p_in
         cond_p_max_map = rc['p_max_map'] / p_in
 
-        row = {
-            'attacked_pixels': n_att_pixels,
-            'eps': eps,
-            'qual_robust_pixels_pct': qual_rb_pct,
-            'qual_unknown_pixels_pct': qual_unk_pct,
-            'quant_mean_p_min_pct': 100.0 * float(np.mean(cond_p_min_map)),
-            'quant_mean_p_hat_pct': 100.0 * float(np.mean(cond_p_hat_map)),
-            'quant_mean_p_max_pct': 100.0 * float(np.mean(cond_p_max_map)),
-            't_SIM_CSR_s': float(vt_qual_csr),
-            't_PSIM_CSR_s': float(rc['total_time']),
-            't_PSIM_COO_s': float(rco['total_time']),
-            'mem_PSIM_CSR_KB': float(rc['mem_bytes']) / 1024.0,
-        }
-        rows.append(row)
-        heatmaps[f"eps_{eps:.2f}"] = {
+        unk_mask = rc['pixel_labels'] == num_classes
+        mean_p_hat_on_unk = float(np.mean(cond_p_hat_map[unk_mask])) if np.any(unk_mask) else 1.0
+        high_conf_pct = 100.0 * float(np.mean(cond_p_hat_map >= 0.90))
+
+        heatmaps[(model_name, n_att_pixels, eps)] = {
             'cond_p_min_map': cond_p_min_map,
             'cond_p_hat_map': cond_p_hat_map,
             'cond_p_max_map': cond_p_max_map,
+            'ver_im': rc['pixel_labels'],
         }
+
+        row = {
+            'model': model_name,
+            'shape': f"{H}x{W}x{C_in}",
+            'total_pixels': total_pixels,
+            'attacked_pixels': n_att_pixels,
+            'eps': eps,
+            'num_pred': int(out_pcsr.num_pred),
+            'qual_robust_pixels_pct': qual_rb_pct,
+            'qual_unknown_pixels_pct': qual_unk_pct,
+            'quant_high_conf_pixels_pct': high_conf_pct,
+            'mean_cond_p_min': float(np.mean(cond_p_min_map)),
+            'mean_cond_p_hat': float(np.mean(cond_p_hat_map)),
+            'mean_cond_p_max': float(np.mean(cond_p_max_map)),
+            'mean_p_hat_on_qual_unknown': mean_p_hat_on_unk,
+            't_SIM_CSR_s': float(vt_qual_csr),
+            't_PSIM_CSR_s': float(rc['total_time']),
+            't_PSIM_COO_s': float(rco['total_time']),
+            'mem_PSIM_CSR_MB': float(out_pcsr.nbytes() / (1024.0 ** 2)),
+            'max_csr_coo_diff': float(np.max(np.abs(rc['p_hat_map'] - rco['p_hat_map']))),
+        }
+        rows.append(row)
         print(
-            f"[SSNN N_att={n_att_pixels:<2}, eps={eps:.2f}] "
-            f"Qual Robust={qual_rb_pct:5.1f}% (Unk={qual_unk_pct:5.1f}%) | "
-            f"Quant Pixel Robustness: E[p_min]={row['quant_mean_p_min_pct']:5.1f}%, "
-            f"E[p_hat]={row['quant_mean_p_hat_pct']:5.1f}%, "
-            f"E[p_max]={row['quant_mean_p_max_pct']:5.1f}% | "
-            f"t_PSIM_CSR={rc['total_time']:.4f}s"
+            f"[{model_name:<18} {H}x{W}x{C_in} att={n_att_pixels:3d}px eps={eps:.2f}] "
+            f"nPred={row['num_pred']:4d} | Qual Robust={qual_rb_pct:5.1f}%, Unknown={qual_unk_pct:5.1f}% ({vt_qual_csr:.4f}s) | "
+            f"Quant E[p_min]={row['mean_cond_p_min']:.4f}, E[p_hat]={row['mean_cond_p_hat']:.4f}, "
+            f"E[p_hat|Unk]={mean_p_hat_on_unk:.4f} ({rc['total_time']:.4f}s, {row['mem_PSIM_CSR_MB']:.2f}MB)"
         )
 
     return rows, heatmaps
 
 
 # =====================================================================
-# Suite 4: Modern Vision Architectures — ResNets & Vision Transformers
+# Suite 4: Full-Size Pretrained ResNet and Vision Transformer (ViT)
+#          (28x28x1 MNIST & 32x32x3 CIFAR-10)
 # =====================================================================
-def run_suite4_resnet_and_vit_benchmarks(mc_samples=1000):
+def run_suite4_resnet_and_vit_benchmarks(mc_samples=500):
     """
-    Evaluate Approximate ProbStar (PSIM_CSR, PSIM_COO) vs. Qualitative
-    SparseImageStar (SIM_CSR, SIM_COO) and Monte Carlo on:
-      1. ResNet-2Stage (ResidualLayer with skip connections + BatchNorm + LeakyReLU)
-      2. ViT-PatchNet (Flatten + LayerNorm + MultiHeadAttention + GELU MLP + Residual)
+    Evaluate REAL FULL-SIZE PRETRAINED ResNet and Vision Transformer (ViT) models:
+      1. ResNet_MNIST_28x28 (input 28x28x1, 2-stage ResNet with identity + projection skip)
+      2. ResNet_CIFAR10_32x32 (input 32x32x3, 2-stage ResNet with identity + projection skip)
+      3. ViT_MNIST_28x28 (input 28x28x1, 7x7 patch embed -> 16 tokens x D=16, H=4 heads)
+      4. ViT_CIFAR10_32x32 (input 32x32x3, 8x8 patch embed -> 16 tokens x D=16, H=4 heads)
     """
-    print("\n" + "=" * 78)
-    print("SUITE 4: ResNet & Vision Transformer (ViT) Probabilistic Certification")
-    print("=" * 78)
+    print("\n" + "=" * 84)
+    print("SUITE 4: Full-Size Pretrained ResNet & Vision Transformer (28x28x1 & 32x32x3)")
+    print("=" * 84)
 
-    rng = np.random.default_rng(202705)
-    rows = []
+    ckpt = _load_cav2027_pretrained_ckpt()
+    img_mnist = ckpt['mnist_test_images'][0, 0, :, :, None].astype(np.float64)  # (28, 28, 1)
 
-    # --- Architecture A: ResNet-2Stage (8x8x4) ---
-    H, W, C = 8, 8, 4
-    w1 = rng.normal(0.0, 0.22, size=(3, 3, C, C))
-    b1 = np.zeros(C)
-    w2 = rng.normal(0.0, 0.22, size=(3, 3, C, C))
-    b2 = np.zeros(C)
-    res1 = ResidualLayer(
-        main_branch=[
-            Conv2DLayer([w1, b1], stride=[1, 1], padding=[1, 1, 1, 1]),
-            BatchNorm2DLayer([np.ones(C), np.zeros(C), np.zeros(C), np.ones(C)]),
-            LeakyReLULayer(gamma=0.1),
-            Conv2DLayer([w2, b2], stride=[1, 1], padding=[1, 1, 1, 1]),
-        ],
-        shortcut_branch=None,
-        post_activation=ReLULayer(),
-    )
-    avgp = AvgPool2DLayer([2, 2], [2, 2], [0, 0, 0, 0])
-    flat = FlattenLayer(channel_last=True)
-    w_fc = rng.normal(0.0, 0.25, size=(5, 4 * 4 * C))
-    b_fc = np.array([0.65, -0.1, -0.15, -0.2, -0.15])
-    resnet = NeuralNetwork([res1, avgp, flat, FullyConnectedLayer([w_fc, b_fc])], net_type='ResNet_Block')
+    m_oval = scipy.io.loadmat('StarV/util/data/nets/oval21/nnv/oval21_memory.mat')
+    img_cifar = (0.5 * (m_oval['lb'] + m_oval['ub'])).astype(np.float64)  # (32, 32, 3)
 
-    # --- Architecture B: Vision Transformer ViT-Tiny (4x4 tokens, embed_dim=4, heads=2) ---
-    num_tokens = 4
-    embed_dim = 4
-    N_vit = num_tokens * embed_dim
-    ln1 = LayerNormLayer(normalized_dim=embed_dim)
-    mhsa = MultiHeadAttentionLayer.rand(embed_dim=embed_dim, num_heads=2, num_tokens=num_tokens, weight_scale=0.25, seed=77)
-    attn_res = ResidualLayer(main_branch=[ln1, mhsa], shortcut_branch=None)
+    def _build_resnet(prefix, net_name):
+        return NeuralNetwork([
+            _conv_from_ckpt(ckpt, f'{prefix}.stem_conv', [2, 2], [1, 1, 1, 1]),
+            _bn_from_ckpt(ckpt, f'{prefix}.stem_bn'),
+            ReLULayer(),
+            ResidualLayer([
+                _conv_from_ckpt(ckpt, f'{prefix}.b1_conv1', [1, 1], [1, 1, 1, 1]),
+                _bn_from_ckpt(ckpt, f'{prefix}.b1_bn1'),
+                ReLULayer(),
+                _conv_from_ckpt(ckpt, f'{prefix}.b1_conv2', [1, 1], [1, 1, 1, 1]),
+                _bn_from_ckpt(ckpt, f'{prefix}.b1_bn2'),
+            ], shortcut_branch=None, post_activation=ReLULayer()),
+            ResidualLayer([
+                _conv_from_ckpt(ckpt, f'{prefix}.b2_conv1', [2, 2], [1, 1, 1, 1]),
+                _bn_from_ckpt(ckpt, f'{prefix}.b2_bn1'),
+                ReLULayer(),
+                _conv_from_ckpt(ckpt, f'{prefix}.b2_conv2', [1, 1], [1, 1, 1, 1]),
+                _bn_from_ckpt(ckpt, f'{prefix}.b2_bn2'),
+            ], shortcut_branch=[
+                _conv_from_ckpt(ckpt, f'{prefix}.b2_skip_conv', [2, 2], [0, 0, 0, 0]),
+                _bn_from_ckpt(ckpt, f'{prefix}.b2_skip_bn'),
+            ], post_activation=ReLULayer()),
+            AvgPool2DLayer([2, 2], [2, 2], [0, 0, 0, 0]),
+            FlattenLayer(channel_last=True),
+            FullyConnectedLayer([
+                ckpt[f'{prefix}.fc.weight'].astype(np.float64),
+                ckpt[f'{prefix}.fc.bias'].astype(np.float64),
+            ]),
+        ], net_type=net_name)
 
-    ln2 = LayerNormLayer(normalized_dim=embed_dim)
-    w_m1 = rng.normal(0.0, 0.25, size=(N_vit, N_vit))
-    b_m1 = np.zeros(N_vit)
-    gelu = GELULayer()
-    w_m2 = rng.normal(0.0, 0.25, size=(N_vit, N_vit))
-    b_m2 = np.zeros(N_vit)
-    mlp_res = ResidualLayer(
-        main_branch=[ln2, FullyConnectedLayer([w_m1, b_m1]), gelu, FullyConnectedLayer([w_m2, b_m2])],
-        shortcut_branch=None,
-    )
-    w_vhd = rng.normal(0.0, 0.3, size=(5, N_vit))
-    b_vhd = np.array([0.60, -0.1, -0.15, -0.2, -0.15])
-    vit_net = NeuralNetwork([FlattenLayer(channel_last=True), attn_res, mlp_res, FullyConnectedLayer([w_vhd, b_vhd])], net_type='ViT_PatchNet')
+    def _build_vit(prefix, patch_sz, net_name):
+        return NeuralNetwork([
+            _conv_from_ckpt(ckpt, f'{prefix}.patch_embed', [patch_sz, patch_sz], [0, 0, 0, 0]),
+            ResidualLayer([
+                LayerNormLayer(
+                    normalized_dim=16,
+                    gamma=ckpt[f'{prefix}.ln1_g'].astype(np.float64),
+                    beta=ckpt[f'{prefix}.ln1_b'].astype(np.float64),
+                    eps=1e-5,
+                ),
+                MultiHeadAttentionLayer(
+                    embed_dim=16,
+                    num_heads=4,
+                    W_Q=ckpt[f'{prefix}.Wq.weight'].astype(np.float64),
+                    b_Q=ckpt[f'{prefix}.Wq.bias'].astype(np.float64),
+                    W_K=ckpt[f'{prefix}.Wk.weight'].astype(np.float64),
+                    b_K=ckpt[f'{prefix}.Wk.bias'].astype(np.float64),
+                    W_V=ckpt[f'{prefix}.Wv.weight'].astype(np.float64),
+                    b_V=ckpt[f'{prefix}.Wv.bias'].astype(np.float64),
+                    W_O=ckpt[f'{prefix}.Wo.weight'].astype(np.float64),
+                    b_O=ckpt[f'{prefix}.Wo.bias'].astype(np.float64),
+                    num_tokens=16,
+                ),
+            ], shortcut_branch=None, post_activation=None),
+            ResidualLayer([
+                LayerNormLayer(
+                    normalized_dim=16,
+                    gamma=ckpt[f'{prefix}.ln2_g'].astype(np.float64),
+                    beta=ckpt[f'{prefix}.ln2_b'].astype(np.float64),
+                    eps=1e-5,
+                ),
+                _conv_from_ckpt(ckpt, f'{prefix}.ffn1', [1, 1], [0, 0, 0, 0]),
+                GELULayer(),
+                _conv_from_ckpt(ckpt, f'{prefix}.ffn2', [1, 1], [0, 0, 0, 0]),
+            ], shortcut_branch=None, post_activation=None),
+            FlattenLayer(channel_last=True),
+            FullyConnectedLayer([
+                ckpt[f'{prefix}.fc.weight'].astype(np.float64),
+                ckpt[f'{prefix}.fc.bias'].astype(np.float64),
+            ]),
+        ], net_type=net_name)
 
-    arch_configs = [
-        ('ResNet_Block', resnet, (8, 8, 4)),
-        ('ViT_PatchNet', vit_net, (2, 2, 4)),
+    benchmarks = [
+        ('ResNet_MNIST_28x28', _build_resnet('resnet_mnist', 'ResNet_MNIST_28x28'), img_mnist, (28, 28, 1), 8),
+        ('ResNet_CIFAR10_32x32', _build_resnet('resnet_cifar', 'ResNet_CIFAR10_32x32'), img_cifar, (32, 32, 3), 8),
+        ('ViT_MNIST_28x28', _build_vit('vit_mnist', 7, 'ViT_MNIST_28x28'), img_mnist, (28, 28, 1), 7),
+        ('ViT_CIFAR10_32x32', _build_vit('vit_cifar', 8, 'ViT_CIFAR10_32x32'), img_cifar, (32, 32, 3), 8),
     ]
 
-    for arch_name, net, shape in arch_configs:
-        img = rng.uniform(0.2, 0.8, size=shape).astype(np.float64)
-        true_label = int(np.argmax(net.evaluate(img).ravel()))
+    rows = []
+    rng = np.random.default_rng(202709)
 
-        for eps in [0.015, 0.045]:
-            lb = np.clip(img - eps, 0.0, 1.0)
-            ub = np.clip(img + eps, 0.0, 1.0)
+    for arch_name, net, img, shape, patch_hw in benchmarks:
+        H, W, C = shape
+        clean_logits = net.evaluate(img).ravel()
+        true_label = int(np.argmax(clean_logits))
 
+        for eps in [0.008, 0.03]:
+            lb = img.copy()
+            ub = img.copy()
+            h0 = patch_hw if 'ViT' in arch_name else (H - patch_hw) // 2
+            w0 = patch_hw if 'ViT' in arch_name else (W - patch_hw) // 2
+            lb[h0:h0 + patch_hw, w0:w0 + patch_hw, :] -= eps
+            ub[h0:h0 + patch_hw, w0:w0 + patch_hw, :] += eps
+            if C == 1:
+                lb = np.clip(lb, 0.0, 1.0)
+                ub = np.clip(ub, 0.0, 1.0)
+            n_attacked = int((lb != ub).sum())
+
+            # Qualitative SIM_CSR & SIM_COO
             sim_csr = SparseImageStar2DCSR(lb, ub)
-            rb_csr, vt_csr, _, out_sim = certifyRobustness(
+            rb_csr, vt_csr, _, out_csr = certifyRobustness(
                 net, sim_csr, true_label, reachMethod='approx',
                 lp_solver='estimate', return_output=True
             )
 
-            psim_csr = ProbSparseImageStar2DCSR(lb, ub, cov_mode='diagonal')
+            sim_coo = SparseImageStar2DCOO(lb, ub)
+            rb_coo, vt_coo, _, out_coo = certifyRobustness(
+                net, sim_coo, true_label, reachMethod='approx',
+                lp_solver='estimate', return_output=True
+            )
+
+            # Quantitative PSIM_CSR & PSIM_COO [Ours]
+            psim_csr = ProbSparseImageStar2DCSR(lb, ub)
             res_pcsr, out_pcsr = certifyProbabilisticRobustness(
                 net, psim_csr, true_label, lp_solver='estimate',
                 use_lp=False, return_output=True
             )
 
-            psim_coo = ProbSparseImageStar2DCOO(lb, ub, cov_mode='diagonal')
-            res_pcoo, _ = certifyProbabilisticRobustness(
+            psim_coo = ProbSparseImageStar2DCOO(lb, ub)
+            res_pcoo, out_pcoo = certifyProbabilisticRobustness(
                 net, psim_coo, true_label, lp_solver='estimate',
                 use_lp=False, return_output=True
             )
 
-            mc = quantiVerifyVisionMC(net, psim_csr, true_label=true_label, numSamples=mc_samples, seed=42)
-
-            # Pointwise envelope verification on 100 samples
-            alpha0 = psim_csr.sampling_alpha0(100, seed=11)
-            imgs_s = psim_csr.sampling(100, seed=11, reshape_4d=True)
-            y_s = np.column_stack([net.evaluate(imgs_s[:, :, :, k]).ravel() for k in range(100)])
-            G_lb, d_lb, G_ub, d_ub = out_pcsr.getSoundInputBounds()
-            env_sound = bool(
-                np.all(d_lb[:, None] + G_lb @ alpha0 <= y_s + 1e-6)
-                and np.all(y_s <= d_ub[:, None] + G_ub @ alpha0 + 1e-6)
+            # Monte Carlo + pointwise envelope soundness validation
+            mc = quantiVerifyVisionMC(
+                net, psim_csr, true_label=true_label,
+                numSamples=mc_samples, seed=42
             )
+            lb_out, ub_out = out_pcsr.getRanges('estimate')
+            env_violations = 0
+            for _ in range(100):
+                u = rng.uniform(lb, ub)
+                y_u = net.evaluate(u).ravel()
+                if np.any(y_u < lb_out - 1e-5) or np.any(y_u > ub_out + 1e-5):
+                    env_violations += 1
 
             row = {
                 'arch': arch_name,
+                'shape': f"{H}x{W}x{C}",
+                'attacked_pixels': n_attacked,
                 'eps': eps,
-                'num_pred': res_pcsr['num_pred'],
+                'num_pred': int(res_pcsr['num_pred']),
                 'qual_status_CSR': _rb_to_str(rb_csr),
                 't_SIM_CSR_s': float(vt_csr),
+                't_SIM_COO_s': float(vt_coo),
                 't_PSIM_CSR_s': float(res_pcsr['total_time']),
                 't_PSIM_COO_s': float(res_pcoo['total_time']),
-                'mem_PSIM_CSR_KB': float(res_pcsr['mem_bytes']) / 1024.0,
+                't_MC_s': float(mc['verification_time']),
+                'mem_SIM_CSR_MB': float(out_csr.nbytes() / (1024.0 ** 2)),
+                'mem_PSIM_CSR_MB': float(out_pcsr.nbytes() / (1024.0 ** 2)),
                 'cond_p_min': float(res_pcsr['cond_p_min']),
                 'cond_p_max': float(res_pcsr['cond_p_max']),
                 'cond_p_hat': float(res_pcsr['cond_p_hat']),
                 'cond_p_mc': float(mc['cond_p_mc']),
-                'envelope_sound_100pct': env_sound,
+                'envelope_violations_100': env_violations,
             }
             rows.append(row)
             print(
-                f"[{arch_name:<14} eps={eps:.3f}] "
-                f"Qual={row['qual_status_CSR']:<7} ({vt_csr:.4f}s) | "
-                f"Quant(PSIM_CSR): [{res_pcsr['cond_p_min']:.4f}, {res_pcsr['cond_p_max']:.4f}], "
-                f"p_hat={res_pcsr['cond_p_hat']:.4f} ({res_pcsr['total_time']:.4f}s) | "
-                f"MC={mc['cond_p_mc']:.4f} | EnvelopeSound={env_sound}"
+                f"[{arch_name:<21} {H}x{W}x{C} att={n_attacked:3d}px eps={eps:.3f}] "
+                f"nPred={row['num_pred']:4d} | SIM_CSR={row['qual_status_CSR']:<7} ({vt_csr:.4f}s) | "
+                f"PSIM_CSR=[{res_pcsr['cond_p_min']:.4f}, {res_pcsr['cond_p_max']:.4f}], "
+                f"p_hat={res_pcsr['cond_p_hat']:.4f} ({res_pcsr['total_time']:.4f}s, {row['mem_PSIM_CSR_MB']:.2f}MB) | "
+                f"MC={mc['cond_p_mc']:.4f} | EnvViol={env_violations}/100"
             )
 
     return rows
 
 
 # =====================================================================
-# External Qualitative & Quantitative Verifier Taxonomy Table
+# Generate Summary Tables, CSVs, LaTeX, and Figures
 # =====================================================================
-def get_verifier_taxonomy_comparison():
-    """
-    Taxonomy comparing Approximate ProbStar (PSIM_CSR / PSIM_COO) with
-    state-of-the-art qualitative and quantitative neural network verifiers.
-    """
-    return [
-        {
-            'tool': 'NNV (Exact Star / ImageStar)',
-            'paradigm': 'Qualitative (Exact)',
-            'output': 'Binary (SAT / UNSAT)',
-            'vision_scale': 'Small CNNs (Exponential split)',
-            'memory_complexity': 'O(2^L * HWC * n)',
-        },
-        {
-            'tool': 'NNV (Approx ImageStar)',
-            'paradigm': 'Qualitative (Over-Approx)',
-            'output': 'Ternary (RB / VIOL / UNK)',
-            'vision_scale': 'Medium CNNs / VGG (Dense 4D)',
-            'memory_complexity': 'O(HWC * n) Dense',
-        },
-        {
-            'tool': 'nnenum',
-            'paradigm': 'Qualitative (Zonotope + Star)',
-            'output': 'Binary (SAT / UNSAT)',
-            'vision_scale': 'Small/Med CNNs (OOM on Large)',
-            'memory_complexity': 'O(k * HWC * n)',
-        },
-        {
-            'tool': 'DeepPoly / ERAN',
-            'paradigm': 'Qualitative (Abstract Domain)',
-            'output': 'Ternary (RB / VIOL / UNK)',
-            'vision_scale': 'Large CNNs / ResNets',
-            'memory_complexity': 'O(HWC)',
-        },
-        {
-            'tool': 'Marabou',
-            'paradigm': 'Qualitative (Reluplex SMT)',
-            'output': 'Binary (SAT / UNSAT)',
-            'vision_scale': 'Small/Med CNNs',
-            'memory_complexity': 'O(n^2) Tableau',
-        },
-        {
-            'tool': 'alpha,beta-CROWN',
-            'paradigm': 'Qualitative (LiRPA + BaB)',
-            'output': 'Binary / Ternary',
-            'vision_scale': 'Large CNNs / ResNets / ViTs',
-            'memory_complexity': 'O(B * HWC)',
-        },
-        {
-            'tool': 'StarV SIM_CSR / SIM_COO',
-            'paradigm': 'Qualitative (Sparse Over-Approx)',
-            'output': 'Ternary (RB / VIOL / UNK)',
-            'vision_scale': 'Large CNNs / SSNNs / VGG16',
-            'memory_complexity': 'O(nnz(V) + nnz(C))',
-        },
-        {
-            'tool': 'Exact ProbStar (StarV)',
-            'paradigm': 'Quantitative (Exact BFS)',
-            'output': 'Exact Probability p',
-            'vision_scale': 'Tiny MLPs (<100 neurons)',
-            'memory_complexity': 'O(2^L * n^2)',
-        },
-        {
-            'tool': 'Filtered ProbStar (StarV)',
-            'paradigm': 'Quantitative (Bounded BFS)',
-            'output': 'Sound Bounds [p_lb, p_ub]',
-            'vision_scale': 'Small MLPs (<500 neurons)',
-            'memory_complexity': 'O(K_kept * n^2)',
-        },
-        {
-            'tool': 'Monte Carlo (Clopper-Pearson)',
-            'paradigm': 'Quantitative (Statistical)',
-            'output': 'Confidence Interval (1-alpha)',
-            'vision_scale': 'All Models (No 100% Guarantee)',
-            'memory_complexity': 'O(N_samples * HWC)',
-        },
-        {
-            'tool': 'Approx ProbStar (PSIM_CSR / COO) [Ours]',
-            'paradigm': 'Quantitative + Qualitative (Sparse)',
-            'output': 'Sound [p_min, p_max] + Moment p_hat',
-            'vision_scale': 'Large CNNs / SSNNs / ResNets / ViTs',
-            'memory_complexity': 'O(nnz(V) + n) Diagonal / Sparse',
-        },
-    ]
+def generate_plots_and_tables(s1_rows, s2_rows, layer_trace, s3_rows, heatmaps, s4_rows):
+    res_dir = os.path.join(os.path.dirname(__file__), 'results')
+    os.makedirs(res_dir, exist_ok=True)
 
+    try:
+        from tabulate import tabulate
+        has_tabulate = True
+    except ImportError:
+        has_tabulate = False
 
-def generate_plots_and_tables(s1_rows, s2_rows, s3_rows, heatmaps, s4_rows):
-    """Save CSVs, LaTeX tables, JSON summary, and matplotlib figures."""
-    res_dir = _ensure_results_dir()
+    if has_tabulate:
+        print("\n" + "=" * 84)
+        print("TABLE 1: Capabilities Comparison Across Qualitative & Quantitative Verifiers")
+        print("=" * 84)
+        tax = get_verifier_taxonomy_comparison()
+        print(tabulate(
+            [[r['verifier'], r['paradigm'], r['sound_guarantee'], r['quant_prob_bounds'],
+              r['cnn_pooling_bn'], r['ssnn_pixel'], r['resnet_vit'], r['memory_complexity']]
+             for r in tax],
+            headers=['Verifier', 'Paradigm', 'Sound', 'Quant Prob', 'CNN', 'SSNN', 'ResNet/ViT', 'Memory'],
+            tablefmt='github'
+        ))
 
-    # Save CSVs
-    for name, rows in [
+        print("\n" + "=" * 84)
+        print("TABLE 2: Exact ProbStar vs. Filtered vs. Approx ProbStar vs. Qualitative Star vs. MC")
+        print("=" * 84)
+        print(tabulate(
+            [[f"{r['eps']:.2f}", r['qual_status'], r['exact_num_sets'], r['approx_num_sets'],
+              f"[{r['cond_p_min']:.4f}, {r['cond_p_max']:.4f}]",
+              f"{r['cond_p_hat_analytic']:.4f}", f"{r['cond_p_exact']:.4f}", f"{r['cond_p_mc']:.4f}",
+              f"{r['t_exact_s']:.4f}s", f"{r['t_approx_analytic_s']:.4f}s", f"{r['speedup_vs_exact']:.1f}x"]
+             for r in s1_rows],
+            headers=['eps', 'Qual Star', '#Exact', '#Approx', '[p_min, p_max]', 'p_hat', 'p_exact', 'p_MC', 't_Exact', 't_Approx', 'Speedup'],
+            tablefmt='github'
+        ))
+
+        print("\n" + "=" * 84)
+        print("TABLE 3: Full-Size Pretrained CNNs (28x28x1 CAV2020 MNIST & 32x32x3 OVAL21 CIFAR-10)")
+        print("=" * 84)
+        print(tabulate(
+            [[r['model'], r['shape'], r['spec'], r['num_pred'], r['qual_status_CSR'],
+              f"[{r['cond_p_min']:.4f}, {r['cond_p_max']:.4f}]",
+              f"{r['cond_p_hat']:.4f}", f"{r['cond_p_mc']:.4f}",
+              (f"{r['t_NNV_s']:.2f}s" if r['t_NNV_s'] > 0 else 'N/A'),
+              f"{r['t_SIM_CSR_s']:.4f}s", f"{r['t_PSIM_CSR_s']:.4f}s",
+              f"{r['mem_SIM_CSR_MB']:.2f}MB", f"{r['mem_PSIM_CSR_MB']:.2f}MB"]
+             for r in s2_rows],
+            headers=['Model', 'Input Shape', 'Attack Spec', '#Pred', 'Qual(CSR)', '[p_min, p_max]', 'p_hat', 'p_MC', 't_NNV', 't_SIM_CSR', 't_PSIM_CSR', 'Mem(SIM)', 'Mem(PSIM)'],
+            tablefmt='github'
+        ))
+
+        print("\n" + "=" * 84)
+        print("TABLE 4: Full-Size Pretrained Semantic Segmentation (28x28x1 & 28x56x1 M2NIST) & ResNet/ViT")
+        print("=" * 84)
+        print(tabulate(
+            [[r['model'], r['shape'], r['attacked_pixels'], f"{r['eps']:.2f}", r['num_pred'],
+              f"{r['qual_robust_pixels_pct']:.1f}%", f"{r['qual_unknown_pixels_pct']:.1f}%",
+              f"{r['mean_cond_p_min']:.4f}", f"{r['mean_cond_p_hat']:.4f}",
+              f"{r['t_SIM_CSR_s']:.4f}s", f"{r['t_PSIM_CSR_s']:.4f}s", f"{r['mem_PSIM_CSR_MB']:.2f}MB"]
+             for r in s3_rows],
+            headers=['SSNN Model', 'Input Shape', 'AttPx', 'eps', '#Pred', 'Qual Rob%', 'Qual Unk%', 'E[p_min]', 'E[p_hat]', 't_SIM_CSR', 't_PSIM_CSR', 'Mem(MB)'],
+            tablefmt='github'
+        ))
+        print()
+        print(tabulate(
+            [[r['arch'], r['shape'], r['attacked_pixels'], f"{r['eps']:.3f}", r['num_pred'], r['qual_status_CSR'],
+              f"[{r['cond_p_min']:.4f}, {r['cond_p_max']:.4f}]",
+              f"{r['cond_p_hat']:.4f}", f"{r['cond_p_mc']:.4f}",
+              f"{r['t_SIM_CSR_s']:.4f}s", f"{r['t_PSIM_CSR_s']:.4f}s",
+              f"{r['mem_PSIM_CSR_MB']:.2f}MB", f"{r['envelope_violations_100']}/100"]
+             for r in s4_rows],
+            headers=['ResNet/ViT Arch', 'Input Shape', 'AttPx', 'eps', '#Pred', 'Qual(CSR)', '[p_min, p_max]', 'p_hat', 'p_MC', 't_SIM_CSR', 't_PSIM_CSR', 'Mem(MB)', 'EnvViol'],
+            tablefmt='github'
+        ))
+
+    for fname, rows in [
         ('suite1_exact_vs_approx.csv', s1_rows),
         ('suite2_cnn_benchmarks.csv', s2_rows),
         ('suite3_ssnn_benchmarks.csv', s3_rows),
         ('suite4_resnet_vit_benchmarks.csv', s4_rows),
         ('verifier_taxonomy.csv', get_verifier_taxonomy_comparison()),
     ]:
-        if len(rows) > 0:
-            path = os.path.join(res_dir, name)
-            with open(path, 'w', newline='') as f:
+        if rows:
+            fpath = os.path.join(res_dir, fname)
+            with open(fpath, 'w', newline='') as f:
                 writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
                 writer.writeheader()
                 writer.writerows(rows)
 
-    # Save JSON summary
     json_path = os.path.join(res_dir, 'cav2027_results.json')
     with open(json_path, 'w') as f:
         json.dump({
             'suite1_exact_vs_approx': s1_rows,
             'suite2_cnn_benchmarks': s2_rows,
+            'oval21_layer_trace': layer_trace,
             'suite3_ssnn_benchmarks': s3_rows,
             'suite4_resnet_vit_benchmarks': s4_rows,
             'taxonomy': get_verifier_taxonomy_comparison(),
         }, f, indent=2)
 
-    # Save LaTeX tables
     tex_path = os.path.join(res_dir, 'cav2027_tables.tex')
     with open(tex_path, 'w') as f:
-        f.write("% Auto-generated CAV 2027 Approximate ProbStar Benchmark Tables\n")
-        f.write("\\begin{table}[t]\n\\centering\n")
-        f.write("\\caption{Comparison of Qualitative (SIM\\_CSR) vs. Quantitative (PSIM\\_CSR, PSIM\\_COO, MC) Verification across Vision Models.}\n")
-        f.write("\\begin{tabular}{llccccccc}\n\\hline\n")
-        f.write("Model & $\\epsilon$ & Qual Status & $[p_{\\min}, p_{\\max}]$ & $\\hat{p}$ & $p_{\\text{MC}}$ & $t_{\\text{SIM}}$ (s) & $t_{\\text{PSIM}}$ (s) & Mem (MB) \\\\\n\\hline\n")
+        f.write("% Auto-generated CAV 2027 Full-Size Pretrained Vision Benchmark Tables\n")
+        f.write("\\begin{table}[t]\n\\centering\n\\scriptsize\n")
+        f.write("\\caption{Full-Size Pretrained Vision Benchmarks: Qualitative (SIM\\_CSR, NNV) vs. Quantitative (PSIM\\_CSR, MC).}\n")
+        f.write("\\begin{tabular}{lllccccccc}\n\\hline\n")
+        f.write("Model & Shape & Spec / $\\epsilon$ & \\#Pred & Qual(CSR) & $[p_{\\min}, p_{\\max}]$ & $\\hat{p}$ & $p_{\\text{MC}}$ & $t_{\\text{SIM}}$ / $t_{\\text{PSIM}}$ (s) & Mem (MB) \\\\\n\\hline\n")
         for r in s2_rows:
             f.write(
-                f"{r['model'].replace('_', '\\_')} & {r['eps']:.2f} & {r['qual_status_CSR']} & "
-                f"$[{r['cond_p_min']:.3f}, {r['cond_p_max']:.3f}]$ & {r['cond_p_hat']:.3f} & {r['cond_p_mc']:.3f} & "
-                f"{r['t_SIM_CSR_s']:.4f} & {r['t_PSIM_CSR_s']:.4f} & {r['mem_PSIM_CSR_MB']:.2f} \\\\\n"
+                f"{r['model'].replace('_', '\\_')} & ${r['shape'].replace('x', ' \\times ')}$ & {r['spec'].replace('_', '\\_')} & {r['num_pred']} & "
+                f"{r['qual_status_CSR']} & $[{r['cond_p_min']:.3f}, {r['cond_p_max']:.3f}]$ & {r['cond_p_hat']:.3f} & {r['cond_p_mc']:.3f} & "
+                f"{r['t_SIM_CSR_s']:.3f} / {r['t_PSIM_CSR_s']:.3f} & {r['mem_PSIM_CSR_MB']:.2f} \\\\\n"
             )
         for r in s4_rows:
             f.write(
-                f"{r['arch'].replace('_', '\\_')} & {r['eps']:.3f} & {r['qual_status_CSR']} & "
-                f"$[{r['cond_p_min']:.3f}, {r['cond_p_max']:.3f}]$ & {r['cond_p_hat']:.3f} & {r['cond_p_mc']:.3f} & "
-                f"{r['t_SIM_CSR_s']:.4f} & {r['t_PSIM_CSR_s']:.4f} & {r['mem_PSIM_CSR_KB']/1024.0:.3f} \\\\\n"
+                f"{r['arch'].replace('_', '\\_')} & ${r['shape'].replace('x', ' \\times ')}$ & $\\epsilon={r['eps']:.3f}$ & {r['num_pred']} & "
+                f"{r['qual_status_CSR']} & $[{r['cond_p_min']:.3f}, {r['cond_p_max']:.3f}]$ & {r['cond_p_hat']:.3f} & {r['cond_p_mc']:.3f} & "
+                f"{r['t_SIM_CSR_s']:.3f} / {r['t_PSIM_CSR_s']:.3f} & {r['mem_PSIM_CSR_MB']:.2f} \\\\\n"
             )
         f.write("\\hline\n\\end{tabular}\n\\end{table}\n")
 
-    # Generate figures if matplotlib is available
     try:
         import matplotlib
         matplotlib.use('Agg')
         import matplotlib.pyplot as plt
 
-        # Figure 1: Runtime & Memory Comparison across CNNs (IM vs SIM_CSR vs PSIM_CSR)
-        fig, axes = plt.subplots(1, 2, figsize=(11, 4.2))
-        labels = [f"{r['model'].split('_')[0]}\n(eps={r['eps']})" for r in s2_rows]
-        x = np.arange(len(labels))
-        w = 0.25
+        # Figure 1: Layer-by-layer Memory & Runtime on Full-Size 32x32x3 OVAL21 cifar_deep_kw (3,072 pixels attacked) vs NNV
+        fig, axes = plt.subplots(1, 2, figsize=(11.5, 4.3))
+        layers_x = np.arange(len(layer_trace['sim_csr_mem_MB']))
+        axes[0].plot(layers_x, layer_trace['nnv_mem_MB'], 'r-o', lw=2, label='NNV ImageStar (Qual)')
+        axes[0].plot(layers_x, layer_trace['sim_csr_mem_MB'], 'g--s', lw=2, label='StarV SIM_CSR (Qual)')
+        axes[0].plot(layers_x, layer_trace['psim_csr_mem_MB'], 'b-^', lw=2, label='StarV PSIM_CSR (Quant [Ours])')
+        axes[0].set_xlabel('Layer Index (OVAL21 cifar_deep_kw, 32x32x3)')
+        axes[0].set_ylabel('Reachable Set Memory (MB)')
+        axes[0].set_title('Full-Size 32x32x3 OVAL21 Memory Usage (3,072 Attacked Pixels)')
+        axes[0].legend(fontsize=8.5)
+        axes[0].grid(alpha=0.3)
 
-        axes[0].bar(x - w, [r['t_IM_s'] for r in s2_rows], width=w, label='ImageStar (Qual)')
-        axes[0].bar(x, [r['t_SIM_CSR_s'] for r in s2_rows], width=w, label='SIM_CSR (Qual)')
-        axes[0].bar(x + w, [r['t_PSIM_CSR_s'] for r in s2_rows], width=w, label='PSIM_CSR (Quant [Ours])')
-        axes[0].set_xticks(x)
-        axes[0].set_xticklabels(labels, fontsize=8)
-        axes[0].set_ylabel('Verification Time (s)')
-        axes[0].set_title('Verification Runtime: Qualitative vs. Quantitative')
-        axes[0].legend(fontsize=8)
-        axes[0].grid(axis='y', alpha=0.3)
-
-        axes[1].bar(x - w, [r['mem_IM_MB'] for r in s2_rows], width=w, label='ImageStar (Dense)')
-        axes[1].bar(x, [r['mem_SIM_CSR_MB'] for r in s2_rows], width=w, label='SIM_CSR (Sparse)')
-        axes[1].bar(x + w, [r['mem_PSIM_CSR_MB'] for r in s2_rows], width=w, label='PSIM_CSR (Sparse+DiagCov)')
-        axes[1].set_xticks(x)
-        axes[1].set_xticklabels(labels, fontsize=8)
-        axes[1].set_ylabel('Output Set Memory (MB)')
-        axes[1].set_title('Memory Footprint Comparison')
-        axes[1].legend(fontsize=8)
-        axes[1].grid(axis='y', alpha=0.3)
+        layers_t = np.arange(1, len(layer_trace['sim_csr_time_s']) + 1)
+        axes[1].plot(layers_t, layer_trace['nnv_time_s'][1:], 'r-o', lw=2, label=f"NNV (Total {sum(layer_trace['nnv_time_s']):.2f}s)")
+        axes[1].plot(layers_t, layer_trace['sim_csr_time_s'], 'g--s', lw=2, label=f"SIM_CSR (Total {sum(layer_trace['sim_csr_time_s']):.3f}s)")
+        axes[1].plot(layers_t, layer_trace['psim_csr_time_s'], 'b-^', lw=2, label=f"PSIM_CSR [Ours] (Total {sum(layer_trace['psim_csr_time_s']):.3f}s)")
+        axes[1].set_xlabel('Layer Index (OVAL21 cifar_deep_kw, 32x32x3)')
+        axes[1].set_ylabel('Layer Reachability Time (s)')
+        axes[1].set_title('Full-Size 32x32x3 OVAL21 Computation Time per Layer')
+        axes[1].legend(fontsize=8.5)
+        axes[1].grid(alpha=0.3)
 
         plt.tight_layout()
         plt.savefig(os.path.join(res_dir, 'fig1_scalability_memory.png'), dpi=180)
@@ -841,10 +1148,10 @@ def generate_plots_and_tables(s1_rows, s2_rows, s3_rows, heatmaps, s4_rows):
         plt.savefig(os.path.join(res_dir, 'fig2_qualitative_vs_quantitative_refinement.png'), dpi=180)
         plt.close(fig)
 
-        # Figure 3: Semantic Segmentation Per-Pixel Probability Heatmap
+        # Figure 3: Full-Size 28x56x1 Two-Digit M2NIST Semantic Segmentation Per-Pixel Probability Heatmap
         last_key = sorted(heatmaps.keys())[-1]
         hm = heatmaps[last_key]
-        fig, axes = plt.subplots(1, 3, figsize=(10.5, 3.3))
+        fig, axes = plt.subplots(1, 3, figsize=(11.5, 3.2))
         for ax_i, (k_map, title_str) in zip(
             axes,
             [('cond_p_min_map', '$p_{\\min}(h,w)/p_{\\text{in}}$'),
@@ -852,37 +1159,37 @@ def generate_plots_and_tables(s1_rows, s2_rows, s3_rows, heatmaps, s4_rows):
              ('cond_p_max_map', '$p_{\\max}(h,w)/p_{\\text{in}}$')]
         ):
             im_plot = ax_i.imshow(hm[k_map], vmin=0.0, vmax=1.0, cmap='viridis')
-            ax_i.set_title(f"SSNN Pixel {title_str}")
+            ax_i.set_title(f"M2NIST (28x56) Pixel {title_str}")
             plt.colorbar(im_plot, ax=ax_i, fraction=0.046, pad=0.04)
         plt.tight_layout()
         plt.savefig(os.path.join(res_dir, 'fig3_ssnn_prob_heatmap.png'), dpi=180)
         plt.close(fig)
     except Exception as e:
-        print(f"[Note] Matplotlib plotting skipped or warning: {e}")
+        print(f"[Note] Matplotlib plotting warning: {e}")
 
-    print(f"\nSaved CAV 2027 tables, JSON, and plots to: {res_dir}")
+    print(f"\nSaved CAV 2027 full-size benchmark tables, JSON, and plots to: {res_dir}")
 
 
 def main():
-    parser = argparse.ArgumentParser(description='CAV 2027 Approximate ProbStar Benchmark Suite')
+    parser = argparse.ArgumentParser(description='CAV 2027 Approximate ProbStar Full-Size Benchmark Suite')
     parser.add_argument('--suite', type=str, default='all', choices=['all', '1', '2', '3', '4'])
-    parser.add_argument('--mc-samples', type=int, default=1000)
+    parser.add_argument('--mc-samples', type=int, default=500)
     args = parser.parse_args()
 
     s1_rows, s2_rows, s3_rows, s4_rows = [], [], [], []
-    heatmaps = {}
+    layer_trace, heatmaps = {}, {}
 
     if args.suite in ('all', '1'):
         s1_rows = run_suite1_exact_vs_approx(mc_samples=max(args.mc_samples, 2000))
     if args.suite in ('all', '2'):
-        s2_rows = run_suite2_cnn_benchmarks(mc_samples=args.mc_samples)
+        s2_rows, layer_trace = run_suite2_cnn_benchmarks(mc_samples=args.mc_samples)
     if args.suite in ('all', '3'):
         s3_rows, heatmaps = run_suite3_ssnn_benchmarks()
     if args.suite in ('all', '4'):
         s4_rows = run_suite4_resnet_and_vit_benchmarks(mc_samples=args.mc_samples)
 
     if args.suite == 'all':
-        generate_plots_and_tables(s1_rows, s2_rows, s3_rows, heatmaps, s4_rows)
+        generate_plots_and_tables(s1_rows, s2_rows, layer_trace, s3_rows, heatmaps, s4_rows)
 
 
 if __name__ == '__main__':

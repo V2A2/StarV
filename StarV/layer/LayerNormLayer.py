@@ -164,42 +164,93 @@ class LayerNormLayer(object):
         else:
             raise Exception(f"Unsupported input set type in LayerNormLayer: {type(In)}")
 
-        # Step 3: Token-wise variance & reciprocal standard deviation bounds
+        # Step 3: Coupled numerator-denominator token-wise variance & reciprocal std bounds
+        # Using g(z, S) = z / sqrt(z^2 / D + S), where S = (1/D) sum_{j != d} z_{t,j}^2 + eps,
+        # prevents the unphysical 1/sqrt(eps) blowup when z_{t,d} crosses zero.
         l_z_tok = l_z.reshape(T, D)
         u_z_tok = u_z.reshape(T, D)
         cross_zero = (l_z_tok <= 0.0) & (u_z_tok >= 0.0)
         q_lb = np.where(cross_zero, 0.0, np.minimum(np.square(l_z_tok), np.square(u_z_tok)))
         q_ub = np.maximum(np.square(l_z_tok), np.square(u_z_tok))
 
-        var_min = np.mean(q_lb, axis=1) + self.eps  # (T,)
-        var_max = np.mean(q_ub, axis=1) + self.eps  # (T,)
-        r_min = (1.0 / np.sqrt(var_max))[:, None]   # (T, 1)
-        r_max = (1.0 / np.sqrt(var_min))[:, None]   # (T, 1)
+        sum_q_lb = np.sum(q_lb, axis=1, keepdims=True)
+        sum_q_ub = np.sum(q_ub, axis=1, keepdims=True)
 
-        r_mid = 0.5 * (r_min + r_max)               # (T, 1)
-        r_rad = 0.5 * (r_max - r_min)               # (T, 1)
+        # Cauchy-Schwarz leave-one-out lower bound on sum_{j != d} z_{t,j}(alpha)^2:
+        # For unit vector u_{t,-d} supported on j != d, sum_{j != d} z_{t,j}^2 >= (u_{t,-d}^T z_t(alpha))^2
+        z_mid = 0.5 * (l_z_tok + u_z_tok)  # (T, D)
+        Vz_dense = Vz_mat.toarray().reshape(T, D, n) if sp.issparse(Vz_mat) else Vz_mat.reshape(T, D, n)
+        cz_tok = c_z.reshape(T, D)
+        norm_sq_all = np.sum(np.square(z_mid), axis=1, keepdims=True)
+        norm_loo = np.sqrt(np.maximum(norm_sq_all - np.square(z_mid), 0.0))  # (T, D)
+        # Unit direction u_{t,-d,j} = z_mid[t,j] / norm_loo[t,d] for j != d, and 0 for j == d
+        inv_norm_loo = np.where(norm_loo > 1e-12, 1.0 / np.where(norm_loo > 1e-12, norm_loo, 1.0), 0.0)  # (T, D)
+        # Dot product with c_z and V_z for all (t, d):
+        # sum_{j != d} z_mid[t,j] * cz[t,j] = (z_mid[t] . cz[t]) - z_mid[t,d] * cz[t,d]
+        dot_c_all = np.sum(z_mid * cz_tok, axis=1, keepdims=True)  # (T, 1)
+        proj_c = (dot_c_all - z_mid * cz_tok) * inv_norm_loo       # (T, D)
+        dot_V_all = np.einsum('td,tdn->tn', z_mid, Vz_dense)[:, None, :]  # (T, 1, n)
+        proj_V = (dot_V_all - z_mid[:, :, None] * Vz_dense) * inv_norm_loo[:, :, None]  # (T, D, n)
+        pV_pos = np.maximum(proj_V, 0.0)
+        pV_neg = np.minimum(proj_V, 0.0)
+        l_proj = proj_c + np.einsum('tdn,n->td', pV_pos, In.pred_lb) + np.einsum('tdn,n->td', pV_neg, In.pred_ub)
+        u_proj = proj_c + np.einsum('tdn,n->td', pV_pos, In.pred_ub) + np.einsum('tdn,n->td', pV_neg, In.pred_lb)
+        cross_proj = (l_proj <= 0.0) & (u_proj >= 0.0)
+        q_cs_loo = np.where(cross_proj, 0.0, np.minimum(np.square(l_proj), np.square(u_proj)))  # (T, D)
 
-        gamma_tok = self.gamma[None, :]             # (1, D)
-        beta_tok = self.beta[None, :]               # (1, D)
+        S_min = np.maximum(sum_q_lb - q_lb, q_cs_loo) / float(D) + self.eps  # (T, D)
+        S_max = (sum_q_ub - q_ub) / float(D) + self.eps                      # (T, D)
+        S_mid = 0.5 * (S_min + S_max)
 
-        # Effective linear slope wrt centered z_{t,d}
-        a_eff = np.broadcast_to(gamma_tok * r_mid, (T, D)).reshape(N)
-        b_center = np.broadcast_to(beta_tok, (T, D)).reshape(N)
-        max_abs_z = np.maximum(np.abs(l_z_tok), np.abs(u_z_tok))
-        rad_y = (np.abs(gamma_tok) * r_rad * max_abs_z).reshape(N)
+        def _g_norm(z_val, S_val):
+            return z_val / np.sqrt(np.square(z_val) / float(D) + S_val)
 
-        b_lb_all = b_center - rad_y
-        b_ub_all = b_center + rad_y
+        dz = u_z_tok - l_z_tok
+        a_tan = S_mid / np.power(np.square(z_mid) / float(D) + S_mid, 1.5)
+        a_chord = np.where(
+            dz > 1e-12,
+            (_g_norm(u_z_tok, S_mid) - _g_norm(l_z_tok, S_mid)) / np.where(dz > 1e-12, dz, 1.0),
+            a_tan,
+        )
+        a_hat = np.maximum(a_chord, 1e-12)  # (T, D)
 
-        # Sound output range [y_min, y_max]
-        cands = np.stack([
-            (gamma_tok * r_min * l_z_tok + beta_tok).reshape(N),
-            (gamma_tok * r_min * u_z_tok + beta_tok).reshape(N),
-            (gamma_tok * r_max * l_z_tok + beta_tok).reshape(N),
-            (gamma_tok * r_max * u_z_tok + beta_tok).reshape(N),
-        ], axis=1)
-        y_min_all = np.min(cands, axis=1)
-        y_max_all = np.max(cands, axis=1)
+        # Exact extrema of h(z, S) = g(z, S) - a_hat * z over (z, S) in [l_z, u_z] x [S_min, S_max]
+        res_cands = []
+        for S_bound in (S_min, S_max):
+            z_star = np.sqrt(float(D) * np.maximum(0.0, np.power(S_bound / a_hat, 2.0 / 3.0) - S_bound))
+            z_p = np.clip(z_star, l_z_tok, u_z_tok)
+            z_m = np.clip(-z_star, l_z_tok, u_z_tok)
+            for z_cand in (l_z_tok, u_z_tok, z_p, z_m):
+                res_cands.append(_g_norm(z_cand, S_bound) - a_hat * z_cand)
+        res_stack = np.stack(res_cands, axis=0)
+        b_hat_lb = np.min(res_stack, axis=0)
+        b_hat_ub = np.max(res_stack, axis=0)
+
+        # Exact range [z_hat_min, z_hat_max] at the 4 corners (l_z, u_z) x (S_min, S_max)
+        corner_stack = np.stack([
+            _g_norm(l_z_tok, S_min),
+            _g_norm(l_z_tok, S_max),
+            _g_norm(u_z_tok, S_min),
+            _g_norm(u_z_tok, S_max),
+        ], axis=0)
+        z_hat_min = np.min(corner_stack, axis=0)
+        z_hat_max = np.max(corner_stack, axis=0)
+
+        gamma_tok = self.gamma[None, :]  # (1, D)
+        beta_tok = self.beta[None, :]    # (1, D)
+
+        a_eff = (gamma_tok * a_hat).reshape(N)
+        b_lb_tok = np.where(gamma_tok >= 0.0, gamma_tok * b_hat_lb + beta_tok, gamma_tok * b_hat_ub + beta_tok)
+        b_ub_tok = np.where(gamma_tok >= 0.0, gamma_tok * b_hat_ub + beta_tok, gamma_tok * b_hat_lb + beta_tok)
+        y_min_tok = np.where(gamma_tok >= 0.0, gamma_tok * z_hat_min + beta_tok, gamma_tok * z_hat_max + beta_tok)
+        y_max_tok = np.where(gamma_tok >= 0.0, gamma_tok * z_hat_max + beta_tok, gamma_tok * z_hat_min + beta_tok)
+
+        b_lb_all = b_lb_tok.reshape(N)
+        b_ub_all = b_ub_tok.reshape(N)
+        b_center = 0.5 * (b_lb_all + b_ub_all)
+        rad_y = 0.5 * (b_ub_all - b_lb_all)
+        y_min_all = y_min_tok.reshape(N)
+        y_max_all = y_max_tok.reshape(N)
 
         amb_idx = np.where(rad_y > self.tol)[0]
         det_idx = np.where(rad_y <= self.tol)[0]

@@ -24,6 +24,7 @@ import time
 import pickle
 import multiprocessing
 import numpy as np
+import scipy.sparse as sp
 from sklearn.metrics import jaccard_score
 from StarV.net.network import NeuralNetwork
 from StarV.set.sparsestar import SparseStar
@@ -678,7 +679,33 @@ def certifyRobustness_single_input(net, in_set, label=None, veriMethod='BFS', re
         if sum(a) == 0:
             rb = 0
         elif lp_solver == 'estimate':
-            rb = 2
+            max_cands = np.delete(max_cands, max_cands == max_id)
+            if hasattr(Y, 'get_c_V'):
+                c_vec, V_mat = Y.get_c_V()
+            elif isinstance(Y, ImageStar):
+                V_flat = Y.V.reshape(Y.num_pixel, Y.num_pred + 1)
+                c_vec, V_mat = V_flat[:, 0], V_flat[:, 1:]
+            else:
+                c_vec, V_mat = Y.V[:, 0], Y.V[:, 1:]
+            c_true = int(max_id[0])
+            V_csr = V_mat.tocsr() if sp.issparse(V_mat) else None
+            rb = 1
+            for cand in max_cands:
+                cand = int(cand)
+                c_diff = float(c_vec[cand] - c_vec[c_true])
+                if V_csr is not None:
+                    v_diff = (V_csr[[cand]] - V_csr[[c_true]]).toarray().ravel()
+                else:
+                    v_diff = np.asarray(V_mat[cand] - V_mat[c_true]).ravel()
+                pos = np.maximum(v_diff, 0.0)
+                neg = np.minimum(v_diff, 0.0)
+                ub_diff = c_diff + float(pos @ Y.pred_ub + neg @ Y.pred_lb)
+                lb_diff = c_diff + float(pos @ Y.pred_lb + neg @ Y.pred_ub)
+                if lb_diff > 0.0:
+                    rb = 0
+                    break
+                if ub_diff >= 0.0:
+                    rb = 2
         else:
             max_cands = np.delete(max_cands, max_cands == max_id)
             m = len(max_cands)

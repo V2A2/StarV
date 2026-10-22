@@ -26,6 +26,7 @@ from StarV.set.probsparseimagestar2dcoo import ProbSparseImageStar2DCOO
 from StarV.spec.dProbStarTL import Formula
 from StarV.plant.dlode import DLODE
 from StarV.plant.lode import LODE
+import time
 import copy
 import multiprocessing
 import numpy as np
@@ -532,11 +533,15 @@ def quantiVerifyApproxBFS(
         assert len(inputSet) == 1, 'quantiVerifyApproxBFS expects a single probabilistic star set'
         inputSet = inputSet[0]
 
+    t0 = time.perf_counter()
     S_out = reachApproxBFS(
         net, inputSet, lp_solver=lp_solver, show=show,
         RF=RF, DR=DR, relu_approx_mode=relu_approx_mode
     )
     res = S_out.verifySpec(unsafe_mat, unsafe_vec, lp_solver=lp_solver, use_lp=use_lp)
+    dt = time.perf_counter() - t0
+    res['total_time'] = dt
+    res['verification_time'] = dt
     return S_out, res
 
 
@@ -569,6 +574,7 @@ def quantiVerifyVisionMC(
     if isinstance(inputSet, list):
         inputSet = inputSet[0]
 
+    t0 = time.perf_counter()
     p_input = inputSet.get_input_probability()
     if isinstance(inputSet, ProbStar):
         alpha0 = inputSet.sampling_alpha0(numSamples, seed=seed)
@@ -610,6 +616,7 @@ def quantiVerifyVisionMC(
     cond_p_mc = float(k_sat) / float(numSamples)
     cond_lo, cond_hi = clopper_pearson_interval(k_sat, numSamples, confidence=confidence)
 
+    dt = time.perf_counter() - t0
     return {
         'k_sat': k_sat,
         'num_samples': int(numSamples),
@@ -620,6 +627,8 @@ def quantiVerifyVisionMC(
         'p_mc': cond_p_mc * p_input,
         'ci_low': cond_lo * p_input,
         'ci_high': cond_hi * p_input,
+        'verify_time': dt,
+        'verification_time': dt,
     }
 
 
