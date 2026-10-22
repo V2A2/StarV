@@ -102,6 +102,12 @@ from StarV.verifier.certifier import (
     certifyProbabilisticRobustness,
     certifyProbabilisticRobustness_pixel,
 )
+from StarV.verifier.crown import (
+    qualiVerifyCROWN,
+    quantiVerifyCROWN,
+    certifyRobustness_CROWN,
+    certifyProbabilisticRobustness_CROWN,
+)
 
 
 def _rb_to_str(rb_code):
@@ -177,14 +183,24 @@ def get_verifier_taxonomy_comparison():
             'memory_complexity': 'Dense O(N*p)',
         },
         {
-            'verifier': 'alpha,beta-CROWN',
-            'paradigm': 'Qualitative (LiRPA + BaB)',
+            'verifier': 'StarV CROWN / alpha-CROWN',
+            'paradigm': 'Backward LiRPA (Qual + Quant)',
+            'sound_guarantee': 'Yes ([p_min, p_max] + Envelope)',
+            'quant_prob_bounds': 'Yes (Input-Space Linear)',
+            'cnn_pooling_bn': 'Yes',
+            'ssnn_pixel': 'Yes (Slow O(M*N) Backward)',
+            'resnet_vit': 'Yes (ResNet + ViT)',
+            'memory_complexity': 'Dense Backward O(M*N)',
+        },
+        {
+            'verifier': 'StarV alpha,beta-CROWN (BaB)',
+            'paradigm': 'Complete LiRPA + BaB',
             'sound_guarantee': 'Yes (Sound & Complete)',
-            'quant_prob_bounds': 'No',
-            'cnn_pooling_bn': 'Yes (GPU)',
+            'quant_prob_bounds': 'Yes (Sub-Box Partition)',
+            'cnn_pooling_bn': 'Yes',
             'ssnn_pixel': 'Partial',
-            'resnet_vit': 'Yes',
-            'memory_complexity': 'Backward Symbolic',
+            'resnet_vit': 'Yes (ReLU BaB)',
+            'memory_complexity': 'O(B * M * N)',
         },
         {
             'verifier': 'StarV SparseImageStar (CSR/COO)',
@@ -325,7 +341,30 @@ def run_suite1_exact_vs_approx(mc_samples=5000):
             unsafe_vec=spec_vec, lp_solver='estimate',
             relu_approx_mode='heuristic_gaussian', use_lp=False, show=False
         )
-        # 6. Monte Carlo
+        # 6. CROWN, alpha-CROWN, and alpha,beta-CROWN (Qualitative + Quantitative)
+        rb_crown, vt_qual_crown, _, _ = certifyRobustness_CROWN(
+            net, S_in, labels=true_label, mode='crown', lp_solver='estimate'
+        )
+        rb_acrown, vt_qual_acrown, _, _ = certifyRobustness_CROWN(
+            net, S_in, labels=true_label, mode='alpha-crown', alpha_iters=20, lp_solver='estimate'
+        )
+        rb_abcrown, vt_qual_abcrown, _, _ = certifyRobustness_CROWN(
+            net, S_in, labels=true_label, mode='alpha-beta-crown',
+            alpha_iters=20, beta_iters=15, max_bab_branches=64, lp_solver='estimate'
+        )
+        _, res_q_crown = quantiVerifyCROWN(
+            net=net, inputSet=P_in, unsafe_mat=spec_mat, unsafe_vec=spec_vec,
+            mode='crown', lp_solver='estimate'
+        )
+        _, res_q_acrown = quantiVerifyCROWN(
+            net=net, inputSet=P_in, unsafe_mat=spec_mat, unsafe_vec=spec_vec,
+            mode='alpha-crown', alpha_iters=20, lp_solver='estimate'
+        )
+        _, res_q_abcrown = quantiVerifyCROWN(
+            net=net, inputSet=P_in, unsafe_mat=spec_mat, unsafe_vec=spec_vec,
+            mode='alpha-beta-crown', alpha_iters=20, max_branches=16, lp_solver='estimate'
+        )
+        # 7. Monte Carlo
         mc = quantiVerifyVisionMC(
             net=net, inputSet=P_in, unsafe_mat=spec_mat,
             unsafe_vec=spec_vec, numSamples=mc_samples, seed=42
@@ -334,7 +373,13 @@ def run_suite1_exact_vs_approx(mc_samples=5000):
         row = {
             'eps': eps,
             'qual_status': qual_status,
+            'qual_crown': _rb_to_str(rb_crown),
+            'qual_acrown': _rb_to_str(rb_acrown),
+            'qual_abcrown': _rb_to_str(rb_abcrown),
             't_qual_star_s': float(t_qual),
+            't_qual_crown_s': float(vt_qual_crown),
+            't_qual_acrown_s': float(vt_qual_acrown),
+            't_qual_abcrown_s': float(vt_qual_abcrown),
             'exact_num_sets': int(n_sets_exact),
             'filt_num_sets': int(n_sets_filt),
             'approx_num_sets': 1,
@@ -343,12 +388,24 @@ def run_suite1_exact_vs_approx(mc_samples=5000):
             't_filt_s': float(vt_filt),
             't_approx_analytic_s': float(res_analytic['total_time']),
             't_approx_heuristic_s': float(res_heuristic['total_time']),
+            't_quant_crown_s': float(res_q_crown['total_time']),
+            't_quant_acrown_s': float(res_q_acrown['total_time']),
+            't_quant_abcrown_s': float(res_q_abcrown['total_time']),
             't_mc_s': float(mc['verify_time']),
             'speedup_vs_exact': float(vt_exact / max(res_analytic['total_time'], 1e-6)),
             'cond_p_min': float(res_analytic['cond_p_min']),
             'cond_p_max': float(res_analytic['cond_p_max']),
             'cond_p_hat_analytic': float(res_analytic['cond_p_hat']),
             'cond_p_hat_heuristic': float(res_heuristic['cond_p_hat']),
+            'crown_p_min': float(res_q_crown['cond_p_min']),
+            'crown_p_max': float(res_q_crown['cond_p_max']),
+            'crown_p_hat': float(res_q_crown['cond_p_hat']),
+            'acrown_p_min': float(res_q_acrown['cond_p_min']),
+            'acrown_p_max': float(res_q_acrown['cond_p_max']),
+            'acrown_p_hat': float(res_q_acrown['cond_p_hat']),
+            'abcrown_p_min': float(res_q_abcrown['cond_p_min']),
+            'abcrown_p_max': float(res_q_abcrown['cond_p_max']),
+            'abcrown_p_hat': float(res_q_abcrown['cond_p_hat']),
             'cond_p_exact': float(cond_safe_exact),
             'cond_p_filt_lb': float(cond_safe_filt_lb),
             'cond_p_filt_ub': float(cond_safe_filt_ub),
@@ -358,11 +415,12 @@ def run_suite1_exact_vs_approx(mc_samples=5000):
         }
         rows.append(row)
         print(
-            f"[eps={eps:.2f}] Qual={qual_status:<8} | "
+            f"[eps={eps:.2f}] Qual(Star/CROWN/ab-CROWN)={qual_status}/{row['qual_crown']}/{row['qual_abcrown']} | "
             f"Exact({n_sets_exact:2d} sets, {vt_exact:.4f}s): p={cond_safe_exact:.4f} | "
-            f"Approx(1 set, {res_analytic['total_time']:.4f}s, {row['speedup_vs_exact']:.1f}x): "
-            f"[{row['cond_p_min']:.4f}, {row['cond_p_max']:.4f}], p_hat={row['cond_p_hat_analytic']:.4f} | "
-            f"MC: {row['cond_p_mc']:.4f}"
+            f"CROWN({res_q_crown['total_time']:.4f}s): [{row['crown_p_min']:.4f}, {row['crown_p_max']:.4f}] | "
+            f"ab-CROWN({res_q_abcrown['total_time']:.4f}s): [{row['abcrown_p_min']:.4f}, {row['abcrown_p_max']:.4f}] | "
+            f"Approx[Ours]({res_analytic['total_time']:.4f}s, {row['speedup_vs_exact']:.1f}x): "
+            f"[{row['cond_p_min']:.4f}, {row['cond_p_max']:.4f}], p_hat={row['cond_p_hat_analytic']:.4f}"
         )
 
     return rows
@@ -449,12 +507,21 @@ def run_suite2_cnn_benchmarks(mc_samples=500):
             )
             mem_pcoo_mb = out_pcoo.nbytes() / (1024.0 ** 2)
 
-            # 6. Monte Carlo
+            # 6. CROWN (Qualitative & Quantitative)
+            rb_crown, vt_crown_qual, _, _ = certifyRobustness_CROWN(
+                net, csr_in, lbl0, mode='crown', lp_solver='estimate'
+            )
+            res_crown_quant, _ = certifyProbabilisticRobustness_CROWN(
+                net, pcsr_in, lbl0, mode='crown', lp_solver='estimate', use_lp=False, return_output=False
+            )
+
+            # 7. Monte Carlo
             t0 = time.perf_counter()
             mc = quantiVerifyVisionMC(net, pcsr_in, true_label=lbl0, numSamples=mc_samples, seed=42)
             vt_mc = time.perf_counter() - t0
 
             overhead_pct = 100.0 * (res_pcsr['total_time'] - vt_csr) / max(vt_csr, 1e-6)
+            speedup_vs_crown = res_crown_quant['total_time'] / max(res_pcsr['total_time'], 1e-9)
             model_tag = f"CAV20_MNIST_{net_type}"
             spec_tag = f"bright(d={d_thr},dlt={delta})"
             row = {
@@ -467,13 +534,17 @@ def run_suite2_cnn_benchmarks(mc_samples=500):
                 'num_pred': int(res_pcsr['num_pred']),
                 'qual_status_IM': _rb_to_str(rb_im),
                 'qual_status_CSR': _rb_to_str(rb_csr),
+                'qual_status_CROWN': _rb_to_str(rb_crown),
                 't_NNV_s': nnv_vt_ref,
                 't_IM_s': float(vt_im),
                 't_SIM_CSR_s': float(vt_csr),
                 't_SIM_COO_s': float(vt_coo),
+                't_CROWN_qual_s': float(vt_crown_qual),
+                't_CROWN_quant_s': float(res_crown_quant['total_time']),
                 't_PSIM_CSR_s': float(res_pcsr['total_time']),
                 't_PSIM_COO_s': float(res_pcoo['total_time']),
                 't_MC_s': float(vt_mc),
+                'speedup_PSIM_vs_CROWN': float(speedup_vs_crown),
                 'overhead_PSIM_vs_SIM_pct': float(overhead_pct),
                 'mem_IM_MB': float(mem_im_mb),
                 'mem_SIM_CSR_MB': float(mem_csr_mb),
@@ -481,6 +552,9 @@ def run_suite2_cnn_benchmarks(mc_samples=500):
                 'cond_p_min': float(res_pcsr['cond_p_min']),
                 'cond_p_max': float(res_pcsr['cond_p_max']),
                 'cond_p_hat': float(res_pcsr['cond_p_hat']),
+                'crown_cond_p_min': float(res_crown_quant['cond_p_min']),
+                'crown_cond_p_max': float(res_crown_quant['cond_p_max']),
+                'crown_cond_p_hat': float(res_crown_quant['cond_p_hat']),
                 'cond_p_mc': float(mc['cond_p_mc']),
                 'mc_ci_low': float(mc['cond_ci_low']),
                 'mc_ci_high': float(mc['cond_ci_high']),
@@ -488,8 +562,9 @@ def run_suite2_cnn_benchmarks(mc_samples=500):
             rows.append(row)
             print(
                 f"[{model_tag:<20} 28x28x1 ({net.n_layers:2d}L) d={d_thr},dlt={delta}] "
-                f"nPred={row['num_pred']:4d} | NNV={nnv_vt_ref:.3f}s, IM={vt_im:.4f}s, SIM_CSR={vt_csr:.4f}s ({row['qual_status_CSR']}) | "
-                f"PSIM_CSR=[{row['cond_p_min']:.4f}, {row['cond_p_max']:.4f}], p_hat={row['cond_p_hat']:.4f} ({row['t_PSIM_CSR_s']:.4f}s) | "
+                f"nPred={row['num_pred']:4d} | NNV={nnv_vt_ref:.3f}s, SIM_CSR={vt_csr:.4f}s ({row['qual_status_CSR']}), "
+                f"CROWN={vt_crown_qual:.4f}s ({row['qual_status_CROWN']}) | "
+                f"PSIM_CSR=[{row['cond_p_min']:.4f}, {row['cond_p_max']:.4f}], p_hat={row['cond_p_hat']:.4f} ({row['t_PSIM_CSR_s']:.4f}s, {speedup_vs_crown:.1f}x vs CROWN) | "
                 f"MC={row['cond_p_mc']:.4f}"
             )
 
@@ -579,12 +654,21 @@ def run_suite2_cnn_benchmarks(mc_samples=500):
             )
             mem_pcoo_mb = out_pcoo.nbytes() / (1024.0 ** 2)
 
+            # CROWN (Qualitative & Quantitative)
+            rb_crown, vt_crown_qual, _, _ = certifyRobustness_CROWN(
+                net, csr_in, true_label, mode='crown', lp_solver='estimate'
+            )
+            res_crown_quant, _ = certifyProbabilisticRobustness_CROWN(
+                net, pcsr_in, true_label, mode='crown', lp_solver='estimate', use_lp=False, return_output=False
+            )
+
             # Monte Carlo
             t0 = time.perf_counter()
             mc = quantiVerifyVisionMC(net, pcsr_in, true_label=true_label, numSamples=mc_samples, seed=42)
             vt_mc = time.perf_counter() - t0
 
             overhead_pct = 100.0 * (res_pcsr['total_time'] - vt_csr) / max(vt_csr, 1e-6)
+            speedup_vs_crown = res_crown_quant['total_time'] / max(res_pcsr['total_time'], 1e-9)
             nnv_ref_s = nnv_deep_total_time if ('Deep' in model_tag and patch_hw == 32) else np.nan
 
             row = {
@@ -597,13 +681,17 @@ def run_suite2_cnn_benchmarks(mc_samples=500):
                 'num_pred': int(res_pcsr['num_pred']),
                 'qual_status_IM': qual_im_str,
                 'qual_status_CSR': _rb_to_str(rb_csr),
+                'qual_status_CROWN': _rb_to_str(rb_crown),
                 't_NNV_s': float(nnv_ref_s) if not np.isnan(nnv_ref_s) else -1.0,
                 't_IM_s': float(vt_im) if not np.isnan(vt_im) else -1.0,
                 't_SIM_CSR_s': float(vt_csr),
                 't_SIM_COO_s': float(vt_coo),
+                't_CROWN_qual_s': float(vt_crown_qual),
+                't_CROWN_quant_s': float(res_crown_quant['total_time']),
                 't_PSIM_CSR_s': float(res_pcsr['total_time']),
                 't_PSIM_COO_s': float(res_pcoo['total_time']),
                 't_MC_s': float(vt_mc),
+                'speedup_PSIM_vs_CROWN': float(speedup_vs_crown),
                 'overhead_PSIM_vs_SIM_pct': float(overhead_pct),
                 'mem_IM_MB': float(mem_im_mb),
                 'mem_SIM_CSR_MB': float(mem_csr_mb),
@@ -611,6 +699,9 @@ def run_suite2_cnn_benchmarks(mc_samples=500):
                 'cond_p_min': float(res_pcsr['cond_p_min']),
                 'cond_p_max': float(res_pcsr['cond_p_max']),
                 'cond_p_hat': float(res_pcsr['cond_p_hat']),
+                'crown_cond_p_min': float(res_crown_quant['cond_p_min']),
+                'crown_cond_p_max': float(res_crown_quant['cond_p_max']),
+                'crown_cond_p_hat': float(res_crown_quant['cond_p_hat']),
                 'cond_p_mc': float(mc['cond_p_mc']),
                 'mc_ci_low': float(mc['cond_ci_low']),
                 'mc_ci_high': float(mc['cond_ci_high']),
@@ -618,9 +709,10 @@ def run_suite2_cnn_benchmarks(mc_samples=500):
             rows.append(row)
             print(
                 f"[{model_tag:<20} 32x32x3 ({net.n_layers:2d}L) {spec_tag:<23}] "
-                f"nPred={row['num_pred']:4d} | SIM_CSR={vt_csr:.4f}s ({row['qual_status_CSR']:<7}, {mem_csr_mb:.2f}MB) | "
+                f"nPred={row['num_pred']:4d} | SIM_CSR={vt_csr:.4f}s ({row['qual_status_CSR']:<7}), "
+                f"CROWN={vt_crown_qual:.4f}s ({row['qual_status_CROWN']:<7}) | "
                 f"PSIM_CSR=[{row['cond_p_min']:.4f}, {row['cond_p_max']:.4f}], p_hat={row['cond_p_hat']:.4f} "
-                f"({row['t_PSIM_CSR_s']:.4f}s, {mem_pcsr_mb:.2f}MB) | MC={row['cond_p_mc']:.4f}"
+                f"({row['t_PSIM_CSR_s']:.4f}s, {speedup_vs_crown:.1f}x vs CROWN) | MC={row['cond_p_mc']:.4f}"
             )
 
     # Layer-by-layer trace on OVAL21 cifar_deep_kw (32x32x3, 3,072 attacked pixels) vs NNV
@@ -716,6 +808,12 @@ def run_suite3_ssnn_benchmarks():
         qual_rb_pct = 100.0 * float(avg_data_csr[0]) / float(total_pixels)
         qual_unk_pct = 100.0 * float(avg_data_csr[1]) / float(total_pixels)
 
+        # Qualitative & Quantitative CROWN (pixel-level backward propagation over H*W*num_classes logits)
+        _, _, vt_qual_crown, _, avg_data_crown = certifyRobustness_pixel(
+            ssnn, [sim_csr], [img], num_classes=num_classes, reachMethod='crown', lp_solver='estimate'
+        )
+        qual_rb_crown_pct = 100.0 * float(avg_data_crown[0]) / float(total_pixels)
+
         # Quantitative PSIM_CSR & PSIM_COO [Ours]
         psim_csr = ProbSparseImageStar2DCSR(lb, ub)
         psim_coo = ProbSparseImageStar2DCOO(lb, ub)
@@ -728,18 +826,26 @@ def run_suite3_ssnn_benchmarks():
             ssnn, [psim_coo], [img], num_classes=num_classes,
             lp_solver='estimate', return_output=False
         )
+        res_crown_list, _ = certifyProbabilisticRobustness_pixel(
+            ssnn, [psim_csr], [img], num_classes=num_classes,
+            reachMethod='crown', lp_solver='estimate', return_output=False
+        )
         rc = res_csr_list[0]
         rco = res_coo_list[0]
+        rcr = res_crown_list[0]
         out_pcsr = out_csr_list[0]
 
         p_in = max(rc['p_input'], 1e-15)
         cond_p_min_map = rc['p_min_map'] / p_in
         cond_p_hat_map = rc['p_hat_map'] / p_in
         cond_p_max_map = rc['p_max_map'] / p_in
+        crown_cond_p_min_map = rcr['p_min_map'] / p_in
+        crown_cond_p_hat_map = rcr['p_hat_map'] / p_in
 
         unk_mask = rc['pixel_labels'] == num_classes
         mean_p_hat_on_unk = float(np.mean(cond_p_hat_map[unk_mask])) if np.any(unk_mask) else 1.0
         high_conf_pct = 100.0 * float(np.mean(cond_p_hat_map >= 0.90))
+        speedup_vs_crown = rcr['total_time'] / max(rc['total_time'], 1e-9)
 
         heatmaps[(model_name, n_att_pixels, eps)] = {
             'cond_p_min_map': cond_p_min_map,
@@ -757,23 +863,29 @@ def run_suite3_ssnn_benchmarks():
             'num_pred': int(out_pcsr.num_pred),
             'qual_robust_pixels_pct': qual_rb_pct,
             'qual_unknown_pixels_pct': qual_unk_pct,
+            'qual_robust_crown_pct': qual_rb_crown_pct,
             'quant_high_conf_pixels_pct': high_conf_pct,
             'mean_cond_p_min': float(np.mean(cond_p_min_map)),
             'mean_cond_p_hat': float(np.mean(cond_p_hat_map)),
             'mean_cond_p_max': float(np.mean(cond_p_max_map)),
+            'crown_mean_cond_p_min': float(np.mean(crown_cond_p_min_map)),
+            'crown_mean_cond_p_hat': float(np.mean(crown_cond_p_hat_map)),
             'mean_p_hat_on_qual_unknown': mean_p_hat_on_unk,
             't_SIM_CSR_s': float(vt_qual_csr),
+            't_CROWN_qual_s': float(vt_qual_crown),
+            't_CROWN_quant_s': float(rcr['total_time']),
             't_PSIM_CSR_s': float(rc['total_time']),
             't_PSIM_COO_s': float(rco['total_time']),
+            'speedup_PSIM_vs_CROWN': float(speedup_vs_crown),
             'mem_PSIM_CSR_MB': float(out_pcsr.nbytes() / (1024.0 ** 2)),
             'max_csr_coo_diff': float(np.max(np.abs(rc['p_hat_map'] - rco['p_hat_map']))),
         }
         rows.append(row)
         print(
             f"[{model_name:<18} {H}x{W}x{C_in} att={n_att_pixels:3d}px eps={eps:.2f}] "
-            f"nPred={row['num_pred']:4d} | Qual Robust={qual_rb_pct:5.1f}%, Unknown={qual_unk_pct:5.1f}% ({vt_qual_csr:.4f}s) | "
-            f"Quant E[p_min]={row['mean_cond_p_min']:.4f}, E[p_hat]={row['mean_cond_p_hat']:.4f}, "
-            f"E[p_hat|Unk]={mean_p_hat_on_unk:.4f} ({rc['total_time']:.4f}s, {row['mem_PSIM_CSR_MB']:.2f}MB)"
+            f"nPred={row['num_pred']:4d} | Qual Robust={qual_rb_pct:5.1f}% (SIM {vt_qual_csr:.4f}s, CROWN {vt_qual_crown:.4f}s) | "
+            f"Quant E[p_min]={row['mean_cond_p_min']:.4f}, E[p_hat]={row['mean_cond_p_hat']:.4f} "
+            f"(PSIM {rc['total_time']:.4f}s vs CROWN {rcr['total_time']:.4f}s, {speedup_vs_crown:.1f}x faster)"
         )
 
     return rows, heatmaps
@@ -926,6 +1038,24 @@ def run_suite4_resnet_and_vit_benchmarks(mc_samples=500):
                 use_lp=False, return_output=True
             )
 
+            # Qualitative & Quantitative CROWN and alpha-CROWN
+            rb_crown, vt_crown_qual, _, _ = certifyRobustness_CROWN(
+                net, sim_csr, true_label, mode='crown', lp_solver='estimate'
+            )
+            res_crown_quant, _ = certifyProbabilisticRobustness_CROWN(
+                net, psim_csr, true_label, mode='crown', lp_solver='estimate',
+                use_lp=False, return_output=False
+            )
+            rb_acrown, vt_acrown_qual, _, _ = certifyRobustness_CROWN(
+                net, sim_csr, true_label, mode='alpha-crown', lp_solver='estimate',
+                alpha_iters=15
+            )
+            res_acrown_quant, _ = certifyProbabilisticRobustness_CROWN(
+                net, psim_csr, true_label, mode='alpha-crown', lp_solver='estimate',
+                use_lp=False, return_output=False, alpha_iters=15
+            )
+            speedup_vs_crown = res_crown_quant['total_time'] / max(res_pcsr['total_time'], 1e-9)
+
             # Monte Carlo + pointwise envelope soundness validation
             mc = quantiVerifyVisionMC(
                 net, psim_csr, true_label=true_label,
@@ -946,25 +1076,39 @@ def run_suite4_resnet_and_vit_benchmarks(mc_samples=500):
                 'eps': eps,
                 'num_pred': int(res_pcsr['num_pred']),
                 'qual_status_CSR': _rb_to_str(rb_csr),
+                'qual_status_CROWN': _rb_to_str(rb_crown),
+                'qual_status_alpha_CROWN': _rb_to_str(rb_acrown),
                 't_SIM_CSR_s': float(vt_csr),
                 't_SIM_COO_s': float(vt_coo),
+                't_CROWN_qual_s': float(vt_crown_qual),
+                't_CROWN_quant_s': float(res_crown_quant['total_time']),
+                't_alpha_CROWN_qual_s': float(vt_acrown_qual),
+                't_alpha_CROWN_quant_s': float(res_acrown_quant['total_time']),
                 't_PSIM_CSR_s': float(res_pcsr['total_time']),
                 't_PSIM_COO_s': float(res_pcoo['total_time']),
                 't_MC_s': float(mc['verification_time']),
+                'speedup_PSIM_vs_CROWN': float(speedup_vs_crown),
                 'mem_SIM_CSR_MB': float(out_csr.nbytes() / (1024.0 ** 2)),
                 'mem_PSIM_CSR_MB': float(out_pcsr.nbytes() / (1024.0 ** 2)),
                 'cond_p_min': float(res_pcsr['cond_p_min']),
                 'cond_p_max': float(res_pcsr['cond_p_max']),
                 'cond_p_hat': float(res_pcsr['cond_p_hat']),
+                'crown_cond_p_min': float(res_crown_quant['cond_p_min']),
+                'crown_cond_p_max': float(res_crown_quant['cond_p_max']),
+                'crown_cond_p_hat': float(res_crown_quant['cond_p_hat']),
+                'alpha_crown_cond_p_min': float(res_acrown_quant['cond_p_min']),
+                'alpha_crown_cond_p_max': float(res_acrown_quant['cond_p_max']),
+                'alpha_crown_cond_p_hat': float(res_acrown_quant['cond_p_hat']),
                 'cond_p_mc': float(mc['cond_p_mc']),
                 'envelope_violations_100': env_violations,
             }
             rows.append(row)
             print(
                 f"[{arch_name:<21} {H}x{W}x{C} att={n_attacked:3d}px eps={eps:.3f}] "
-                f"nPred={row['num_pred']:4d} | SIM_CSR={row['qual_status_CSR']:<7} ({vt_csr:.4f}s) | "
+                f"nPred={row['num_pred']:4d} | SIM_CSR={row['qual_status_CSR']:<7} ({vt_csr:.4f}s), "
+                f"CROWN={row['qual_status_CROWN']:<7} ({vt_crown_qual:.4f}s), a-CROWN={row['qual_status_alpha_CROWN']:<7} ({vt_acrown_qual:.4f}s) | "
                 f"PSIM_CSR=[{res_pcsr['cond_p_min']:.4f}, {res_pcsr['cond_p_max']:.4f}], "
-                f"p_hat={res_pcsr['cond_p_hat']:.4f} ({res_pcsr['total_time']:.4f}s, {row['mem_PSIM_CSR_MB']:.2f}MB) | "
+                f"p_hat={res_pcsr['cond_p_hat']:.4f} ({res_pcsr['total_time']:.4f}s, {speedup_vs_crown:.1f}x vs CROWN) | "
                 f"MC={mc['cond_p_mc']:.4f} | EnvViol={env_violations}/100"
             )
 
@@ -998,54 +1142,72 @@ def generate_plots_and_tables(s1_rows, s2_rows, layer_trace, s3_rows, heatmaps, 
         ))
 
         print("\n" + "=" * 84)
-        print("TABLE 2: Exact ProbStar vs. Filtered vs. Approx ProbStar vs. Qualitative Star vs. MC")
+        print("TABLE 2: Exact ProbStar vs. Filtered vs. Approx ProbStar vs. CROWN / a-CROWN / ab-CROWN vs. MC")
         print("=" * 84)
         print(tabulate(
-            [[f"{r['eps']:.2f}", r['qual_status'], r['exact_num_sets'], r['approx_num_sets'],
+            [[f"{r['eps']:.2f}",
+              f"{r['qual_status']}/{r['qual_crown']}/{r['qual_abcrown']}",
+              r['exact_num_sets'], r['approx_num_sets'],
               f"[{r['cond_p_min']:.4f}, {r['cond_p_max']:.4f}]",
-              f"{r['cond_p_hat_analytic']:.4f}", f"{r['cond_p_exact']:.4f}", f"{r['cond_p_mc']:.4f}",
-              f"{r['t_exact_s']:.4f}s", f"{r['t_approx_analytic_s']:.4f}s", f"{r['speedup_vs_exact']:.1f}x"]
+              f"{r['cond_p_hat_analytic']:.4f}",
+              f"[{r['crown_p_min']:.4f}, {r['crown_p_max']:.4f}]",
+              f"[{r['abcrown_p_min']:.4f}, {r['abcrown_p_max']:.4f}]",
+              f"{r['cond_p_exact']:.4f}", f"{r['cond_p_mc']:.4f}",
+              f"{r['t_exact_s']:.4f}s", f"{r['t_approx_analytic_s']:.4f}s",
+              f"{r['t_quant_crown_s']:.4f}s", f"{r['t_quant_abcrown_s']:.4f}s",
+              f"{r['speedup_vs_exact']:.1f}x"]
              for r in s1_rows],
-            headers=['eps', 'Qual Star', '#Exact', '#Approx', '[p_min, p_max]', 'p_hat', 'p_exact', 'p_MC', 't_Exact', 't_Approx', 'Speedup'],
+            headers=['eps', 'Qual(Star/CR/abCR)', '#Ex', '#Ap', 'Ours [p_min, p_max]', 'Ours p_hat', 'CROWN [p_min, p_max]', 'ab-CROWN [p_min, p_max]', 'p_exact', 'p_MC', 't_Exact', 't_Ours', 't_CROWN', 't_abCR', 'Spd_Ex'],
             tablefmt='github'
         ))
 
         print("\n" + "=" * 84)
-        print("TABLE 3: Full-Size Pretrained CNNs (28x28x1 CAV2020 MNIST & 32x32x3 OVAL21 CIFAR-10)")
+        print("TABLE 3: Full-Size Pretrained CNNs (28x28x1 CAV2020 MNIST & 32x32x3 OVAL21 CIFAR-10) vs. CROWN & NNV")
         print("=" * 84)
         print(tabulate(
-            [[r['model'], r['shape'], r['spec'], r['num_pred'], r['qual_status_CSR'],
+            [[r['model'], r['shape'], r['spec'], r['num_pred'],
+              f"{r['qual_status_CSR']}/{r['qual_status_CROWN']}",
               f"[{r['cond_p_min']:.4f}, {r['cond_p_max']:.4f}]",
-              f"{r['cond_p_hat']:.4f}", f"{r['cond_p_mc']:.4f}",
+              f"{r['cond_p_hat']:.4f}",
+              f"[{r['crown_cond_p_min']:.4f}, {r['crown_cond_p_max']:.4f}]",
+              f"{r['cond_p_mc']:.4f}",
               (f"{r['t_NNV_s']:.2f}s" if r['t_NNV_s'] > 0 else 'N/A'),
-              f"{r['t_SIM_CSR_s']:.4f}s", f"{r['t_PSIM_CSR_s']:.4f}s",
-              f"{r['mem_SIM_CSR_MB']:.2f}MB", f"{r['mem_PSIM_CSR_MB']:.2f}MB"]
+              f"{r['t_SIM_CSR_s']:.4f}s", f"{r['t_CROWN_quant_s']:.4f}s", f"{r['t_PSIM_CSR_s']:.4f}s",
+              f"{r['speedup_PSIM_vs_CROWN']:.1f}x",
+              f"{r['mem_PSIM_CSR_MB']:.2f}MB"]
              for r in s2_rows],
-            headers=['Model', 'Input Shape', 'Attack Spec', '#Pred', 'Qual(CSR)', '[p_min, p_max]', 'p_hat', 'p_MC', 't_NNV', 't_SIM_CSR', 't_PSIM_CSR', 'Mem(SIM)', 'Mem(PSIM)'],
+            headers=['Model', 'Input Shape', 'Attack Spec', '#Pred', 'Qual(CSR/CR)', 'Ours [p_min, p_max]', 'Ours p_hat', 'CROWN [p_min, p_max]', 'p_MC', 't_NNV', 't_SIM_CSR', 't_CROWN', 't_PSIM_CSR', 'Spd vs CR', 'Mem(PSIM)'],
             tablefmt='github'
         ))
 
         print("\n" + "=" * 84)
-        print("TABLE 4: Full-Size Pretrained Semantic Segmentation (28x28x1 & 28x56x1 M2NIST) & ResNet/ViT")
+        print("TABLE 4: Full-Size Pretrained Semantic Segmentation (M2NIST) & ResNet/ViT vs. CROWN / a-CROWN")
         print("=" * 84)
         print(tabulate(
             [[r['model'], r['shape'], r['attacked_pixels'], f"{r['eps']:.2f}", r['num_pred'],
-              f"{r['qual_robust_pixels_pct']:.1f}%", f"{r['qual_unknown_pixels_pct']:.1f}%",
+              f"{r['qual_robust_pixels_pct']:.1f}%", f"{r['qual_robust_crown_pct']:.1f}%",
               f"{r['mean_cond_p_min']:.4f}", f"{r['mean_cond_p_hat']:.4f}",
-              f"{r['t_SIM_CSR_s']:.4f}s", f"{r['t_PSIM_CSR_s']:.4f}s", f"{r['mem_PSIM_CSR_MB']:.2f}MB"]
+              f"{r['crown_mean_cond_p_min']:.4f}", f"{r['crown_mean_cond_p_hat']:.4f}",
+              f"{r['t_SIM_CSR_s']:.4f}s", f"{r['t_CROWN_quant_s']:.4f}s", f"{r['t_PSIM_CSR_s']:.4f}s",
+              f"{r['speedup_PSIM_vs_CROWN']:.1f}x", f"{r['mem_PSIM_CSR_MB']:.2f}MB"]
              for r in s3_rows],
-            headers=['SSNN Model', 'Input Shape', 'AttPx', 'eps', '#Pred', 'Qual Rob%', 'Qual Unk%', 'E[p_min]', 'E[p_hat]', 't_SIM_CSR', 't_PSIM_CSR', 'Mem(MB)'],
+            headers=['SSNN Model', 'Input Shape', 'AttPx', 'eps', '#Pred', 'Rob%(CSR)', 'Rob%(CR)', 'Ours E[p_min]', 'Ours E[p_hat]', 'CR E[p_min]', 'CR E[p_hat]', 't_SIM_CSR', 't_CROWN', 't_PSIM_CSR', 'Spd vs CR', 'Mem(MB)'],
             tablefmt='github'
         ))
         print()
         print(tabulate(
-            [[r['arch'], r['shape'], r['attacked_pixels'], f"{r['eps']:.3f}", r['num_pred'], r['qual_status_CSR'],
+            [[r['arch'], r['shape'], r['attacked_pixels'], f"{r['eps']:.3f}", r['num_pred'],
+              f"{r['qual_status_CSR']}/{r['qual_status_CROWN']}/{r['qual_status_alpha_CROWN']}",
               f"[{r['cond_p_min']:.4f}, {r['cond_p_max']:.4f}]",
-              f"{r['cond_p_hat']:.4f}", f"{r['cond_p_mc']:.4f}",
-              f"{r['t_SIM_CSR_s']:.4f}s", f"{r['t_PSIM_CSR_s']:.4f}s",
+              f"{r['cond_p_hat']:.4f}",
+              f"[{r['crown_cond_p_min']:.4f}, {r['crown_cond_p_max']:.4f}]",
+              f"[{r['alpha_crown_cond_p_min']:.4f}, {r['alpha_crown_cond_p_max']:.4f}]",
+              f"{r['cond_p_mc']:.4f}",
+              f"{r['t_SIM_CSR_s']:.4f}s", f"{r['t_CROWN_quant_s']:.4f}s", f"{r['t_alpha_CROWN_quant_s']:.4f}s",
+              f"{r['t_PSIM_CSR_s']:.4f}s", f"{r['speedup_PSIM_vs_CROWN']:.1f}x",
               f"{r['mem_PSIM_CSR_MB']:.2f}MB", f"{r['envelope_violations_100']}/100"]
              for r in s4_rows],
-            headers=['ResNet/ViT Arch', 'Input Shape', 'AttPx', 'eps', '#Pred', 'Qual(CSR)', '[p_min, p_max]', 'p_hat', 'p_MC', 't_SIM_CSR', 't_PSIM_CSR', 'Mem(MB)', 'EnvViol'],
+            headers=['ResNet/ViT Arch', 'Input Shape', 'AttPx', 'eps', '#Pred', 'Qual(CSR/CR/aCR)', 'Ours [p_min, p_max]', 'Ours p_hat', 'CROWN [p_min, p_max]', 'a-CROWN [p_min, p_max]', 'p_MC', 't_SIM_CSR', 't_CROWN', 't_aCROWN', 't_PSIM_CSR', 'Spd vs CR', 'Mem(MB)', 'EnvViol'],
             tablefmt='github'
         ))
 
@@ -1076,22 +1238,24 @@ def generate_plots_and_tables(s1_rows, s2_rows, layer_trace, s3_rows, heatmaps, 
 
     tex_path = os.path.join(res_dir, 'cav2027_tables.tex')
     with open(tex_path, 'w') as f:
-        f.write("% Auto-generated CAV 2027 Full-Size Pretrained Vision Benchmark Tables\n")
+        f.write("% Auto-generated CAV 2027 Full-Size Pretrained Vision Benchmark Tables (with CROWN Comparison)\n")
         f.write("\\begin{table}[t]\n\\centering\n\\scriptsize\n")
-        f.write("\\caption{Full-Size Pretrained Vision Benchmarks: Qualitative (SIM\\_CSR, NNV) vs. Quantitative (PSIM\\_CSR, MC).}\n")
-        f.write("\\begin{tabular}{lllccccccc}\n\\hline\n")
-        f.write("Model & Shape & Spec / $\\epsilon$ & \\#Pred & Qual(CSR) & $[p_{\\min}, p_{\\max}]$ & $\\hat{p}$ & $p_{\\text{MC}}$ & $t_{\\text{SIM}}$ / $t_{\\text{PSIM}}$ (s) & Mem (MB) \\\\\n\\hline\n")
+        f.write("\\caption{Full-Size Pretrained Vision Benchmarks: Qualitative (SIM\\_CSR, CROWN, NNV) vs. Quantitative (PSIM\\_CSR [Ours], CROWN, MC).}\n")
+        f.write("\\begin{tabular}{lllccccccccc}\n\\hline\n")
+        f.write("Model & Shape & Spec / $\\epsilon$ & \\#Pred & Qual(CSR/CR) & Ours $[p_{\\min}, p_{\\max}]$ & Ours $\\hat{p}$ & CROWN $[p_{\\min}, p_{\\max}]$ & $p_{\\text{MC}}$ & $t_{\\text{CROWN}}$ / $t_{\\text{PSIM}}$ (s) & Spd vs CR & Mem (MB) \\\\\n\\hline\n")
         for r in s2_rows:
             f.write(
                 f"{r['model'].replace('_', '\\_')} & ${r['shape'].replace('x', ' \\times ')}$ & {r['spec'].replace('_', '\\_')} & {r['num_pred']} & "
-                f"{r['qual_status_CSR']} & $[{r['cond_p_min']:.3f}, {r['cond_p_max']:.3f}]$ & {r['cond_p_hat']:.3f} & {r['cond_p_mc']:.3f} & "
-                f"{r['t_SIM_CSR_s']:.3f} / {r['t_PSIM_CSR_s']:.3f} & {r['mem_PSIM_CSR_MB']:.2f} \\\\\n"
+                f"{r['qual_status_CSR']}/{r['qual_status_CROWN']} & $[{r['cond_p_min']:.3f}, {r['cond_p_max']:.3f}]$ & {r['cond_p_hat']:.3f} & "
+                f"$[{r['crown_cond_p_min']:.3f}, {r['crown_cond_p_max']:.3f}]$ & {r['cond_p_mc']:.3f} & "
+                f"{r['t_CROWN_quant_s']:.3f} / {r['t_PSIM_CSR_s']:.3f} & {r['speedup_PSIM_vs_CROWN']:.1f}$\\times$ & {r['mem_PSIM_CSR_MB']:.2f} \\\\\n"
             )
         for r in s4_rows:
             f.write(
                 f"{r['arch'].replace('_', '\\_')} & ${r['shape'].replace('x', ' \\times ')}$ & $\\epsilon={r['eps']:.3f}$ & {r['num_pred']} & "
-                f"{r['qual_status_CSR']} & $[{r['cond_p_min']:.3f}, {r['cond_p_max']:.3f}]$ & {r['cond_p_hat']:.3f} & {r['cond_p_mc']:.3f} & "
-                f"{r['t_SIM_CSR_s']:.3f} / {r['t_PSIM_CSR_s']:.3f} & {r['mem_PSIM_CSR_MB']:.2f} \\\\\n"
+                f"{r['qual_status_CSR']}/{r['qual_status_CROWN']} & $[{r['cond_p_min']:.3f}, {r['cond_p_max']:.3f}]$ & {r['cond_p_hat']:.3f} & "
+                f"$[{r['crown_cond_p_min']:.3f}, {r['crown_cond_p_max']:.3f}]$ & {r['cond_p_mc']:.3f} & "
+                f"{r['t_CROWN_quant_s']:.3f} / {r['t_PSIM_CSR_s']:.3f} & {r['speedup_PSIM_vs_CROWN']:.1f}$\\times$ & {r['mem_PSIM_CSR_MB']:.2f} \\\\\n"
             )
         f.write("\\hline\n\\end{tabular}\n\\end{table}\n")
 

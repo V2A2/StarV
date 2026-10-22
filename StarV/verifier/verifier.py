@@ -18,9 +18,19 @@ Main Verifier Class
 Dung Tran, 9/10/2022
 """
 
-from StarV.net.network import NeuralNetwork, reachExactBFS, reachApproxBFS
+from StarV.net.network import NeuralNetwork, reachExactBFS, reachApproxBFS, reachCROWN
+from StarV.verifier.crown import (
+    CROWNVerifier,
+    CROWNNetworkGraph,
+    qualiVerifyCROWN,
+    quantiVerifyCROWN,
+)
 from StarV.set.probstar import ProbStar
 from StarV.set.star import Star
+from StarV.set.sparsestar import SparseStar
+from StarV.set.imagestar import ImageStar
+from StarV.set.sparseimagestar2dcsr import SparseImageStar2DCSR
+from StarV.set.sparseimagestar2dcoo import SparseImageStar2DCOO
 from StarV.set.probsparseimagestar2dcsr import ProbSparseImageStar2DCSR
 from StarV.set.probsparseimagestar2dcoo import ProbSparseImageStar2DCOO
 from StarV.spec.dProbStarTL import Formula
@@ -68,16 +78,26 @@ class Verifier(object):
         """
         assert isinstance(net, NeuralNetwork), 'error: input is not a NeuralNetwork object'
         first_set = inputSet[0] if isinstance(inputSet, list) else inputSet
+        crown_modes = ('crown', 'alpha-crown', 'alpha-beta-crown')
+        rm_lower = str(reachMethod).lower() if reachMethod is not None else ''
+        m_lower = str(self.method).lower() if self.method is not None else ''
+        crown_mode = rm_lower if rm_lower in crown_modes else (m_lower if m_lower in crown_modes else None)
+
         if isinstance(first_set, (ProbStar, ProbSparseImageStar2DCSR, ProbSparseImageStar2DCOO)):
             if self.method == 'MC':
                 return self.quantiVerifyMC(net, first_set, unsafe_mat, unsafe_vec)
+            if crown_mode is not None:
+                return quantiVerifyCROWN(
+                    net=net, inputSet=first_set, unsafe_mat=unsafe_mat, unsafe_vec=unsafe_vec,
+                    mode=crown_mode, lp_solver=self.lp_solver, show=show
+                )
             if reachMethod == 'approx' or self.method == 'approx' or isinstance(first_set, (ProbSparseImageStar2DCSR, ProbSparseImageStar2DCOO)):
                 return quantiVerifyApproxBFS(
                     net=net, inputSet=first_set, unsafe_mat=unsafe_mat, unsafe_vec=unsafe_vec,
                     lp_solver=self.lp_solver, show=show
                 )
             return self.quantiVerify(net, inputSet, unsafe_mat, unsafe_vec, p_filter=p_filter, show=show)
-        elif isinstance(first_set, Star):
+        elif isinstance(first_set, (Star, SparseStar, ImageStar, SparseImageStar2DCSR, SparseImageStar2DCOO)):
             return self.qualiVerify(net, inputSet, unsafe_mat, unsafe_vec, reachMethod=reachMethod, show=show)
         else:
             raise TypeError(f'Unsupported inputSet element type: {type(first_set)}')
@@ -85,6 +105,13 @@ class Verifier(object):
     def quantiVerify(self, net, inputSet, unsafe_mat, unsafe_vec, p_filter=0.0, show=True):
         """Quantitative verification of a NeuralNetwork with ProbStar inputSet."""
         assert isinstance(net, NeuralNetwork), 'error: input is not a NeuralNetwork object'
+        m_lower = str(self.method).lower() if self.method is not None else ''
+        if m_lower in ('crown', 'alpha-crown', 'alpha-beta-crown'):
+            first_set = inputSet[0] if isinstance(inputSet, list) else inputSet
+            return quantiVerifyCROWN(
+                net=net, inputSet=first_set, unsafe_mat=unsafe_mat, unsafe_vec=unsafe_vec,
+                mode=m_lower, lp_solver=self.lp_solver, show=show
+            )
         if isinstance(inputSet, ProbStar):
             inputSet = [inputSet]
         if p_filter == 0.0 and self.method == 'exact':
@@ -100,6 +127,16 @@ class Verifier(object):
     def qualiVerify(self, net, inputSet, unsafe_mat, unsafe_vec, reachMethod='exact', show=True):
         """Qualitative verification of a NeuralNetwork with Star inputSet."""
         assert isinstance(net, NeuralNetwork), 'error: input is not a NeuralNetwork object'
+        crown_modes = ('crown', 'alpha-crown', 'alpha-beta-crown')
+        rm_lower = str(reachMethod).lower() if reachMethod is not None else ''
+        m_lower = str(self.method).lower() if self.method is not None else ''
+        crown_mode = rm_lower if rm_lower in crown_modes else (m_lower if m_lower in crown_modes else None)
+        if crown_mode is not None:
+            single_set = inputSet[0] if isinstance(inputSet, list) else inputSet
+            return qualiVerifyCROWN(
+                net=net, inputSet=single_set, unsafe_mat=unsafe_mat, unsafe_vec=unsafe_vec,
+                mode=crown_mode, lp_solver=self.lp_solver, show=show
+            )
         if reachMethod == 'approx' or self.method == 'approx':
             single_set = inputSet[0] if isinstance(inputSet, list) else inputSet
             return qualiVerifyApproxBFS(

@@ -37,6 +37,13 @@ from StarV.set.probsparseimagestar2dcoo import ProbSparseImageStar2DCOO
 from StarV.set.probsparseimagestar2dcsr import ProbSparseImageStar2DCSR
 from StarV.layer.PixelClassificationLayer import PixelClassificationLayer
 from StarV.layer.ReLULayer import ReLULayer
+from StarV.verifier.crown import (
+    reachCROWN,
+    certifyRobustness_single_input_CROWN,
+    certifyRobustness_CROWN,
+    certifyProbabilisticRobustness_single_input_CROWN,
+    certifyProbabilisticRobustness_CROWN,
+)
 
 class Certifier(object):
     """
@@ -149,8 +156,32 @@ def reachBFS(net, inputSet, reachMethod='approx', lp_solver='gurobi', pool=None,
     """
 
     assert isinstance(net, NeuralNetwork), 'error: first input should be a NeuralNetwork object'
-    assert isinstance(inputSet, (list, SparseStar, Star, ProbStar, ImageStar, SparseImageStar2DCOO, SparseImageStar2DCSR)), \
-        'error: second input should be a list of Star/ImageStar/ProbStar/SparseStar/SparseImageStar2DCOO/SparseImageStar2DCSR sets or a single set'
+    assert isinstance(
+        inputSet,
+        (
+            list, SparseStar, Star, ProbStar, ImageStar,
+            SparseImageStar2DCOO, SparseImageStar2DCSR,
+            ProbSparseImageStar2DCOO, ProbSparseImageStar2DCSR,
+        ),
+    ), (
+        'error: second input should be a list of Star/ImageStar/ProbStar/SparseStar/'
+        'SparseImageStar2DCOO/SparseImageStar2DCSR sets or a single set'
+    )
+
+    if str(reachMethod).lower() in ('crown', 'alpha-crown', 'alpha-beta-crown'):
+        start = time.perf_counter()
+        outputSet = reachCROWN(
+            net, inputSet, mode=str(reachMethod).lower(),
+            lp_solver=lp_solver, show=show
+        )
+        totalReachTime = time.perf_counter() - start
+        if isinstance(net.layers[-1], PixelClassificationLayer):
+            pixel_classification = net.layers[-1].reach(
+                outputSet, method='approx', lp_solver=lp_solver,
+                pool=pool, RF=RF, DR=DR, show=show
+            )
+            return outputSet, totalReachTime, pixel_classification
+        return outputSet, totalReachTime
 
     # compute reachable set
     reachTime = []
@@ -654,6 +685,15 @@ def certifyPixelRobustness_single_input(net, in_set, in_data, veriMethod='BFS', 
 
 
 def certifyRobustness_single_input(net, in_set, label=None, veriMethod='BFS', reachMethod='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
+    crown_modes = ('crown', 'alpha-crown', 'alpha-beta-crown')
+    rm_lower = str(reachMethod).lower() if reachMethod is not None else ''
+    vm_lower = str(veriMethod).lower() if veriMethod is not None else ''
+    crown_mode = rm_lower if rm_lower in crown_modes else (vm_lower if vm_lower in crown_modes else None)
+    if crown_mode is not None:
+        return certifyRobustness_single_input_CROWN(
+            net, in_set, label=label, mode=crown_mode,
+            lp_solver=lp_solver, show=show
+        )
 
     if label is None:
         y = net.evaluate(in_set)
@@ -738,6 +778,16 @@ def certifyProbabilisticRobustness_single_input(
       Y: output reachable set
     """
     t0 = time.perf_counter()
+    crown_modes = ('crown', 'alpha-crown', 'alpha-beta-crown')
+    rm_lower = str(reachMethod).lower() if reachMethod is not None else ''
+    vm_lower = str(veriMethod).lower() if veriMethod is not None else ''
+    crown_mode = rm_lower if rm_lower in crown_modes else (vm_lower if vm_lower in crown_modes else None)
+    if crown_mode is not None:
+        return certifyProbabilisticRobustness_single_input_CROWN(
+            net, in_set, label, mode=crown_mode,
+            lp_solver=lp_solver, show=show
+        )
+
     Y, reach_time = reachBFS(
         net=net, inputSet=in_set, reachMethod=reachMethod,
         lp_solver=lp_solver, pool=pool, RF=RF, DR=DR,

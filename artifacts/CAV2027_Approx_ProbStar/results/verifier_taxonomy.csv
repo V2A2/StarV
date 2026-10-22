@@ -2,7 +2,8 @@ verifier,paradigm,sound_guarantee,quant_prob_bounds,cnn_pooling_bn,ssnn_pixel,re
 NNV (ImageStar),Qualitative (Deterministic),Yes (Over-Approx),No,Yes,Yes,Partial (No ViT),Dense O(H*W*C*p)
 nnenum / Marabou,Qualitative (LP / SMT),Yes (Exact/Complete),No,Yes (Small/Med),No,No,Dense / Branching
 DeepPoly / ERAN,Qualitative (Abstract Interp.),Yes (Single Polytope),No,Yes,Partial,Yes,Dense O(N*p)
-"alpha,beta-CROWN",Qualitative (LiRPA + BaB),Yes (Sound & Complete),No,Yes (GPU),Partial,Yes,Backward Symbolic
+StarV CROWN / alpha-CROWN,Backward LiRPA (Qual + Quant),"Yes ([p_min, p_max] + Envelope)",Yes (Input-Space Linear),Yes,Yes (Slow O(M*N) Backward),Yes (ResNet + ViT),Dense Backward O(M*N)
+"StarV alpha,beta-CROWN (BaB)",Complete LiRPA + BaB,Yes (Sound & Complete),Yes (Sub-Box Partition),Yes,Partial,Yes (ReLU BaB),O(B * M * N)
 StarV SparseImageStar (CSR/COO),Qualitative (Sparse Star),Yes (Over-Approx),No,Yes (SpGEMM),Yes,Added in CAV27,Sparse O(nnz(V))
 StarV Exact / Filtered ProbStar,Quantitative (Exact Split),Exact / Lower Bound,Yes (O(2^k) branches),No (Small FNN only),No,No,Exponential O(2^k)
 Monte Carlo Sampling (MC),Quantitative (Statistical),No (Empirical CI only),Empirical Estimate,Yes,Yes,Yes,O(N_samples)

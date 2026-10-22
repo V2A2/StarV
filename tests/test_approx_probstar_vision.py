@@ -50,6 +50,10 @@ from StarV.verifier.certifier import (
     certifyProbabilisticRobustness,
     certifyProbabilisticRobustness_pixel,
 )
+from StarV.verifier.crown import (
+    certifyRobustness_CROWN,
+    certifyProbabilisticRobustness_CROWN,
+)
 
 
 def _assert_prob_invariants(res, tol=1e-9):
@@ -415,6 +419,54 @@ def test_vision_transformer_layernorm_gelu_mhsa_soundness():
     assert np.all(y_mc <= env_ub + 1e-6), "ViT upper envelope violated!"
 
 
+def test_crown_vs_approx_probstar_2d_and_norm_layer():
+    """
+    Test CROWN qualitative & quantitative certification alongside PSIM_CSR
+    on a CNN with a leading FullyConnectedLayer(W=None, b=...) normalization
+    layer and 2D (H, W) SparseImageStar2DCSR / ProbSparseImageStar2DCSR inputs.
+    """
+    rng = np.random.default_rng(2027)
+    H, W = 6, 6
+    img_2d = rng.uniform(0.1, 0.9, size=(H, W)).astype(np.float64)
+    lb_2d = img_2d.copy()
+    ub_2d = img_2d.copy()
+    lb_2d[1:3, 1:3] = np.clip(lb_2d[1:3, 1:3] - 0.04, 0.0, 1.0)
+    ub_2d[1:3, 1:3] = np.clip(ub_2d[1:3, 1:3] + 0.04, 0.0, 1.0)
+
+    norm_layer = FullyConnectedLayer([None, np.array([-0.5], dtype=np.float64)])
+    w_conv = rng.normal(0.0, 0.35, size=(3, 3, 1, 2)).astype(np.float64)
+    b_conv = np.zeros(2, dtype=np.float64)
+    conv = Conv2DLayer([w_conv, b_conv], stride=[2, 2], padding=[1, 1, 1, 1])
+    relu = ReLULayer()
+    mp = MaxPool2DLayer([2, 2], [1, 1], [0, 0, 0, 0])
+    flat = FlattenLayer(channel_last=True)
+    w_fc = rng.normal(0.0, 0.4, size=(3, 2 * 2 * 2)).astype(np.float64)
+    b_fc = np.array([0.4, -0.1, -0.2], dtype=np.float64)
+    fc = FullyConnectedLayer([w_fc, b_fc])
+
+    net = NeuralNetwork([norm_layer, conv, relu, mp, flat, fc], net_type='cnn_norm')
+    true_label = int(np.argmax(net.evaluate(img_2d[:, :, None]).ravel()))
+
+    sim_csr = SparseImageStar2DCSR(lb_2d, ub_2d)
+    psim_csr = ProbSparseImageStar2DCSR(lb_2d, ub_2d)
+
+    rb_sim, _, _, _ = certifyRobustness(
+        net, sim_csr, true_label, reachMethod='approx', lp_solver='estimate', return_output=False
+    )
+    rb_crown, _, _, _ = certifyRobustness_CROWN(net, sim_csr, true_label, mode='crown', lp_solver='estimate')
+    assert rb_sim in (0, 1, 2)
+    assert rb_crown in (0, 1, 2)
+
+    res_psim, _ = certifyProbabilisticRobustness(
+        net, psim_csr, true_label, lp_solver='estimate', return_output=False
+    )
+    res_crown, _ = certifyProbabilisticRobustness_CROWN(
+        net, psim_csr, true_label, mode='crown', lp_solver='estimate', return_output=False
+    )
+    _assert_prob_invariants(res_psim)
+    _assert_prob_invariants(res_crown)
+
+
 class Test(unittest.TestCase):
     def test_probstar_approx_vs_exact_and_mc(self):
         test_probstar_approx_vs_exact_and_mc_soundness()
@@ -430,6 +482,9 @@ class Test(unittest.TestCase):
 
     def test_vit_layernorm_gelu_mhsa(self):
         test_vision_transformer_layernorm_gelu_mhsa_soundness()
+
+    def test_crown_vs_approx_probstar(self):
+        test_crown_vs_approx_probstar_2d_and_norm_layer()
 
 
 if __name__ == '__main__':

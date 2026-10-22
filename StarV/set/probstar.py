@@ -1041,6 +1041,13 @@ class ProbStar(object):
             self, true_label, lp_solver=lp_solver, use_lp_tightening=use_lp
         )
 
+    def certifySegmentationPixels(self, clean_labels, num_classes=None, lp_solver='estimate', use_lp=False):
+        """Certify pixel-level qualitative and quantitative robustness for 3D segmentation outputs."""
+        from StarV.set.probsparseimagestar2dcsr import ProbSparseImageStar2DCSR
+        return ProbSparseImageStar2DCSR.certifySegmentationPixels(
+            self, clean_labels, num_classes=num_classes, lp_solver=lp_solver, use_lp=use_lp
+        )
+
     def sampling_alpha0(self, N, seed=None):
         """Fast vectorized inverse-CDF sampling of initial truncated Gaussian alpha_0."""
         from scipy.stats import norm

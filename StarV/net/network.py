@@ -143,6 +143,15 @@ class NeuralNetwork(object):
             if show: print(f'computation time: {time.perf_counter()-start}')
         return y
 
+    def reachCROWN(self, inputSet, mode='crown', slope_mode='adaptive', alpha_iters=30, alpha_lr=0.15, lp_solver='gurobi', show=False):
+        """Compute CROWN / alpha-CROWN reachable set of the network on inputSet."""
+        from StarV.verifier.crown import reachCROWN as _reach_crown
+        return _reach_crown(
+            self, inputSet, mode=mode, slope_mode=slope_mode,
+            alpha_iters=alpha_iters, alpha_lr=alpha_lr,
+            lp_solver=lp_solver, show=show
+        )
+
 def rand_ffnn(arch, actvs):
     """randomly generate feedforward neural network
     Args:
@@ -269,4 +278,15 @@ def reachApproxBFS(net, inputSet, p_filter=0.0, lp_solver='gurobi', pool=None, s
         if show:
             print('Number of stars: {}'.format(len(S)))
     return S
+
+
+def reachCROWN(net, inputSet, mode='crown', slope_mode='adaptive', alpha_iters=30, alpha_lr=0.15, lp_solver='gurobi', show=False):
+    """Compute Reachable Set using CROWN / alpha-CROWN backward linear bound propagation."""
+    from StarV.verifier.crown import reachCROWN as _reach_crown
+    return _reach_crown(
+        net, inputSet, mode=mode, slope_mode=slope_mode,
+        alpha_iters=alpha_iters, alpha_lr=alpha_lr,
+        lp_solver=lp_solver, show=show
+    )
+
 
