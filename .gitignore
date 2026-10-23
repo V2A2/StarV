@@ -1,2 +1,4 @@
-__pycache__/.codex/
+__pycache__/
+.codex/
 .vscode/
+
