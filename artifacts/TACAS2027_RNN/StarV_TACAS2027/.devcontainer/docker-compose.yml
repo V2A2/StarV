@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  star-v:
+
+    build:
+      context: ../
+      dockerfile: .devcontainer/Dockerfile
+    volumes:
+      - ../../StarV:/home/StarV
+    stdin_open: true
+    tty: true

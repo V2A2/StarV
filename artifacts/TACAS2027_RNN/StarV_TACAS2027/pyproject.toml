@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "starv"
+version = "0.1.0"
+description = "Event-driven Monitoring and Verification Codesign for Distributed Learning-enabled Cyber-Physical Systems with Star Reachability"
+authors = [
+    {name = "Hoang Dung Tran", email = "dungtran@ufl.edu"},
+    {name = "Sung Woo Choi", email = "sungwoo.choi@ufl.edu"},
+    {name = "Yuntao Li", email = "yli17@ufl.edu"},
+    {name = "Qing Liu", email = "qliu1@ufl.edu"}
+]
+readme = "README.md"
+license = {text = "BSD 3-Clause"}
+requires-python = ">=3.8"
+dynamic = ["dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[tool.setuptools.packages.find]
+where = ["."]

@@ -1,0 +1,367 @@
+======================== Start LIMO reachability and verification ========================
+current directory: /home/qliu1/Desktop/StarV_qing/StarV/util
+current data path: /home/qliu1/Desktop/StarV_qing/StarV/util/data/LIMO_trajectories/limo_processed
+all_processed_data_shape: (1067, 7)
+all_processed_target_shape: (1067, 5)
+probability of the initial ProbStar set 0:0.9976758728542937
+probability of the initial ProbStar set 1:0.9976758728542937
+probability of the initial ProbStar set 2:0.9976758728542937
+probability of the initial ProbStar set 3:0.9976758728542937
+probability of the initial ProbStar set 4:0.9976758728542937
+probability of the initial ProbStar set 5:0.9976758728542937
+probability of the initial ProbStar set 6:0.9976758728542937
+probability of the initial ProbStar set 7:0.9976758728542937
+probability of the initial ProbStar set 8:0.9976758728542937
+probability of the initial ProbStar set 9:0.9976758728542937
+probability of the initial ProbStar set 10:0.9976758728542937
+probability of the initial ProbStar set 11:0.9976758728542937
+probability of the initial ProbStar set 12:0.9976758728542937
+probability of the initial ProbStar set 13:0.9976758728542937
+probability of the initial ProbStar set 14:0.9976758728542937
+probability of the initial ProbStar set 15:0.9976758728542937
+probability of the initial ProbStar set 16:0.9976758728542937
+probability of the initial ProbStar set 17:0.9976758728542937
+probability of the initial ProbStar set 18:0.9976758728542937
+probability of the initial ProbStar set 19:0.9976758728542937
+probability of the initial ProbStar set 20:0.9976758728542937
+probability of the initial ProbStar set 21:0.9976758728542937
+probability of the initial ProbStar set 22:0.9976758728542937
+probability of the initial ProbStar set 23:0.9976758728542937
+probability of the initial ProbStar set 24:0.9976758728542937
+probability of the initial ProbStar set 25:0.9976758728542937
+probability of the initial ProbStar set 26:0.9976758728542937
+probability of the initial ProbStar set 27:0.9976758728542937
+probability of the initial ProbStar set 28:0.9976758728542937
+probability of the initial ProbStar set 29:0.9976758728542937
+probability of the initial ProbStar set 30:0.9976758728542937
+probability of the initial ProbStar set 31:0.9976758728542937
+probability of the initial ProbStar set 32:0.9976758728542937
+probability of the initial ProbStar set 33:0.9976758728542937
+probability of the initial ProbStar set 34:0.9976758728542937
+probability of the initial ProbStar set 35:0.9976758728542937
+probability of the initial ProbStar set 36:0.9976758728542937
+probability of the initial ProbStar set 37:0.9976758728542937
+probability of the initial ProbStar set 38:0.9976758728542937
+probability of the initial ProbStar set 39:0.9976758728542937
+Using approximate reachability with branch tracing and pruning threshold p_filter=1e-10
+number of output sets in step 0 for hidden states(after relu):1
+number of branches after step 0: 1
+number of output sets in step 1 for hidden states(after relu):1
+number of branches after step 1: 1
+number of output sets in step 2 for hidden states(after relu):1
+number of branches after step 2: 1
+number of output sets in step 3 for hidden states(after relu):1
+number of branches after step 3: 1
+number of output sets in step 4 for hidden states(after relu):1
+number of branches after step 4: 1
+number of output sets in step 5 for hidden states(after relu):1
+number of branches after step 5: 1
+number of output sets in step 6 for hidden states(after relu):1
+number of branches after step 6: 1
+number of output sets in step 7 for hidden states(after relu):1
+number of branches after step 7: 1
+number of output sets in step 8 for hidden states(after relu):1
+number of branches after step 8: 1
+number of output sets in step 9 for hidden states(after relu):1
+number of branches after step 9: 1
+Set parameter Username
+Academic license - for non-commercial use only - expires 2026-09-04
+number of output sets in step 10 for hidden states(after relu):2
+number of branches after step 10: 2
+number of output sets in step 11 for hidden states(after relu):2
+number of branches after step 11: 2
+number of output sets in step 12 for hidden states(after relu):2
+number of branches after step 12: 2
+number of output sets in step 13 for hidden states(after relu):4
+number of branches after step 13: 4
+number of output sets in step 14 for hidden states(after relu):4
+number of branches after step 14: 4
+number of output sets in step 15 for hidden states(after relu):4
+number of branches after step 15: 4
+number of output sets in step 16 for hidden states(after relu):4
+number of branches after step 16: 4
+number of output sets in step 17 for hidden states(after relu):4
+number of branches after step 17: 4
+number of output sets in step 18 for hidden states(after relu):4
+number of branches after step 18: 4
+number of output sets in step 19 for hidden states(after relu):4
+number of branches after step 19: 4
+Step 20: Branch 0 with output set probability 0.956197049970 evaluated against threshold 1e-10
+Step 20: Branch 0 with output set probability 0.956197049970 kept (threshold 1e-10)
+Step 20: Branch 1 with output set probability 0.000000057202 evaluated against threshold 1e-10
+Step 20: Branch 1 with output set probability 0.000000057202 kept (threshold 1e-10)
+Step 20: Branch 2 with output set probability 0.000000000000 evaluated against threshold 1e-10
+Step 20: Branch 2 with output set probability 0.000000000000 ignored (threshold 1e-10)
+Step 20: Branch 3 with output set probability 0.000000000000 evaluated against threshold 1e-10
+Step 20: Branch 3 with output set probability 0.000000000000 ignored (threshold 1e-10)
+number of output sets in step 20 for hidden states(after relu):4
+number of branches after step 20: 2
+Step 21: Branch 0 with output set probability 0.950146271605 evaluated against threshold 1e-10
+Step 21: Branch 0 with output set probability 0.950146271605 kept (threshold 1e-10)
+Step 21: Branch 1 with output set probability 0.000000057043 evaluated against threshold 1e-10
+Step 21: Branch 1 with output set probability 0.000000057043 kept (threshold 1e-10)
+number of output sets in step 21 for hidden states(after relu):2
+number of branches after step 21: 2
+Step 22: Branch 0 with output set probability 0.951992379389 evaluated against threshold 1e-10
+Step 22: Branch 0 with output set probability 0.951992379389 kept (threshold 1e-10)
+Step 22: Branch 1 with output set probability 0.000000056849 evaluated against threshold 1e-10
+Step 22: Branch 1 with output set probability 0.000000056849 kept (threshold 1e-10)
+number of output sets in step 22 for hidden states(after relu):2
+number of branches after step 22: 2
+Step 23: Branch 0 with output set probability 0.947566752894 evaluated against threshold 1e-10
+Step 23: Branch 0 with output set probability 0.947566752894 kept (threshold 1e-10)
+Step 23: Branch 1 with output set probability 0.000000056772 evaluated against threshold 1e-10
+Step 23: Branch 1 with output set probability 0.000000056772 kept (threshold 1e-10)
+number of output sets in step 23 for hidden states(after relu):2
+number of branches after step 23: 2
+Step 24: Branch 0 with output set probability 0.946330970186 evaluated against threshold 1e-10
+Step 24: Branch 0 with output set probability 0.946330970186 kept (threshold 1e-10)
+Step 24: Branch 1 with output set probability 0.000000056466 evaluated against threshold 1e-10
+Step 24: Branch 1 with output set probability 0.000000056466 kept (threshold 1e-10)
+number of output sets in step 24 for hidden states(after relu):2
+number of branches after step 24: 2
+Step 25: Branch 0 with output set probability 0.944189655824 evaluated against threshold 1e-10
+Step 25: Branch 0 with output set probability 0.944189655824 kept (threshold 1e-10)
+Step 25: Branch 1 with output set probability 0.000000056514 evaluated against threshold 1e-10
+Step 25: Branch 1 with output set probability 0.000000056514 kept (threshold 1e-10)
+number of output sets in step 25 for hidden states(after relu):2
+number of branches after step 25: 2
+Step 26: Branch 0 with output set probability 0.944548323713 evaluated against threshold 1e-10
+Step 26: Branch 0 with output set probability 0.944548323713 kept (threshold 1e-10)
+Step 26: Branch 1 with output set probability 0.000000056258 evaluated against threshold 1e-10
+Step 26: Branch 1 with output set probability 0.000000056258 kept (threshold 1e-10)
+number of output sets in step 26 for hidden states(after relu):2
+number of branches after step 26: 2
+Step 27: Branch 0 with output set probability 0.942689428175 evaluated against threshold 1e-10
+Step 27: Branch 0 with output set probability 0.942689428175 kept (threshold 1e-10)
+Step 27: Branch 1 with output set probability 0.000000056175 evaluated against threshold 1e-10
+Step 27: Branch 1 with output set probability 0.000000056175 kept (threshold 1e-10)
+number of output sets in step 27 for hidden states(after relu):2
+number of branches after step 27: 2
+Step 28: Branch 0 with output set probability 0.948535680652 evaluated against threshold 1e-10
+Step 28: Branch 0 with output set probability 0.948535680652 kept (threshold 1e-10)
+Step 28: Branch 1 with output set probability 0.000000055969 evaluated against threshold 1e-10
+Step 28: Branch 1 with output set probability 0.000000055969 kept (threshold 1e-10)
+number of output sets in step 28 for hidden states(after relu):2
+number of branches after step 28: 2
+Step 29: Branch 0 with output set probability 0.948675089656 evaluated against threshold 1e-10
+Step 29: Branch 0 with output set probability 0.948675089656 kept (threshold 1e-10)
+Step 29: Branch 1 with output set probability 0.000000055825 evaluated against threshold 1e-10
+Step 29: Branch 1 with output set probability 0.000000055825 kept (threshold 1e-10)
+number of output sets in step 29 for hidden states(after relu):2
+number of branches after step 29: 2
+Step 30: Branch 0 with output set probability 0.947081205519 evaluated against threshold 1e-10
+Step 30: Branch 0 with output set probability 0.947081205519 kept (threshold 1e-10)
+Step 30: Branch 1 with output set probability 0.000000055773 evaluated against threshold 1e-10
+Step 30: Branch 1 with output set probability 0.000000055773 kept (threshold 1e-10)
+number of output sets in step 30 for hidden states(after relu):2
+number of branches after step 30: 2
+Step 31: Branch 0 with output set probability 0.941331045058 evaluated against threshold 1e-10
+Step 31: Branch 0 with output set probability 0.941331045058 kept (threshold 1e-10)
+Step 31: Branch 1 with output set probability 0.000000055564 evaluated against threshold 1e-10
+Step 31: Branch 1 with output set probability 0.000000055564 kept (threshold 1e-10)
+number of output sets in step 31 for hidden states(after relu):2
+number of branches after step 31: 2
+Step 32: Branch 0 with output set probability 0.932857925930 evaluated against threshold 1e-10
+Step 32: Branch 0 with output set probability 0.932857925930 kept (threshold 1e-10)
+Step 32: Branch 1 with output set probability 0.000000055545 evaluated against threshold 1e-10
+Step 32: Branch 1 with output set probability 0.000000055545 kept (threshold 1e-10)
+number of output sets in step 32 for hidden states(after relu):2
+number of branches after step 32: 2
+Step 33: Branch 0 with output set probability 0.938016574308 evaluated against threshold 1e-10
+Step 33: Branch 0 with output set probability 0.938016574308 kept (threshold 1e-10)
+Step 33: Branch 1 with output set probability 0.000000055395 evaluated against threshold 1e-10
+Step 33: Branch 1 with output set probability 0.000000055395 kept (threshold 1e-10)
+number of output sets in step 33 for hidden states(after relu):2
+number of branches after step 33: 2
+Step 34: Branch 0 with output set probability 0.000000000000 evaluated against threshold 1e-10
+Step 34: Branch 0 with output set probability 0.000000000000 ignored (threshold 1e-10)
+Step 34: Branch 0 with output set probability 0.933973191778 evaluated against threshold 1e-10
+Step 34: Branch 0 with output set probability 0.933973191778 kept (threshold 1e-10)
+Step 34: Branch 1 with output set probability 0.000000000000 evaluated against threshold 1e-10
+Step 34: Branch 1 with output set probability 0.000000000000 ignored (threshold 1e-10)
+Step 34: Branch 1 with output set probability 0.000000055164 evaluated against threshold 1e-10
+Step 34: Branch 1 with output set probability 0.000000055164 kept (threshold 1e-10)
+number of output sets in step 34 for hidden states(after relu):2
+number of branches after step 34: 2
+Step 35: Branch 0 with output set probability 0.000000007850 evaluated against threshold 1e-10
+Step 35: Branch 0 with output set probability 0.000000007850 kept (threshold 1e-10)
+Step 35: Branch 0 with output set probability 0.935081299439 evaluated against threshold 1e-10
+Step 35: Branch 0 with output set probability 0.935081299439 kept (threshold 1e-10)
+Step 35: Branch 1 with output set probability 0.000000000000 evaluated against threshold 1e-10
+Step 35: Branch 1 with output set probability 0.000000000000 ignored (threshold 1e-10)
+Step 35: Branch 1 with output set probability 0.000000055150 evaluated against threshold 1e-10
+Step 35: Branch 1 with output set probability 0.000000055150 kept (threshold 1e-10)
+number of output sets in step 35 for hidden states(after relu):2
+number of branches after step 35: 3
+Step 36: Branch 0 with output set probability 0.000000007807 evaluated against threshold 1e-10
+Step 36: Branch 0 with output set probability 0.000000007807 kept (threshold 1e-10)
+Step 36: Branch 1 with output set probability 0.919544212765 evaluated against threshold 1e-10
+Step 36: Branch 1 with output set probability 0.919544212765 kept (threshold 1e-10)
+Step 36: Branch 2 with output set probability 0.000000055070 evaluated against threshold 1e-10
+Step 36: Branch 2 with output set probability 0.000000055070 kept (threshold 1e-10)
+number of output sets in step 36 for hidden states(after relu):3
+number of branches after step 36: 3
+Step 37: Branch 0 with output set probability 0.000000007771 evaluated against threshold 1e-10
+Step 37: Branch 0 with output set probability 0.000000007771 kept (threshold 1e-10)
+Step 37: Branch 0 with output set probability 0.000000000000 evaluated against threshold 1e-10
+Step 37: Branch 0 with output set probability 0.000000000000 ignored (threshold 1e-10)
+Step 37: Branch 1 with output set probability 0.929893116137 evaluated against threshold 1e-10
+Step 37: Branch 1 with output set probability 0.929893116137 kept (threshold 1e-10)
+Step 37: Branch 1 with output set probability 0.000000000000 evaluated against threshold 1e-10
+Step 37: Branch 1 with output set probability 0.000000000000 ignored (threshold 1e-10)
+Step 37: Branch 2 with output set probability 0.000000054850 evaluated against threshold 1e-10
+Step 37: Branch 2 with output set probability 0.000000054850 kept (threshold 1e-10)
+Step 37: Branch 2 with output set probability 0.000000000000 evaluated against threshold 1e-10
+Step 37: Branch 2 with output set probability 0.000000000000 ignored (threshold 1e-10)
+number of output sets in step 37 for hidden states(after relu):3
+number of branches after step 37: 3
+Step 38: Branch 0 with output set probability 0.000000007771 evaluated against threshold 1e-10
+Step 38: Branch 0 with output set probability 0.000000007771 kept (threshold 1e-10)
+Step 38: Branch 1 with output set probability 0.928688075670 evaluated against threshold 1e-10
+Step 38: Branch 1 with output set probability 0.928688075670 kept (threshold 1e-10)
+Step 38: Branch 2 with output set probability 0.000000054773 evaluated against threshold 1e-10
+Step 38: Branch 2 with output set probability 0.000000054773 kept (threshold 1e-10)
+number of output sets in step 38 for hidden states(after relu):3
+number of branches after step 38: 3
+Step 39: Branch 0 with output set probability 0.000000007754 evaluated against threshold 1e-10
+Step 39: Branch 0 with output set probability 0.000000007754 kept (threshold 1e-10)
+Step 39: Branch 1 with output set probability 0.929378338248 evaluated against threshold 1e-10
+Step 39: Branch 1 with output set probability 0.929378338248 kept (threshold 1e-10)
+Step 39: Branch 2 with output set probability 0.000000054596 evaluated against threshold 1e-10
+Step 39: Branch 2 with output set probability 0.000000054596 kept (threshold 1e-10)
+number of output sets in step 39 for hidden states(after relu):3
+number of branches after step 39: 3
+Reachability analysis time: 155.0677 seconds
+
+==================Verify Spec 0====================
+Formula: 
+Formula type: ConjunctiveEventually
+Formula length: 6
+
+EVENTUALLY_[5,10] 
+(
+0.0*x[0]-1.0*x[1]+0.0*x[2]+0.0*x[3]+0.0*x[4] <= 3
+AND 
+0*x[0]+1*x[1]+0*x[2]+0*x[3]+0*x[4] <= 3
+)
+
+
+=====================Checking branch 0 =============
+Realizing Abstract DNF specification on a ProbStar Signal (RNN)...
+Length of Computable DNF = 6 for branch signal
+base probstar probability = 7.737216229479946e-09
+Computing exact probability of satisfaction...
+i = 0/6
+i = 1/6
+i = 2/6
+i = 3/6
+i = 4/6
+i = 5/6
+=====================Checking branch 1 =============
+Realizing Abstract DNF specification on a ProbStar Signal (RNN)...
+Length of Computable DNF = 6 for branch signal
+base probstar probability = 0.9251913260460476
+Computing exact probability of satisfaction...
+i = 0/6
+i = 1/6
+i = 2/6
+i = 3/6
+i = 4/6
+i = 5/6
+=====================Checking branch 2 =============
+Realizing Abstract DNF specification on a ProbStar Signal (RNN)...
+Length of Computable DNF = 6 for branch signal
+base probstar probability = 5.465386282194872e-08
+Computing exact probability of satisfaction...
+i = 0/6
+i = 1/6
+i = 2/6
+i = 3/6
+i = 4/6
+i = 5/6
+Checking time for Spec 0: 997.4402 seconds
+p_total_max_spec: 1.0325695239537644
+p_total_min_spec: 1.0325695239537633
+p_ignored during checking using estimate probability: 0.0
+
+==================Verify Spec 1====================
+Formula: 
+Formula type: ConjunctiveAlways
+Formula length: 6
+
+ALWAYS_[11,15] 
+(
+0.0*x[0]-1.0*x[1]+0.0*x[2]+0.0*x[3]+0.0*x[4] <= 3
+AND 
+0*x[0]+1*x[1]+0*x[2]+0*x[3]+0*x[4] <= 3
+)
+
+
+=====================Checking branch 0 =============
+Realizing Abstract DNF specification on a ProbStar Signal (RNN)...
+Length of Computable DNF = 1 for branch signal
+base probstar probability = 7.758367597289482e-09
+Computing exact probability of satisfaction...
+i = 0/1
+=====================Checking branch 1 =============
+Realizing Abstract DNF specification on a ProbStar Signal (RNN)...
+Length of Computable DNF = 1 for branch signal
+base probstar probability = 0.9115826501578196
+Computing exact probability of satisfaction...
+i = 0/1
+=====================Checking branch 2 =============
+Realizing Abstract DNF specification on a ProbStar Signal (RNN)...
+Length of Computable DNF = 1 for branch signal
+base probstar probability = 5.450301348816118e-08
+Computing exact probability of satisfaction...
+i = 0/1
+Checking time for Spec 1: 39.0305 seconds
+p_total_max_spec: 0.9256345457375381
+p_total_min_spec: 0.9256345457375371
+p_ignored during checking using estimate probability: 0.0
+
+==================Verify Spec 2====================
+Formula: 
+Formula type: DisjunctiveEventually
+Formula length: 9
+
+EVENTUALLY_[5,15] 
+(
+0.0*x[0]-1.0*x[1]+0.0*x[2]+0.0*x[3]+0.0*x[4] <= 3
+OR 
+(
+ALWAYS_[0,5] 
+0*x[0]+1*x[1]+0*x[2]+0*x[3]+0*x[4] <= 3
+)
+)
+
+
+=====================Checking branch 0 =============
+Realizing Abstract DNF specification on a ProbStar Signal (RNN)...
+Length of Computable DNF = 21 for branch signal
+base probstar probability = 7.75713493570321e-09
+*****WARNING*****: CDNF (len = 21) is too large for exact verification
+We ignore this CDNF, return the estimate probability uperbound
+p_sat_MIN in cdnf > 11 = 7.002260126116858e-09
+=====================Checking branch 1 =============
+Realizing Abstract DNF specification on a ProbStar Signal (RNN)...
+Length of Computable DNF = 21 for branch signal
+base probstar probability = 0.9234248949044017
+*****WARNING*****: CDNF (len = 21) is too large for exact verification
+We ignore this CDNF, return the estimate probability uperbound
+p_sat_MIN in cdnf > 11 = 0.9282956939007144
+=====================Checking branch 2 =============
+Realizing Abstract DNF specification on a ProbStar Signal (RNN)...
+Length of Computable DNF = 21 for branch signal
+base probstar probability = 5.463835904053952e-08
+*****WARNING*****: CDNF (len = 21) is too large for exact verification
+We ignore this CDNF, return the estimate probability uperbound
+p_sat_MIN in cdnf > 11 = 5.112697773185596e-08
+Checking time for Spec 2: 286.0683 seconds
+p_total_max_spec: 0.9282957562962094
+p_total_min_spec: 0.9282957520299523
+p_ignored during checking using estimate probability: 0.9234249572998957
+p_ignored during reachability using filter: 1.022645550446275e-15
+Total checking time for all specs: 1322.5390 seconds
+Total verification time (reachability + checking): 1477.6067 seconds

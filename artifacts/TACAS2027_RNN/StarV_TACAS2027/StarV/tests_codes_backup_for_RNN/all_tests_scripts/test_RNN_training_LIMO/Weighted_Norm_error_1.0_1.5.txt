@@ -1,0 +1,321 @@
+Loaded trajectory file: /home/qliu1/Desktop/StarV_qing/StarV/util/data/LIMO_trajectories/limo_traj/rosbag1_4f.csv
+Raw rows: 1067 | Clean rows: 1067
+Input columns: ['x', 'y', 'yaw', 'v', 'w', 'v_cmd', 'w_cmd']
+Target columns: ['x', 'y', 'yaw', 'v', 'w']
+Training target: full next state S(t+1)
+Training loss: mixed normalized error (pose x,y,yaw -> SmoothL1, velo v,w -> MSE, velo weight=1.5)
+Window size: 20
+Train windows: (837, 20, 7) Targets: (837, 5)
+Val windows: (210, 20, 7) Targets: (210, 5)
+Saved scaled full input CSV: /home/qliu1/Desktop/StarV_qing/StarV/util/data/LIMO_trajectories/limo_processed/rosbag1_4f_processed_4f.csv
+RNN_Name: weight_ih_l0 ---- Shape: torch.Size([32, 7])
+RNN_Name: weight_hh_l0 ---- Shape: torch.Size([32, 32])
+RNN_Name: bias_ih_l0 ---- Shape: torch.Size([32])
+RNN_Name: bias_hh_l0 ---- Shape: torch.Size([32])
+======== Epoch 1/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 1 | Train 0.149 | Val 0.097 | LR 0.001
+Saved best model to: /home/qliu1/Desktop/StarV_qing/StarV/util/data/LIMO_trajectories/saved_models/best_RNN_next_state_model.pth
+======== Epoch 2/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 2 | Train 0.051 | Val 0.057 | LR 0.001
+Saved best model to: /home/qliu1/Desktop/StarV_qing/StarV/util/data/LIMO_trajectories/saved_models/best_RNN_next_state_model.pth
+======== Epoch 3/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 3 | Train 0.030 | Val 0.031 | LR 0.001
+Saved best model to: /home/qliu1/Desktop/StarV_qing/StarV/util/data/LIMO_trajectories/saved_models/best_RNN_next_state_model.pth
+======== Epoch 4/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 4 | Train 0.021 | Val 0.022 | LR 0.001
+Saved best model to: /home/qliu1/Desktop/StarV_qing/StarV/util/data/LIMO_trajectories/saved_models/best_RNN_next_state_model.pth
+======== Epoch 5/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 5 | Train 0.018 | Val 0.020 | LR 0.001
+Saved best model to: /home/qliu1/Desktop/StarV_qing/StarV/util/data/LIMO_trajectories/saved_models/best_RNN_next_state_model.pth
+======== Epoch 6/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 6 | Train 0.017 | Val 0.018 | LR 0.001
+Saved best model to: /home/qliu1/Desktop/StarV_qing/StarV/util/data/LIMO_trajectories/saved_models/best_RNN_next_state_model.pth
+======== Epoch 7/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 7 | Train 0.016 | Val 0.016 | LR 0.001
+Saved best model to: /home/qliu1/Desktop/StarV_qing/StarV/util/data/LIMO_trajectories/saved_models/best_RNN_next_state_model.pth
+======== Epoch 8/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 8 | Train 0.015 | Val 0.020 | LR 0.001
+======== Epoch 9/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 9 | Train 0.014 | Val 0.017 | LR 0.001
+======== Epoch 10/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 10 | Train 0.014 | Val 0.016 | LR 0.001
+Saved best model to: /home/qliu1/Desktop/StarV_qing/StarV/util/data/LIMO_trajectories/saved_models/best_RNN_next_state_model.pth
+======== Epoch 11/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 11 | Train 0.014 | Val 0.014 | LR 0.001
+Saved best model to: /home/qliu1/Desktop/StarV_qing/StarV/util/data/LIMO_trajectories/saved_models/best_RNN_next_state_model.pth
+======== Epoch 12/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 12 | Train 0.013 | Val 0.013 | LR 0.001
+Saved best model to: /home/qliu1/Desktop/StarV_qing/StarV/util/data/LIMO_trajectories/saved_models/best_RNN_next_state_model.pth
+======== Epoch 13/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 13 | Train 0.013 | Val 0.015 | LR 0.001
+======== Epoch 14/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 14 | Train 0.013 | Val 0.013 | LR 0.001
+======== Epoch 15/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 15 | Train 0.013 | Val 0.012 | LR 0.001
+Saved best model to: /home/qliu1/Desktop/StarV_qing/StarV/util/data/LIMO_trajectories/saved_models/best_RNN_next_state_model.pth
+======== Epoch 16/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 16 | Train 0.012 | Val 0.011 | LR 0.001
+Saved best model to: /home/qliu1/Desktop/StarV_qing/StarV/util/data/LIMO_trajectories/saved_models/best_RNN_next_state_model.pth
+======== Epoch 17/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 17 | Train 0.013 | Val 0.013 | LR 0.001
+======== Epoch 18/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 18 | Train 0.013 | Val 0.017 | LR 0.001
+======== Epoch 19/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 19 | Train 0.012 | Val 0.012 | LR 0.001
+======== Epoch 20/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 20 | Train 0.012 | Val 0.012 | LR 0.001
+======== Epoch 21/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 21 | Train 0.012 | Val 0.010 | LR 0.001
+Saved best model to: /home/qliu1/Desktop/StarV_qing/StarV/util/data/LIMO_trajectories/saved_models/best_RNN_next_state_model.pth
+======== Epoch 22/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 22 | Train 0.012 | Val 0.011 | LR 0.001
+======== Epoch 23/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 23 | Train 0.011 | Val 0.015 | LR 0.001
+======== Epoch 24/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 24 | Train 0.012 | Val 0.010 | LR 0.001
+Saved best model to: /home/qliu1/Desktop/StarV_qing/StarV/util/data/LIMO_trajectories/saved_models/best_RNN_next_state_model.pth
+======== Epoch 25/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 25 | Train 0.012 | Val 0.011 | LR 0.001
+======== Epoch 26/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 26 | Train 0.011 | Val 0.011 | LR 0.001
+======== Epoch 27/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 27 | Train 0.011 | Val 0.015 | LR 0.001
+======== Epoch 28/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 28 | Train 0.012 | Val 0.012 | LR 0.001
+======== Epoch 29/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 29 | Train 0.011 | Val 0.014 | LR 0.0002
+======== Epoch 30/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 30 | Train 0.011 | Val 0.009 | LR 0.0002
+Saved best model to: /home/qliu1/Desktop/StarV_qing/StarV/util/data/LIMO_trajectories/saved_models/best_RNN_next_state_model.pth
+======== Epoch 31/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 31 | Train 0.010 | Val 0.010 | LR 0.0002
+======== Epoch 32/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 32 | Train 0.010 | Val 0.010 | LR 0.0002
+======== Epoch 33/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 33 | Train 0.010 | Val 0.010 | LR 0.0002
+======== Epoch 34/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 34 | Train 0.010 | Val 0.010 | LR 0.0002
+======== Epoch 35/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 35 | Train 0.010 | Val 0.010 | LR 4e-05
+======== Epoch 36/50 ========
+======================== Begin Training ========================
+======================== Begin Validation ========================
+Epoch 36 | Train 0.010 | Val 0.010 | LR 4e-05
+Early stopping at epoch 36
+RNN_Name: weight_ih_l0 ---- Shape: torch.Size([32, 7])
+RNN_Name: weight_hh_l0 ---- Shape: torch.Size([32, 32])
+RNN_Name: bias_ih_l0 ---- Shape: torch.Size([32])
+RNN_Name: bias_hh_l0 ---- Shape: torch.Size([32])
+X_val: (210, 20, 7)
+pred_scaled: (210, 5)
+
+First 50 predicted states:
+         x      y     yaw      v       w
+0  -2.3859 1.7442  0.5758 0.2503 -0.0902
+1  -2.9637 1.3994  1.0581 0.2496 -0.0916
+2  -2.6584 1.8044  0.8434 0.2494 -0.1041
+3  -2.3541 1.8476  0.8447 0.2488 -0.0941
+4  -1.8536 1.7548  1.0531 0.2499 -0.0893
+5  -1.6983 2.0457  0.4555 0.2523 -0.0881
+6  -2.1315 1.8490  1.3012 0.2510 -0.0945
+7  -1.8994 1.8911  0.9027 0.2542 -0.0953
+8  -1.8901 2.2000  0.4578 0.2515 -0.0777
+9  -2.7631 1.8367  0.8862 0.2510 -0.0899
+10 -2.5039 1.9173  0.4380 0.2516 -0.0845
+11 -2.5284 1.7288  0.5788 0.2504 -0.0875
+12 -2.7728 1.6503  0.7155 0.2503 -0.0895
+13 -2.5851 1.3723  1.0395 0.2489 -0.1052
+14 -1.5785 1.9939  0.8089 0.2501 -0.0825
+15 -2.3130 1.7197  1.3375 0.2508 -0.0966
+16 -1.5702 1.9782  0.6226 0.2532 -0.0969
+17 -1.0353 1.9189  0.7155 0.2506 -0.0713
+18 -2.0860 1.9430  1.2933 0.2487 -0.0967
+19 -1.4524 2.2290  0.3557 0.2534 -0.0804
+20 -2.6292 2.3494  0.5203 0.2525 -0.0955
+21 -2.3377 1.8377  0.9435 0.2522 -0.0955
+22 -1.7247 2.1648  0.1323 0.2508 -0.0825
+23 -2.0939 1.7615  0.6881 0.2501 -0.0912
+24 -2.2341 1.7587  0.9868 0.2521 -0.0937
+25 -2.1477 1.6094  0.8367 0.2499 -0.1018
+26 -1.9217 1.9678  0.8754 0.2497 -0.0969
+27 -2.2481 2.4488  0.6564 0.2498 -0.1031
+28 -1.7865 2.2364  0.6662 0.2508 -0.0866
+29 -2.3033 2.2896  0.7622 0.2516 -0.1019
+30 -2.0290 2.3120  0.7904 0.2513 -0.1033
+31 -1.6290 2.6482  0.3210 0.2516 -0.0916
+32 -1.9963 2.4961  0.3820 0.2513 -0.0888
+33 -2.4039 2.1933  0.6001 0.2511 -0.0938
+34 -1.6182 2.1459  0.4473 0.2510 -0.0792
+35 -1.8050 2.3644  0.1508 0.2512 -0.0895
+36 -2.3860 1.1389  0.5396 0.2457 -0.1025
+37 -2.0227 0.8649  1.3284 0.2443 -0.1305
+38 -1.3206 2.7367 -0.5258 0.2487 -0.1366
+39  0.6010 2.5949 -0.5646 0.2527 -0.0773
+40 -0.0199 2.3656 -0.0634 0.2508 -0.0745
+41 -1.4874 1.9955  0.4858 0.2471 -0.0974
+42  0.1740 3.1353 -0.5556 0.2489 -0.0771
+43 -2.0235 2.5653  0.6753 0.2504 -0.0878
+44 -0.4179 2.8235  0.4168 0.2506 -0.0700
+45 -0.8021 2.8851 -0.0461 0.2483 -0.0624
+46 -1.8451 2.3547  0.3403 0.2480 -0.0791
+47 -1.4663 2.3875  0.1699 0.2484 -0.0696
+48 -1.4582 2.7791 -0.0382 0.2498 -0.0786
+49 -1.6674 2.2714  0.1587 0.2500 -0.0752
+
+First 50 origin states:
+         x      y    yaw      v       w
+0  -2.1874 1.6320 0.9116 0.2471 -0.0979
+1  -2.1721 1.6519 0.9022 0.2431 -0.0862
+2  -2.1561 1.6719 0.8921 0.2405 -0.0930
+3  -2.1401 1.6918 0.8824 0.2586 -0.0921
+4  -2.1238 1.7114 0.8724 0.2399 -0.0786
+5  -2.1074 1.7310 0.8646 0.2624 -0.0929
+6  -2.0905 1.7506 0.8555 0.2508 -0.0915
+7  -2.0737 1.7698 0.8464 0.2517 -0.0879
+8  -2.0568 1.7889 0.8378 0.2560 -0.0810
+9  -2.0454 1.8015 0.8319 0.2540 -0.0918
+10 -2.0282 1.8203 0.8235 0.2505 -0.0824
+11 -2.0107 1.8390 0.8149 0.2546 -0.0875
+12 -1.9930 1.8577 0.8051 0.2397 -0.1037
+13 -1.9753 1.8760 0.7971 0.2516 -0.0796
+14 -1.9574 1.8942 0.7873 0.2581 -0.1152
+15 -1.9394 1.9122 0.7771 0.2401 -0.0958
+16 -1.9211 1.9301 0.7665 0.2395 -0.0643
+17 -1.9030 1.9475 0.7573 0.2558 -0.0939
+18 -1.8846 1.9648 0.7481 0.2527 -0.0862
+19 -1.8659 1.9821 0.7388 0.2484 -0.0907
+20 -1.8471 1.9993 0.7297 0.2558 -0.0917
+21 -1.8280 2.0162 0.7207 0.2525 -0.0837
+22 -1.8086 2.0332 0.7114 0.2604 -0.1001
+23 -1.7888 2.0503 0.7012 0.2576 -0.0992
+24 -1.7689 2.0671 0.6913 0.2437 -0.1010
+25 -1.7494 2.0833 0.6813 0.2439 -0.0967
+26 -1.7364 2.0940 0.6747 0.2474 -0.0983
+27 -1.7165 2.1098 0.6648 0.2483 -0.0902
+28 -1.6968 2.1252 0.6553 0.2444 -0.0980
+29 -1.6769 2.1403 0.6444 0.2487 -0.1058
+30 -1.6566 2.1554 0.6343 0.2506 -0.0875
+31 -1.6361 2.1705 0.6259 0.2492 -0.0798
+32 -1.6155 2.1854 0.6179 0.2501 -0.0870
+33 -1.5944 2.2002 0.6093 0.2578 -0.0859
+34 -1.5730 2.2151 0.6003 0.2470 -0.0865
+35 -1.5516 2.2298 0.5909 0.2477 -0.1134
+36 -1.5299 2.2441 0.5779 0.2329 -0.1311
+37 -1.5085 2.2580 0.5621 0.2560 -0.1454
+38 -1.4872 2.2712 0.5500 0.2426 -0.0900
+39 -1.4659 2.2842 0.5408 0.2391 -0.0821
+40 -1.4444 2.2971 0.5318 0.2469 -0.0925
+41 -1.4228 2.3098 0.5235 0.2443 -0.0745
+42 -1.4083 2.3182 0.5172 0.2469 -0.1094
+43 -1.3860 2.3307 0.5093 0.2525 -0.0582
+44 -1.3631 2.3432 0.5037 0.2465 -0.0559
+45 -1.3403 2.3556 0.4976 0.2481 -0.0695
+46 -1.3175 2.3680 0.4908 0.2558 -0.0744
+47 -1.2946 2.3802 0.4834 0.2510 -0.0767
+48 -1.2717 2.3922 0.4751 0.2498 -0.0816
+49 -1.2495 2.4037 0.4682 0.2406 -0.0573
+Saved plot: /home/qliu1/Desktop/StarV_qing/StarV/util/data/LIMO_trajectories/saved_models/pred_vs_origin_over_time.png
+Saved plot: /home/qliu1/Desktop/StarV_qing/StarV/util/data/LIMO_trajectories/saved_models/pred_error_over_time.png
+
+Validation raw RMSE per state:
+  x: 0.486632
+  y: 0.317565
+  yaw: 0.293299
+  v: 0.005502
+  w: 0.013453
+Validation raw RMSE mean: 0.223290
+
+Validation range-normalized MAE per state (|pred-true| / range):
+  x: 0.035265 (3.53%)
+  y: 0.048336 (4.83%)
+  yaw: 0.034755 (3.48%)
+  v: 0.131256 (13.13%)
+  w: 0.054596 (5.46%)
+Validation range-normalized MAE mean: 0.060842 (6.08%)
+
+Validation range-normalized RMSE per state (sqrt(mean((pred-true)^2)) / range):
+  x: 0.046446 (4.64%)
+  y: 0.057033 (5.70%)
+  yaw: 0.046688 (4.67%)
+  v: 0.151411 (15.14%)
+  w: 0.080624 (8.06%)
+Validation range-normalized RMSE mean: 0.076440 (7.64%)
+Pose normalized RMSE mean (x,y,yaw): 0.050055 (5.01%)
+Control normalized RMSE mean (v,w): 0.116017 (11.60%)
+
+State ranges used for normalization:
+  x: 10.477432
+  y: 5.568118
+  yaw: 6.282124
+  v: 0.036341
+  w: 0.166859

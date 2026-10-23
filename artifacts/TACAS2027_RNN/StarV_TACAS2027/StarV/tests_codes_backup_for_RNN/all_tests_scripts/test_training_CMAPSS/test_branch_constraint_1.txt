@@ -1,0 +1,1500 @@
+
+=======================    ================================    ================================    ===============================
+
+ub: [0.90757 0.24929 0.41038 0.75555] lb: [-0.03143 -0.63641 -0.31436 -0.50857]
+X0: Star Set:
+V: [[ 0.43807  0.4695   0.       0.       0.     ]
+ [-0.19356  0.       0.44285  0.       0.     ]
+ [ 0.04801  0.       0.       0.36237  0.     ]
+ [ 0.12349  0.       0.       0.       0.63206]]
+Predicate Constraints:
+C: []
+d: []
+dim: 4
+nVars: 4
+pred_lb: [-1. -1. -1. -1.]
+pred_ub: [1. 1. 1. 1.]
+
+
+Input ProbStar 0: ProbStar Set:
+V: [[ 0.43807  0.4695   0.       0.       0.     ]
+ [-0.19356  0.       0.44285  0.       0.     ]
+ [ 0.04801  0.       0.       0.36237  0.     ]
+ [ 0.12349  0.       0.       0.       0.63206]]
+Predicate Constraints:
+C: []
+d: []
+dim: 4
+nVars: 4
+pred_lb: [-1. -1. -1. -1.]
+pred_ub: [1. 1. 1. 1.]
+mu: [0. 0. 0. 0.]
+Sig: [[0.11111 0.      0.      0.     ]
+ [0.      0.11111 0.      0.     ]
+ [0.      0.      0.11111 0.     ]
+ [0.      0.      0.      0.11111]]
+
+
+ub: [0.9297  0.80812 0.6334  0.87146] lb: [-0.2288  -0.07698 -0.28975 -0.16122]
+X0: Star Set:
+V: [[0.35045 0.57925 0.      0.      0.     ]
+ [0.36557 0.      0.44255 0.      0.     ]
+ [0.17183 0.      0.      0.46158 0.     ]
+ [0.35512 0.      0.      0.      0.51634]]
+Predicate Constraints:
+C: []
+d: []
+dim: 4
+nVars: 4
+pred_lb: [-1. -1. -1. -1.]
+pred_ub: [1. 1. 1. 1.]
+
+
+Input ProbStar 1: ProbStar Set:
+V: [[0.35045 0.57925 0.      0.      0.     ]
+ [0.36557 0.      0.44255 0.      0.     ]
+ [0.17183 0.      0.      0.46158 0.     ]
+ [0.35512 0.      0.      0.      0.51634]]
+Predicate Constraints:
+C: []
+d: []
+dim: 4
+nVars: 4
+pred_lb: [-1. -1. -1. -1.]
+pred_ub: [1. 1. 1. 1.]
+mu: [0. 0. 0. 0.]
+Sig: [[0.11111 0.      0.      0.     ]
+ [0.      0.11111 0.      0.     ]
+ [0.      0.      0.11111 0.     ]
+ [0.      0.      0.      0.11111]]
+
+
+ub: [0.80744 0.89609 0.318   0.11005] lb: [-0.80367 -0.18657 -0.89256 -0.53934]
+X0: Star Set:
+V: [[ 0.00188  0.80556  0.       0.       0.     ]
+ [ 0.35476  0.       0.54133  0.       0.     ]
+ [-0.28728  0.       0.       0.60528  0.     ]
+ [-0.21465  0.       0.       0.       0.3247 ]]
+Predicate Constraints:
+C: []
+d: []
+dim: 4
+nVars: 4
+pred_lb: [-1. -1. -1. -1.]
+pred_ub: [1. 1. 1. 1.]
+
+
+Input ProbStar 2: ProbStar Set:
+V: [[ 0.00188  0.80556  0.       0.       0.     ]
+ [ 0.35476  0.       0.54133  0.       0.     ]
+ [-0.28728  0.       0.       0.60528  0.     ]
+ [-0.21465  0.       0.       0.       0.3247 ]]
+Predicate Constraints:
+C: []
+d: []
+dim: 4
+nVars: 4
+pred_lb: [-1. -1. -1. -1.]
+pred_ub: [1. 1. 1. 1.]
+mu: [0. 0. 0. 0.]
+Sig: [[0.11111 0.      0.      0.     ]
+ [0.      0.11111 0.      0.     ]
+ [0.      0.      0.11111 0.     ]
+ [0.      0.      0.      0.11111]]
+
+
+ub: [0.00695 0.51075 0.41741 0.22211] lb: [-0.22794 -0.42711 -0.81801 -0.86073]
+X0: Star Set:
+V: [[-0.11049  0.11744  0.       0.       0.     ]
+ [ 0.04182  0.       0.46893  0.       0.     ]
+ [-0.2003   0.       0.       0.61771  0.     ]
+ [-0.31931  0.       0.       0.       0.54142]]
+Predicate Constraints:
+C: []
+d: []
+dim: 4
+nVars: 4
+pred_lb: [-1. -1. -1. -1.]
+pred_ub: [1. 1. 1. 1.]
+
+
+Input ProbStar 3: ProbStar Set:
+V: [[-0.11049  0.11744  0.       0.       0.     ]
+ [ 0.04182  0.       0.46893  0.       0.     ]
+ [-0.2003   0.       0.       0.61771  0.     ]
+ [-0.31931  0.       0.       0.       0.54142]]
+Predicate Constraints:
+C: []
+d: []
+dim: 4
+nVars: 4
+pred_lb: [-1. -1. -1. -1.]
+pred_ub: [1. 1. 1. 1.]
+mu: [0. 0. 0. 0.]
+Sig: [[0.11111 0.      0.      0.     ]
+ [0.      0.11111 0.      0.     ]
+ [0.      0.      0.11111 0.     ]
+ [0.      0.      0.      0.11111]]
+
+
+ub: [0.51879 0.70302 0.36363 0.97178] lb: [-0.11987 -0.33762 -0.94291 -0.3232 ]
+X0: Star Set:
+V: [[ 0.19946  0.31933  0.       0.       0.     ]
+ [ 0.1827   0.       0.52032  0.       0.     ]
+ [-0.28964  0.       0.       0.65327  0.     ]
+ [ 0.32429  0.       0.       0.       0.64749]]
+Predicate Constraints:
+C: []
+d: []
+dim: 4
+nVars: 4
+pred_lb: [-1. -1. -1. -1.]
+pred_ub: [1. 1. 1. 1.]
+
+
+Input ProbStar 4: ProbStar Set:
+V: [[ 0.19946  0.31933  0.       0.       0.     ]
+ [ 0.1827   0.       0.52032  0.       0.     ]
+ [-0.28964  0.       0.       0.65327  0.     ]
+ [ 0.32429  0.       0.       0.       0.64749]]
+Predicate Constraints:
+C: []
+d: []
+dim: 4
+nVars: 4
+pred_lb: [-1. -1. -1. -1.]
+pred_ub: [1. 1. 1. 1.]
+mu: [0. 0. 0. 0.]
+Sig: [[0.11111 0.      0.      0.     ]
+ [0.      0.11111 0.      0.     ]
+ [0.      0.      0.11111 0.     ]
+ [0.      0.      0.      0.11111]]
+
+
+[reachExactBranches] timestep 0: 0 active branches
+ type of input set before exactReLu: <class 'list'>
+
+ stepReach at index: 0
+xmin: [-1.08084] xmax: [1.39554]
+get exact xmin  and exact xmax by LP solver
+Set parameter Username
+Academic license - for non-commercial use only - expires 2026-09-04
+exact xmin < 0 and exact xmax > 0, need to split the set
+Splitting at index: 0
+Number of sets after splitting: 2
+=============End stepReach=================
+
+number of input sets after check index 0: 2
+
+ stepReach at index: 1
+xmin: [0.38183] xmax: [1.81705]
+xmin >0, keep the set
+=============End stepReach=================
+
+
+ stepReach at index: 1
+xmin: [0.38183] xmax: [1.81705]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 1: 2
+
+ stepReach at index: 2
+xmin: [-0.00031] xmax: [2.43263]
+get exact xmin  and exact xmax by LP solver
+exact xmin < 0 and exact xmax > 0, need to split the set
+Splitting at index: 2
+Number of sets after splitting: 2
+=============End stepReach=================
+
+
+ stepReach at index: 2
+xmin: [-0.00031] xmax: [2.43263]
+get exact xmin  and exact xmax by LP solver
+exact min >=0, keep set
+Number of sets after splitting: 1
+=============End stepReach=================
+
+number of input sets after check index 2: 3
+
+ stepReach at index: 3
+xmin: [0.50214] xmax: [0.5055]
+xmin >0, keep the set
+=============End stepReach=================
+
+
+ stepReach at index: 3
+xmin: [0.50214] xmax: [1.8255]
+xmin >0, keep the set
+=============End stepReach=================
+
+
+ stepReach at index: 3
+xmin: [0.50214] xmax: [1.8255]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 3: 3
+number of output sets in step 0 for hidden states:3
+ type of input set before exactReLu: <class 'list'>
+
+ stepReach at index: 0
+xmin: [3.06934] xmax: [3.07419]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 0: 1
+
+ stepReach at index: 1
+xmin: [2.51167] xmax: [2.51681]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 1: 1
+
+ stepReach at index: 2
+xmin: [3.10138] xmax: [3.1078]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 2: 1
+
+ stepReach at index: 3
+xmin: [3.172] xmax: [3.17901]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 3: 1
+ type of input set before exactReLu: <class 'list'>
+
+ stepReach at index: 0
+xmin: [3.06906] xmax: [7.82809]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 0: 1
+
+ stepReach at index: 1
+xmin: [2.51135] xmax: [7.53209]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 1: 1
+
+ stepReach at index: 2
+xmin: [3.10122] xmax: [7.82747]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 2: 1
+
+ stepReach at index: 3
+xmin: [3.1717] xmax: [9.16951]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 3: 1
+ type of input set before exactReLu: <class 'list'>
+
+ stepReach at index: 0
+xmin: [2.4627] xmax: [8.61101]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 0: 1
+
+ stepReach at index: 1
+xmin: [1.83383] xmax: [8.40688]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 1: 1
+
+ stepReach at index: 2
+xmin: [2.61308] xmax: [8.45774]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 2: 1
+
+ stepReach at index: 3
+xmin: [2.43384] xmax: [10.12221]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 3: 1
+[reachExactBranches] timestep 1: 3 active branches
+In minKowskiSum, Y.C is empty
+self.C : [[0.2817  0.31442 0.00725 0.6131 ]
+ [0.17371 0.42071 0.26453 0.37924]], c-shape: (2, 4)
+After setting, Y1.C : [[0. 0. 0. 0.]
+ [0. 0. 0. 0.]],Y1.C_shape: (2, 4)
+C after hstack : 2
+d shape : 2,d:[-1.21616 -0.15735]
+ type of input set before exactReLu: <class 'list'>
+
+ stepReach at index: 0
+xmin: [0.03906] xmax: [2.60375]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 0: 1
+
+ stepReach at index: 1
+xmin: [1.17664] xmax: [2.45886]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 1: 1
+
+ stepReach at index: 2
+xmin: [1.21913] xmax: [3.56561]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 2: 1
+
+ stepReach at index: 3
+xmin: [0.95145] xmax: [2.45156]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 3: 1
+ type of input set before exactReLu: <class 'list'>
+
+ stepReach at index: 0
+xmin: [5.2949] xmax: [11.49515]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 0: 1
+
+ stepReach at index: 1
+xmin: [4.81212] xmax: [11.5009]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 1: 1
+
+ stepReach at index: 2
+xmin: [5.2486] xmax: [11.19116]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 2: 1
+
+ stepReach at index: 3
+xmin: [5.92183] xmax: [13.72979]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 3: 1
+In minKowskiSum, Y.C is empty
+self.C : [[-0.2817  -0.31442 -0.00725 -0.6131 ]
+ [ 0.17371  0.42071  0.26453  0.37924]], c-shape: (2, 4)
+After setting, Y1.C : [[0. 0. 0. 0.]
+ [0. 0. 0. 0.]],Y1.C_shape: (2, 4)
+C after hstack : 2
+d shape : 2,d:[ 1.21616 -0.15735]
+ type of input set before exactReLu: <class 'list'>
+
+ stepReach at index: 0
+xmin: [0.03893] xmax: [4.79137]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 0: 1
+
+ stepReach at index: 1
+xmin: [1.17655] xmax: [3.85315]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 1: 1
+
+ stepReach at index: 2
+xmin: [1.21907] xmax: [5.85597]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 2: 1
+
+ stepReach at index: 3
+xmin: [0.95126] xmax: [4.22119]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 3: 1
+ type of input set before exactReLu: <class 'list'>
+
+ stepReach at index: 0
+xmin: [5.29449] xmax: [17.82604]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 0: 1
+
+ stepReach at index: 1
+xmin: [4.81167] xmax: [18.30929]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 1: 1
+
+ stepReach at index: 2
+xmin: [5.24813] xmax: [17.45184]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 2: 1
+
+ stepReach at index: 3
+xmin: [5.92127] xmax: [21.79129]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 3: 1
+In minKowskiSum, Y.C is empty
+self.C : [[-0.17371 -0.42071 -0.26453 -0.37924]], c-shape: (1, 4)
+After setting, Y1.C : [[0. 0. 0. 0.]],Y1.C_shape: (1, 4)
+C after hstack : 1
+d shape : 1,d:[0.15735]
+ type of input set before exactReLu: <class 'list'>
+
+ stepReach at index: 0
+xmin: [-0.28991] xmax: [5.21595]
+get exact xmin  and exact xmax by LP solver
+exact min >=0, keep set
+Number of sets after splitting: 1
+=============End stepReach=================
+
+number of input sets after check index 0: 1
+
+ stepReach at index: 1
+xmin: [0.51523] xmax: [4.70701]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 1: 1
+
+ stepReach at index: 2
+xmin: [0.72613] xmax: [6.49243]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 2: 1
+
+ stepReach at index: 3
+xmin: [0.31096] xmax: [5.04792]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 3: 1
+ type of input set before exactReLu: <class 'list'>
+
+ stepReach at index: 0
+xmin: [3.43521] xmax: [20.22665]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 0: 1
+
+ stepReach at index: 1
+xmin: [2.90062] xmax: [20.77676]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 1: 1
+
+ stepReach at index: 2
+xmin: [3.20207] xmax: [20.09363]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 2: 1
+
+ stepReach at index: 3
+xmin: [3.48428] xmax: [24.93783]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 3: 1
+number of output sets in step 1 for hidden states:3
+[reachExactBranches] timestep 2: 3 active branches
+In minKowskiSum, Y.C is empty
+self.C : [[0.2817  0.31442 0.00725 0.6131  0.      0.      0.      0.     ]
+ [0.17371 0.42071 0.26453 0.37924 0.      0.      0.      0.     ]], c-shape: (2, 8)
+After setting, Y1.C : [[0. 0. 0. 0.]
+ [0. 0. 0. 0.]],Y1.C_shape: (2, 4)
+C after hstack : 2
+d shape : 2,d:[-1.21616 -0.15735]
+ type of input set before exactReLu: <class 'list'>
+
+ stepReach at index: 0
+xmin: [0.14174] xmax: [5.94329]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 0: 1
+
+ stepReach at index: 1
+xmin: [1.35753] xmax: [5.40932]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 1: 1
+
+ stepReach at index: 2
+xmin: [1.53393] xmax: [7.33979]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 2: 1
+
+ stepReach at index: 3
+xmin: [1.15208] xmax: [6.31177]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 3: 1
+ type of input set before exactReLu: <class 'list'>
+
+ stepReach at index: 0
+xmin: [5.99757] xmax: [23.35518]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 0: 1
+
+ stepReach at index: 1
+xmin: [5.5621] xmax: [24.14388]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 1: 1
+
+ stepReach at index: 2
+xmin: [5.94516] xmax: [23.47267]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 2: 1
+
+ stepReach at index: 3
+xmin: [6.81243] xmax: [29.0735]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 3: 1
+In minKowskiSum, Y.C is empty
+self.C : [[-0.2817  -0.31442 -0.00725 -0.6131   0.       0.       0.       0.     ]
+ [ 0.17371  0.42071  0.26453  0.37924  0.       0.       0.       0.     ]], c-shape: (2, 8)
+After setting, Y1.C : [[0. 0. 0. 0.]
+ [0. 0. 0. 0.]],Y1.C_shape: (2, 4)
+C after hstack : 2
+d shape : 2,d:[ 1.21616 -0.15735]
+ type of input set before exactReLu: <class 'list'>
+
+ stepReach at index: 0
+xmin: [0.14157] xmax: [8.84519]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 0: 1
+
+ stepReach at index: 1
+xmin: [1.35735] xmax: [8.25975]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 1: 1
+
+ stepReach at index: 2
+xmin: [1.53368] xmax: [10.79959]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 2: 1
+
+ stepReach at index: 3
+xmin: [1.15193] xmax: [9.36577]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 3: 1
+ type of input set before exactReLu: <class 'list'>
+
+ stepReach at index: 0
+xmin: [5.99694] xmax: [33.70715]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 0: 1
+
+ stepReach at index: 1
+xmin: [5.56145] xmax: [35.07615]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 1: 1
+
+ stepReach at index: 2
+xmin: [5.94454] xmax: [34.09119]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 2: 1
+
+ stepReach at index: 3
+xmin: [6.81164] xmax: [42.36445]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 3: 1
+In minKowskiSum, Y.C is empty
+self.C : [[-0.17371 -0.42071 -0.26453 -0.37924  0.       0.       0.       0.     ]], c-shape: (1, 8)
+After setting, Y1.C : [[0. 0. 0. 0.]],Y1.C_shape: (1, 4)
+C after hstack : 1
+d shape : 1,d:[0.15735]
+ type of input set before exactReLu: <class 'list'>
+
+ stepReach at index: 0
+xmin: [-0.7049] xmax: [9.93813]
+get exact xmin  and exact xmax by LP solver
+exact min >=0, keep set
+Number of sets after splitting: 1
+=============End stepReach=================
+
+number of input sets after check index 0: 1
+
+ stepReach at index: 1
+xmin: [0.68531] xmax: [9.12746]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 1: 1
+
+ stepReach at index: 2
+xmin: [0.43677] xmax: [12.21588]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 2: 1
+
+ stepReach at index: 3
+xmin: [0.51773] xmax: [10.18462]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 3: 1
+ type of input set before exactReLu: <class 'list'>
+
+ stepReach at index: 0
+xmin: [3.3145] xmax: [37.17061]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 0: 1
+
+ stepReach at index: 1
+xmin: [2.70449] xmax: [38.76493]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 1: 1
+
+ stepReach at index: 2
+xmin: [3.34951] xmax: [37.44178]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 2: 1
+
+ stepReach at index: 3
+xmin: [3.4415] xmax: [46.71584]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 3: 1
+number of output sets in step 2 for hidden states:3
+[reachExactBranches] timestep 3: 3 active branches
+In minKowskiSum, Y.C is empty
+self.C : [[0.2817  0.31442 0.00725 0.6131  0.      0.      0.      0.      0.
+  0.      0.      0.     ]
+ [0.17371 0.42071 0.26453 0.37924 0.      0.      0.      0.      0.
+  0.      0.      0.     ]], c-shape: (2, 12)
+After setting, Y1.C : [[0. 0. 0. 0.]
+ [0. 0. 0. 0.]],Y1.C_shape: (2, 4)
+C after hstack : 2
+d shape : 2,d:[-1.21616 -0.15735]
+ type of input set before exactReLu: <class 'list'>
+
+ stepReach at index: 0
+xmin: [0.3084] xmax: [10.73958]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 0: 1
+
+ stepReach at index: 1
+xmin: [1.38956] xmax: [10.29475]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 1: 1
+
+ stepReach at index: 2
+xmin: [1.75322] xmax: [13.27494]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 2: 1
+
+ stepReach at index: 3
+xmin: [1.82969] xmax: [10.67119]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 3: 1
+ type of input set before exactReLu: <class 'list'>
+
+ stepReach at index: 0
+xmin: [7.0717] xmax: [40.01831]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 0: 1
+
+ stepReach at index: 1
+xmin: [6.79943] xmax: [41.62722]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 1: 1
+
+ stepReach at index: 2
+xmin: [7.17437] xmax: [40.29471]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 2: 1
+
+ stepReach at index: 3
+xmin: [8.30487] xmax: [50.27035]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 3: 1
+In minKowskiSum, Y.C is empty
+self.C : [[-0.2817  -0.31442 -0.00725 -0.6131   0.       0.       0.       0.
+   0.       0.       0.       0.     ]
+ [ 0.17371  0.42071  0.26453  0.37924  0.       0.       0.       0.
+   0.       0.       0.       0.     ]], c-shape: (2, 12)
+After setting, Y1.C : [[0. 0. 0. 0.]
+ [0. 0. 0. 0.]],Y1.C_shape: (2, 4)
+C after hstack : 2
+d shape : 2,d:[ 1.21616 -0.15735]
+ type of input set before exactReLu: <class 'list'>
+
+ stepReach at index: 0
+xmin: [0.30811] xmax: [15.5021]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 0: 1
+
+ stepReach at index: 1
+xmin: [1.3893] xmax: [14.59754]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 1: 1
+
+ stepReach at index: 2
+xmin: [1.75287] xmax: [19.0978]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 2: 1
+
+ stepReach at index: 3
+xmin: [1.82941] xmax: [15.14548]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 3: 1
+ type of input set before exactReLu: <class 'list'>
+
+ stepReach at index: 0
+xmin: [7.07071] xmax: [56.23426]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 0: 1
+
+ stepReach at index: 1
+xmin: [6.79838] xmax: [58.81081]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 1: 1
+
+ stepReach at index: 2
+xmin: [7.17338] xmax: [56.60549]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 2: 1
+
+ stepReach at index: 3
+xmin: [8.30361] xmax: [70.94208]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 3: 1
+In minKowskiSum, Y.C is empty
+self.C : [[-0.17371 -0.42071 -0.26453 -0.37924  0.       0.       0.       0.
+   0.       0.       0.       0.     ]], c-shape: (1, 12)
+After setting, Y1.C : [[0. 0. 0. 0.]],Y1.C_shape: (1, 4)
+C after hstack : 1
+d shape : 1,d:[0.15735]
+ type of input set before exactReLu: <class 'list'>
+
+ stepReach at index: 0
+xmin: [-0.96059] xmax: [17.14019]
+get exact xmin  and exact xmax by LP solver
+exact min >=0, keep set
+Number of sets after splitting: 1
+=============End stepReach=================
+
+number of input sets after check index 0: 1
+
+ stepReach at index: 1
+xmin: [0.22483] xmax: [16.10105]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 1: 1
+
+ stepReach at index: 2
+xmin: [0.294] xmax: [20.98144]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 2: 1
+
+ stepReach at index: 3
+xmin: [0.52216] xmax: [16.83335]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 3: 1
+ type of input set before exactReLu: <class 'list'>
+
+ stepReach at index: 0
+xmin: [2.68793] xmax: [61.89313]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 0: 1
+
+ stepReach at index: 1
+xmin: [2.15495] xmax: [64.80622]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 1: 1
+
+ stepReach at index: 2
+xmin: [2.68573] xmax: [62.39976]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 2: 1
+
+ stepReach at index: 3
+xmin: [2.67357] xmax: [78.21135]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 3: 1
+number of output sets in step 3 for hidden states:3
+[reachExactBranches] timestep 4: 3 active branches
+In minKowskiSum, Y.C is empty
+self.C : [[0.2817  0.31442 0.00725 0.6131  0.      0.      0.      0.      0.
+  0.      0.      0.      0.      0.      0.      0.     ]
+ [0.17371 0.42071 0.26453 0.37924 0.      0.      0.      0.      0.
+  0.      0.      0.      0.      0.      0.      0.     ]], c-shape: (2, 16)
+After setting, Y1.C : [[0. 0. 0. 0.]
+ [0. 0. 0. 0.]],Y1.C_shape: (2, 4)
+C after hstack : 2
+d shape : 2,d:[-1.21616 -0.15735]
+ type of input set before exactReLu: <class 'list'>
+
+ stepReach at index: 0
+xmin: [1.02432] xmax: [19.37831]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 0: 1
+
+ stepReach at index: 1
+xmin: [2.30008] xmax: [18.00356]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 1: 1
+
+ stepReach at index: 2
+xmin: [2.8939] xmax: [23.89489]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 2: 1
+
+ stepReach at index: 3
+xmin: [2.36146] xmax: [18.67923]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 3: 1
+ type of input set before exactReLu: <class 'list'>
+
+ stepReach at index: 0
+xmin: [9.79188] xmax: [69.28632]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 0: 1
+
+ stepReach at index: 1
+xmin: [9.61359] xmax: [72.6631]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 1: 1
+
+ stepReach at index: 2
+xmin: [9.82998] xmax: [69.65027]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 2: 1
+
+ stepReach at index: 3
+xmin: [11.69636] xmax: [87.54471]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 3: 1
+In minKowskiSum, Y.C is empty
+self.C : [[-0.2817  -0.31442 -0.00725 -0.6131   0.       0.       0.       0.
+   0.       0.       0.       0.       0.       0.       0.       0.     ]
+ [ 0.17371  0.42071  0.26453  0.37924  0.       0.       0.       0.
+   0.       0.       0.       0.       0.       0.       0.       0.     ]], c-shape: (2, 16)
+After setting, Y1.C : [[0. 0. 0. 0.]
+ [0. 0. 0. 0.]],Y1.C_shape: (2, 4)
+C after hstack : 2
+d shape : 2,d:[ 1.21616 -0.15735]
+ type of input set before exactReLu: <class 'list'>
+
+ stepReach at index: 0
+xmin: [1.02387] xmax: [26.90338]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 0: 1
+
+ stepReach at index: 1
+xmin: [2.29966] xmax: [24.85806]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 1: 1
+
+ stepReach at index: 2
+xmin: [2.89335] xmax: [32.90888]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 2: 1
+
+ stepReach at index: 3
+xmin: [2.36101] xmax: [26.0011]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 3: 1
+ type of input set before exactReLu: <class 'list'>
+
+ stepReach at index: 0
+xmin: [9.79031] xmax: [95.0723]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 0: 1
+
+ stepReach at index: 1
+xmin: [9.61192] xmax: [99.98266]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 1: 1
+
+ stepReach at index: 2
+xmin: [9.82838] xmax: [95.75872]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 2: 1
+
+ stepReach at index: 3
+xmin: [11.69435] xmax: [120.50761]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 3: 1
+In minKowskiSum, Y.C is empty
+self.C : [[-0.17371 -0.42071 -0.26453 -0.37924  0.       0.       0.       0.
+   0.       0.       0.       0.       0.       0.       0.       0.     ]], c-shape: (1, 16)
+After setting, Y1.C : [[0. 0. 0. 0.]],Y1.C_shape: (1, 4)
+C after hstack : 1
+d shape : 1,d:[0.15735]
+ type of input set before exactReLu: <class 'list'>
+
+ stepReach at index: 0
+xmin: [-0.98405] xmax: [29.49592]
+get exact xmin  and exact xmax by LP solver
+exact min >=0, keep set
+Number of sets after splitting: 1
+=============End stepReach=================
+
+number of input sets after check index 0: 1
+
+ stepReach at index: 1
+xmin: [0.45584] xmax: [27.23872]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 1: 1
+
+ stepReach at index: 2
+xmin: [0.43689] xmax: [36.08056]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 2: 1
+
+ stepReach at index: 3
+xmin: [0.44608] xmax: [28.47359]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 3: 1
+ type of input set before exactReLu: <class 'list'>
+
+ stepReach at index: 0
+xmin: [2.8967] xmax: [103.97305]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 0: 1
+
+ stepReach at index: 1
+xmin: [2.3122] xmax: [109.40776]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 1: 1
+
+ stepReach at index: 2
+xmin: [2.8774] xmax: [104.73354]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 2: 1
+
+ stepReach at index: 3
+xmin: [2.89975] xmax: [131.86284]
+xmin >0, keep the set
+=============End stepReach=================
+
+number of input sets after check index 3: 1
+number of output sets in step 4 for hidden states:3
+each branch signal length (number of sets): 5
+each branch signal length (number of sets): 5
+each branch signal length (number of sets): 5
+
+
+Number of branches after RecurrentLayer: 3
+Branch types after RecurrentLayer: <class 'list'>
+Branch 0 type: <class 'list'>
+Branch 0 number of sets: 5
+Branch 0 set 0 type: <class 'StarV.set.probstar.ProbStar'>
+Branch 0 set 0 probability: 0.0
+ProbStar Set:
+V: [[ 8.56712  1.03734  0.32295  0.18669  1.05487]
+ [ 9.73136  1.27868  0.4017   0.23075  1.3363 ]
+ [ 9.83622  1.3007   0.40547  0.23418  1.32793]
+ [11.75099  1.55519  0.48778  0.28052  1.61739]]
+Predicate Constraints:
+C: [[0.2817  0.31442 0.00725 0.6131 ]
+ [0.17371 0.42071 0.26453 0.37924]]
+d: [-1.21616 -0.15735]
+dim: 4
+nVars: 4
+pred_lb: [-1. -1. -1. -1.]
+pred_ub: [-0.9989  -0.99902 -0.95728 -0.9995 ]
+mu: [0. 0. 0. 0.]
+Sig: [[0.11111 0.      0.      0.     ]
+ [0.      0.11111 0.      0.     ]
+ [0.      0.      0.11111 0.     ]
+ [0.      0.      0.      0.11111]]
+Branch 0 set 0 info: 
+
+Branch 0 set 1 type: <class 'StarV.set.probstar.ProbStar'>
+Branch 0 set 1 probability: 0.0
+ProbStar Set:
+V: [[19.11435  0.97264  0.34612  0.18255  1.4211   2.07699  1.28544  0.61268
+   2.01153]
+ [21.09558  1.0739   0.37515  0.20034  1.49921  2.37826  1.38438  0.69384
+   2.24658]
+ [22.94249  1.21088  0.43036  0.22717  1.76378  2.59073  1.59911  0.76661
+   2.50696]
+ [26.28195  1.36128  0.47875  0.25451  1.93236  2.96994  1.76963  0.87018
+   2.83754]]
+Predicate Constraints:
+C: [[0.2817  0.31442 0.00725 0.6131  0.      0.      0.      0.     ]
+ [0.17371 0.42071 0.26453 0.37924 0.      0.      0.      0.     ]]
+d: [-1.21616 -0.15735]
+dim: 4
+nVars: 8
+pred_lb: [-1. -1. -1. -1. -1. -1. -1. -1.]
+pred_ub: [-0.9989  -0.99902 -0.95728 -0.9995   1.       1.       1.       1.     ]
+mu: [0. 0. 0. 0. 0. 0. 0. 0.]
+Sig: [[0.11111 0.      0.      0.      0.      0.      0.      0.     ]
+ [0.      0.11111 0.      0.      0.      0.      0.      0.     ]
+ [0.      0.      0.11111 0.      0.      0.      0.      0.     ]
+ [0.      0.      0.      0.11111 0.      0.      0.      0.     ]
+ [0.      0.      0.      0.      0.11111 0.      0.      0.     ]
+ [0.      0.      0.      0.      0.      0.11111 0.      0.     ]
+ [0.      0.      0.      0.      0.      0.      0.11111 0.     ]
+ [0.      0.      0.      0.      0.      0.      0.      0.11111]]
+Branch 0 set 1 info: 
+
+Branch 0 set 2 type: <class 'StarV.set.probstar.ProbStar'>
+Branch 0 set 2 probability: 0.0
+ProbStar Set:
+V: [[33.79797  1.67727  0.62484  0.31964  2.72959  2.84188  2.59104  1.38801
+   3.53019  2.88846  1.57236  0.80343  1.26493]
+ [38.15292  1.91806  0.71906  0.36632  3.16655  3.25329  3.00873  1.60779
+   4.00738  3.30743  1.69339  0.90986  1.41275]
+ [41.28959  2.09353  0.78026  0.39903  3.41057  3.54732  3.23747  1.73376
+   4.40395  3.60291  1.95605  1.00527  1.57648]
+ [47.49093  2.39872  0.89719  0.45775  3.93945  4.06782  3.74238  2.00216
+   5.025    4.13027  2.16462  1.14109  1.78437]]
+Predicate Constraints:
+C: [[0.2817  0.31442 0.00725 0.6131  0.      0.      0.      0.      0.
+  0.      0.      0.     ]
+ [0.17371 0.42071 0.26453 0.37924 0.      0.      0.      0.      0.
+  0.      0.      0.     ]]
+d: [-1.21616 -0.15735]
+dim: 4
+nVars: 12
+pred_lb: [-1. -1. -1. -1. -1. -1. -1. -1. -1. -1. -1. -1.]
+pred_ub: [-0.9989  -0.99902 -0.95728 -0.9995   1.       1.       1.       1.
+  1.       1.       1.       1.     ]
+mu: [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
+Sig: [[0.11111 0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.      0.     ]
+ [0.      0.11111 0.      0.      0.      0.      0.      0.      0.
+  0.      0.      0.     ]
+ [0.      0.      0.11111 0.      0.      0.      0.      0.      0.
+  0.      0.      0.     ]
+ [0.      0.      0.      0.11111 0.      0.      0.      0.      0.
+  0.      0.      0.     ]
+ [0.      0.      0.      0.      0.11111 0.      0.      0.      0.
+  0.      0.      0.     ]
+ [0.      0.      0.      0.      0.      0.11111 0.      0.      0.
+  0.      0.      0.     ]
+ [0.      0.      0.      0.      0.      0.      0.11111 0.      0.
+  0.      0.      0.     ]
+ [0.      0.      0.      0.      0.      0.      0.      0.11111 0.
+  0.      0.      0.     ]
+ [0.      0.      0.      0.      0.      0.      0.      0.      0.11111
+  0.      0.      0.     ]
+ [0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.11111 0.      0.     ]
+ [0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.11111 0.     ]
+ [0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.      0.11111]]
+Branch 0 set 2 info: 
+
+Branch 0 set 3 type: <class 'StarV.set.probstar.ProbStar'>
+Branch 0 set 3 probability: 0.0
+ProbStar Set:
+V: [[53.8236   2.62981  0.9613   0.49799  4.09628  4.44042  3.85198  2.0543
+   5.65131  3.95218  3.16938  1.82014  2.21994  0.42111  1.36206  0.81993
+   2.10923]
+ [60.89213  2.99375  1.09223  0.56654  4.64226  5.04275  4.35557  2.31689
+   6.44873  4.52433  3.6803   2.10835  2.52001  0.4822   1.4669   0.92855
+   2.35569]
+ [66.27061  3.28124  1.19925  0.62132  5.10927  5.53944  4.80382  2.5615
+   7.05244  4.93323  3.9601   2.27354  2.76939  0.52528  1.69442  1.02592
+   2.62872]
+ [76.00822  3.75074  1.36939  0.70996  5.82589  6.32324  5.47048  2.91255
+   8.07216  5.65709  4.57771  2.6255   3.15993  0.60216  1.8751   1.16453
+   2.97536]]
+Predicate Constraints:
+C: [[0.2817  0.31442 0.00725 0.6131  0.      0.      0.      0.      0.
+  0.      0.      0.      0.      0.      0.      0.     ]
+ [0.17371 0.42071 0.26453 0.37924 0.      0.      0.      0.      0.
+  0.      0.      0.      0.      0.      0.      0.     ]]
+d: [-1.21616 -0.15735]
+dim: 4
+nVars: 16
+pred_lb: [-1. -1. -1. -1. -1. -1. -1. -1. -1. -1. -1. -1. -1. -1. -1. -1.]
+pred_ub: [-0.9989  -0.99902 -0.95728 -0.9995   1.       1.       1.       1.
+  1.       1.       1.       1.       1.       1.       1.       1.     ]
+mu: [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
+Sig: [[0.11111 0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.      0.      0.      0.      0.      0.     ]
+ [0.      0.11111 0.      0.      0.      0.      0.      0.      0.
+  0.      0.      0.      0.      0.      0.      0.     ]
+ [0.      0.      0.11111 0.      0.      0.      0.      0.      0.
+  0.      0.      0.      0.      0.      0.      0.     ]
+ [0.      0.      0.      0.11111 0.      0.      0.      0.      0.
+  0.      0.      0.      0.      0.      0.      0.     ]
+ [0.      0.      0.      0.      0.11111 0.      0.      0.      0.
+  0.      0.      0.      0.      0.      0.      0.     ]
+ [0.      0.      0.      0.      0.      0.11111 0.      0.      0.
+  0.      0.      0.      0.      0.      0.      0.     ]
+ [0.      0.      0.      0.      0.      0.      0.11111 0.      0.
+  0.      0.      0.      0.      0.      0.      0.     ]
+ [0.      0.      0.      0.      0.      0.      0.      0.11111 0.
+  0.      0.      0.      0.      0.      0.      0.     ]
+ [0.      0.      0.      0.      0.      0.      0.      0.      0.11111
+  0.      0.      0.      0.      0.      0.      0.     ]
+ [0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.11111 0.      0.      0.      0.      0.      0.     ]
+ [0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.11111 0.      0.      0.      0.      0.     ]
+ [0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.      0.11111 0.      0.      0.      0.     ]
+ [0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.      0.      0.11111 0.      0.      0.     ]
+ [0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.      0.      0.      0.11111 0.      0.     ]
+ [0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.      0.      0.      0.      0.11111 0.     ]
+ [0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.      0.      0.      0.      0.      0.11111]]
+Branch 0 set 3 info: 
+
+Branch 0 set 4 type: <class 'StarV.set.probstar.ProbStar'>
+Branch 0 set 4 probability: 0.0
+ProbStar Set:
+V: [[ 89.62807   4.16563   1.53074   0.79021   6.56882   7.08759   6.2217
+    3.34758   8.89195   6.17526   4.71177   2.69387   3.55378   0.5762
+    2.74548   1.85752   3.70165   1.145     1.51132   0.86713   2.52246]
+ [101.57353   4.74103   1.74288   0.89948   7.48311   8.07475   7.09424
+    3.82212  10.11455   7.01292   5.32776   3.03822   4.05523   0.65961
+    3.18806   2.15165   4.20202   1.31109   1.62765   0.982     2.81722]
+ [110.93843   5.19747   1.90997   0.98596   8.19653   8.84386   7.76391
+    4.17776  11.09405   7.70367   5.87607   3.35898   4.43487   0.71923
+    3.43043   2.32023   4.61785   1.42822   1.88012   1.08497   3.14373]
+ [127.01136   5.94011   2.18335   1.12692   9.37237  10.11323   8.88231
+    4.78317  12.67537   8.79369   6.69154   3.81932   5.07612   0.82476
+    3.96544   2.67942   5.26906   1.63727   2.08059   1.23156   3.55828]]
+Predicate Constraints:
+C: [[0.2817  0.31442 0.00725 0.6131  0.      0.      0.      0.      0.
+  0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.     ]
+ [0.17371 0.42071 0.26453 0.37924 0.      0.      0.      0.      0.
+  0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.     ]]
+d: [-1.21616 -0.15735]
+dim: 4
+nVars: 20
+pred_lb: [-1. -1. -1. -1. -1. -1. -1. -1. -1. -1. -1. -1. -1. -1. -1. -1. -1. -1.
+ -1. -1.]
+pred_ub: [-0.9989  -0.99902 -0.95728 -0.9995   1.       1.       1.       1.
+  1.       1.       1.       1.       1.       1.       1.       1.
+  1.       1.       1.       1.     ]
+mu: [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
+Sig: [[0.11111 0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.     ]
+ [0.      0.11111 0.      0.      0.      0.      0.      0.      0.
+  0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.     ]
+ [0.      0.      0.11111 0.      0.      0.      0.      0.      0.
+  0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.     ]
+ [0.      0.      0.      0.11111 0.      0.      0.      0.      0.
+  0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.     ]
+ [0.      0.      0.      0.      0.11111 0.      0.      0.      0.
+  0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.     ]
+ [0.      0.      0.      0.      0.      0.11111 0.      0.      0.
+  0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.     ]
+ [0.      0.      0.      0.      0.      0.      0.11111 0.      0.
+  0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.     ]
+ [0.      0.      0.      0.      0.      0.      0.      0.11111 0.
+  0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.     ]
+ [0.      0.      0.      0.      0.      0.      0.      0.      0.11111
+  0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.     ]
+ [0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.11111 0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.     ]
+ [0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.11111 0.      0.      0.      0.      0.      0.      0.
+  0.      0.     ]
+ [0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.      0.11111 0.      0.      0.      0.      0.      0.
+  0.      0.     ]
+ [0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.      0.      0.11111 0.      0.      0.      0.      0.
+  0.      0.     ]
+ [0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.      0.      0.      0.11111 0.      0.      0.      0.
+  0.      0.     ]
+ [0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.      0.      0.      0.      0.11111 0.      0.      0.
+  0.      0.     ]
+ [0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.      0.      0.      0.      0.      0.11111 0.      0.
+  0.      0.     ]
+ [0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.      0.      0.      0.      0.      0.      0.11111 0.
+  0.      0.     ]
+ [0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.      0.      0.      0.      0.      0.      0.      0.11111
+  0.      0.     ]
+ [0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.11111 0.     ]
+ [0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.11111]]
+Branch 0 set 4 info: 
+
+
+==================Branch TL Spec 0====================
+Formula: 
+Formula type: ConjunctiveEventually
+Formula length: 2
+
+EVENTUALLY_[0,20] 
+-1.0*x[0]+0.0*x[1]+0.0*x[2]+0.0*x[3] <= 0
+
+
+Evaluating TL spec for 0th branches...
+Realizing Abstract DNF specification on a ProbStar Signal (RNN)...
+=====================base_probstar info for RNN realization: C =[[0.2817  0.31442 0.00725 0.6131  0.      0.      0.      0.      0.
+  0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.     ]
+ [0.17371 0.42071 0.26453 0.37924 0.      0.      0.      0.      0.
+  0.      0.      0.      0.      0.      0.      0.      0.      0.
+  0.      0.     ]], d =[-1.21616 -0.15735]=====================
+
+
+ ==== using base constraints for RNN realiaztaion ========
+
+
+ ==== using base constraints for RNN realiaztaion ========
+
+
+ ==== using base constraints for RNN realiaztaion ========
+
+
+ ==== using base constraints for RNN realiaztaion ========
+
+
+ ==== using base constraints for RNN realiaztaion ========
+
+Length of Computable DNF = 5 for branch signal
+base probstar probability = 0.0
+Computing exact probability of satisfaction...
+i = 0/5
+i = 1/5
+i = 2/5
+i = 3/5
+i = 4/5
+Branch 0: p_max = 0.0, p_min = 0.0
+Evaluating TL spec for 1th branches...
+Realizing Abstract DNF specification on a ProbStar Signal (RNN)...
+=====================base_probstar info for RNN realization: C =[[-0.2817  -0.31442 -0.00725 -0.6131   0.       0.       0.       0.
+   0.       0.       0.       0.       0.       0.       0.       0.
+   0.       0.       0.       0.     ]
+ [ 0.17371  0.42071  0.26453  0.37924  0.       0.       0.       0.
+   0.       0.       0.       0.       0.       0.       0.       0.
+   0.       0.       0.       0.     ]], d =[ 1.21616 -0.15735]=====================
+
+
+ ==== using base constraints for RNN realiaztaion ========
+
+
+ ==== using base constraints for RNN realiaztaion ========
+
+
+ ==== using base constraints for RNN realiaztaion ========
+
+
+ ==== using base constraints for RNN realiaztaion ========
+
+
+ ==== using base constraints for RNN realiaztaion ========
+
+Length of Computable DNF = 5 for branch signal
+base probstar probability = 0.2195331477036879
+Computing exact probability of satisfaction...
+i = 0/5
+i = 1/5
+i = 2/5
+i = 3/5
+i = 4/5
+Branch 1: p_max = 0.21955464642537875, p_min = 0.21955464642537875
+Evaluating TL spec for 2th branches...
+Realizing Abstract DNF specification on a ProbStar Signal (RNN)...
+=====================base_probstar info for RNN realization: C =[[-0.17371 -0.42071 -0.26453 -0.37924  0.       0.       0.       0.
+   0.       0.       0.       0.       0.       0.       0.       0.
+   0.       0.       0.       0.     ]], d =[0.15735]=====================
+
+
+ ==== using base constraints for RNN realiaztaion ========
+
+
+ ==== using base constraints for RNN realiaztaion ========
+
+
+ ==== using base constraints for RNN realiaztaion ========
+
+
+ ==== using base constraints for RNN realiaztaion ========
+
+
+ ==== using base constraints for RNN realiaztaion ========
+
+Length of Computable DNF = 5 for branch signal
+base probstar probability = 0.7384019189339344
+Computing exact probability of satisfaction...
+i = 0/5
+i = 1/5
+i = 2/5
+i = 3/5
+i = 4/5
+Branch 2: p_max = 0.7313365382042072, p_min = 0.7313365382042072
+p_per_branch: [(0.0, 0.0), (0.21955464642537875, 0.21955464642537875), (0.7313365382042072, 0.7313365382042072)]
+p_total_max: 0.950891184629586
+p_total_min: 0.950891184629586
+
+========================    =================================    =================================    =================================
+
+Testing Recurrent Layer Class: fails: 0, successfull: 1,     total tests: 1
