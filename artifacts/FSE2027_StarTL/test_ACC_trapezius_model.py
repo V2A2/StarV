@@ -27,7 +27,7 @@ from StarV.set.probstar import ProbStar
 from StarV.net.network import reachExactBFS
 from StarV.nncs.nncs import VerifyPRM_NNCS, verify_temporal_specs_DLNNCS
 from StarV.util.load import load_acc_trapezius, load_acc_trapezius_model
-from StarV.test_ACC_dStarTL import verify_temporal_specs_DLNNCS_ACC
+from artifacts.FSE2027_StarTL.test_ACC_dStarTL import verify_temporal_specs_DLNNCS_ACC
 
 
 def make_trapezius_transformed_input():

@@ -975,6 +975,7 @@ def load_AEBS_temporal_specs():
     A2 = np.array([0., -1., 0])
     b2 = np.array([-0.2])
     P2 = AtomicPredicate(A2, b2)
+
     EV0T = _EVENTUALLY_(0,T)
     #EV0t = _EVENTUALLY_(0,t)
     AND = _AND_()
