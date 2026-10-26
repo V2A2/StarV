@@ -278,7 +278,7 @@ The [`artifacts/`](./artifacts) directory contains experimental benchmarks and e
 | [`artifacts/NeurIPS2025_SparseImageStar`](./artifacts/NeurIPS2025_SparseImageStar) | **SparseImageStar**: *Memory-Efficient Verification for Deep Convolutional Neural Networks using SparseImageStar* |
 | [`artifacts/NAHS2024_RNN`](./artifacts/NAHS2024_RNN) | **NAHS 2025**: *Reachability Analysis of Recurrent Neural Networks* |
 | [`artifacts/NAHS2024_LeCPS`](./artifacts/NAHS2024_LeCPS) | **NAHS 2026**: *Quantitative Verification of Learning-enabled Systems using ProbStar Reachability* |
-| [`artifacts/TACAS2026_RNN`](./artifacts/TACAS2026_RNN) | **TACAS 2026**: ProbStar reachability and temporal verification of RNNs on CMAPSS & LIMO benchmarks |
+| [`artifacts/TACAS2027_RNN`](./artifacts/TACAS2027_RNN) | **TACAS 2027**: ProbStar reachability and temporal verification of RNNs on CMAPSS & LIMO benchmarks |
 | [`artifacts/FSE2027_StarTL`](./artifacts/FSE2027_StarTL) | **StarTL**: Quantitative robustness intervals & satisfaction fractions for ACC, AEBS, CMAPSS, and LIMO |
 | [`artifacts/HSCC2023_ProbStar`](./artifacts/HSCC2023_ProbStar) | **HSCC 2023**: *Quantitative Verification for Neural Networks using ProbStars* |
 
