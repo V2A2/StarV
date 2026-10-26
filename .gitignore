@@ -22,3 +22,6 @@ build/
 
 # Local paper manuscripts (not pushed to repository)
 papers/
+
+# Local Codex configuration
+.codex/
