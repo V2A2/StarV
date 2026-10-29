@@ -4,7 +4,6 @@ Author: Qing Liu
 Date: 9/28/2025
 """
 
-from curses.ascii import RS
 import numpy as np
 from StarV.set.star import Star
 from StarV.set.probstar import ProbStar
@@ -87,30 +86,6 @@ class Test(object):
             print('Test Successfull!')
 
 
-    def test_reachApprox(self):
-        self.n_tests = self.n_tests + 1
-        print('\nTest RecurrentLayer reachExact method\n')
-
-        try:
-            L = RecurrentLayer.rand(2, 3)
-            In = []
-            I = Star.rand(2)
-            print('Input Set:')
-            I.__str__()
-            I.C = np.zeros([1,I.nVars])  
-            I.d = np.zeros([1])
-            for i in range(5):
-                In.append(I)
-            S = L.reachApprox(In)
-            print('Number of utput Set:'.format(len(S)))
-            # S[i].__str__()
-
-        except Exception:
-            print('Test Fail!')
-            self.n_fails = self.n_fails + 1
-        else:
-            print('Test Successfull!')
-
     def test_reach(self):
         self.n_tests = self.n_tests + 1
         print('\nTest RecurrentLayer reach method\n')
@@ -152,89 +127,73 @@ class Test(object):
         L3 = ReLULayer()
         L4 = FullyConnectedLayer(mat[1])
         L5 = ReLULayer()
-        L4 = FullyConnectedLayer(mat[2])
-        L6 = ReLULayer()
+        L6 = FullyConnectedLayer(mat[2])
+        L7 = ReLULayer()
         # L5 = FullyConnectedLayer(mat[3],fo='relu')
         # L6 = FullyConnectedLayer(mat[4],fo='relu')
         # L7 = FullyConnectedLayer(mat[5],fo='relu')
 
-
-        layers = [L1,L2,L3,L4,L5,L6]
-        net = NeuralNetwork(layers=layers)
+        # The RNN output sets are per time step, so the post layers are applied
+        # to every branch by reachExactBranches instead of NeuralNetwork.reach.
+        post_layers = [L2,L3,L4,L5,L6,L7]
 
         num_input_seq= 1
         x = data_points[:num_input_seq,:]
         x = x.T
-    
-        eps = 0.01
-        time_steps = 5 
-        results = []
-        # try :
-        for k in range(0,num_input_seq):
-            xk = np.array(x[:, k]).reshape(-1,1)
-            col_point = xk
-            S = get_ProbStar_set(col_point,eps,time_steps)
-            Numlayers = len(layers)
-            Layer_RS = []
-            RS = S
-            for j in range(0,Numlayers):
-                layers[j].info()
-                RS1 = net.layers[j].reach(RS, method = "exact", lp_solver='gurobi', pool=None, RF=0.0, DR=0)
-                print("\nnumer of Output sets after layer {} : {}".format(j+1,len(RS1)))
-                print("output set types after layer {} : {}".format(j+1,type(RS1)))
-                print("output set[0] types after layer {} : {}{}".format(j+1,type(RS1[0]),RS1[0]))
-                print("num of output set[0]  after layer {} : {}".format(j+1,len(RS1[0])))
-                RS = RS1
-                Layer_RS.append(RS1)
-            result = RS1
-            results.append(result)
-        # except Exception:
-        #     print('Test Fail!')
-        #     self.n_fails = self.n_fails + 1
-        # else:
-        #     print('Test Successfull!')
 
-        
+        eps = 0.01
+        time_steps = 5
+        results = []
+        try :
+            for k in range(0,num_input_seq):
+                xk = np.array(x[:, k]).reshape(-1,1)
+                col_point = xk
+                S = get_ProbStar_set(col_point,eps,time_steps)
+                branches, _, p_ignored = L1.reachExactBranches(
+                    S, post_layers=post_layers, lp_solver='gurobi', post_start_t=0)
+                print("\nnumber of branches: {}, trace length: {}, p_ignored: {}".format(
+                    len(branches), len(branches[0]), p_ignored))
+                assert all(len(trace) == time_steps for trace in branches)
+                assert all(Y.dim == mat[2][0].shape[0] for trace in branches for Y in trace)
+                results.append(branches)
+        except Exception:
+            print('Test Fail!')
+            self.n_fails = self.n_fails + 1
+        else:
+            print('Test Successfull!')
+
         return results
 
     def test_multiRandomLayers(self):
         self.n_tests = self.n_tests + 1
-        print('\nTest multiRecurrentLayer\n')
+        print('\nTest RecurrentLayer with random post layers\n')
         np.random.seed(42)
 
-        # try:
-        L1 = RecurrentLayer.rand(8, 2)
-        L2 = RecurrentLayer.rand(2, 2)
-        # L3 = FullyConnectedLayer.rand(8,12)
-        layers = [L1,L2]
-        net = NeuralNetwork(layers=layers)
-        Numlayers = len(layers)
-        In = []
-        I = Star.rand(8)
-        print("I dim:",I.dim)
-        I.C = np.zeros([1,I.nVars])  
-        I.d = np.zeros([1])
-        for i in range(5):
-            In.append(I)
-        # print('Number of input sets: {}'.format(len(In)))
-        results = []
-        RS = In
-        for j in range(0,Numlayers):
-            print("\n====== Process the {}th layer of NN ===========".format(j+1))
-            # layers[j].info()
-            RS1 = net.layers[j].reach(RS, method = "exact", lp_solver='gurobi', pool=None, RF=0.0, DR=0)
-            for i in range(len(RS1)):
-                print('Number of Output sets in O{}:{}'.format(i,len(RS1[i])))
-            #     for k in range(len(RS1[i])):
-            #         print(" Layer {} at time {} output set {} :".format(j+1,i,RS1[i][k].V))
-            RS = RS1
-        result = RS1
-        results.append(result)
-        # except Exception:
-        #     print('Test Fail!')
-        #     self.n_fails = self.n_fails + 1
-        # else:
-        #     print('Test Successfull!')
+        # Stacked RecurrentLayers are not supported: one RNN layer followed by
+        # random FC/ReLU post layers.
+        try:
+            L1 = RecurrentLayer.rand(8, 2)
+            post_layers = [ReLULayer(),
+                           FullyConnectedLayer(np.random.rand(3, 2) - 0.5, np.random.rand(3) - 0.5),
+                           ReLULayer(),
+                           FullyConnectedLayer(np.random.rand(2, 3) - 0.5, np.random.rand(2) - 0.5)]
+            In = []
+            I = Star.rand(8)
+            print("I dim:",I.dim)
+            I.C = np.zeros([1,I.nVars])
+            I.d = np.zeros([1])
+            for i in range(5):
+                In.append(I)
+            branches, _, p_ignored = L1.reachExactBranches(
+                In, post_layers=post_layers, lp_solver='gurobi', post_start_t=0)
+            print('Number of branches: {}'.format(len(branches)))
+            assert len(branches) > 0 and p_ignored == 0.0
+            assert all(len(trace) == len(In) and all(Y.dim == 2 for Y in trace) for trace in branches)
+        except Exception:
+            print('Test Fail!')
+            self.n_fails = self.n_fails + 1
+        else:
+            print('Test Successfull!')
 
     def test_multiMinsum(self):
             
@@ -639,34 +598,12 @@ class Test(object):
             print(f"Input ProbStar {i}:",X0_probstar)
             In.append(X0_probstar)
 
+        # reach returns one list of output ProbStars per time step.
         RS = L1.reach(In, method="exact")
-        print("Number of output sets after RecurrentLayer:",len(RS))
-        print("Output set types after RecurrentLayer:",type(RS))
-        if len(RS) > 0 and isinstance(RS[0], list):
-            RS1=[]
-            for j in range(len(RS)):
-                print('\n=======================')
-                print(f"Output set {j} is a list of sets, number of sets in output set RS{j}: {len(RS[j])}")
-                if len(RS[j]) == 1:
-                    RS1.append(RS[j][0])
-                else:
-                    for i, set in enumerate(RS[j]):
-                        print(f"\nSet {i} in output set RS{j}: {set}, probability: {set.estimateProbability()}")
-                        print(f"output set:{RS[j][i]}")
-                        # mat_mat= np.array([[0,0,1,0],[0,0,0,1]])
-                        # All_map_sets=[]
-                    #     for i in range(len(RS[j])):
-                    #         Aff_RS= RS[j][i].affineMap(mat_mat)
-                    #         All_map_sets.append(Aff_RS)
-                        
-                    # plot_probstar_signal(All_map_sets)
-            if len(RS1) > 0:
-                for i in range(len(RS1)):
-                    print(f"\nSet {i} in RS1: {RS1[i]}, probability: {RS1[i].estimateProbability()}")
-                print("lens of RS1:",len(RS1))
-                RS =RS1
-        else:
-            print("Output set[0] is a single ProbStar, probability:",RS[0].estimateProbability())
+        print("Number of time steps after RecurrentLayer:",len(RS))
+        for j in range(len(RS)):
+            print(f"Number of output sets at step {j}: {len(RS[j])}, probabilities: "
+                  f"{[S.estimateProbability() for S in RS[j]]}")
 
 
         # create temporal specifications
@@ -699,7 +636,7 @@ class Test(object):
         mat_mat= np.array([[1,0,0,0],[0,1,0,0]])
         All_map_sets=[]
         for i in range(len(RS)):
-            Aff_RS= RS[i].affineMap(mat_mat)
+            Aff_RS= [S.affineMap(mat_mat) for S in RS[i]]
             All_map_sets.append(Aff_RS)
         
         # plot_probstar(All_map_sets[1])
@@ -715,23 +652,14 @@ class Test(object):
         for i, S1 in enumerate(All_map_sets):
             P = []
             prob = []
-            if len(S1) > 1:
-                for j,S2 in enumerate(S1):
-                    P1, prob1 = checkSafetyProbStar(unsafe_mat, unsafe_vec, S2)
-                    if isinstance(P1, ProbStar):
-                        print(f"prob1 of S{i}{j} = {prob1}")
-                        P.append(P1)
-                        prob.append(prob1)
-                    else:
-                        print(f"S{i}{j} is an empty set, prob = 0.0")
-            else:
-                P1, prob1 = checkSafetyProbStar(unsafe_mat, unsafe_vec, S1)
+            for j,S2 in enumerate(S1):
+                P1, prob1 = checkSafetyProbStar(unsafe_mat, unsafe_vec, S2)
                 if isinstance(P1, ProbStar):
-                    print(f"prob1 of S{i} = {prob1}")
+                    print(f"prob1 of S{i}{j} = {prob1}")
                     P.append(P1)
                     prob.append(prob1)
                 else:
-                    print(f"S{i} is an empty set, prob = 0.0")
+                    print(f"S{i}{j} is an empty set, prob = 0.0")
 
         
             if len(P) != 0:
@@ -762,17 +690,16 @@ if __name__ == "__main__":
     ================================\
     ================================\
     ===============================\n')
-    # test_RecurrentLayer.test_constructor()
-    # test_RecurrentLayer.test_rand()
-    # test_RecurrentLayer.test_reachExact()
-    # test_RecurrentLayer.test_reachApprox()
-    # test_RecurrentLayer.test_reach()
-    # test_RecurrentLayer.test_simple_rnn()
-    # test_RecurrentLayer.test_multiRandomLayers()
-    # test_RecurrentLayer.test_multiMinsum()
-    # test_RecurrentLayer.test_probstar_construct()
-    # test_RecurrentLayer.test_relu()
-    test_RecurrentLayer.test_ProbSatrTL()
+    test_RecurrentLayer.test_constructor()
+    test_RecurrentLayer.test_rand()
+    test_RecurrentLayer.test_reachExact()
+    test_RecurrentLayer.test_reach()
+    test_RecurrentLayer.test_simple_rnn()
+    test_RecurrentLayer.test_multiRandomLayers()
+    # test_RecurrentLayer.test_multiMinsum()  # plots; opens figure windows
+    test_RecurrentLayer.test_probstar_construct()
+    test_RecurrentLayer.test_relu()
+    test_RecurrentLayer.test_ProbSatrTL_spec()
     print('\n========================\
     =================================\
     =================================\
