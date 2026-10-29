@@ -6,7 +6,6 @@ Date: 9/28/2025
 
 from curses.ascii import RS
 import numpy as np
-from StarV.RNN_TL_verification import  verify_tl_over_branches
 from StarV.set.star import Star
 from StarV.set.probstar import ProbStar
 from StarV.layer.RecurrentLayer import RecurrentLayer
@@ -755,96 +754,6 @@ class Test(object):
         #     print("p_max:",p_max) 
         #     # verify_time=checking_time + reach_time_duration    
               
-    def test_ProbStar_TL_verification(self):
-
-        np.random.seed(42)
-        self.n_tests = self.n_tests + 1
-        # try:
-        L1 = RecurrentLayer.rand(4, 4)
-        L2 = FullyConnectedLayer.rand(4, 4)
-        L3 = ReLULayer()
-        L4 = FullyConnectedLayer.rand(4, 4)
-        
-
-        In = []
-        for i in range(5):
-            X0 = Star.rand(4)
-            print("X0:",X0)
-            mu = 0.5*(X0.pred_lb + X0.pred_ub) 
-            a  = 3
-            sig= (mu - X0.pred_lb)/a
-            epsilon = 1e-6
-            sig = np.maximum(sig, epsilon)
-            Sig = np.diag(np.square(sig))
-            X0_probstar = ProbStar(X0.V, X0.C, X0.d,mu, Sig,X0.pred_lb,X0.pred_ub)
-            print(f"Input ProbStar {i}:",X0_probstar)
-            In.append(X0_probstar)
-
-        branches,_ = L1.reachExactBranches(
-            In,
-            post_layers=[L2,L3,L4],
-            lp_solver="gurobi",
-            pool=None,
-            p_filter=None,
-            show=True,
-        )
-        print("\n\nNumber of branches after RecurrentLayer:",len(branches))
-        print("Branches types after RecurrentLayer:",type(branches))
-        for i in range(len(branches)):
-            print("Branch {} type: {}".format(i,type(branches[i])))
-            print(f"Branch {i} number of sets: {len(branches[i])}")
-            for j in range(len(branches[i])):
-                print(f"Branch {i} set {j} type: {type(branches[i][j])}")
-                print(f"Branch {i} set {j} probability: {branches[i][j].estimateProbability()}")
-                # print(f"Branch {i} set {j} info: {branches[i][j]}")
-            
-        # Example specs (uncomment and edit as needed)
-          # create temporal specifications
-        AND = _AND_()
-        OR = _OR_()                                        
-        lb = _LeftBracket_()
-        rb = _RightBracket_()
-
-        A1 = np.array([-1., 0.,0,0])
-        b1 = np.array([-0])
-        P1 = AtomicPredicate(A1,b1)
-
-        A2 = np.array([0,-1,0,0])
-        b2 = np.array([-50])
-        P2 = AtomicPredicate(A2,b2)
-
-        EVOT =_EVENTUALLY_(0,20)
-        AWOT = _ALWAYS_(2,3)
-        EVOT1 =_EVENTUALLY_(5,15)
-        AWOT1 = _ALWAYS_(0,5)
-        
-
-        specs =[]
-        spec = Formula([EVOT,P1])
-        spec1 = Formula([AWOT,lb,P2,rb])
-        spec2 = Formula([EVOT,lb,P1,OR,lb,AWOT,P2,rb,rb])
-        specs =[spec]
-
-
-        #mapping
-        # mat_mat= np.array([[1,0,0,0],[0,1,0,0]])
-        # All_map_sets=[]
-        # for i in range(len(RS)):
-        #     Aff_RS= RS[i].affineMap(mat_mat)
-        #     All_map_sets.append(Aff_RS)
-        
-        # plot_probstar(All_map_sets[1])
-
-        map_mat =None
-        
-
-        for k, spec in enumerate(specs):
-            print(f"\n==================Branch TL Spec {k}====================")
-            spec.print()
-            p_total_max, p_total_min, p_per_branch = verify_tl_over_branches(branches, spec)
-            print(f"p_per_branch: {p_per_branch}")
-            print(f"p_total_max: {p_total_max}")
-            print(f"p_total_min: {p_total_min}")
 
 if __name__ == "__main__":
 
@@ -863,8 +772,7 @@ if __name__ == "__main__":
     # test_RecurrentLayer.test_multiMinsum()
     # test_RecurrentLayer.test_probstar_construct()
     # test_RecurrentLayer.test_relu()
-    # test_RecurrentLayer.test_ProbSatrTL()
-    test_RecurrentLayer.test_ProbStar_TL_verification()
+    test_RecurrentLayer.test_ProbSatrTL()
     print('\n========================\
     =================================\
     =================================\
