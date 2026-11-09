@@ -204,10 +204,10 @@ def test_cnn_qualitative_vs_quantitative_csr_coo_imagestar():
 
     np.testing.assert_allclose(l_csr, l_im, atol=1e-6)
     np.testing.assert_allclose(u_csr, u_im, atol=1e-6)
-    np.testing.assert_allclose(l_pcsr, l_csr, atol=1e-10)
-    np.testing.assert_allclose(u_pcsr, u_csr, atol=1e-10)
-    np.testing.assert_allclose(l_pcoo, l_coo, atol=1e-10)
-    np.testing.assert_allclose(u_pcoo, u_coo, atol=1e-10)
+    np.testing.assert_allclose(l_pcsr, l_pcoo, atol=1e-10)
+    np.testing.assert_allclose(u_pcsr, u_pcoo, atol=1e-10)
+    assert np.all(l_pcsr >= l_csr - 1e-9)
+    assert np.all(u_pcsr <= u_csr + 1e-9)
 
     # Quantitative probability certification CSR vs COO must match identically
     res_csr, _ = certifyProbabilisticRobustness(
@@ -330,8 +330,9 @@ def test_resnet_residual_layer_and_leakyrelu():
 
     l_sim, u_sim = out_sim.estimateRanges()
     l_psim, u_psim = out_psim.estimateRanges()
-    np.testing.assert_allclose(l_psim, l_sim, atol=1e-9)
-    np.testing.assert_allclose(u_psim, u_sim, atol=1e-9)
+    # PSIM_CSR tightens intermediate ViT bounds via its Envelope DAG (l_psim >= l_sim, u_psim <= u_sim)
+    assert np.all(l_psim >= l_sim - 1e-9)
+    assert np.all(u_psim <= u_sim + 1e-9)
 
     # Verify pointwise envelope soundness on 200 samples
     alpha0 = psim_csr.sampling_alpha0(200, seed=123)
@@ -404,8 +405,9 @@ def test_vision_transformer_layernorm_gelu_mhsa_soundness():
 
     l_sim, u_sim = out_sim.estimateRanges()
     l_psim, u_psim = out_psim.estimateRanges()
-    np.testing.assert_allclose(l_psim, l_sim, atol=1e-9)
-    np.testing.assert_allclose(u_psim, u_sim, atol=1e-9)
+    # PSIM_CSR tightens intermediate ViT bounds via its Envelope DAG (l_psim >= l_sim, u_psim <= u_sim)
+    assert np.all(l_psim >= l_sim - 1e-9)
+    assert np.all(u_psim <= u_sim + 1e-9)
 
     # Pointwise envelope soundness on 300 Monte Carlo samples
     alpha0 = psim_csr.sampling_alpha0(300, seed=55)
@@ -467,6 +469,54 @@ def test_crown_vs_approx_probstar_2d_and_norm_layer():
     _assert_prob_invariants(res_crown)
 
 
+def test_satlin_satlins_logsig_tansig_probstar_tightening():
+    """
+    Test multi-layer ProbStar quantitative reachability and envelope soundness
+    for SatLinLayer, SatLinsLayer, LogSigLayer (Sigmoid), and TanSigLayer (Tanh)
+    with intermediate env_dag pre-activation bound tightening.
+    """
+    from StarV.layer.SatLinLayer import SatLinLayer
+    from StarV.layer.SatLinsLayer import SatLinsLayer
+    from StarV.layer.LogSigLayer import LogSigLayer
+    from StarV.layer.TanSigLayer import TanSigLayer
+
+    rng = np.random.default_rng(2028)
+    n_in, n_h, n_out = 4, 5, 2
+    W1 = rng.normal(0.0, 0.6, size=(n_h, n_in))
+    b1 = rng.uniform(-0.1, 0.1, size=(n_h,))
+    W2 = rng.normal(0.0, 0.6, size=(n_h, n_h))
+    b2 = rng.uniform(-0.1, 0.1, size=(n_h,))
+    W3 = rng.normal(0.0, 0.6, size=(n_out, n_h))
+    b3 = np.array([0.3, -0.2])
+
+    x0 = rng.uniform(-0.3, 0.3, size=(n_in,))
+    P_in = ProbStar.inf_prob_attack(x0, 0.25, cov_mode='full')
+    alpha0 = P_in.sampling_alpha0(200, seed=42)
+    c0, V0 = P_in.get_c_V()
+    x_samples = c0[:, None] + V0[:, :P_in.nVars0] @ alpha0
+
+    spec_mat = np.array([[1.0, -1.0]])
+    spec_vec = np.array([0.0])
+
+    for act_cls in (SatLinLayer, SatLinsLayer, LogSigLayer, TanSigLayer):
+        net = NeuralNetwork([
+            FullyConnectedLayer([W1, b1]),
+            act_cls(),
+            FullyConnectedLayer([W2, b2]),
+            act_cls(),
+            FullyConnectedLayer([W3, b3]),
+        ], net_type='ffnn_general_act')
+        S_out, res = quantiVerifyApproxBFS(
+            net, P_in, spec_mat, spec_vec, lp_solver='estimate', use_lp=False, show=False
+        )
+        assert isinstance(S_out, ProbStar)
+        _assert_prob_invariants(res)
+        y_mc = np.column_stack([net.evaluate(x_samples[:, i]).ravel() for i in range(200)])
+        G_lb, d_lb, G_ub, d_ub = S_out.getSoundInputBounds()
+        assert np.all(d_lb[:, None] + G_lb @ alpha0 <= y_mc + 1e-5)
+        assert np.all(y_mc <= d_ub[:, None] + G_ub @ alpha0 + 1e-5)
+
+
 class Test(unittest.TestCase):
     def test_probstar_approx_vs_exact_and_mc(self):
         test_probstar_approx_vs_exact_and_mc_soundness()
@@ -485,6 +535,9 @@ class Test(unittest.TestCase):
 
     def test_crown_vs_approx_probstar(self):
         test_crown_vs_approx_probstar_2d_and_norm_layer()
+
+    def test_general_activations_probstar(self):
+        test_satlin_satlins_logsig_tansig_probstar_tightening()
 
 
 if __name__ == '__main__':

@@ -433,10 +433,11 @@ def run_suite2_cnn_benchmarks(mc_samples=500):
     """
     Evaluate REAL FULL-SIZE PRETRAINED CNNs:
       Part A: CAV 2020 Pretrained MNIST ConvNets (Small, Medium, Large) on 28x28x1 test images
-              compared with ImageStar, SIM_CSR, SIM_COO, NNV (.mat baselines), PSIM_CSR, PSIM_COO, MC.
+              under localized bright-pixel attack and full-image 28x28 L_inf attack,
+              compared live against StarV's dense ImageStar (IM), SIM_CSR, SIM_COO, CROWN, PSIM_CSR, PSIM_COO, MC.
       Part B: OVAL21 Pretrained CIFAR-10 CNNs (cifar_base_kw, cifar_deep_kw, cifar_wide_kw) on
-              full 32x32x3 images (3,072 pixels perturbed) and patch perturbations, including
-              layer-by-layer memory/time comparison against NNV (nnv_oval21_memory_usage.mat).
+              localized 8x8x3 patch (192 channels) and full 32x32x3 images (3,072 channels perturbed),
+              including live layer-by-layer memory/time comparison against StarV's dense ImageStar (IM).
     """
     print("\n" + "=" * 84)
     print("SUITE 2: Full-Size Pretrained CNNs (CAV2020 MNIST 28x28x1 & OVAL21 CIFAR-10 32x32x3)")
@@ -448,10 +449,6 @@ def run_suite2_cnn_benchmarks(mc_samples=500):
     # Part 2A: Real Pretrained CAV2020 MNIST ConvNets (Small, Medium, Large) (28x28x1)
     # -----------------------------------------------------------------
     mnist_dir = 'StarV/util/data/nets/CAV2020_MNIST_ConvNet'
-    # In NNV_*_ConvNet_Results_brightAttack.mat:
-    # rows correspond to d = [250, 245, 240], cols correspond to delta = [0.005, 0.01, 0.015]
-    d_idx_map = {250: 0, 245: 1, 240: 2}
-    delta_idx_map = {0.005: 0, 0.01: 1, 0.015: 2}
 
     for net_type in ['Small', 'Medium', 'Large']:
         net_path = f"{mnist_dir}/onnx/{net_type}_ConvNet.onnx"
@@ -460,52 +457,57 @@ def run_suite2_cnn_benchmarks(mc_samples=500):
         data = mat_img['IM_data'].astype(np.float64)
         labels = (mat_img['IM_labels'] - 1).ravel()
 
-        mat_nnv = scipy.io.loadmat(f"{mnist_dir}/nnv/NNV_{net_type}_ConvNet_Results_brightAttack.mat")
-        nnv_vt_grid = mat_nnv['VT_star'] / 100.0  # per-image average seconds in NNV
-
-        # Evaluate representative test image (k=0) and bright-pixel attack configurations
+        # Evaluate representative test image (k=0) under localized brightening and full-image 28x28 L_inf attacks
         img0 = data[:, :, 0]
         lbl0 = int(labels[0])
 
-        for d_thr, delta in [(250, 0.005), (240, 0.015)]:
-            lb, ub = brightening_attack(img0, delta=delta, d=d_thr, dtype=np.float64)
-            n_attacked = int((lb != ub).sum())
-            nnv_vt_ref = float(nnv_vt_grid[d_idx_map[d_thr], delta_idx_map[delta]])
+        mnist_configs = [
+            ('bright(d=240,dlt=0.015)', 240, 0.015),
+            ('full_28x28(eps=0.0005)', 0, 0.0005),
+        ]
 
-            # 1. ImageStar (IM)
+        for spec_tag, d_thr, delta in mnist_configs:
+            if d_thr > 0:
+                lb, ub = brightening_attack(img0, delta=delta, d=d_thr, dtype=np.float64)
+            else:
+                lb = np.clip(img0 - delta * 255.0, 0.0, 255.0)
+                ub = np.clip(img0 + delta * 255.0, 0.0, 255.0)
+            n_attacked = int((lb != ub).sum())
+
+            # 1. Dense ImageStar (IM) in StarV
             im_in = ImageStar(lb[:, :, None], ub[:, :, None])
             rb_im, vt_im, _, out_im = certifyRobustness(
                 net, im_in, lbl0, reachMethod='approx', lp_solver='estimate', return_output=True
             )
-            mem_im_mb = out_im.nbytes() / (1024.0 ** 2)
+            mem_im_mb = max(im_in.nbytes(), out_im.nbytes()) / (1024.0 ** 2)
 
             # 2. SparseImageStar2DCSR (SIM_CSR)
             csr_in = SparseImageStar2DCSR(lb, ub)
             rb_csr, vt_csr, _, out_csr = certifyRobustness(
                 net, csr_in, lbl0, reachMethod='approx', lp_solver='estimate', return_output=True
             )
-            mem_csr_mb = out_csr.nbytes() / (1024.0 ** 2)
+            mem_csr_mb = max(csr_in.nbytes(), out_csr.nbytes()) / (1024.0 ** 2)
 
             # 3. SparseImageStar2DCOO (SIM_COO)
             coo_in = SparseImageStar2DCOO(lb, ub)
             rb_coo, vt_coo, _, out_coo = certifyRobustness(
                 net, coo_in, lbl0, reachMethod='approx', lp_solver='estimate', return_output=True
             )
-            mem_coo_mb = out_coo.nbytes() / (1024.0 ** 2)
+            mem_coo_mb = max(coo_in.nbytes(), out_coo.nbytes()) / (1024.0 ** 2)
 
             # 4. ProbSparseImageStar2DCSR (PSIM_CSR [Ours])
             pcsr_in = ProbSparseImageStar2DCSR(lb, ub, cov_mode='diagonal')
             res_pcsr, out_pcsr = certifyProbabilisticRobustness(
                 net, pcsr_in, lbl0, lp_solver='estimate', use_lp=False, return_output=True
             )
-            mem_pcsr_mb = out_pcsr.nbytes() / (1024.0 ** 2)
+            mem_pcsr_mb = max(pcsr_in.nbytes(), out_pcsr.nbytes()) / (1024.0 ** 2)
 
             # 5. ProbSparseImageStar2DCOO (PSIM_COO [Ours])
             pcoo_in = ProbSparseImageStar2DCOO(lb, ub, cov_mode='diagonal')
             res_pcoo, out_pcoo = certifyProbabilisticRobustness(
                 net, pcoo_in, lbl0, lp_solver='estimate', use_lp=False, return_output=True
             )
-            mem_pcoo_mb = out_pcoo.nbytes() / (1024.0 ** 2)
+            mem_pcoo_mb = max(pcoo_in.nbytes(), out_pcoo.nbytes()) / (1024.0 ** 2)
 
             # 6. CROWN (Qualitative & Quantitative)
             rb_crown, vt_crown_qual, _, _ = certifyRobustness_CROWN(
@@ -522,8 +524,8 @@ def run_suite2_cnn_benchmarks(mc_samples=500):
 
             overhead_pct = 100.0 * (res_pcsr['total_time'] - vt_csr) / max(vt_csr, 1e-6)
             speedup_vs_crown = res_crown_quant['total_time'] / max(res_pcsr['total_time'], 1e-9)
+            speedup_vs_im = vt_im / max(res_pcsr['total_time'], 1e-9)
             model_tag = f"CAV20_MNIST_{net_type}"
-            spec_tag = f"bright(d={d_thr},dlt={delta})"
             row = {
                 'model': model_tag,
                 'shape': '28x28x1',
@@ -535,7 +537,6 @@ def run_suite2_cnn_benchmarks(mc_samples=500):
                 'qual_status_IM': _rb_to_str(rb_im),
                 'qual_status_CSR': _rb_to_str(rb_csr),
                 'qual_status_CROWN': _rb_to_str(rb_crown),
-                't_NNV_s': nnv_vt_ref,
                 't_IM_s': float(vt_im),
                 't_SIM_CSR_s': float(vt_csr),
                 't_SIM_COO_s': float(vt_coo),
@@ -545,6 +546,7 @@ def run_suite2_cnn_benchmarks(mc_samples=500):
                 't_PSIM_COO_s': float(res_pcoo['total_time']),
                 't_MC_s': float(vt_mc),
                 'speedup_PSIM_vs_CROWN': float(speedup_vs_crown),
+                'speedup_PSIM_vs_IM': float(speedup_vs_im),
                 'overhead_PSIM_vs_SIM_pct': float(overhead_pct),
                 'mem_IM_MB': float(mem_im_mb),
                 'mem_SIM_CSR_MB': float(mem_csr_mb),
@@ -561,10 +563,10 @@ def run_suite2_cnn_benchmarks(mc_samples=500):
             }
             rows.append(row)
             print(
-                f"[{model_tag:<20} 28x28x1 ({net.n_layers:2d}L) d={d_thr},dlt={delta}] "
-                f"nPred={row['num_pred']:4d} | NNV={nnv_vt_ref:.3f}s, SIM_CSR={vt_csr:.4f}s ({row['qual_status_CSR']}), "
+                f"[{model_tag:<20} 28x28x1 ({net.n_layers:2d}L) {spec_tag:<23}] "
+                f"nPred={row['num_pred']:4d} | IM={vt_im:.4f}s ({row['qual_status_IM']}), SIM_CSR={vt_csr:.4f}s ({row['qual_status_CSR']}), "
                 f"CROWN={vt_crown_qual:.4f}s ({row['qual_status_CROWN']}) | "
-                f"PSIM_CSR=[{row['cond_p_min']:.4f}, {row['cond_p_max']:.4f}], p_hat={row['cond_p_hat']:.4f} ({row['t_PSIM_CSR_s']:.4f}s, {speedup_vs_crown:.1f}x vs CROWN) | "
+                f"PSIM_CSR=[{row['cond_p_min']:.4f}, {row['cond_p_max']:.4f}], p_hat={row['cond_p_hat']:.4f} ({row['t_PSIM_CSR_s']:.4f}s, {speedup_vs_crown:.1f}x vs CROWN, {speedup_vs_im:.1f}x vs IM) | "
                 f"MC={row['cond_p_mc']:.4f}"
             )
 
@@ -576,10 +578,6 @@ def run_suite2_cnn_benchmarks(mc_samples=500):
     lb_oval_base = m_oval['lb'].astype(np.float64)
     ub_oval_base = m_oval['ub'].astype(np.float64)
     img_cifar = 0.5 * (lb_oval_base + ub_oval_base)
-
-    m_oval_nnv = scipy.io.loadmat(f"{oval_dir}/nnv/nnv_oval21_memory_usage.mat")
-    nnv_deep_total_time = float(m_oval_nnv['reach_time'].ravel().sum())
-    nnv_deep_peak_mem_mb = float(m_oval_nnv['memory_usage'].ravel().max() / (1024.0 ** 2))
 
     oval_models = [
         ('OVAL21_CIFAR_Base', 'cifar_base_kw.onnx'),
@@ -594,8 +592,8 @@ def run_suite2_cnn_benchmarks(mc_samples=500):
         clean_logits = net.evaluate(img_cifar).ravel()
         true_label = int(np.argmax(clean_logits))
 
-        # Test both (1) localized 8x8x3 patch (192 channels, eps=0.05) where ImageStar can also run,
-        # and (2) FULL 32x32x3 image (all 3,072 channels perturbed, eps=0.005 and eps=0.03)!
+        # Test both (1) localized 8x8x3 patch (192 channels, eps=0.05) and
+        # (2) FULL 32x32x3 image (all 3,072 channels perturbed, eps=0.005 and eps=0.03)
         configs = [
             ('patch_8x8x3(eps=0.05)', 0.05, 8),
             ('full_32x32x3(eps=0.005)', 0.005, 32),
@@ -614,47 +612,41 @@ def run_suite2_cnn_benchmarks(mc_samples=500):
 
             n_attacked = int((lb != ub).sum())
 
-            # ImageStar on 32x32x3: run on patch (and on full_32x32x3 measure dense memory)
-            if patch_hw <= 8:
-                im_in = ImageStar(lb, ub)
-                rb_im, vt_im, _, out_im = certifyRobustness(
-                    net, im_in, true_label, reachMethod='approx', lp_solver='estimate', return_output=True
-                )
-                mem_im_mb = out_im.nbytes() / (1024.0 ** 2)
-                qual_im_str = _rb_to_str(rb_im)
-            else:
-                # On full 3,072-pixel attack, dense ImageStar takes >200MB (as recorded in NNV baseline)
-                vt_im = nnv_deep_total_time if 'Deep' in model_tag else np.nan
-                mem_im_mb = nnv_deep_peak_mem_mb
-                qual_im_str = 'UNKNOWN'
+            # 1. Live Dense ImageStar (IM) in StarV
+            im_in = ImageStar(lb, ub)
+            rb_im, vt_im, _, out_im = certifyRobustness(
+                net, im_in, true_label, reachMethod='approx', lp_solver='estimate', return_output=True
+            )
+            mem_im_mb = max(im_in.nbytes(), out_im.nbytes()) / (1024.0 ** 2)
+            qual_im_str = _rb_to_str(rb_im)
 
-            # Qualitative SIM_CSR & SIM_COO
+            # 2. Qualitative SIM_CSR & SIM_COO
             csr_in = SparseImageStar2DCSR(lb, ub)
             rb_csr, vt_csr, _, out_csr = certifyRobustness(
                 net, csr_in, true_label, reachMethod='approx', lp_solver='estimate', return_output=True
             )
-            mem_csr_mb = out_csr.nbytes() / (1024.0 ** 2)
+            mem_csr_mb = max(csr_in.nbytes(), out_csr.nbytes()) / (1024.0 ** 2)
 
             coo_in = SparseImageStar2DCOO(lb, ub)
             rb_coo, vt_coo, _, out_coo = certifyRobustness(
                 net, coo_in, true_label, reachMethod='approx', lp_solver='estimate', return_output=True
             )
-            mem_coo_mb = out_coo.nbytes() / (1024.0 ** 2)
+            mem_coo_mb = max(coo_in.nbytes(), out_coo.nbytes()) / (1024.0 ** 2)
 
-            # Quantitative PSIM_CSR & PSIM_COO [Ours]
+            # 3. Quantitative PSIM_CSR & PSIM_COO [Ours]
             pcsr_in = ProbSparseImageStar2DCSR(lb, ub, cov_mode='diagonal')
             res_pcsr, out_pcsr = certifyProbabilisticRobustness(
                 net, pcsr_in, true_label, lp_solver='estimate', use_lp=False, return_output=True
             )
-            mem_pcsr_mb = out_pcsr.nbytes() / (1024.0 ** 2)
+            mem_pcsr_mb = max(pcsr_in.nbytes(), out_pcsr.nbytes()) / (1024.0 ** 2)
 
             pcoo_in = ProbSparseImageStar2DCOO(lb, ub, cov_mode='diagonal')
             res_pcoo, out_pcoo = certifyProbabilisticRobustness(
                 net, pcoo_in, true_label, lp_solver='estimate', use_lp=False, return_output=True
             )
-            mem_pcoo_mb = out_pcoo.nbytes() / (1024.0 ** 2)
+            mem_pcoo_mb = max(pcoo_in.nbytes(), out_pcoo.nbytes()) / (1024.0 ** 2)
 
-            # CROWN (Qualitative & Quantitative)
+            # 4. CROWN (Qualitative & Quantitative)
             rb_crown, vt_crown_qual, _, _ = certifyRobustness_CROWN(
                 net, csr_in, true_label, mode='crown', lp_solver='estimate'
             )
@@ -662,14 +654,14 @@ def run_suite2_cnn_benchmarks(mc_samples=500):
                 net, pcsr_in, true_label, mode='crown', lp_solver='estimate', use_lp=False, return_output=False
             )
 
-            # Monte Carlo
+            # 5. Monte Carlo
             t0 = time.perf_counter()
             mc = quantiVerifyVisionMC(net, pcsr_in, true_label=true_label, numSamples=mc_samples, seed=42)
             vt_mc = time.perf_counter() - t0
 
             overhead_pct = 100.0 * (res_pcsr['total_time'] - vt_csr) / max(vt_csr, 1e-6)
             speedup_vs_crown = res_crown_quant['total_time'] / max(res_pcsr['total_time'], 1e-9)
-            nnv_ref_s = nnv_deep_total_time if ('Deep' in model_tag and patch_hw == 32) else np.nan
+            speedup_vs_im = vt_im / max(res_pcsr['total_time'], 1e-9)
 
             row = {
                 'model': model_tag,
@@ -682,8 +674,7 @@ def run_suite2_cnn_benchmarks(mc_samples=500):
                 'qual_status_IM': qual_im_str,
                 'qual_status_CSR': _rb_to_str(rb_csr),
                 'qual_status_CROWN': _rb_to_str(rb_crown),
-                't_NNV_s': float(nnv_ref_s) if not np.isnan(nnv_ref_s) else -1.0,
-                't_IM_s': float(vt_im) if not np.isnan(vt_im) else -1.0,
+                't_IM_s': float(vt_im),
                 't_SIM_CSR_s': float(vt_csr),
                 't_SIM_COO_s': float(vt_coo),
                 't_CROWN_qual_s': float(vt_crown_qual),
@@ -692,6 +683,7 @@ def run_suite2_cnn_benchmarks(mc_samples=500):
                 't_PSIM_COO_s': float(res_pcoo['total_time']),
                 't_MC_s': float(vt_mc),
                 'speedup_PSIM_vs_CROWN': float(speedup_vs_crown),
+                'speedup_PSIM_vs_IM': float(speedup_vs_im),
                 'overhead_PSIM_vs_SIM_pct': float(overhead_pct),
                 'mem_IM_MB': float(mem_im_mb),
                 'mem_SIM_CSR_MB': float(mem_csr_mb),
@@ -709,27 +701,33 @@ def run_suite2_cnn_benchmarks(mc_samples=500):
             rows.append(row)
             print(
                 f"[{model_tag:<20} 32x32x3 ({net.n_layers:2d}L) {spec_tag:<23}] "
-                f"nPred={row['num_pred']:4d} | SIM_CSR={vt_csr:.4f}s ({row['qual_status_CSR']:<7}), "
+                f"nPred={row['num_pred']:4d} | IM={vt_im:.4f}s ({row['qual_status_IM']:<7}), SIM_CSR={vt_csr:.4f}s ({row['qual_status_CSR']:<7}), "
                 f"CROWN={vt_crown_qual:.4f}s ({row['qual_status_CROWN']:<7}) | "
                 f"PSIM_CSR=[{row['cond_p_min']:.4f}, {row['cond_p_max']:.4f}], p_hat={row['cond_p_hat']:.4f} "
-                f"({row['t_PSIM_CSR_s']:.4f}s, {speedup_vs_crown:.1f}x vs CROWN) | MC={row['cond_p_mc']:.4f}"
+                f"({row['t_PSIM_CSR_s']:.4f}s, {speedup_vs_crown:.1f}x vs CROWN, {speedup_vs_im:.1f}x vs IM) | MC={row['cond_p_mc']:.4f}"
             )
 
-    # Layer-by-layer trace on OVAL21 cifar_deep_kw (32x32x3, 3,072 attacked pixels) vs NNV
+    # Layer-by-layer live trace on OVAL21 cifar_deep_kw (32x32x3, 3,072 attacked pixels) comparing StarV ImageStar vs SIM_CSR vs PSIM_CSR
     net_deep = load_neural_network_file(
         f"{oval_dir}/onnx/cifar_deep_kw.onnx", net_type='oval21_deep', dtype='float64', channel_last=False
     )
+    s_im = ImageStar(lb_oval_base, ub_oval_base)
     s_csr = SparseImageStar2DCSR(lb_oval_base, ub_oval_base)
     s_pcsr = ProbSparseImageStar2DCSR(lb_oval_base, ub_oval_base)
     layer_trace = {
-        'nnv_mem_MB': (m_oval_nnv['memory_usage'].ravel() / (1024.0 ** 2)).tolist(),
-        'nnv_time_s': m_oval_nnv['reach_time'].ravel().tolist(),
+        'im_mem_MB': [s_im.nbytes() / (1024.0 ** 2)],
         'sim_csr_mem_MB': [s_csr.nbytes() / (1024.0 ** 2)],
         'psim_csr_mem_MB': [s_pcsr.nbytes() / (1024.0 ** 2)],
+        'im_time_s': [],
         'sim_csr_time_s': [],
         'psim_csr_time_s': [],
     }
     for lyr in net_deep.layers:
+        t0 = time.perf_counter()
+        s_im = lyr.reach(s_im, method='approx', lp_solver='estimate')
+        layer_trace['im_time_s'].append(time.perf_counter() - t0)
+        layer_trace['im_mem_MB'].append(s_im.nbytes() / (1024.0 ** 2))
+
         t0 = time.perf_counter()
         s_csr = lyr.reach(s_csr, method='approx', lp_solver='estimate')
         layer_trace['sim_csr_time_s'].append(time.perf_counter() - t0)
@@ -1162,7 +1160,7 @@ def generate_plots_and_tables(s1_rows, s2_rows, layer_trace, s3_rows, heatmaps, 
         ))
 
         print("\n" + "=" * 84)
-        print("TABLE 3: Full-Size Pretrained CNNs (28x28x1 CAV2020 MNIST & 32x32x3 OVAL21 CIFAR-10) vs. CROWN & NNV")
+        print("TABLE 3: Full-Size Pretrained CNNs (28x28x1 CAV2020 MNIST & 32x32x3 OVAL21 CIFAR-10) vs. CROWN & ImageStar")
         print("=" * 84)
         print(tabulate(
             [[r['model'], r['shape'], r['spec'], r['num_pred'],
@@ -1171,12 +1169,12 @@ def generate_plots_and_tables(s1_rows, s2_rows, layer_trace, s3_rows, heatmaps, 
               f"{r['cond_p_hat']:.4f}",
               f"[{r['crown_cond_p_min']:.4f}, {r['crown_cond_p_max']:.4f}]",
               f"{r['cond_p_mc']:.4f}",
-              (f"{r['t_NNV_s']:.2f}s" if r['t_NNV_s'] > 0 else 'N/A'),
+              f"{r['t_IM_s']:.4f}s",
               f"{r['t_SIM_CSR_s']:.4f}s", f"{r['t_CROWN_quant_s']:.4f}s", f"{r['t_PSIM_CSR_s']:.4f}s",
               f"{r['speedup_PSIM_vs_CROWN']:.1f}x",
-              f"{r['mem_PSIM_CSR_MB']:.2f}MB"]
+              f"{r['mem_IM_MB']:.2f}/{r['mem_PSIM_CSR_MB']:.2f}MB"]
              for r in s2_rows],
-            headers=['Model', 'Input Shape', 'Attack Spec', '#Pred', 'Qual(CSR/CR)', 'Ours [p_min, p_max]', 'Ours p_hat', 'CROWN [p_min, p_max]', 'p_MC', 't_NNV', 't_SIM_CSR', 't_CROWN', 't_PSIM_CSR', 'Spd vs CR', 'Mem(PSIM)'],
+            headers=['Model', 'Input Shape', 'Attack Spec', '#Pred', 'Qual(CSR/CR)', 'Ours [p_min, p_max]', 'Ours p_hat', 'CROWN [p_min, p_max]', 'p_MC', 't_IM', 't_SIM_CSR', 't_CROWN', 't_PSIM_CSR', 'Spd vs CR', 'Mem(IM/PSIM)'],
             tablefmt='github'
         ))
 
@@ -1264,12 +1262,12 @@ def generate_plots_and_tables(s1_rows, s2_rows, layer_trace, s3_rows, heatmaps, 
         matplotlib.use('Agg')
         import matplotlib.pyplot as plt
 
-        # Figure 1: Layer-by-layer Memory & Runtime on Full-Size 32x32x3 OVAL21 cifar_deep_kw (3,072 pixels attacked) vs NNV
+        # Figure 1: Layer-by-layer Memory & Runtime on Full-Size 32x32x3 OVAL21 cifar_deep_kw (3,072 pixels attacked) vs Dense ImageStar
         fig, axes = plt.subplots(1, 2, figsize=(11.5, 4.3))
         layers_x = np.arange(len(layer_trace['sim_csr_mem_MB']))
-        axes[0].plot(layers_x, layer_trace['nnv_mem_MB'], 'r-o', lw=2, label='NNV ImageStar (Qual)')
-        axes[0].plot(layers_x, layer_trace['sim_csr_mem_MB'], 'g--s', lw=2, label='StarV SIM_CSR (Qual)')
-        axes[0].plot(layers_x, layer_trace['psim_csr_mem_MB'], 'b-^', lw=2, label='StarV PSIM_CSR (Quant [Ours])')
+        axes[0].plot(layers_x, layer_trace['im_mem_MB'], 'r-o', lw=2, label='StarV ImageStar (Dense Qual)')
+        axes[0].plot(layers_x, layer_trace['sim_csr_mem_MB'], 'g--s', lw=2, label='StarV SIM_CSR (Sparse Qual)')
+        axes[0].plot(layers_x, layer_trace['psim_csr_mem_MB'], 'b-^', lw=2, label='StarV PSIM_CSR (Sparse Quant [Ours])')
         axes[0].set_xlabel('Layer Index (OVAL21 cifar_deep_kw, 32x32x3)')
         axes[0].set_ylabel('Reachable Set Memory (MB)')
         axes[0].set_title('Full-Size 32x32x3 OVAL21 Memory Usage (3,072 Attacked Pixels)')
@@ -1277,7 +1275,7 @@ def generate_plots_and_tables(s1_rows, s2_rows, layer_trace, s3_rows, heatmaps, 
         axes[0].grid(alpha=0.3)
 
         layers_t = np.arange(1, len(layer_trace['sim_csr_time_s']) + 1)
-        axes[1].plot(layers_t, layer_trace['nnv_time_s'][1:], 'r-o', lw=2, label=f"NNV (Total {sum(layer_trace['nnv_time_s']):.2f}s)")
+        axes[1].plot(layers_t, layer_trace['im_time_s'], 'r-o', lw=2, label=f"ImageStar (Total {sum(layer_trace['im_time_s']):.3f}s)")
         axes[1].plot(layers_t, layer_trace['sim_csr_time_s'], 'g--s', lw=2, label=f"SIM_CSR (Total {sum(layer_trace['sim_csr_time_s']):.3f}s)")
         axes[1].plot(layers_t, layer_trace['psim_csr_time_s'], 'b-^', lw=2, label=f"PSIM_CSR [Ours] (Total {sum(layer_trace['psim_csr_time_s']):.3f}s)")
         axes[1].set_xlabel('Layer Index (OVAL21 cifar_deep_kw, 32x32x3)')
@@ -1316,7 +1314,7 @@ def generate_plots_and_tables(s1_rows, s2_rows, layer_trace, s3_rows, heatmaps, 
         axes[1].semilogy(eps_vals, [r['t_quant_abcrown_s'] for r in s1_rows], 'm-.p', lw=1.8, label='$\\alpha,\\beta$-CROWN (BaB)')
         axes[1].semilogy(eps_vals, [r['t_quant_acrown_s'] for r in s1_rows], 'y-h', lw=1.8, label='$\\alpha$-CROWN')
         axes[1].semilogy(eps_vals, [r['t_quant_crown_s'] for r in s1_rows], 'g--d', lw=1.8, label='CROWN')
-        axes[1].semilogy(eps_vals, [r['t_approx_analytic_s'] for r in s1_rows], 'b-s', lw=2, label='Approx ProbStar [Ours] (up to 39,128x vs Exact)')
+        axes[1].semilogy(eps_vals, [r['t_approx_analytic_s'] for r in s1_rows], 'b-s', lw=2, label=f"Approx ProbStar [Ours] (up to {max(r['speedup_vs_exact'] for r in s1_rows):,.0f}x vs Exact)")
         axes[1].set_xlabel('Perturbation Radius $\\epsilon$')
         axes[1].set_ylabel('Verification Time (s, log scale)')
         axes[1].set_title('Suite 1 Runtime Scaling Across Verifiers')

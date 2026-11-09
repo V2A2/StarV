@@ -24,7 +24,9 @@ import numpy as np
 import scipy.sparse as sp
 from StarV.set.sparsestar import SparseStar
 from StarV.set.star import Star
+from StarV.set.probstar import ProbStar
 from StarV.set.imagestar import ImageStar
+from StarV.set.probsparse_base import propagate_general_elementwise_moments, backsubstitute_linear_bounds
 
 class LogSig(object):
     """
@@ -713,11 +715,25 @@ class LogSig(object):
 
     def reachApprox_star(I, opt=True, lp_solver='gurobi', RF=0.0):
         
-        assert isinstance(I, Star), 'error: input set is not a SparseStar set'
+        assert isinstance(I, (Star, ProbStar)), 'error: input set is not a Star or ProbStar set'
 
         N = I.dim
 
-        l, u = I.getRanges(lp_solver=lp_solver, RF=RF)
+        if lp_solver == 'estimate':
+            l, u = I.estimateRanges()
+        elif isinstance(I, ProbStar):
+            l, u = I.getRanges(lp_solver=lp_solver)
+        else:
+            l, u = I.getRanges(lp_solver=lp_solver, RF=RF)
+        if isinstance(I, ProbStar) and len(I.env_dag) > 0 and len(l) <= 512:
+            c_in, V_in = I.get_c_V()
+            d_lb_p, W_lb_p, d_ub_p, W_ub_p = backsubstitute_linear_bounds(
+                c_in, V_in, I.env_dag, I.nVars0
+            )
+            l_dag = d_lb_p + np.maximum(W_lb_p, 0.0) @ I.pred_lb0 + np.minimum(W_lb_p, 0.0) @ I.pred_ub0
+            u_dag = d_ub_p + np.maximum(W_ub_p, 0.0) @ I.pred_ub0 + np.minimum(W_ub_p, 0.0) @ I.pred_lb0
+            l = np.maximum(l, np.minimum(l_dag, u))
+            u = np.minimum(u, np.maximum(u_dag, l))
         yl, yu = LogSig.f(l), LogSig.f(u)
         dyl, dyu = LogSig.df(l), LogSig.df(u)
 
@@ -801,7 +817,7 @@ class LogSig(object):
             # xo = (u_*u_ - l_*l_) / (2*(u_ - l_))
             xo = 0.5*(u_ + l_)
             dyo = LogSig.df(xo)
-            C24 = sp.hstack([dyo*V1, -V2])
+            C24 = np.hstack([dyo[:, None]*V1, -V2])
             d24 = -dyo*(c1 - xo) - LogSig.f(xo)
 
             C2 = np.vstack((C21, C22, C23, C24))
@@ -879,14 +895,56 @@ class LogSig(object):
 
         new_pred_lb = np.hstack((I.pred_lb, yl[map0]))
         new_pred_ub = np.hstack((I.pred_ub, yu[map0]))
-        
+        if isinstance(I, ProbStar):
+            if m == 0:
+                return I.with_updated_state(V=new_V, C=new_C, d=new_d, pred_lb=new_pred_lb, pred_ub=new_pred_ub)
+            c_in, V_in = I.get_c_V()
+            l_m, u_m = l[map0], u[map0]
+            yl_m, yu_m = yl[map0], yu[map0]
+            dyl_m, dyu_m = dyl[map0], dyu[map0]
+            a_lb = np.zeros(m)
+            b_lb = np.zeros(m)
+            a_ub = np.zeros(m)
+            b_ub = np.zeros(m)
+            idx_pos = np.where(l_m >= 0)[0]
+            if len(idx_pos):
+                a_lb[idx_pos] = (yu_m[idx_pos] - yl_m[idx_pos]) / (u_m[idx_pos] - l_m[idx_pos])
+                b_lb[idx_pos] = yl_m[idx_pos] - a_lb[idx_pos] * l_m[idx_pos]
+                xo = 0.5 * (u_m[idx_pos] + l_m[idx_pos])
+                a_ub[idx_pos] = LogSig.df(xo)
+                b_ub[idx_pos] = LogSig.f(xo) - a_ub[idx_pos] * xo
+            idx_neg = np.where(u_m <= 0)[0]
+            if len(idx_neg):
+                xo = 0.5 * (u_m[idx_neg] + l_m[idx_neg])
+                a_lb[idx_neg] = LogSig.df(xo)
+                b_lb[idx_neg] = LogSig.f(xo) - a_lb[idx_neg] * xo
+                a_ub[idx_neg] = (yu_m[idx_neg] - yl_m[idx_neg]) / (u_m[idx_neg] - l_m[idx_neg])
+                b_ub[idx_neg] = yl_m[idx_neg] - a_ub[idx_neg] * l_m[idx_neg]
+            idx_cross = np.where((l_m < 0) & (u_m > 0))[0]
+            if len(idx_cross):
+                dmin_c = np.minimum(dyl_m[idx_cross], dyu_m[idx_cross])
+                a_lb[idx_cross] = dmin_c
+                b_lb[idx_cross] = yl_m[idx_cross] - dmin_c * l_m[idx_cross]
+                a_ub[idx_cross] = dmin_c
+                b_ub[idx_cross] = yu_m[idx_cross] - dmin_c * u_m[idx_cross]
+            mu_new, Sig_new, env_rec = propagate_general_elementwise_moments(
+                V_pre=V_in[map0], c_pre=c_in[map0],
+                a_lb=a_lb, b_lb=b_lb, a_ub=a_ub, b_ub=b_ub,
+                pred_lb_new=yl_m, pred_ub_new=yu_m,
+                mu=I.mu, Sig=I.Sig, cov_mode=I.cov_mode,
+                fn_eval=LogSig.f, fn_deriv=LogSig.df
+            )
+            return I.with_updated_state(
+                V=new_V, C=new_C, d=new_d, pred_lb=new_pred_lb, pred_ub=new_pred_ub,
+                mu=mu_new, Sig=Sig_new, new_env_record=env_rec
+            )
         return Star(new_V, new_C, new_d, new_pred_lb, new_pred_ub)
     
     
     def reach(I, opt=False, delta=0.98, lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
         if isinstance(I, SparseStar):
             return LogSig.reachApprox_sparse(I=I, opt=opt, delta=delta, lp_solver=lp_solver, RF=RF, DR=DR, show=show)
-        elif isinstance(I, Star):
+        elif isinstance(I, (Star, ProbStar)):
             return LogSig.reachApprox_star(I, opt=opt, lp_solver=lp_solver, RF=RF)
         elif isinstance(I, ImageStar):
             shape = I.shape()

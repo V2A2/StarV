@@ -35,7 +35,7 @@ class TanSigLayer(object):
     def evaluate(x):
         return TanSig.f(x)
     
-    def reach(self, In, method='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
+    def reach(self, In, method='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False, **kwargs):
         """main reachability method
             Args:
                 @In: an input set (Star, SparseStar, or ProbStar)

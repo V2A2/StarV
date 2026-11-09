@@ -22,7 +22,7 @@ Sung Woo Choi, 03/28/2024
 from StarV.set.imagestar import ImageStar
 from StarV.set.sparseimagestar2dcoo import SparseImageStar2DCOO
 from StarV.set.sparseimagestar2dcsr import SparseImageStar2DCSR
-from StarV.set.probsparse_base import propagate_maxpool_moments
+from StarV.set.probsparse_base import propagate_maxpool_moments, backsubstitute_linear_bounds
 
 import time
 import copy
@@ -820,6 +820,14 @@ class MaxPool2DLayer(object):
         V = I.V
         center = I.c
         state_lb, state_ub = I.getRanges(lp_solver = 'estimate')
+        if hasattr(I, 'env_dag') and len(I.env_dag) > 0 and len(state_lb) <= 512 and I.nVars0 <= 256:
+            d_lb_p, W_lb_p, d_ub_p, W_ub_p = backsubstitute_linear_bounds(
+                center, V, I.env_dag, I.nVars0
+            )
+            l_dag = d_lb_p + np.maximum(W_lb_p, 0.0) @ I.pred_lb0 + np.minimum(W_lb_p, 0.0) @ I.pred_ub0
+            u_dag = d_ub_p + np.maximum(W_ub_p, 0.0) @ I.pred_ub0 + np.minimum(W_ub_p, 0.0) @ I.pred_lb0
+            state_lb = np.maximum(state_lb, np.minimum(l_dag, state_ub))
+            state_ub = np.minimum(state_ub, np.maximum(u_dag, state_lb))
 
         # apply padding to ImageStar
         if padding[0] > 0 or padding[1] > 0:
@@ -990,6 +998,14 @@ class MaxPool2DLayer(object):
         V = I.V
         center = I.c
         state_lb, state_ub = I.getRanges(lp_solver = 'estimate')
+        if hasattr(I, 'env_dag') and len(I.env_dag) > 0 and len(state_lb) <= 512 and I.nVars0 <= 256:
+            d_lb_p, W_lb_p, d_ub_p, W_ub_p = backsubstitute_linear_bounds(
+                center, V, I.env_dag, I.nVars0
+            )
+            l_dag = d_lb_p + np.maximum(W_lb_p, 0.0) @ I.pred_lb0 + np.minimum(W_lb_p, 0.0) @ I.pred_ub0
+            u_dag = d_ub_p + np.maximum(W_ub_p, 0.0) @ I.pred_ub0 + np.minimum(W_ub_p, 0.0) @ I.pred_lb0
+            state_lb = np.maximum(state_lb, np.minimum(l_dag, state_ub))
+            state_ub = np.minimum(state_ub, np.maximum(u_dag, state_lb))
 
         # apply padding to ImageStar
         if padding[0] > 0 or padding[1] > 0:

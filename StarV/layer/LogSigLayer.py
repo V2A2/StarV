@@ -35,7 +35,7 @@ class LogSigLayer(object):
     def evaluate(x):
         return LogSig.f(x)
     
-    def reach(self, In, method='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
+    def reach(self, In, method='approx', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False, **kwargs):
         """main reachabilikty method
             Args:
                 @I: an input set (Star, SparseStar, or ProbStar)

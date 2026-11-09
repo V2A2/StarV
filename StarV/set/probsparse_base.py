@@ -164,7 +164,7 @@ class RelaxationEnvelopeRecord(object):
     __slots__ = (
         'n_prev', 'n_new', 'V_pre', 'c_pre',
         'a_lb', 'b_lb', 'a_ub', 'b_ub',
-        'G_lb', 'gamma_lb', 'G_ub', 'gamma_ub', 'is_explicit'
+        'G_lb', 'gamma_lb', 'G_ub', 'gamma_ub', 'is_explicit', 'same_slope'
     )
 
     def __init__(
@@ -186,6 +186,7 @@ class RelaxationEnvelopeRecord(object):
         self.n_new = int(n_new)
         if G_lb is not None and G_ub is not None:
             self.is_explicit = True
+            self.same_slope = False
             self.G_lb = G_lb
             self.gamma_lb = np.asarray(gamma_lb, dtype=np.float64).reshape(-1)
             self.G_ub = G_ub
@@ -204,6 +205,7 @@ class RelaxationEnvelopeRecord(object):
             self.b_lb = np.asarray(b_lb, dtype=np.float64).reshape(-1)
             self.a_ub = np.asarray(a_ub, dtype=np.float64).reshape(-1)
             self.b_ub = np.asarray(b_ub, dtype=np.float64).reshape(-1)
+            self.same_slope = bool(np.array_equal(self.a_lb, self.a_ub))
             self.G_lb = None
             self.gamma_lb = self.a_lb * self.c_pre + self.b_lb
             self.G_ub = None
@@ -633,7 +635,7 @@ def backsubstitute_linear_bounds(c_out, V_out, env_dag, nVars0, U=None, u_spec=N
     d_lb = d_cur.copy()
     W_lb = W_cur.copy()
     d_ub = d_cur.copy()
-    W_ub = W_cur.copy()
+    W_ub = W_lb
 
     return backsubstitute_separate_linear_bounds(d_lb, W_lb, d_ub, W_ub, env_dag, nVars0)
 
@@ -645,9 +647,15 @@ def backsubstitute_separate_linear_bounds(d_lb, W_lb, d_ub, W_ub, env_dag, nVars
     backward through `env_dag` down to the root input predicates alpha_0 in R^{nVars0}.
     """
     d_lb = np.asarray(d_lb, dtype=np.float64).reshape(-1).copy()
+    same_in = W_lb is W_ub
     W_lb = W_lb.toarray().astype(np.float64) if sp.issparse(W_lb) else np.asarray(W_lb, dtype=np.float64).copy()
     d_ub = np.asarray(d_ub, dtype=np.float64).reshape(-1).copy()
-    W_ub = W_ub.toarray().astype(np.float64) if sp.issparse(W_ub) else np.asarray(W_ub, dtype=np.float64).copy()
+    if same_in:
+        W_ub = W_lb
+        same_W = True
+    else:
+        W_ub = W_ub.toarray().astype(np.float64) if sp.issparse(W_ub) else np.asarray(W_ub, dtype=np.float64).copy()
+        same_W = bool(np.array_equal(W_lb, W_ub))
 
     for rec in reversed(env_dag):
         n_prev = rec.n_prev
@@ -655,6 +663,19 @@ def backsubstitute_separate_linear_bounds(d_lb, W_lb, d_ub, W_ub, env_dag, nVars
         if W_lb.shape[1] < n_prev + n_new:
             continue
 
+        if same_W and getattr(rec, 'same_slope', False):
+            W_prev = W_lb[:, :n_prev]
+            W_beta = W_lb[:, n_prev:n_prev + n_new]
+            W_pos = np.maximum(W_beta, 0.0)
+            W_neg = np.minimum(W_beta, 0.0)
+            d_lb = d_lb + W_pos @ rec.gamma_lb + W_neg @ rec.gamma_ub
+            d_ub = d_ub + W_pos @ rec.gamma_ub + W_neg @ rec.gamma_lb
+            coeff = W_beta * rec.a_lb[None, :]
+            W_lb = W_prev + (coeff @ rec.V_pre)
+            W_ub = W_lb
+            continue
+
+        same_W = False
         # Slice out coefficients on beta (columns n_prev : n_prev + n_new)
         W_lb_prev = W_lb[:, :n_prev]
         W_lb_beta = W_lb[:, n_prev:n_prev + n_new]

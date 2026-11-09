@@ -34,7 +34,10 @@ from StarV.set.sparseimagestar2dcsr import SparseImageStar2DCSR
 from StarV.set.sparseimagestar2dcoo import SparseImageStar2DCOO
 from StarV.set.probsparseimagestar2dcsr import ProbSparseImageStar2DCSR
 from StarV.set.probsparseimagestar2dcoo import ProbSparseImageStar2DCOO
-from StarV.set.probsparse_base import propagate_general_elementwise_moments
+from StarV.set.probsparse_base import (
+    propagate_general_elementwise_moments,
+    backsubstitute_linear_bounds,
+)
 
 
 def _softmax_last_axis(s):
@@ -224,8 +227,48 @@ class MultiHeadAttentionLayer(object):
         assert N % D == 0, f"Input dimension {N} is not divisible by embed_dim {D}"
         T = N // D
 
+        has_env_dag = (
+            hasattr(In, 'env_dag')
+            and In.env_dag is not None
+            and len(In.env_dag) > 0
+            and hasattr(In, 'nVars0')
+            and hasattr(In, 'pred_lb0')
+            and hasattr(In, 'pred_ub0')
+        )
+        if has_env_dag:
+            b_lb_in, A_lb_in, b_ub_in, A_ub_in = backsubstitute_linear_bounds(
+                c_x, V_x, In.env_dag, In.nVars0
+            )
+            V_mid = 0.5 * (A_lb_in + A_ub_in)
+            c_mid = 0.5 * (b_lb_in + b_ub_in)
+            dA_in = 0.5 * (A_ub_in - A_lb_in)
+            db_in = 0.5 * (b_ub_in - b_lb_in)
+            rad_in = np.maximum(
+                0.0,
+                np.maximum(dA_in, 0.0) @ In.pred_ub0 + np.minimum(dA_in, 0.0) @ In.pred_lb0 + db_in,
+            )
+            amb_in = np.where(rad_in > 1e-12)[0]
+            if len(amb_in) > 0:
+                V_ext = np.zeros((N, len(amb_in)), dtype=np.float64)
+                V_ext[amb_in, np.arange(len(amb_in))] = rad_in[amb_in]
+                V_qkv_in = np.hstack([V_mid, V_ext])
+                lb_qkv = np.hstack([In.pred_lb0, -np.ones(len(amb_in), dtype=np.float64)])
+                ub_qkv = np.hstack([In.pred_ub0, np.ones(len(amb_in), dtype=np.float64)])
+            else:
+                V_qkv_in = V_mid
+                lb_qkv = In.pred_lb0
+                ub_qkv = In.pred_ub0
+            c_qkv_in = c_mid
+            n_qkv = len(lb_qkv)
+        else:
+            c_qkv_in = c_x
+            V_qkv_in = V_x
+            lb_qkv = In.pred_lb
+            ub_qkv = In.pred_ub
+            n_qkv = n
+
         (l_Q, u_Q), (l_K, u_K), (l_V, u_V), c_Q, VQ, c_K, VK, c_V, VV = self._compute_qkv_bounds(
-            c_x, V_x, In.pred_lb, In.pred_ub, T
+            c_qkv_in, V_qkv_in, lb_qkv, ub_qkv, T
         )
 
         # Step 1: Sound interval + affine-generator bounds [l_S, u_S] on S_{h,i,j} = Q_{h,i,:} . K_{h,j,:} / sqrt(dk)
@@ -251,10 +294,10 @@ class MultiHeadAttentionLayer(object):
         K0 = 0.5 * (l_K + u_K)                 # (H, T, dk)
         dK = 0.5 * np.maximum(u_K - l_K, 0.0)  # (H, T, dk)
 
-        VQ_dense = VQ.toarray().reshape(T, H, dk, n).transpose(1, 0, 2, 3)  # (H, T, dk, n)
-        VK_dense = VK.toarray().reshape(T, H, dk, n).transpose(1, 0, 2, 3)  # (H, T, dk, n)
-        cQ_arr = c_Q.reshape(T, H, dk).transpose(1, 0, 2)                   # (H, T, dk)
-        cK_arr = c_K.reshape(T, H, dk).transpose(1, 0, 2)                   # (H, T, dk)
+        VQ_dense = VQ.toarray().reshape(T, H, dk, n_qkv).transpose(1, 0, 2, 3)  # (H, T, dk, n_qkv)
+        VK_dense = VK.toarray().reshape(T, H, dk, n_qkv).transpose(1, 0, 2, 3)  # (H, T, dk, n_qkv)
+        cQ_arr = c_Q.reshape(T, H, dk).transpose(1, 0, 2)                       # (H, T, dk)
+        cK_arr = c_K.reshape(T, H, dk).transpose(1, 0, 2)                       # (H, T, dk)
 
         # c_S[h,i,j] and V_S[h,i,j,:] for the linearized score L_{h,i,j}(alpha)
         c_S = (
@@ -265,13 +308,13 @@ class MultiHeadAttentionLayer(object):
         V_S = (
             np.einsum('hid,hjdn->hijn', Q0, VK_dense)
             + np.einsum('hjd,hidn->hijn', K0, VQ_dense)
-        ) * self.scale  # (H, T, T, n)
+        ) * self.scale  # (H, T, T, n_qkv)
         rem_S = np.einsum('hid,hjd->hij', dQ, dK) * self.scale  # (H, T, T)
 
         VS_pos = np.maximum(V_S, 0.0)
         VS_neg = np.minimum(V_S, 0.0)
-        l_S_aff = c_S + np.einsum('hijn,n->hij', VS_pos, In.pred_lb) + np.einsum('hijn,n->hij', VS_neg, In.pred_ub) - rem_S
-        u_S_aff = c_S + np.einsum('hijn,n->hij', VS_pos, In.pred_ub) + np.einsum('hijn,n->hij', VS_neg, In.pred_lb) + rem_S
+        l_S_aff = c_S + np.einsum('hijn,n->hij', VS_pos, lb_qkv) + np.einsum('hijn,n->hij', VS_neg, ub_qkv) - rem_S
+        u_S_aff = c_S + np.einsum('hijn,n->hij', VS_pos, ub_qkv) + np.einsum('hijn,n->hij', VS_neg, lb_qkv) + rem_S
 
         l_S = np.maximum(l_S_box, l_S_aff)
         u_S = np.minimum(u_S_box, u_S_aff)
@@ -281,24 +324,23 @@ class MultiHeadAttentionLayer(object):
         u_A = np.zeros((H, T, T), dtype=np.float64)
         for h in range(H):
             for i in range(T):
-                for j in range(T):
-                    # Difference S[h,i,m] - S[h,i,j] via both interval and affine difference generators
-                    d_c = c_S[h, i, :] - c_S[h, i, j]          # (T,)
-                    d_V = V_S[h, i, :, :] - V_S[h, i, j, None, :]  # (T, n)
-                    d_rem = rem_S[h, i, :] + rem_S[h, i, j]    # (T,)
-                    d_rem[j] = 0.0
-                    dV_pos = np.maximum(d_V, 0.0)
-                    dV_neg = np.minimum(d_V, 0.0)
-                    diff_u_aff = d_c + dV_pos @ In.pred_ub + dV_neg @ In.pred_lb + d_rem
-                    diff_l_aff = d_c + dV_pos @ In.pred_lb + dV_neg @ In.pred_ub - d_rem
+                # Vectorized over all (m, j) in T x T: entry (m, j) is S[h,i,m] - S[h,i,j]
+                d_c = c_S[h, i, :, None] - c_S[h, i, None, :]                  # (T, T)
+                d_V = V_S[h, i, :, None, :] - V_S[h, i, None, :, :]            # (T, T, n_qkv)
+                d_rem = rem_S[h, i, :, None] + rem_S[h, i, None, :]            # (T, T)
+                np.fill_diagonal(d_rem, 0.0)
+                dV_pos = np.maximum(d_V, 0.0)
+                dV_neg = np.minimum(d_V, 0.0)
+                diff_u_aff = d_c + (dV_pos @ ub_qkv) + (dV_neg @ lb_qkv) + d_rem
+                diff_l_aff = d_c + (dV_pos @ lb_qkv) + (dV_neg @ ub_qkv) - d_rem
 
-                    diff_u = np.minimum(u_S[h, i, :] - l_S[h, i, j], diff_u_aff)
-                    diff_u[j] = 0.0
-                    l_A[h, i, j] = 1.0 / np.sum(np.exp(np.clip(diff_u, -60.0, 60.0)))
+                diff_u = np.minimum(u_S[h, i, :, None] - l_S[h, i, None, :], diff_u_aff)
+                np.fill_diagonal(diff_u, 0.0)
+                l_A[h, i, :] = 1.0 / np.sum(np.exp(np.clip(diff_u, -60.0, 60.0)), axis=0)
 
-                    diff_l = np.maximum(l_S[h, i, :] - u_S[h, i, j], diff_l_aff)
-                    diff_l[j] = 0.0
-                    u_A[h, i, j] = 1.0 / np.sum(np.exp(np.clip(diff_l, -60.0, 60.0)))
+                diff_l = np.maximum(l_S[h, i, :, None] - u_S[h, i, None, :], diff_l_aff)
+                np.fill_diagonal(diff_l, 0.0)
+                u_A[h, i, :] = 1.0 / np.sum(np.exp(np.clip(diff_l, -60.0, 60.0)), axis=0)
 
         # Simplex-consistent reference attention A0_{h,i,j} in [l_A, u_A] with sum_j A0_{h,i,j} = 1
         span_A = np.maximum(u_A - l_A, 0.0)
@@ -338,17 +380,17 @@ class MultiHeadAttentionLayer(object):
         W_lin = np.zeros((T * D, T * D), dtype=np.float64)
         rad_Y_mat = np.zeros((T, D), dtype=np.float64)
         shift_Y_mat = np.zeros((T, D), dtype=np.float64)
-        VV_dense = VV.toarray().reshape(T, H, dk, n)
+        VV_dense = VV.toarray().reshape(T, H, dk, n_qkv)
         cV_arr = c_V.reshape(T, H, dk)
 
         for h in range(H):
             W_O_h = self.W_O[:, h * dk:(h + 1) * dk]  # (D, dk)
             cU_h = cV_arr[:, h, :] @ W_O_h.T          # (T, D)
-            VU_h = np.einsum('od,tdn->ton', W_O_h, VV_dense[:, h, :, :])  # (T, D, n)
+            VU_h = np.einsum('od,tdn->ton', W_O_h, VV_dense[:, h, :, :])  # (T, D, n_qkv)
             VUp = np.maximum(VU_h, 0.0)
             VUn = np.minimum(VU_h, 0.0)
-            lU_h = cU_h + np.einsum('ton,n->to', VUp, In.pred_lb) + np.einsum('ton,n->to', VUn, In.pred_ub)
-            uU_h = cU_h + np.einsum('ton,n->to', VUp, In.pred_ub) + np.einsum('ton,n->to', VUn, In.pred_lb)
+            lU_h = cU_h + np.einsum('ton,n->to', VUp, lb_qkv) + np.einsum('ton,n->to', VUn, ub_qkv)
+            uU_h = cU_h + np.einsum('ton,n->to', VUp, ub_qkv) + np.einsum('ton,n->to', VUn, lb_qkv)
             U0_h = 0.5 * (lU_h + uU_h)                # (T, D)
             dU_h = 0.5 * np.maximum(uU_h - lU_h, 0.0) # (T, D)
 
@@ -363,25 +405,42 @@ class MultiHeadAttentionLayer(object):
                     shift_Y_mat[i, d_out] += 0.5 * (d_min + d_max)
                     rad_Y_mat[i, d_out] += 0.5 * max(0.0, d_max - d_min) + quad_rem_h[i, d_out]
 
-            for i in range(T):
-                row_slice = slice(i * D, (i + 1) * D)
-                for j in range(T):
-                    col_slice = slice(j * D + h * dk, j * D + (h + 1) * dk)
-                    W_lin[row_slice, col_slice] += A0[h, i, j] * W_O_h
+            W_lin.reshape(T, D, T, H, dk)[:, :, :, h, :] = (
+                A0[h, :, None, :, None] * W_O_h[None, :, None, :]
+            )
 
         rad_Y = rad_Y_mat.reshape(N)
         shift_Y = shift_Y_mat.reshape(N)
 
-        # Center affine output tilde_Y(alpha) = c_Y0 + V_Y0 * alpha
+        # Center affine output tilde_Y(alpha) = c_Y0 + V_Y0 * alpha in forward predicate coordinates
         b_O_tiled = np.tile(self.b_O, T)
-        c_Y0 = W_lin @ c_V + b_O_tiled + shift_Y
-        V_Y0_csr = (sp.csr_array(W_lin) @ VV).tocsr()
+        if has_env_dag:
+            I_T = sp.eye(T, dtype=np.float64, format='csr')
+            M_V = sp.kron(I_T, sp.csr_array(self.W_V), format='csr')
+            c_V_fwd = (M_V @ c_x) + np.tile(self.b_V, T)
+            V_x_csr = sp.csr_array(V_x) if not sp.issparse(V_x) else V_x.tocsr()
+            VV_fwd = (M_V @ V_x_csr).tocsr()
+            c_Y0 = W_lin @ c_V_fwd + b_O_tiled + shift_Y
+            V_Y0_csr = (sp.csr_array(W_lin) @ VV_fwd).tocsr()
+
+            c_Y0_bs = W_lin @ c_V + b_O_tiled + shift_Y
+            V_Y0_bs = (sp.csr_array(W_lin) @ VV).tocsr()
+            vp_bs = V_Y0_bs.maximum(0.0)
+            vn_bs = V_Y0_bs.minimum(0.0)
+            l_Y0_bs = c_Y0_bs + vp_bs @ lb_qkv + vn_bs @ ub_qkv
+            u_Y0_bs = c_Y0_bs + vp_bs @ ub_qkv + vn_bs @ lb_qkv
+        else:
+            c_Y0 = W_lin @ c_V + b_O_tiled + shift_Y
+            V_Y0_csr = (sp.csr_array(W_lin) @ VV).tocsr()
 
         # Bounds on tilde_Y(alpha)
         vp_y = V_Y0_csr.maximum(0.0)
         vn_y = V_Y0_csr.minimum(0.0)
         l_Y0 = c_Y0 + vp_y @ In.pred_lb + vn_y @ In.pred_ub
         u_Y0 = c_Y0 + vp_y @ In.pred_ub + vn_y @ In.pred_lb
+        if has_env_dag:
+            l_Y0 = np.minimum(np.maximum(l_Y0, l_Y0_bs), np.minimum(u_Y0, u_Y0_bs))
+            u_Y0 = np.maximum(l_Y0, np.minimum(u_Y0, u_Y0_bs))
 
         y_min_all = l_Y0 - rad_Y
         y_max_all = u_Y0 + rad_Y

@@ -32,7 +32,10 @@ from StarV.set.sparseimagestar2dcsr import SparseImageStar2DCSR
 from StarV.set.sparseimagestar2dcoo import SparseImageStar2DCOO
 from StarV.set.probsparseimagestar2dcsr import ProbSparseImageStar2DCSR
 from StarV.set.probsparseimagestar2dcoo import ProbSparseImageStar2DCOO
-from StarV.set.probsparse_base import propagate_general_elementwise_moments
+from StarV.set.probsparse_base import (
+    propagate_general_elementwise_moments,
+    backsubstitute_linear_bounds,
+)
 
 _INV_SQRT2 = 1.0 / np.sqrt(2.0)
 _INV_SQRT2PI = 1.0 / np.sqrt(2.0 * np.pi)
@@ -124,6 +127,26 @@ class GELULayer(object):
     def reachSingleInput(self, In, lp_solver='estimate', RF=0.0, show=False):
         is_prob = isinstance(In, (ProbStar, ProbSparseImageStar2DCSR, ProbSparseImageStar2DCOO))
         l_all, u_all = In.estimateRanges()
+        if (
+            hasattr(In, 'env_dag')
+            and In.env_dag is not None
+            and len(In.env_dag) > 0
+            and hasattr(In, 'nVars0')
+            and hasattr(In, 'pred_lb0')
+            and hasattr(In, 'pred_ub0')
+        ):
+            if isinstance(In, (Star, ProbStar)):
+                c_in = In.V[:, 0]
+                V_in = In.V[:, 1:In.nVars + 1]
+            else:
+                c_in, V_in = In.get_c_V() if hasattr(In, 'get_c_V') else (In.c, In.V)
+            d_lb_bs, W_lb_bs, d_ub_bs, W_ub_bs = backsubstitute_linear_bounds(
+                c_in, V_in, In.env_dag, In.nVars0
+            )
+            l_bs = d_lb_bs + np.maximum(W_lb_bs, 0.0) @ In.pred_lb0 + np.minimum(W_lb_bs, 0.0) @ In.pred_ub0
+            u_bs = d_ub_bs + np.maximum(W_ub_bs, 0.0) @ In.pred_ub0 + np.minimum(W_ub_bs, 0.0) @ In.pred_lb0
+            l_all = np.minimum(np.maximum(l_all, l_bs), np.minimum(u_all, u_bs))
+            u_all = np.maximum(l_all, np.minimum(u_all, u_bs))
         width = u_all - l_all
 
         # Neurons with negligible interval width are mapped deterministically

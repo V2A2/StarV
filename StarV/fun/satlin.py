@@ -21,6 +21,7 @@ Update: Yuntao Li, Date: 09/16/2025
 
 from StarV.set.probstar import ProbStar
 from StarV.set.star import Star
+from StarV.set.probsparse_base import propagate_general_elementwise_moments, backsubstitute_linear_bounds
 import numpy as np
 import copy
 import multiprocessing
@@ -314,7 +315,7 @@ class SatLin(object):
 
         
     @staticmethod
-    def stepReachStarApprox(In, index, lp_solver='gurobi', show=False):
+    def stepReachStarApprox(In, index, lp_solver='gurobi', show=False, lb=None, ub=None):
 
         """
         Approx reachability for satlin using stepReach
@@ -330,10 +331,12 @@ class SatLin(object):
         Update: Yuntao Li, Date: 09/16/2025
         """
 
-        assert isinstance(In, Star), 'Input is not a Star set'
+        assert isinstance(In, (Star, ProbStar)), 'Input is not a Star or ProbStar set'
 
-        lb = In.getMin(index, lp_solver)
-        ub = In.getMax(index, lp_solver)
+        if lb is None:
+            lb = In.getMin(index, lp_solver)
+        if ub is None:
+            ub = In.getMax(index, lp_solver)
 
         n = In.nVars + 1
         dtype = In.V.dtype
@@ -487,8 +490,21 @@ class SatLin(object):
         Author: Yuntao Li, Date: 07/31/2025
         """
 
-        assert isinstance(In, Star), 'Input is not a Star set'
+        assert isinstance(In, (Star, ProbStar)), 'Input is not a Star or ProbStar set'
+        is_prob = isinstance(In, ProbStar)
+        if is_prob:
+            c_in, V_in = In.get_c_V()
+            c_in = c_in.copy()
+            V_in = V_in.copy()
         lb, ub = In.estimateRanges()
+        if is_prob and len(In.env_dag) > 0 and len(lb) <= 512:
+            d_lb_p, W_lb_p, d_ub_p, W_ub_p = backsubstitute_linear_bounds(
+                c_in, V_in, In.env_dag, In.nVars0
+            )
+            l_dag = d_lb_p + np.maximum(W_lb_p, 0.0) @ In.pred_lb0 + np.minimum(W_lb_p, 0.0) @ In.pred_ub0
+            u_dag = d_ub_p + np.maximum(W_ub_p, 0.0) @ In.pred_ub0 + np.minimum(W_ub_p, 0.0) @ In.pred_lb0
+            lb = np.maximum(lb, np.minimum(l_dag, ub))
+            ub = np.minimum(ub, np.maximum(u_dag, lb))
         map_0 = np.argwhere(ub <= 0).reshape(-1)
         map_1 = np.argwhere(lb >= 1).reshape(-1)
         
@@ -499,9 +515,62 @@ class SatLin(object):
             I.resetRowsWithUpdatedCenter(map_1, 1.0)
 
         map_1_0 = np.argwhere((lb < 1) & (ub > 0)).reshape(-1)
+        amb_idx = []
+        a_lb_list, b_lb_list, a_ub_list, b_ub_list = [], [], [], []
+        y_lb_list, y_ub_list = [], []
 
         for i in range(len(map_1_0)):
+            idx = int(map_1_0[i])
             if show:
                 print('Performing approximate SatLin operation on {} neuron'.format(i))
-            I = SatLin.stepReachStarApprox(In=I, index=map_1_0[i], lp_solver=lp_solver, show=show)
+            n_before = I.nVars
+            I = SatLin.stepReachStarApprox(
+                In=I, index=idx, lp_solver=lp_solver, show=show,
+                lb=(float(lb[idx]) if lp_solver == 'estimate' else None),
+                ub=(float(ub[idx]) if lp_solver == 'estimate' else None)
+            )
+            if I.nVars > n_before:
+                amb_idx.append(idx)
+                l_i, u_i = float(lb[idx]), float(ub[idx])
+                if 0 <= l_i < 1 < u_i:
+                    a_l = (1.0 - l_i) / max(u_i - l_i, 1e-12)
+                    b_l = l_i - a_l * l_i
+                    a_u = 1.0 if (1.0 - l_i) >= (u_i - 1.0) else 0.0
+                    b_u = 0.0 if (1.0 - l_i) >= (u_i - 1.0) else 1.0
+                    y_l, y_u = l_i, 1.0
+                elif l_i < 0 < u_i <= 1:
+                    a_l = 1.0 if u_i >= abs(l_i) else 0.0
+                    b_l = 0.0
+                    a_u = u_i / max(u_i - l_i, 1e-12)
+                    b_u = -a_u * l_i
+                    y_l, y_u = 0.0, u_i
+                else:
+                    a_l = 1.0 / max(u_i, 1e-12)
+                    b_l = 0.0
+                    a_u = 1.0 / max(1.0 - l_i, 1e-12)
+                    b_u = -a_u * l_i
+                    y_l, y_u = 0.0, 1.0
+                a_lb_list.append(a_l)
+                b_lb_list.append(b_l)
+                a_ub_list.append(a_u)
+                b_ub_list.append(b_u)
+                y_lb_list.append(y_l)
+                y_ub_list.append(y_u)
+
+        if is_prob:
+            if len(amb_idx) == 0:
+                return In.with_updated_state(V=I.V, C=I.C, d=I.d, pred_lb=I.pred_lb, pred_ub=I.pred_ub)
+            amb_arr = np.asarray(amb_idx, dtype=np.int64)
+            mu_new, Sig_new, env_rec = propagate_general_elementwise_moments(
+                V_pre=V_in[amb_arr], c_pre=c_in[amb_arr],
+                a_lb=np.asarray(a_lb_list), b_lb=np.asarray(b_lb_list),
+                a_ub=np.asarray(a_ub_list), b_ub=np.asarray(b_ub_list),
+                pred_lb_new=np.asarray(y_lb_list), pred_ub_new=np.asarray(y_ub_list),
+                mu=In.mu, Sig=In.Sig, cov_mode=In.cov_mode,
+                fn_eval=SatLin.evaluate
+            )
+            return In.with_updated_state(
+                V=I.V, C=I.C, d=I.d, pred_lb=I.pred_lb, pred_ub=I.pred_ub,
+                mu=mu_new, Sig=Sig_new, new_env_record=env_rec
+            )
         return I

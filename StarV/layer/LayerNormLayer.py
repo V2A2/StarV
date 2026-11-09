@@ -32,7 +32,10 @@ from StarV.set.sparseimagestar2dcsr import SparseImageStar2DCSR
 from StarV.set.sparseimagestar2dcoo import SparseImageStar2DCOO
 from StarV.set.probsparseimagestar2dcsr import ProbSparseImageStar2DCSR
 from StarV.set.probsparseimagestar2dcoo import ProbSparseImageStar2DCOO
-from StarV.set.probsparse_base import propagate_general_elementwise_moments
+from StarV.set.probsparse_base import (
+    propagate_general_elementwise_moments,
+    backsubstitute_linear_bounds,
+)
 
 
 class LayerNormLayer(object):
@@ -164,6 +167,28 @@ class LayerNormLayer(object):
         else:
             raise Exception(f"Unsupported input set type in LayerNormLayer: {type(In)}")
 
+        # Tighten centered pre-activation and leave-one-out bounds via Envelope DAG back-substitution when available
+        has_env_dag = (
+            hasattr(In, 'env_dag')
+            and In.env_dag is not None
+            and len(In.env_dag) > 0
+            and hasattr(In, 'nVars0')
+            and hasattr(In, 'pred_lb0')
+            and hasattr(In, 'pred_ub0')
+        )
+        if has_env_dag:
+            d_lb_z, W_lb_z, d_ub_z, W_ub_z = backsubstitute_linear_bounds(
+                c_z, Vz_mat, In.env_dag, In.nVars0
+            )
+            W_lb_pos = np.maximum(W_lb_z, 0.0)
+            W_lb_neg = np.minimum(W_lb_z, 0.0)
+            W_ub_pos = np.maximum(W_ub_z, 0.0)
+            W_ub_neg = np.minimum(W_ub_z, 0.0)
+            l_z_bs = d_lb_z + W_lb_pos @ In.pred_lb0 + W_lb_neg @ In.pred_ub0
+            u_z_bs = d_ub_z + W_ub_pos @ In.pred_ub0 + W_ub_neg @ In.pred_lb0
+            l_z = np.minimum(np.maximum(l_z, l_z_bs), np.minimum(u_z, u_z_bs))
+            u_z = np.maximum(l_z, np.minimum(u_z, u_z_bs))
+
         # Step 3: Coupled numerator-denominator token-wise variance & reciprocal std bounds
         # Using g(z, S) = z / sqrt(z^2 / D + S), where S = (1/D) sum_{j != d} z_{t,j}^2 + eps,
         # prevents the unphysical 1/sqrt(eps) blowup when z_{t,d} crosses zero.
@@ -195,6 +220,31 @@ class LayerNormLayer(object):
         pV_neg = np.minimum(proj_V, 0.0)
         l_proj = proj_c + np.einsum('tdn,n->td', pV_pos, In.pred_lb) + np.einsum('tdn,n->td', pV_neg, In.pred_ub)
         u_proj = proj_c + np.einsum('tdn,n->td', pV_pos, In.pred_ub) + np.einsum('tdn,n->td', pV_neg, In.pred_lb)
+        if has_env_dag:
+            n0 = int(In.nVars0)
+            W_mid_z = 0.5 * (W_lb_z + W_ub_z)
+            d_mid_z = 0.5 * (d_lb_z + d_ub_z)
+            dW_z = 0.5 * (W_ub_z - W_lb_z)
+            dd_z = 0.5 * (d_ub_z - d_lb_z)
+            rad_z_bs = np.maximum(
+                0.0,
+                np.maximum(dW_z, 0.0) @ In.pred_ub0 + np.minimum(dW_z, 0.0) @ In.pred_lb0 + dd_z,
+            )
+            Wz_tok = W_mid_z.reshape(T, D, n0)
+            dz_tok = d_mid_z.reshape(T, D)
+            rz_tok = rad_z_bs.reshape(T, D)
+            dot_c_bs = np.sum(z_mid * dz_tok, axis=1, keepdims=True)
+            proj_c_bs = (dot_c_bs - z_mid * dz_tok) * inv_norm_loo
+            dot_W_bs = np.einsum('td,tdn->tn', z_mid, Wz_tok)[:, None, :]
+            proj_W_bs = (dot_W_bs - z_mid[:, :, None] * Wz_tok) * inv_norm_loo[:, :, None]
+            dot_r_bs = np.sum(np.abs(z_mid) * rz_tok, axis=1, keepdims=True)
+            proj_r_bs = (dot_r_bs - np.abs(z_mid) * rz_tok) * inv_norm_loo
+            pW_pos = np.maximum(proj_W_bs, 0.0)
+            pW_neg = np.minimum(proj_W_bs, 0.0)
+            l_proj_bs = proj_c_bs + np.einsum('tdn,n->td', pW_pos, In.pred_lb0) + np.einsum('tdn,n->td', pW_neg, In.pred_ub0) - proj_r_bs
+            u_proj_bs = proj_c_bs + np.einsum('tdn,n->td', pW_pos, In.pred_ub0) + np.einsum('tdn,n->td', pW_neg, In.pred_lb0) + proj_r_bs
+            l_proj = np.minimum(np.maximum(l_proj, l_proj_bs), np.minimum(u_proj, u_proj_bs))
+            u_proj = np.maximum(l_proj, np.minimum(u_proj, u_proj_bs))
         cross_proj = (l_proj <= 0.0) & (u_proj >= 0.0)
         q_cs_loo = np.where(cross_proj, 0.0, np.minimum(np.square(l_proj), np.square(u_proj)))  # (T, D)
 

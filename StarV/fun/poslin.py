@@ -30,7 +30,7 @@ from StarV.set.sparseimagestar2dcoo import SparseImageStar2DCOO
 from StarV.set.sparseimagestar2dcsr import SparseImageStar2DCSR
 from StarV.set.probsparseimagestar2dcoo import ProbSparseImageStar2DCOO
 from StarV.set.probsparseimagestar2dcsr import ProbSparseImageStar2DCSR
-from StarV.set.probsparse_base import propagate_relu_moments
+from StarV.set.probsparse_base import propagate_relu_moments, backsubstitute_linear_bounds
 
 import numpy as np
 import scipy.sparse as sp
@@ -884,6 +884,14 @@ class PosLin(object):
         # only for *ambiguous* neurons (those with lb < 0 < ub), so these may
         # legitimately be empty if no ambiguous neurons exist.
         l_all, u_all = I.estimateRanges()
+        if is_prob and len(In.env_dag) > 0 and len(l_all) <= 512 and In.nVars0 <= 256:
+            d_lb_p, W_lb_p, d_ub_p, W_ub_p = backsubstitute_linear_bounds(
+                c_pre_orig, V_pre_orig, In.env_dag, In.nVars0
+            )
+            l_dag = d_lb_p + np.maximum(W_lb_p, 0.0) @ In.pred_lb0 + np.minimum(W_lb_p, 0.0) @ In.pred_ub0
+            u_dag = d_ub_p + np.maximum(W_ub_p, 0.0) @ In.pred_ub0 + np.minimum(W_ub_p, 0.0) @ In.pred_lb0
+            l_all = np.maximum(l_all, np.minimum(l_dag, u_all))
+            u_all = np.minimum(u_all, np.maximum(u_dag, l_all))
         if show:
             print(f"Estimated ranges (all neurons): |l|={l_all.shape}, |u|={u_all.shape}")
 
