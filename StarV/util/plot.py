@@ -201,6 +201,7 @@ def plot_2D_UnsafeSpec(unsafe_mat, unsafe_vec, show=True, color='r'):
         warnings.warn(message='Potential floating-point error or unbounded unsafe spec')
     if show:
         plt.show()
+
     
 
 def plot_2D_Star(I, show=True, color='g'):
@@ -215,6 +216,7 @@ def plot_2D_Star(I, show=True, color='g'):
         warnings.warn(message='Potential floating-point error')
     if show:
         plt.show()
+
     
 
 def plot_probstar(I, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g', font_size = 15):
@@ -294,6 +296,7 @@ def plot_probstar(I, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$',
         plt.show()
 
 
+
 def plot_probstar_signals(traces, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g', font_size = 13):
     """
     plot multiple probstar traces: traces = [T1, T2, T3, ..., Tn], Ti = k-steps trace [R1, R2, ..., Rk]
@@ -351,6 +354,7 @@ def plot_probstar_signals(traces, dir_mat=None, dir_vec=None, show_prob=True, la
         plt.show()
 
 
+
 def plot_probstar_signal(trace,  dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g', font_size = 13):
     """
     plot a single probstar trace T = [R1, R2, ..., Rk]
@@ -402,6 +406,7 @@ def plot_probstar_signal(trace,  dir_mat=None, dir_vec=None, show_prob=True, lab
     plt.yticks(fontsize=font_size)
     if show:
         plt.show()
+
 
 
 def plot_SAT_trace(sat_trace, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g'):
@@ -461,6 +466,7 @@ def plot_probstar_reachset(rs, dir_mat=None, dir_vec=None, show_prob=True, label
     plt.yticks(fontsize=font_size)
     if show:
         plt.show()
+
 
 
 def plot_probstar_reachset_with_unsafeSpec(rs, unsafe_mat, unsafe_vec, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g', font_size = 13):
@@ -570,6 +576,7 @@ def plot_probstar_reachset_with_unsafeSpec(rs, unsafe_mat, unsafe_vec, dir_mat=N
     if show:
         plt.show()
 
+
        
 def plot_star(I, dir_mat=None, dir_vec=None, label=('$y_1$', '$y_2$'), show=True, color='g', font_size = 15):
     """Plot a star set in a specific direction
@@ -637,6 +644,7 @@ def plot_star(I, dir_mat=None, dir_vec=None, label=('$y_1$', '$y_2$'), show=True
         plt.show()
 
 
+
 def plot_multivariate_normal_distribution(mu, Sig, lb, ub, numMeshPoints=40, xlabel='X', ylabel='Y', zlabel='Probability Density', show=True):
     'plot bivariate normal distribution over variables X and Y'
 
@@ -664,6 +672,7 @@ def plot_multivariate_normal_distribution(mu, Sig, lb, ub, numMeshPoints=40, xla
     ax.set_zlabel(zlabel)
     if show:
         plt.show()
+
 
 
 def plot_probstar_distribution_separate_plots(I, dir_mat=None, dir_vec=None, show_prob=True, label=('$y_1$', '$y_2$'), show=True, color='g', numMeshPoints=40, zlabel='Probability Density'):
@@ -772,6 +781,7 @@ def plot_3D_Star_ax(I, ax, color='r',alpha=1.0, edgecolor='k', linewidth=1.0, sh
         plt.show()
 
 
+
 def plot_3D_Star_single(I, color='r',alpha=1.0, edgecolor='k', linewidth=1.0, show=True, qhull_option='Qt'):
     """
     From https://github.com/Shaddadi/veritex/blob/master/veritex/utils/plot_poly.py
@@ -808,6 +818,7 @@ def plot_3D_Star_single(I, color='r',alpha=1.0, edgecolor='k', linewidth=1.0, sh
         ax.set_zlabel('$y_3$')
     if show:
         plt.show()
+
 
 
 def plot_3D_Star(I, alpha=0.3, edgecolor='k', linewidth=1.0, show=True, qhull_option='Qt', font_size=15):
@@ -884,6 +895,7 @@ def plot_3D_Star(I, alpha=0.3, edgecolor='k', linewidth=1.0, show=True, qhull_op
 
     if show:
         plt.show()
+
 
 
 def plot_Mesh3D_Star(I, opacity=1.0,show=True):
@@ -1033,6 +1045,7 @@ def plot_probstar_distribution(I, dir_mat=None, dir_vec=None, show_prob=True,
         plt.show()
 
 
+
 def plot_probstar_contour(I, dir_mat=None, dir_vec=None, show_prob=True, 
                                 label=('$y_1$', '$y_2$'), show=True, 
                                 numMeshPoints=100, levels=10, cmap='viridis', font_size=15):
@@ -1143,6 +1156,7 @@ def plot_probstar_contour(I, dir_mat=None, dir_vec=None, show_prob=True,
     if show:
         plt.show()
 
+
 def plot_probstar_signal_contour(trace, dir_mat=None, dir_vec=None, show_prob=True, 
                                 label=('$y_1$', '$y_2$'), show=True, color='g',
                                 numMeshPoints=100, levels=10, cmap='viridis', font_size=15):
@@ -1226,3 +1240,13 @@ def plot_probstar_signal_contour(trace, dir_mat=None, dir_vec=None, show_prob=Tr
     
     if show:
         plt.show()
+
+
+from StarV.util.plot_probstar_render import (
+    project_probstar_2d,
+    render_2d_probstar_contour,
+    render_3d_probstar_volume,
+    render_imagestar_envelope_panel,
+)
+
+

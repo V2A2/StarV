@@ -635,6 +635,20 @@ def backsubstitute_linear_bounds(c_out, V_out, env_dag, nVars0, U=None, u_spec=N
     d_ub = d_cur.copy()
     W_ub = W_cur.copy()
 
+    return backsubstitute_separate_linear_bounds(d_lb, W_lb, d_ub, W_ub, env_dag, nVars0)
+
+
+def backsubstitute_separate_linear_bounds(d_lb, W_lb, d_ub, W_ub, env_dag, nVars0):
+    """
+    Propagate separate lower and upper linear forms:
+        d_lb + W_lb @ alpha <= z <= d_ub + W_ub @ alpha
+    backward through `env_dag` down to the root input predicates alpha_0 in R^{nVars0}.
+    """
+    d_lb = np.asarray(d_lb, dtype=np.float64).reshape(-1).copy()
+    W_lb = W_lb.toarray().astype(np.float64) if sp.issparse(W_lb) else np.asarray(W_lb, dtype=np.float64).copy()
+    d_ub = np.asarray(d_ub, dtype=np.float64).reshape(-1).copy()
+    W_ub = W_ub.toarray().astype(np.float64) if sp.issparse(W_ub) else np.asarray(W_ub, dtype=np.float64).copy()
+
     for rec in reversed(env_dag):
         n_prev = rec.n_prev
         n_new = rec.n_new
@@ -845,15 +859,18 @@ def verify_prob_spec(
         tot_under = mvn_cdf_lowdim(min_z_under, max_z_under, mu_z_lb, Sig_z_lb)
         uns_under = mvn_cdf_lowdim(min_z_under, np.minimum(zeros_k, max_z_under), mu_z_lb, Sig_z_lb)
         cond_under = uns_under / tot_under if tot_under > 1e-12 else mvn_cdf_lowdim(neg_inf, zeros_k, mu_z_lb, Sig_z_lb)
-        # Also compute untruncated Boole-Frechet upper bound when p_input is close to 1
-        mu_z_lb_raw, var_z_lb_raw, V_Sig_lb_raw = compute_preactivation_moments(
-            W_lb0, d_lb0, mu0, Sig0, cov_mode=cov_mode0
-        )
-        Sig_z_lb_raw = var_z_lb_raw if K_spec == 1 else (
-            V_Sig_lb_raw @ W_lb0.T if V_Sig_lb_raw is not None else (W_lb0 * Sig0[None, :]) @ W_lb0.T
-        )
-        bf_cond_max = mvn_cdf_lowdim(neg_inf, zeros_k, mu_z_lb_raw, Sig_z_lb_raw) / max(p_input, 1e-15)
-        cond_p_max = float(np.clip(max(cond_under, min(1.0, bf_cond_max)), 0.0, 1.0))
+        if p_input > 0.995:
+            # Also compute untruncated Boole-Frechet upper bound when p_input covers almost all of R^p
+            mu_z_lb_raw, var_z_lb_raw, V_Sig_lb_raw = compute_preactivation_moments(
+                W_lb0, d_lb0, mu0, Sig0, cov_mode=cov_mode0
+            )
+            Sig_z_lb_raw = var_z_lb_raw if K_spec == 1 else (
+                V_Sig_lb_raw @ W_lb0.T if V_Sig_lb_raw is not None else (W_lb0 * Sig0[None, :]) @ W_lb0.T
+            )
+            bf_cond_max = mvn_cdf_lowdim(neg_inf, zeros_k, mu_z_lb_raw, Sig_z_lb_raw) / max(p_input, 1e-15)
+            cond_p_max = float(np.clip(max(cond_under, min(1.0, bf_cond_max)), 0.0, 1.0))
+        else:
+            cond_p_max = float(np.clip(cond_under, 0.0, 1.0))
 
     # Conditional lower bound P(z(alpha_0) <= 0 | alpha_0 in B) >= P(z_ub0(alpha_0) <= 0 | alpha_0 in B)
     if np.any(min_z_over > 0.0):
@@ -864,14 +881,17 @@ def verify_prob_spec(
         tot_over = mvn_cdf_lowdim(min_z_over, max_z_over, mu_z_ub, Sig_z_ub)
         uns_over = mvn_cdf_lowdim(min_z_over, np.minimum(zeros_k, max_z_over), mu_z_ub, Sig_z_ub)
         cond_over = uns_over / tot_over if tot_over > 1e-12 else mvn_cdf_lowdim(neg_inf, zeros_k, mu_z_ub, Sig_z_ub)
-        mu_z_ub_raw, var_z_ub_raw, V_Sig_ub_raw = compute_preactivation_moments(
-            W_ub0, d_ub0, mu0, Sig0, cov_mode=cov_mode0
-        )
-        Sig_z_ub_raw = var_z_ub_raw if K_spec == 1 else (
-            V_Sig_ub_raw @ W_ub0.T if V_Sig_ub_raw is not None else (W_ub0 * Sig0[None, :]) @ W_ub0.T
-        )
-        bf_cond_min = max(0.0, mvn_cdf_lowdim(neg_inf, zeros_k, mu_z_ub_raw, Sig_z_ub_raw) - (1.0 - p_input)) / max(p_input, 1e-15)
-        cond_p_min = float(np.clip(min(cond_over, bf_cond_min) if p_input > 0.5 else cond_over, 0.0, cond_p_max))
+        if p_input > 0.995:
+            mu_z_ub_raw, var_z_ub_raw, V_Sig_ub_raw = compute_preactivation_moments(
+                W_ub0, d_ub0, mu0, Sig0, cov_mode=cov_mode0
+            )
+            Sig_z_ub_raw = var_z_ub_raw if K_spec == 1 else (
+                V_Sig_ub_raw @ W_ub0.T if V_Sig_ub_raw is not None else (W_ub0 * Sig0[None, :]) @ W_ub0.T
+            )
+            bf_cond_min = max(0.0, mvn_cdf_lowdim(neg_inf, zeros_k, mu_z_ub_raw, Sig_z_ub_raw) - (1.0 - p_input)) / max(p_input, 1e-15)
+            cond_p_min = float(np.clip(min(cond_over, bf_cond_min), 0.0, cond_p_max))
+        else:
+            cond_p_min = float(np.clip(cond_over, 0.0, cond_p_max))
 
     p_min = float(np.clip(p_input * cond_p_min, 0.0, p_input))
     p_max = float(np.clip(p_input * cond_p_max, p_min, p_input))

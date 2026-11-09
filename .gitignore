@@ -20,8 +20,10 @@ build/
 .vscode/
 *~
 
-# Local paper manuscripts (not pushed to repository)
+# Local paper manuscripts and grant proposals (not pushed to repository)
 papers/
+proposals/
+artifacts/2027_MURI_PreliminaryResults/
 
 # Local Codex configuration
 .codex/

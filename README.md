@@ -81,6 +81,7 @@ StarV/
 │   ├── dynamic/                    # Nonlinear dynamic lifting operations (Sine, Cosine, Power, Multiply)
 │   ├── lifting/                    # Expression DAG observable lifting (ExprNode, ExprGraph, LiftExecutor)
 │   ├── operators/                  # Nonlinear Star operator abstractions
+│   ├── renderer/                   # ProbStar abstract rendering (Pinhole, 3D Gaussian Splatting, NeRF, Split)
 │   ├── nncs/                       # Closed-loop NNCS reachability and temporal verification
 │   ├── spec/                       # dProbStarTL and dStarTL temporal logic specifications
 │   ├── verifier/                   # Verifier and Certifier OOP & functional APIs
@@ -279,6 +280,8 @@ The [`artifacts/`](./artifacts) directory contains experimental benchmarks and e
 | [`artifacts/NAHS2024_RNN`](./artifacts/NAHS2024_RNN) | **NAHS 2025**: *Reachability Analysis of Recurrent Neural Networks* |
 | [`artifacts/NAHS2024_LeCPS`](./artifacts/NAHS2024_LeCPS) | **NAHS 2026**: *Quantitative Verification of Learning-enabled Systems using ProbStar Reachability* |
 | [`artifacts/TACAS2027_RNN`](./artifacts/TACAS2027_RNN) | **TACAS 2027**: ProbStar reachability and temporal verification of RNNs on CMAPSS & LIMO benchmarks |
+| [`artifacts/CAV2027_Approx_ProbStar`](./artifacts/CAV2027_Approx_ProbStar) | **Approx ProbStar & CROWN**: Scalable quantitative verification with sparse ProbStar & CROWN relaxation |
+| [`artifacts/ICML2027_ProbStar_Abstract_Rendering`](./artifacts/ICML2027_ProbStar_Abstract_Rendering) | **ProbStar Abstract Rendering**: Analytic pinhole, 3DGS, and NeRF abstract rendering for vision certification |
 | [`artifacts/FSE2027_StarTL`](./artifacts/FSE2027_StarTL) | **StarTL**: Quantitative robustness intervals & satisfaction fractions for ACC, AEBS, CMAPSS, and LIMO |
 | [`artifacts/HSCC2023_ProbStar`](./artifacts/HSCC2023_ProbStar) | **HSCC 2023**: *Quantitative Verification for Neural Networks using ProbStars* |
 

@@ -1,0 +1,46 @@
+% Auto-generated ICML 2027 LaTeX Tables — ProbStar Abstract Rendering
+\begin{table*}[t]
+\centering
+\caption{Abstract Renderer Tightness, Soundness, and Memory Scaling (Pinhole, 3DGS, NeRF).}
+\begin{tabular}{llrrrrrrr}
+\toprule
+Renderer & Dataset & MC Span & IBP Width & ProbStar [Ours] & Split-8 [Ours] & Viol. & CSR (KB) & Dense (KB) \\
+\midrule
+Pinhole\_SE3\_Lighting & MNIST\_28x28x1 & 0.0822 & 0.1805 & \textbf{0.1719} & \textbf{0.1647} & 0 & 87.7 & 1743.0 \\
+Pinhole\_SE3\_Lighting & CIFAR10\_32x32x3 & 0.2862 & 0.9382 & \textbf{0.9000} & \textbf{0.8681} & 0 & 1197.9 & 148224.9 \\
+GaussianSplatting\_3DGS & MNIST\_28x28x1 & 0.1116 & 0.1862 & \textbf{0.1805} & \textbf{0.1732} & 0 & 59.0 & 1408.1 \\
+GaussianSplatting\_3DGS & CIFAR10\_32x32x3 & 0.1963 & 0.9603 & \textbf{0.9480} & \textbf{0.9223} & 0 & 888.2 & 147936.3 \\
+Volumetric\_NeRF & MNIST\_28x28x1 & 0.0012 & 0.0149 & \textbf{0.0028} & \textbf{0.0019} & 0 & 281.6 & 9763.8 \\
+Volumetric\_NeRF & CIFAR10\_32x32x3 & 0.0112 & 0.1225 & \textbf{0.0257} & \textbf{0.0177} & 0 & 1101.6 & 148080.6 \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{table*}[t]
+\centering
+\caption{End-to-End 3D-to-Perception Probabilistic Certification across CNN, ResNet, ViT, and SSNN.}
+\begin{tabular}{lllrrrrrrrr}
+\toprule
+Model & Arch & Renderer & $p_{\min}$ (IBP) & $p_{\min}$ [Ours] & $p_{\min}$ (Split-4) & $\hat{p}_{\mathrm{MC}}$ & $t_{\mathrm{Ours}}$ (s) & $t_{\mathrm{CROWN}}$ (s) & Speedup \\
+\midrule
+CNN\_MNIST\_Small & CNN & Pinhole & 1.0000 & \textbf{1.0000} & \textbf{1.0000} & 1.0000 & 0.144 & 2.244 & 15.6$\times$ \\
+CNN\_MNIST\_Small & CNN & 3DGS & 1.0000 & \textbf{1.0000} & \textbf{1.0000} & 1.0000 & 0.140 & 2.262 & 16.1$\times$ \\
+CNN\_MNIST\_Small & CNN & NeRF & 1.0000 & \textbf{1.0000} & \textbf{1.0000} & 1.0000 & 0.215 & 2.391 & 11.1$\times$ \\
+CNN\_MNIST\_Medium & CNN & Pinhole & 1.0000 & \textbf{1.0000} & \textbf{1.0000} & 1.0000 & 0.241 & 4.630 & 19.2$\times$ \\
+CNN\_MNIST\_Large & CNN & Pinhole & 1.0000 & \textbf{1.0000} & \textbf{1.0000} & 1.0000 & 0.921 & 17.378 & 18.9$\times$ \\
+CNN\_CIFAR10\_OVAL21\_Base & CNN & Pinhole & 0.0000 & \textbf{1.0000} & \textbf{1.0000} & 1.0000 & 0.163 & 0.981 & 6.0$\times$ \\
+CNN\_CIFAR10\_OVAL21\_Base & CNN & 3DGS & 0.0000 & \textbf{0.0000} & \textbf{0.0000} & 1.0000 & 0.127 & 0.976 & 7.7$\times$ \\
+ResNet\_MNIST\_28x28 & ResNet & Pinhole & 0.0000 & \textbf{1.0000} & \textbf{1.0000} & 1.0000 & 0.087 & 0.834 & 9.6$\times$ \\
+ResNet\_MNIST\_28x28 & ResNet & 3DGS & 0.0000 & \textbf{0.0000} & \textbf{1.0000} & 1.0000 & 0.105 & 0.850 & 8.1$\times$ \\
+ResNet\_MNIST\_28x28 & ResNet & NeRF & 1.0000 & \textbf{1.0000} & \textbf{1.0000} & 1.0000 & 0.270 & 0.951 & 3.5$\times$ \\
+ResNet\_CIFAR10\_32x32 & ResNet & Pinhole & 0.0000 & \textbf{0.0000} & \textbf{0.0000} & 1.0000 & 0.493 & 3.217 & 6.5$\times$ \\
+ViT\_MNIST\_28x28 & ViT & Pinhole & 0.0000 & \textbf{1.0000} & \textbf{1.0000} & 1.0000 & 0.106 & 0.144 & 1.4$\times$ \\
+ViT\_MNIST\_28x28 & ViT & 3DGS & 0.0000 & \textbf{1.0000} & \textbf{1.0000} & 1.0000 & 0.224 & 0.137 & 0.6$\times$ \\
+ViT\_MNIST\_28x28 & ViT & NeRF & 1.0000 & \textbf{1.0000} & \textbf{1.0000} & 1.0000 & 0.313 & 0.321 & 1.0$\times$ \\
+ViT\_CIFAR10\_32x32 & ViT & Pinhole & 0.0000 & \textbf{1.0000} & \textbf{1.0000} & 1.0000 & 0.396 & 0.792 & 2.0$\times$ \\
+SSNN\_M2NIST\_28x28 & SSNN & Pinhole & 0.5612 & \textbf{0.7435} & \textbf{0.7435} & 0.5804 & 1.064 & 8.629 & 8.1$\times$ \\
+SSNN\_M2NIST\_28x28 & SSNN & 3DGS & 0.5026 & \textbf{0.6790} & \textbf{0.6790} & 0.4834 & 1.336 & 8.631 & 6.5$\times$ \\
+SSNN\_M2NIST\_28x28 & SSNN & NeRF & 0.8852 & \textbf{0.9923} & \textbf{0.9923} & 0.9898 & 0.730 & 8.371 & 11.5$\times$ \\
+\bottomrule
+\end{tabular}
+\end{table*}

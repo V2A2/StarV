@@ -58,6 +58,7 @@ from StarV.set.probsparse_base import (
     compute_box_input_probability,
     compute_truncated_gaussian_moments_1d,
     compute_preactivation_moments,
+    backsubstitute_separate_linear_bounds,
     mvn_cdf_lowdim,
     verify_prob_spec,
 )
@@ -460,6 +461,25 @@ class _InputSpec(object):
 
         self.dim = len(self.c0_full)
         self.nVars_full = len(self.pred_lb_full)
+
+        if self.is_prob:
+            self.mu_ext_full = np.asarray(in_set.mu, dtype=np.float64).ravel()
+            self.Sig_ext_full = np.asarray(in_set.Sig, dtype=np.float64)
+            self.pred_lb0_root = np.asarray(
+                getattr(in_set, 'pred_lb0', self.pred_lb_full), dtype=np.float64
+            ).ravel()
+            self.pred_ub0_root = np.asarray(
+                getattr(in_set, 'pred_ub0', self.pred_ub_full), dtype=np.float64
+            ).ravel()
+            self.nVars0_root = int(getattr(in_set, 'nVars0', self.nVars_full))
+            self.env_dag0 = list(getattr(in_set, 'env_dag', []))
+        else:
+            self.mu_ext_full = None
+            self.Sig_ext_full = None
+            self.pred_lb0_root = self.pred_lb_full
+            self.pred_ub0_root = self.pred_ub_full
+            self.nVars0_root = self.nVars_full
+            self.env_dag0 = []
 
         # Identify active predicate variables (non-degenerate interval & non-zero column)
         width_full = self.pred_ub_full - self.pred_lb_full
@@ -2812,26 +2832,31 @@ def _build_crown_output_set(
         new_ub = ub0.copy()
 
     if inp_spec.is_prob:
+        mu_ext = inp_spec.mu_ext_full
+        Sig_ext = inp_spec.Sig_ext_full
         mu0 = inp_spec.mu0_full
         Sig0 = inp_spec.Sig0_full
-        cov_mode = inp_spec.cov_mode or ('diagonal' if Sig0.ndim == 1 else 'full')
+        lb0_root = inp_spec.pred_lb0_root
+        ub0_root = inp_spec.pred_ub0_root
+        nVars0_root = inp_spec.nVars0_root
+        cov_mode = inp_spec.cov_mode or ('diagonal' if Sig_ext.ndim == 1 else 'full')
 
         if m_amb > 0:
             A_mid_amb = 0.5 * (A_l_amb + A_u_amb)
             b_mid_amb = 0.5 * (b_l_amb + b_u_amb)
             mu_amb, var_amb, V_Sig_amb = compute_preactivation_moments(
-                A_mid_amb, b_mid_amb, mu0, Sig0, cov_mode=cov_mode
+                A_mid_amb, b_mid_amb, mu_ext, Sig_ext, cov_mode=cov_mode
             )
             mu_amb = np.clip(mu_amb, z_lb[amb_idx], z_ub[amb_idx])
-            new_mu = np.concatenate([mu0, mu_amb])
-            if cov_mode == 'diagonal' or Sig0.ndim == 1:
-                var0 = Sig0 if Sig0.ndim == 1 else np.diag(Sig0)
+            new_mu = np.concatenate([mu_ext, mu_amb])
+            if cov_mode == 'diagonal' or Sig_ext.ndim == 1:
+                var0 = Sig_ext if Sig_ext.ndim == 1 else np.diag(Sig_ext)
                 new_Sig = np.concatenate([var0, var_amb])
             else:
                 cross_cov = V_Sig_amb.T
                 diag_amb = np.maximum(var_amb, np.sum(A_mid_amb * V_Sig_amb, axis=1) + 1e-10)
                 new_Sig = np.vstack([
-                    np.hstack([Sig0, cross_cov]),
+                    np.hstack([Sig_ext, cross_cov]),
                     np.hstack([cross_cov.T, np.diag(diag_amb)]),
                 ])
             env_rec = RelaxationEnvelopeRecord(
@@ -2842,17 +2867,17 @@ def _build_crown_output_set(
                 G_ub=A_u_amb,
                 gamma_ub=b_u_amb,
             )
-            env_dag = [env_rec]
+            env_dag = list(inp_spec.env_dag0) + [env_rec]
         else:
-            new_mu = mu0.copy()
-            new_Sig = Sig0.copy()
-            env_dag = []
+            new_mu = mu_ext.copy()
+            new_Sig = Sig_ext.copy()
+            env_dag = list(inp_spec.env_dag0)
 
         pstar_out = ProbStar(
             new_V, new_C, new_d, new_mu, new_Sig, new_lb, new_ub,
             copy_=False, cov_mode=cov_mode, env_dag=env_dag,
-            mu0=mu0, Sig0=Sig0, pred_lb0=lb0, pred_ub0=ub0,
-            nVars0=n0, check_psd=False,
+            mu0=mu0, Sig0=Sig0, pred_lb0=lb0_root, pred_ub0=ub0_root,
+            nVars0=nVars0_root, check_psd=False,
         )
         pstar_out.shape = out_shape
         pstar_out.num_pred = pstar_out.nVars
@@ -3009,11 +3034,15 @@ def _compute_gaussian_prob_from_crown_bounds(
     Sig0_full = inp_spec.Sig0_full
 
     # Construct full sub-box bounds
-    lb0_full = inp_spec.pred_lb_full.copy()
-    ub0_full = inp_spec.pred_ub_full.copy()
+    lb_ext_full = inp_spec.pred_lb_full.copy()
+    ub_ext_full = inp_spec.pred_ub_full.copy()
     if inp_spec.nVars > 0:
-        lb0_full[inp_spec.active_idx] = pred_lb_sub
-        ub0_full[inp_spec.active_idx] = pred_ub_sub
+        lb_ext_full[inp_spec.active_idx] = pred_lb_sub
+        ub_ext_full[inp_spec.active_idx] = pred_ub_sub
+
+    n0_root = inp_spec.nVars0_root
+    lb0_full = lb_ext_full[:n0_root].copy()
+    ub0_full = ub_ext_full[:n0_root].copy()
 
     p_input = compute_box_input_probability(mu0_full, Sig0_full, lb0_full, ub0_full)
     if p_input <= 0.0:
@@ -3037,8 +3066,15 @@ def _compute_gaussian_prob_from_crown_bounds(
             'cond_p_min': 1.0, 'cond_p_max': 1.0, 'cond_p_hat': 1.0,
         }
 
-    W_lb0, d_lb0 = inp_spec.expand_to_full_predicates(A_lb, b_lb)
-    W_ub0, d_ub0 = inp_spec.expand_to_full_predicates(A_ub, b_ub)
+    W_lb_ext, d_lb_ext = inp_spec.expand_to_full_predicates(A_lb, b_lb)
+    W_ub_ext, d_ub_ext = inp_spec.expand_to_full_predicates(A_ub, b_ub)
+    if len(inp_spec.env_dag0) > 0 and W_lb_ext.shape[1] > n0_root:
+        d_lb0, W_lb0, d_ub0, W_ub0 = backsubstitute_separate_linear_bounds(
+            d_lb_ext, W_lb_ext, d_ub_ext, W_ub_ext, inp_spec.env_dag0, n0_root
+        )
+    else:
+        d_lb0, W_lb0 = d_lb_ext, W_lb_ext[:, :n0_root]
+        d_ub0, W_ub0 = d_ub_ext, W_ub_ext[:, :n0_root]
 
     var0_vec = Sig0_full if Sig0_full.ndim == 1 else np.diag(Sig0_full)
     mu0_trunc, var0_trunc = compute_truncated_gaussian_moments_1d(mu0_full, var0_vec, lb0_full, ub0_full)
