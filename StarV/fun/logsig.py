@@ -719,7 +719,7 @@ class LogSig(object):
 
         N = I.dim
 
-        if lp_solver == 'estimate':
+        if lp_solver == 'estimate' or RF == 1.0:
             l, u = I.estimateRanges()
         elif isinstance(I, ProbStar):
             l, u = I.getRanges(lp_solver=lp_solver)
@@ -859,10 +859,10 @@ class LogSig(object):
                 d34 = dxou*(c1 - xou) + LogSig.f(xou)
 
             else:
-                gux = (yu_ - dmin * u_) / (1 - dmin)
-                guy = gux 
-                glx = (yl_ - dmin * l_) / (1 - dmin)
-                gly = glx
+                gux = (yu_ - dmin * u_ - 0.5) / (0.25 - dmin)
+                guy = 0.25 * gux + 0.5
+                glx = (yl_ - dmin * l_ - 0.5) / (0.25 - dmin)
+                gly = 0.25 * glx + 0.5
 
                 mu = (yl_ - guy) / (l_ - gux)
                 ml = (yu_ - gly) / (u_ - glx)

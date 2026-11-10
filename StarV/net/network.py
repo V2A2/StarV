@@ -26,6 +26,7 @@ import torch
 import numpy as np
 from typing import List, Union, Tuple, Optional
 from StarV.layer.ReLULayer import ReLULayer
+from StarV.layer.MixedActivationLayer import MixedActivationLayer
 from StarV.layer.FlattenLayer import FlattenLayer
 from StarV.layer.FullyConnectedLayer import FullyConnectedLayer
 from StarV.layer.Conv2DLayer import Conv2DLayer
@@ -168,17 +169,33 @@ def rand_ffnn(arch, actvs):
         if arch[i] <= 0:
             raise Exception('error: invalid number of neural at {}^th layer'.format(i+1))
 
+    supported_actvs = {
+        'poslin', 'relu', 'purelin', None,
+        'tansig', 'tanh', 'logsig', 'sigmoid',
+        'satlin', 'satlins'
+    }
     for i in range(0, len(actvs)):
-        if actvs[i] != 'poslin' and actvs[i] != 'relu' and actvs[i] != None:
+        if actvs[i] not in supported_actvs:
             raise Exception('error: {} is an unsupported/unknown activation function'.format(actvs[i]))
+
+    from StarV.layer.SatLinLayer import SatLinLayer
+    from StarV.layer.SatLinsLayer import SatLinsLayer
 
     layers = []
     for i in range(0, len(actvs)):
         W = np.random.rand(arch[i+1], arch[i])
         b = np.random.rand(arch[i+1])
         layers.append(FullyConnectedLayer([W, b]))
-        if actvs[i] == 'poslin' or actvs[i] == 'relu':
+        if actvs[i] in ('poslin', 'relu'):
             layers.append(ReLULayer())
+        elif actvs[i] in ('tansig', 'tanh'):
+            layers.append(TanSigLayer())
+        elif actvs[i] in ('logsig', 'sigmoid'):
+            layers.append(LogSigLayer())
+        elif actvs[i] == 'satlin':
+            layers.append(SatLinLayer())
+        elif actvs[i] == 'satlins':
+            layers.append(SatLinsLayer())
 
     return NeuralNetwork(layers, 'ffnn')
 
@@ -264,7 +281,7 @@ def reachApproxBFS(net, inputSet, p_filter=0.0, lp_solver='gurobi', pool=None, s
     for i in range(0, net.n_layers):
         if show:
             print('Computing layer {} {} reachable set...'.format(i, net.layers[i].__class__.__name__))
-        if isinstance(net.layers[i], ReLULayer):
+        if isinstance(net.layers[i], (ReLULayer, MixedActivationLayer)):
             S = net.layers[i].reach(
                 I, method='approx', lp_solver=lp_solver, pool=pool,
                 RF=RF, DR=DR, show=show, relu_approx_mode=relu_approx_mode

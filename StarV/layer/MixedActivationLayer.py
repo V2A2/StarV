@@ -26,8 +26,8 @@ import ipyparallel
 from StarV.set.probstar import ProbStar
 from StarV.set.star import Star
 from StarV.fun.poslin import PosLin
-# from StarV.fun.logsig import LogSig
-# from StarV.fun.tansig import TanSig
+from StarV.fun.logsig import LogSig
+from StarV.fun.tansig import TanSig
 from StarV.fun.leakyrelu import LeakyReLU
 from StarV.fun.satlin import SatLin
 from StarV.fun.satlins import SatLins
@@ -61,10 +61,10 @@ class MixedActivationLayer(object):
                 y[i] = x[i]
             elif actv_fun in ['poslin', 'relu']:
                 y[i] = PosLin.evaluate(x[i])
-            # elif actv_fun in ['logsig', 'sigmoid']:
-            #     y[i] = LogSig.evaluate(x[i])
-            # elif actv_fun in ['tansig', 'tanh']:
-            #     y[i] = TanSig.evaluate(x[i])
+            elif actv_fun in ['logsig', 'sigmoid']:
+                y[i] = LogSig.evaluate(x[i])
+            elif actv_fun in ['tansig', 'tanh']:
+                y[i] = TanSig.evaluate(x[i])
             elif actv_fun == 'leakyrelu':
                 y[i] = LeakyReLU.evaluate(x[i])
             elif actv_fun == 'satlin':
@@ -108,9 +108,7 @@ class MixedActivationLayer(object):
 
         assert isinstance(In, list), 'error: inputsets should be in a list'
         S = []
-        print(pool)
         if pool is None:
-            print("pool is none")
             for i in range(0, len(In)):
                 S.extend(self.reachExactSingleInput(In[i], lp_solver))
         elif isinstance(pool, multiprocessing.pool.Pool):
@@ -175,21 +173,110 @@ class MixedActivationLayer(object):
 
         return S
     
-    def reach(self, In, method='exact', lp_solver='gurobi', pool=None, RF=0.0, DR=0, show=False):
+    def reachApproxSingleInput(self, In, lp_solver='gurobi', RF=0.0, relu_approx_mode='analytic_gaussian', show=False):
+        """
+        Approximate reachability on a single Star or ProbStar with mixed neuron activations.
+        Groups neurons by activation type, applies vectorized stepReachApprox to each group,
+        and reassembles the full state basis while preserving predicate extensions and env_dag.
+        """
+        if not isinstance(In, (ProbStar, Star)):
+            raise Exception(f'error: input is not a Star or ProbStar, type of input is {type(In)}')
+
+        cur = In.clone()
+        dim = cur.dim
+        assert len(self.actv_fun) == dim, 'error: dimension of input should match length of actv_fun'
+
+        # Group indices by canonical activation name in deterministic order
+        groups = [
+            ('poslin', [i for i, a in enumerate(self.actv_fun) if a in ('poslin', 'relu')]),
+            ('leakyrelu', [i for i, a in enumerate(self.actv_fun) if a == 'leakyrelu']),
+            ('satlin', [i for i, a in enumerate(self.actv_fun) if a == 'satlin']),
+            ('satlins', [i for i, a in enumerate(self.actv_fun) if a == 'satlins']),
+            ('tansig', [i for i, a in enumerate(self.actv_fun) if a in ('tansig', 'tanh')]),
+            ('logsig', [i for i, a in enumerate(self.actv_fun) if a in ('logsig', 'sigmoid')]),
+        ]
+        supported = {'purelin', 'poslin', 'relu', 'leakyrelu', 'satlin', 'satlins', 'tansig', 'tanh', 'logsig', 'sigmoid'}
+        for a in self.actv_fun:
+            if a not in supported:
+                raise Exception(f'error: {a} activation function is not supported')
+
+        for act_name, idx_list in groups:
+            if not idx_list:
+                continue
+            idx_arr = np.asarray(idx_list, dtype=int)
+            V_sub = cur.V[idx_arr, :].copy()
+            if isinstance(cur, ProbStar):
+                sub_set = cur.with_updated_state(V=V_sub)
+            else:
+                sub_set = Star(V_sub, cur.C, cur.d, cur.pred_lb, cur.pred_ub)
+
+            if act_name == 'poslin':
+                out_sub = PosLin.stepReachApprox(
+                    In=sub_set, lp_solver=lp_solver, RF=RF,
+                    relu_approx_mode=relu_approx_mode, show=show
+                )
+            elif act_name == 'leakyrelu':
+                out_sub = LeakyReLU.stepReachApprox(
+                    In=sub_set, lp_solver=lp_solver, RF=RF, show=show
+                )
+            elif act_name == 'satlin':
+                out_sub = SatLin.reachApprox(
+                    In=sub_set, lp_solver=lp_solver, show=show
+                )
+            elif act_name == 'satlins':
+                out_sub = SatLins.reachApprox(
+                    In=sub_set, lp_solver=lp_solver, show=show
+                )
+            elif act_name == 'tansig':
+                out_sub = TanSig.reachApprox_star(
+                    I=sub_set, lp_solver=lp_solver, RF=RF
+                )
+            elif act_name == 'logsig':
+                out_sub = LogSig.reachApprox_star(
+                    I=sub_set, lp_solver=lp_solver, RF=RF
+                )
+
+            V_full = cur.padBasisMatrix(out_sub.nVars)
+            V_full[idx_arr, :] = out_sub.V
+            if isinstance(out_sub, ProbStar):
+                cur = out_sub.with_updated_state(V=V_full)
+            else:
+                cur = Star(V_full, out_sub.C, out_sub.d, out_sub.pred_lb, out_sub.pred_ub)
+
+        return cur
+
+    def reach(
+        self, In, method='exact', lp_solver='gurobi', pool=None,
+        RF=0.0, DR=0, show=False, relu_approx_mode='analytic_gaussian'
+    ):
         """main reachability method
            Args:
-               @I: a list of input set (Star or ProbStar)
+               @I: a list of input set (Star or ProbStar) or a single Star/ProbStar
                @method: method: 'exact', 'approx', or 'relax'
                @lp_solver: lp solver: 'gurobi' (default), 'glpk', or 'linprog'
                @pool: parallel pool: None or multiprocessing.pool.Pool
                @RF: relax-factor from 0 to 1 (0 by default)
 
             Return: 
-               @R: a list of reachable set
+               @R: a list of reachable set or a single reachable set
         """
 
         if method == 'exact':
             return self.reachExactMultiInputs(In, lp_solver, pool)
+        elif method in ('approx', 'relax'):
+            if isinstance(In, list):
+                return [
+                    self.reachApproxSingleInput(
+                        s, lp_solver=lp_solver, RF=RF,
+                        relu_approx_mode=relu_approx_mode, show=show
+                    )
+                    for s in In
+                ]
+            else:
+                return self.reachApproxSingleInput(
+                    In, lp_solver=lp_solver, RF=RF,
+                    relu_approx_mode=relu_approx_mode, show=show
+                )
         else:
             raise Exception(f'error: {method} reachability method is not supported')
         

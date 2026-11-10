@@ -1120,6 +1120,14 @@ class DynamicFormula(object):
             
         assert isinstance(probstar_sig, list), 'error: probstar signal should be a list'
         T = len(probstar_sig)
+        if T == 0:
+            return CDNF([], ProbStar())
+
+        # If nVars increases along the trace (e.g. raw approximate ProbStar trace), use the final/max ProbStar as base
+        nVars_list = [p.nVars for p in probstar_sig]
+        if len(set(nVars_list)) > 1:
+            return self.realization_for_RNN(probstar_sig)
+
         constraints = []
         base_probstar = copy.deepcopy(probstar_sig[0])
         nVars = base_probstar.nVars
@@ -1134,15 +1142,16 @@ class DynamicFormula(object):
                     d = None
                     break
                 else:  
+                    d_i = Pi.b - np.matmul(Pi.A, probstar_sig[Pi.t].V[:, 0])
+                    C_i = np.matmul(Pi.A, probstar_sig[Pi.t].V[:, 1:nVars+1])
+                    if C_i.ndim == 1:
+                        C_i = C_i.reshape(1, nVars)
                     if C is None:
-                        d = Pi.b - np.matmul(Pi.A,  probstar_sig[Pi.t].V[:,0])
-                        C = np.matmul(Pi.A, probstar_sig[Pi.t].V[:, 1:nVars+1])
+                        d = d_i
+                        C = C_i
                     else:
-                        d1 = Pi.b - np.matmul(Pi.A,  probstar_sig[Pi.t].V[:,0])
-                        C1 = np.matmul(Pi.A,  probstar_sig[Pi.t].V[:, 1:nVars+1])
-
-                        C = np.vstack((C, C1))
-                        d = np.concatenate((d, d1))
+                        C = np.vstack((C, C_i))
+                        d = np.concatenate((d, d_i))
 
             if C is not None:
                 if len(base_probstar.C) != 0:
@@ -1165,6 +1174,208 @@ class DynamicFormula(object):
         cdnf = CDNF(constraints, base_probstar)
 
         return cdnf
+
+    def realization_initial_space_duals(self, probstar_sig):
+        """
+        Realize a DynamicFormula on an approximate ProbStar trace [X_0, X_1, ..., X_T]
+        into a pair of Computable DNFs (cdnf_outer, cdnf_inner) in the low-dimensional
+        initial predicate space R^{nVars0} via horizon-wide envelope back-substitution.
+
+        Guarantees:
+            P(cdnf_inner) <= P(trace |= phi) <= P(cdnf_outer)
+        with all Gaussian polytope integrations performed in R^{nVars0} instead of R^{nVars_T}.
+        """
+        from StarV.set.probsparse_base import backsubstitute_linear_bounds
+
+        assert isinstance(probstar_sig, list) and len(probstar_sig) > 0, 'error: probstar_sig must be a non-empty list'
+        T = len(probstar_sig)
+        last_ps = probstar_sig[-1]
+        n0 = int(last_ps.nVars0)
+        mu0 = np.asarray(last_ps.mu0, dtype=np.float64)
+        Sig0 = np.asarray(last_ps.Sig0, dtype=np.float64)
+        if Sig0.ndim == 1:
+            Sig0 = np.diag(np.maximum(Sig0, 1e-12))
+        lb0 = np.asarray(last_ps.pred_lb0, dtype=np.float64)
+        ub0 = np.asarray(last_ps.pred_ub0, dtype=np.float64)
+
+        V0 = probstar_sig[0].V[:, :n0 + 1].copy()
+        C_sig0 = probstar_sig[0].C
+        d_sig0 = probstar_sig[0].d
+        if len(C_sig0) > 0 and C_sig0.shape[1] >= n0:
+            if C_sig0.shape[1] > n0:
+                init_mask = np.all(np.abs(C_sig0[:, n0:]) <= 1e-14, axis=1)
+                C0_init = C_sig0[init_mask, :n0].copy() if np.any(init_mask) else np.array([])
+                d0_init = d_sig0[init_mask].copy() if np.any(init_mask) else np.array([])
+            else:
+                C0_init = C_sig0.copy()
+                d0_init = d_sig0.copy()
+        else:
+            C0_init = np.array([])
+            d0_init = np.array([])
+        base_ps0 = ProbStar(V0, C0_init, d0_init, mu0, Sig0, lb0, ub0, copy_=False, check_psd=False)
+
+        max_nVars = max(p.nVars for p in probstar_sig)
+        base_ext = probstar_sig[-1]
+
+        outer_constraints = []
+        inner_constraints = []
+        sensitivity_w0 = np.zeros(n0, dtype=np.float64)
+
+        for P in self.F:
+            C_ext_list = []
+            d_ext_list = []
+            C_outer_list = []
+            d_outer_list = []
+            C_inner_list = []
+            d_inner_list = []
+            valid_clause = True
+            inner_feasible = True
+
+            for Pi in P:
+                if Pi.t >= T:
+                    valid_clause = False
+                    break
+                ps_t = probstar_sig[Pi.t]
+                c_t, V_t = ps_t.get_c_V()
+                A_mat = np.atleast_2d(np.asarray(Pi.A, dtype=np.float64))
+                b_vec = np.asarray(Pi.b, dtype=np.float64).reshape(-1)
+
+                # Extended-space constraint for LP feasibility check
+                C_t = A_mat @ V_t
+                if C_t.shape[1] < max_nVars:
+                    C_t = np.hstack([C_t, np.zeros((C_t.shape[0], max_nVars - C_t.shape[1]))])
+                d_t = b_vec - (A_mat @ c_t)
+                C_ext_list.append(C_t)
+                d_ext_list.append(d_t)
+
+                # Back-substitute A_mat @ x_t - b_vec <= 0 to initial predicate space R^{n0}
+                env_dag_t = ps_t.env_dag if len(ps_t.env_dag) > 0 else last_ps.env_dag
+                d_lb0, W_lb0, d_ub0, W_ub0 = backsubstitute_linear_bounds(
+                    c_t, V_t, env_dag_t, n0, U=A_mat, u_spec=b_vec
+                )
+                sensitivity_w0 += np.sum(np.abs(W_ub0 - W_lb0), axis=0)
+
+                # Interval check on [lb0, ub0]
+                W_lb_pos = np.maximum(W_lb0, 0.0)
+                W_lb_neg = np.minimum(W_lb0, 0.0)
+                min_z_under = d_lb0 + W_lb_pos @ lb0 + W_lb_neg @ ub0
+                if np.any(min_z_under > 0.0):
+                    valid_clause = False
+                    break
+
+                W_ub_pos = np.maximum(W_ub0, 0.0)
+                W_ub_neg = np.minimum(W_ub0, 0.0)
+                min_z_over = d_ub0 + W_ub_pos @ lb0 + W_ub_neg @ ub0
+                if np.any(min_z_over > 0.0):
+                    inner_feasible = False
+
+                C_outer_list.append(W_lb0)
+                d_outer_list.append(-d_lb0)
+                C_inner_list.append(W_ub0)
+                d_inner_list.append(-d_ub0)
+
+            if not valid_clause or len(C_ext_list) == 0:
+                continue
+
+            # Extended-space LP feasibility pruning over the full relaxation polytope
+            C_ext = np.vstack(C_ext_list)
+            d_ext = np.concatenate(d_ext_list)
+            if len(base_ext.C) > 0:
+                C_ext_Base = base_ext.C
+                if C_ext_Base.shape[1] < max_nVars:
+                    C_ext_Base = np.hstack([C_ext_Base, np.zeros((C_ext_Base.shape[0], max_nVars - C_ext_Base.shape[1]))])
+                C_check = np.vstack([C_ext, C_ext_Base])
+                d_check = np.concatenate([d_ext, base_ext.d])
+            else:
+                C_check = C_ext
+                d_check = d_ext
+
+            V_ext_dummy = base_ext.padBasisMatrix(max_nVars)
+            S_ext = ProbStar(
+                V_ext_dummy, C_check, d_check, base_ext.mu, base_ext.Sig,
+                base_ext.pred_lb, base_ext.pred_ub, copy_=False, check_psd=False
+            )
+            if S_ext.isEmptySet():
+                continue
+
+            # Outer clause in R^{n0}
+            C_out0 = np.vstack(C_outer_list)
+            d_out0 = np.concatenate(d_outer_list)
+            C_out_check = np.vstack([C_out0, C0_init]) if len(C0_init) > 0 else C_out0
+            d_out_check = np.concatenate([d_out0, d0_init]) if len(d0_init) > 0 else d_out0
+            S_out0 = ProbStar(V0, C_out_check, d_out_check, mu0, Sig0, lb0, ub0, copy_=False, check_psd=False)
+            if not S_out0.isEmptySet():
+                outer_constraints.append([C_out0, d_out0])
+
+            # Inner clause in R^{n0}
+            if inner_feasible:
+                C_in0 = np.vstack(C_inner_list)
+                d_in0 = np.concatenate(d_inner_list)
+                C_in_check = np.vstack([C_in0, C0_init]) if len(C0_init) > 0 else C_in0
+                d_in_check = np.concatenate([d_in0, d0_init]) if len(d0_init) > 0 else d_in0
+                S_in0 = ProbStar(V0, C_in_check, d_in_check, mu0, Sig0, lb0, ub0, copy_=False, check_psd=False)
+                if not S_in0.isEmptySet():
+                    inner_constraints.append([C_in0, d_in0])
+
+        cdnf_outer = CDNF(outer_constraints, base_ps0)
+        cdnf_inner = CDNF(inner_constraints, base_ps0)
+        return cdnf_outer, cdnf_inner, sensitivity_w0
+
+    def evaluate_approx(self, probstar_sig):
+        """
+        Evaluate a DynamicFormula on an approximate ProbStar trajectory [X_0, ..., X_T]
+        using initial-space dual CDNF envelopes in R^{nVars0}.
+        Returns (SAT_outer, p_SAT_MAX, p_SAT_MIN, cdnf_outer.length).
+        """
+        cdnf_outer, cdnf_inner, _ = self.realization_initial_space_duals(probstar_sig)
+        p_trace = float(cdnf_outer.base_probstar.estimateProbability())
+
+        def _eval_cdnf_bounds(cdnf_obj, p_cap):
+            m_cl = cdnf_obj.length
+            if m_cl == 0:
+                return [], 0.0, 0.0
+            sat_single = [float(cdnf_obj.estimateProbability((i,))) for i in range(m_cl)]
+            max_ie = 7
+            if m_cl <= max_ie:
+                p_ie = 0.0
+                N_idx = range(m_cl)
+                for i in range(m_cl):
+                    for j in combinations(N_idx, i + 1):
+                        p_ie += ((-1) ** i) * float(cdnf_obj.estimateProbability(j))
+                p_ie = float(np.clip(p_ie, max(sat_single), p_cap))
+                return sat_single, p_ie, p_ie
+            # Sort clauses by descending probability; exact IE on top-k + Hunter/residual bound on tail
+            order = np.argsort(-np.asarray(sat_single))
+            k_top = 6
+            top_ids = [int(order[r]) for r in range(k_top)]
+            tail_ids = [int(order[r]) for r in range(k_top, m_cl)]
+            p_top = 0.0
+            for i in range(k_top):
+                for sub in combinations(top_ids, i + 1):
+                    p_top += ((-1) ** i) * float(cdnf_obj.estimateProbability(tuple(sorted(sub))))
+            p_top = float(np.clip(p_top, max(sat_single), p_cap))
+            rem_ub = 0.0
+            for t_id in tail_ids:
+                p_t = sat_single[t_id]
+                if p_t <= 1e-12:
+                    continue
+                # P(A_t \ U_{j in top} A_j) <= min_{j in top} (P(A_t) - P(A_t n A_j))
+                best_rem = p_t
+                for j_id in top_ids[:3]:
+                    pair = tuple(sorted((t_id, j_id)))
+                    p_pair = float(cdnf_obj.estimateProbability(pair))
+                    best_rem = min(best_rem, max(0.0, p_t - p_pair))
+                    if best_rem <= 1e-10:
+                        break
+                rem_ub += best_rem
+            p_lb = p_top
+            p_ub = float(np.clip(p_top + rem_ub, p_lb, p_cap))
+            return sat_single, p_lb, p_ub
+
+        SAT_outer, _, p_SAT_MAX = _eval_cdnf_bounds(cdnf_outer, p_trace)
+        SAT_inner, p_SAT_MIN, _ = _eval_cdnf_bounds(cdnf_inner, p_SAT_MAX)
+        p_SAT_MIN = float(np.clip(p_SAT_MIN, 0.0, p_SAT_MAX))
+        return SAT_outer, p_SAT_MAX, p_SAT_MIN, cdnf_outer.length
 
     def realization_for_RNN(self, branch_signal):
         """Realization for RNN branch_signal where each timestep has independent  set as input set.
@@ -1262,6 +1473,8 @@ class DynamicFormula(object):
         'evaluate the satisfaction of the abtract-timed dyanmic formula on a probstar signal'
 
         # last update: Dung Tran, 7/4/2024
+        if len(probstar_sig) > 0 and getattr(probstar_sig[-1], 'env_dag', None) and len(probstar_sig[-1].env_dag) > 0:
+            return self.evaluate_approx(probstar_sig)
 
         print('Realizing Abstract DNF specification on a ProbStar Signal...')
         cdnf = self.realization(probstar_sig)
@@ -1362,6 +1575,14 @@ class DynamicFormula(object):
     def evaluate_for_full_analysis(self, probstar_sig):
         'evaluate the satisfaction of the abtract-timed dyanmic formula on a probstar signal'
         # last update: Dung Tran, 7/4/2024
+        if len(probstar_sig) > 0 and getattr(probstar_sig[-1], 'env_dag', None) and len(probstar_sig[-1].env_dag) > 0:
+            cdnf_outer, cdnf_inner, _ = self.realization_initial_space_duals(probstar_sig)
+            _, p_SAT_MAX, p_SAT_MIN, _ = self.evaluate_approx(probstar_sig)
+            p_ig = 0.0
+            cdnf_SAT = cdnf_outer if cdnf_outer.length > 0 else []
+            cdnf_IG = []
+            sat_trace = [probstar_sig, cdnf_outer] if cdnf_outer.length > 0 else []
+            return p_SAT_MAX, p_SAT_MIN, p_ig, cdnf_SAT, cdnf_IG, sat_trace
 
         print('Realizing Abstract DNF specification on a ProbStar Signal...')
         cdnf = self.realization(probstar_sig)

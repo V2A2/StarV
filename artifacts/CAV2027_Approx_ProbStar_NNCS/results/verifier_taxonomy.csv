@@ -1,0 +1,6 @@
+Verifier,Paradigm,Sound_Guarantee,Quant_Prob_Bounds,Smooth_Mixed_Ctrl,MultiNet_DynNN,dProbStarTL,Anytime_CEGAR
+NNV / CORA / POLAR / Verisig 2.0,Qualitative Over-Approx,Yes,No,Yes,Yes,No,No
+StarV Exact ProbStar,Quantitative Exact Split,Yes,Exact p*,No (ReLU only),Yes,Yes (O(2^sum u_t)),No
+StarV Filtered ProbStar,Quantitative Branch Pruning,Yes,"Loose [p_lb, p_ub]",No (ReLU only),Yes,Yes (High-dim MVN),No
+Monte Carlo Sampling,Statistical Empirical,No,Empirical CI,Yes,Yes,Empirical,No
+StarV Approx-ProbStar + CEGAR [Ours],Quantitative Envelope + R^{n0} CEGAR,Yes,"Tight [p_min, p_max] + p_hat",Yes (TanSig/LogSig/Mixed),Yes (DLNNCS/ACC/AEBS/DynNN),Yes (Single-Trace R^{n0}),Yes (Anytime -> 0)

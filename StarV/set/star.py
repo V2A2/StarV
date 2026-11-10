@@ -632,6 +632,57 @@ class Star(object):
             return Star(newV, self.C, self.d, self.pred_lb, self.pred_ub)
         else:
             return self
+
+    def concatenate(self, X):
+        """Concatenate a Star with another independent Star."""
+        assert isinstance(X, Star), f'error: input X should be a Star but received {type(X)}'
+
+        c1 = np.concatenate([self.V[:, 0], X.V[:, 0]])[:, None]
+        V1 = block_diag(self.V[:, 1:], X.V[:, 1:])
+        new_V = np.hstack([c1, V1])
+
+        if len(self.d) == 0 and len(X.d) == 0:
+            new_C = np.array([])
+            new_d = np.array([])
+        else:
+            C1 = np.empty([0, self.nVars]) if len(self.d) == 0 else self.C
+            C2 = np.empty([0, X.nVars]) if len(X.d) == 0 else X.C
+            new_C = block_diag(C1, C2)
+
+            d1 = np.empty(0) if len(self.d) == 0 else self.d
+            d2 = np.empty(0) if len(X.d) == 0 else X.d
+            new_d = np.concatenate([d1, d2])
+
+        new_pred_lb = np.concatenate([self.pred_lb, X.pred_lb])
+        new_pred_ub = np.concatenate([self.pred_ub, X.pred_ub])
+        return Star(new_V, new_C, new_d, new_pred_lb, new_pred_ub)
+
+    def padBasisMatrix(self, target_nVars, rows=None):
+        """Return basis matrix V (or selected rows) right-padded with zeros to target_nVars predicate columns."""
+        assert target_nVars >= self.nVars, (
+            f'error: target_nVars ({target_nVars}) must be >= current nVars ({self.nVars})'
+        )
+        V_sub = self.V if rows is None else self.V[rows, :]
+        if V_sub.ndim == 1:
+            V_sub = V_sub.reshape(1, -1)
+        if target_nVars == self.nVars:
+            return V_sub.copy()
+        pad_cols = target_nVars - self.nVars
+        return np.hstack([V_sub, np.zeros((V_sub.shape[0], pad_cols), dtype=V_sub.dtype)])
+
+    def stackWithSharedPrefix(self, other, self_rows=None):
+        """
+        Vertically stack state dimensions of `self` (or `self_rows`) and `other`
+        when `self` and `other` share a common ancestor predicate prefix
+        (e.g., plant state X_k with n_k predicates and controller output U_k with n_k + m predicates).
+        """
+        assert isinstance(other, Star), f'error: other must be a Star/ProbStar, got {type(other)}'
+        target_nVars = max(self.nVars, other.nVars)
+        V_top = self.padBasisMatrix(target_nVars, rows=self_rows)
+        V_bot = other.padBasisMatrix(target_nVars)
+        V_new = np.vstack([V_top, V_bot])
+        carrier = other if other.nVars >= self.nVars else self
+        return Star(V_new, carrier.C, carrier.d, carrier.pred_lb, carrier.pred_ub)
         
 
     def isEmptySet(self, lp_solver='gurobi'):

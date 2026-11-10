@@ -252,9 +252,10 @@ class LODE(object):
                 if isinstance(U1, np.ndarray):
                     Xt = X1.affineMap(b=U1)
                 else:
-                    newV = X1.V + U1.V
+                    target_nVars = max(X1.nVars, U1.nVars)
+                    newV = X1.padBasisMatrix(target_nVars) + U1.padBasisMatrix(target_nVars)
                     if isinstance(U1, ProbStar):
-                        Xt = ProbStar(newV, U1.C, U1.d, U1.mu, U1.Sig, U1.pred_lb, U1.pred_ub)
+                        Xt = U1.with_updated_state(V=newV)
                     else:
                         Xt = Star(newV, U1.C, U1.d, U1.pred_lb, U1.pred_ub)
             else:

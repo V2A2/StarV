@@ -281,6 +281,7 @@ The [`artifacts/`](./artifacts) directory contains experimental benchmarks and e
 | [`artifacts/NAHS2024_LeCPS`](./artifacts/NAHS2024_LeCPS) | **NAHS 2026**: *Quantitative Verification of Learning-enabled Systems using ProbStar Reachability* |
 | [`artifacts/TACAS2027_RNN`](./artifacts/TACAS2027_RNN) | **TACAS 2027**: ProbStar reachability and temporal verification of RNNs on CMAPSS & LIMO benchmarks |
 | [`artifacts/CAV2027_Approx_ProbStar`](./artifacts/CAV2027_Approx_ProbStar) | **Approx ProbStar & CROWN**: Scalable quantitative verification with sparse ProbStar & CROWN relaxation |
+| [`artifacts/CAV2027_Approx_ProbStar_NNCS`](./artifacts/CAV2027_Approx_ProbStar_NNCS) | **Approx ProbStar NNCS**: Closed-loop approximate ProbStar reachability, initial-space `dProbStarTL`, and CEGAR for NNCS |
 | [`artifacts/ICML2027_ProbStar_Abstract_Rendering`](./artifacts/ICML2027_ProbStar_Abstract_Rendering) | **ProbStar Abstract Rendering**: Analytic pinhole, 3DGS, and NeRF abstract rendering for vision certification |
 | [`artifacts/FSE2027_StarTL`](./artifacts/FSE2027_StarTL) | **StarTL**: Quantitative robustness intervals & satisfaction fractions for ACC, AEBS, CMAPSS, and LIMO |
 | [`artifacts/HSCC2023_ProbStar`](./artifacts/HSCC2023_ProbStar) | **HSCC 2023**: *Quantitative Verification for Neural Networks using ProbStars* |

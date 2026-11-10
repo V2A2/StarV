@@ -708,6 +708,74 @@ def backsubstitute_separate_linear_bounds(d_lb, W_lb, d_ub, W_ub, env_dag, nVars
     return d_lb, W_lb, d_ub, W_ub
 
 
+def _eval_lowdim_initial_polytope_prob(W0, d0, min_z, max_z, mu0, Sig0, lb0, ub0, p_input):
+    """
+    Exact Gaussian measure of the initial-space polytope:
+        P_0 = { alpha_0 in [lb0, ub0] : W0 @ alpha_0 + d0 <= 0 }
+    under alpha_0 ~ N(mu0, Sig0) for low-dimensional initial state spaces (nVars0 <= 12).
+    """
+    if np.any(min_z > 0.0):
+        return 0.0
+    if np.all(max_z <= 0.0):
+        return float(p_input)
+
+    n0 = len(mu0)
+    act = (min_z <= 0.0) & (max_z > 0.0) & (np.linalg.norm(W0, axis=1) > 1e-12)
+    if not np.any(act):
+        return float(p_input)
+
+    C_act = np.asarray(W0[act], dtype=np.float64)
+    d_act = -np.asarray(d0[act], dtype=np.float64)
+
+    # If multiple active halfspaces, check LP feasibility over [lb0, ub0]
+    if C_act.shape[0] > 1:
+        try:
+            from scipy.optimize import linprog
+            res = linprog(
+                np.zeros(n0),
+                A_ub=C_act,
+                b_ub=d_act,
+                bounds=list(zip(lb0, ub0)),
+                method='highs',
+            )
+            if not res.success:
+                return 0.0
+        except Exception:
+            pass
+
+    Sig0_mat = np.diag(np.maximum(Sig0, _MIN_VAR)) if Sig0.ndim == 1 else Sig0
+    # Filter fixed coordinates (ub0 == lb0)
+    free = (ub0 - lb0) > 1e-12
+    if not np.any(free):
+        val = C_act @ lb0
+        return float(p_input) if np.all(val <= d_act + 1e-12) else 0.0
+
+    if not np.all(free):
+        fixed_offset = C_act[:, ~free] @ lb0[~free]
+        C_use = C_act[:, free]
+        d_use = d_act - fixed_offset
+        lb_use = lb0[free]
+        ub_use = ub0[free]
+        mu_use = mu0[free]
+        Sig_use = Sig0_mat[np.ix_(free, free)]
+    else:
+        C_use = C_act
+        d_use = d_act
+        lb_use = lb0
+        ub_use = ub0
+        mu_use = mu0
+        Sig_use = Sig0_mat
+
+    from StarV.set.probstar import ProbStar
+    V_dummy = np.hstack([np.zeros((len(mu_use), 1)), np.eye(len(mu_use))])
+    P0 = ProbStar(
+        V_dummy, C_use, d_use, mu_use, Sig_use, lb_use, ub_use,
+        copy_=False, check_psd=False
+    )
+    prob = float(P0.estimateProbability())
+    return float(np.clip(prob, 0.0, p_input))
+
+
 def verify_prob_spec(
     star_set,
     unsafe_mat,
@@ -917,6 +985,23 @@ def verify_prob_spec(
     p_min = float(np.clip(p_input * cond_p_min, 0.0, p_input))
     p_max = float(np.clip(p_input * cond_p_max, p_min, p_input))
 
+    # For low-dimensional initial state spaces (e.g., NNCS where nVars0 <= 12),
+    # evaluate the exact Gaussian measure of the inner and outer polytopes in R^{nVars0}
+    if star_set.nVars0 <= 12 and K_spec <= 8:
+        try:
+            p_max_exact0 = _eval_lowdim_initial_polytope_prob(
+                W_lb0, d_lb0, min_z_under, max_z_under, mu0, Sig0, lb0, ub0, p_input
+            )
+            p_min_exact0 = _eval_lowdim_initial_polytope_prob(
+                W_ub0, d_ub0, min_z_over, max_z_over, mu0, Sig0, lb0, ub0, p_input
+            )
+            p_min = float(np.clip(p_min_exact0, 0.0, p_input))
+            p_max = float(np.clip(max(p_max_exact0, p_min), p_min, p_input))
+            cond_p_min = float(np.clip(p_min / max(p_input, 1e-15), 0.0, 1.0))
+            cond_p_max = float(np.clip(p_max / max(p_input, 1e-15), cond_p_min, 1.0))
+        except Exception:
+            pass
+
     # Stage 2b: Extended-Predicate Analytic Moment-Matched Probability Estimate p_hat
     mu_z_ext, var_z_ext, V_Sig_ext = compute_preactivation_moments(
         W_spec, d_spec, star_set.mu, star_set.Sig, cov_mode=star_set.cov_mode
@@ -948,4 +1033,5 @@ def verify_prob_spec(
         'cond_p_min': cond_p_min,
         'cond_p_max': cond_p_max,
         'cond_p_hat': cond_p_hat,
+        'sensitivity_w0': np.sum(np.abs(W_ub0 - W_lb0), axis=0),
     }

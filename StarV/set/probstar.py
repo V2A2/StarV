@@ -897,6 +897,120 @@ class ProbStar(object):
 
         return ProbStar(new_V, new_C, new_d, new_mu, new_Sig, new_pred_lb, new_pred_ub)
 
+    def padBasisMatrix(self, target_nVars, rows=None):
+        """Return basis matrix V (or selected rows) right-padded with zeros to target_nVars predicate columns."""
+        assert target_nVars >= self.nVars, (
+            f'error: target_nVars ({target_nVars}) must be >= current nVars ({self.nVars})'
+        )
+        V_sub = self.V if rows is None else self.V[rows, :]
+        if V_sub.ndim == 1:
+            V_sub = V_sub.reshape(1, -1)
+        if target_nVars == self.nVars:
+            return V_sub.copy()
+        pad_cols = target_nVars - self.nVars
+        return np.hstack([V_sub, np.zeros((V_sub.shape[0], pad_cols), dtype=V_sub.dtype)])
+
+    def stackWithSharedPrefix(self, other, self_rows=None):
+        """
+        Vertically stack state dimensions of `self` (or `self_rows`) and `other`
+        when `self` and `other` share a common ancestor predicate prefix
+        (e.g., plant state X_k with n_k predicates and controller output U_k with n_k + m predicates).
+        Preserves the extended predicate constraints, moments, env_dag, and root initial distribution.
+        """
+        assert isinstance(other, ProbStar), f'error: other must be a ProbStar, got {type(other)}'
+        target_nVars = max(self.nVars, other.nVars)
+        V_top = self.padBasisMatrix(target_nVars, rows=self_rows)
+        V_bot = other.padBasisMatrix(target_nVars)
+        V_new = np.vstack([V_top, V_bot])
+        if other.nVars > self.nVars or (other.nVars == self.nVars and len(other.env_dag) >= len(self.env_dag)):
+            carrier = other
+        else:
+            carrier = self
+        return carrier.with_updated_state(V=V_new)
+
+    def splitInitialPredicates(self, dim_idx=None, split_point=None, weights=None, use_conditional_moments=True):
+        """
+        Split an initial ProbStar X_0 along one coordinate of its initial predicate box
+        [pred_lb0, pred_ub0] in R^{nVars0} into two disjoint child ProbStars (X_left, X_right).
+
+        Preserves parent Gaussian measure parameters (mu0, Sig0) so that:
+            P_input(X_left) + P_input(X_right) == P_input(X_0)
+        while updating forward moments (mu, Sig) to conditional truncated-Gaussian moments on each sub-box.
+        """
+        from StarV.set.probsparse_base import compute_truncated_gaussian_moments_1d
+
+        lb0 = np.asarray(self.pred_lb0, dtype=np.float64).copy()
+        ub0 = np.asarray(self.pred_ub0, dtype=np.float64).copy()
+        widths = np.maximum(ub0 - lb0, 0.0)
+        var0_vec = self.Sig0 if self.Sig0.ndim == 1 else np.diag(self.Sig0)
+        std0_vec = np.sqrt(np.maximum(var0_vec, 1e-15))
+
+        if dim_idx is None:
+            if weights is not None:
+                w = np.asarray(weights, dtype=np.float64).ravel()[:self.nVars0]
+                scores = np.abs(w) * widths * std0_vec
+                if np.max(scores) <= 0.0:
+                    scores = widths * std0_vec
+            else:
+                scores = widths * std0_vec
+            dim_idx = int(np.argmax(scores))
+
+        l_j = float(lb0[dim_idx])
+        u_j = float(ub0[dim_idx])
+        if u_j - l_j <= 1e-12:
+            return [self.clone()]
+
+        if split_point is None:
+            mu_trunc_j, _ = compute_truncated_gaussian_moments_1d(
+                np.array([self.mu0[dim_idx]]),
+                np.array([var0_vec[dim_idx]]),
+                np.array([l_j]),
+                np.array([u_j]),
+            )
+            # Clamp to [0.35, 0.65] of interval to ensure balanced geometric reduction
+            s_j = float(np.clip(mu_trunc_j[0], l_j + 0.35 * (u_j - l_j), l_j + 0.65 * (u_j - l_j)))
+        else:
+            s_j = float(split_point)
+
+        children = []
+        for sub_l, sub_u in ((l_j, s_j), (s_j, u_j)):
+            lb_c = lb0.copy()
+            ub_c = ub0.copy()
+            lb_c[dim_idx] = sub_l
+            ub_c[dim_idx] = sub_u
+
+            if use_conditional_moments and self.nVars == self.nVars0:
+                mu_c, var_c = compute_truncated_gaussian_moments_1d(self.mu0, var0_vec, lb_c, ub_c)
+                if self.Sig.ndim == 1:
+                    Sig_c = var_c
+                else:
+                    scale_c = np.sqrt(var_c / np.maximum(var0_vec, 1e-15))
+                    Sig_c = (self.Sig0 * scale_c[:, None]) * scale_c[None, :]
+            else:
+                mu_c = self.mu0.copy()
+                Sig_c = self.Sig0.copy()
+
+            child = ProbStar(
+                self.V[:, :self.nVars0 + 1].copy(),
+                self.C.copy() if len(self.C) > 0 else np.array([]),
+                self.d.copy() if len(self.d) > 0 else np.array([]),
+                mu_c,
+                Sig_c,
+                lb_c,
+                ub_c,
+                copy_=False,
+                cov_mode=self.cov_mode,
+                env_dag=[],
+                mu0=self.mu0.copy(),
+                Sig0=self.Sig0.copy(),
+                pred_lb0=lb_c.copy(),
+                pred_ub0=ub_c.copy(),
+                nVars0=self.nVars0,
+                check_psd=False,
+            )
+            children.append(child)
+        return children
+
     def get_c_V(self):
         """Return (c_flat, V_mat) where c_flat is (dim,) and V_mat is (dim, nVars)."""
         return self.V[:, 0], self.V[:, 1:self.nVars + 1]

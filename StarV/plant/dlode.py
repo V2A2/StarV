@@ -260,19 +260,28 @@ class DLODE(object):
 
                 else:
                     if subSetPredicate:
-                        VX = X11.V + U11.V
-                        if isinstance(U11, Star):
+                        target_nVars = max(X11.nVars, U11.nVars)
+                        VX = X11.padBasisMatrix(target_nVars) + U11.padBasisMatrix(target_nVars)
+                        if isinstance(U11, ProbStar):
+                            X1 = U11.with_updated_state(V=VX)
+                        else:
                             X1 = Star(VX, U11.C, U11.d, U11.pred_lb, U11.pred_ub)
-                        else:
-                            X1 = ProbStar(VX, U11.C, U11.d, U11.mu, U11.Sig, U11.pred_lb, U11.pred_ub)
                         if U12 is not None:
-                            VY = Y11.V + U12.V
-                            if isinstance(U12, Star):
-                                Y1 = Star(VY, U12.C, U12.d, U12.pred_lb, U12.pred_ub)
+                            target_y_nVars = max(Y11.nVars, U12.nVars)
+                            VY = Y11.padBasisMatrix(target_y_nVars) + U12.padBasisMatrix(target_y_nVars)
+                            if isinstance(U12, ProbStar):
+                                Y1 = U12.with_updated_state(V=VY)
                             else:
-                                Y1 = ProbStar(VY, U12.C, U12.d, U12.mu, U12.Sig, U12.pred_lb, U12.pred_ub)
+                                Y1 = Star(VY, U12.C, U12.d, U12.pred_lb, U12.pred_ub)
                         else:
-                            Y1 = Y11
+                            if Y11.nVars < U11.nVars:
+                                VY = Y11.padBasisMatrix(U11.nVars)
+                                if isinstance(U11, ProbStar):
+                                    Y1 = U11.with_updated_state(V=VY)
+                                else:
+                                    Y1 = Star(VY, U11.C, U11.d, U11.pred_lb, U11.pred_ub)
+                            else:
+                                Y1 = Y11
                     else:
                         X1 = X11.minKowskiSum(U11)
                         if U12 is not None:

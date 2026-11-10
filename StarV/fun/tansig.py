@@ -787,7 +787,7 @@ class TanSig(object):
 
         N = I.dim
 
-        if lp_solver == 'estimate':
+        if lp_solver == 'estimate' or RF == 1.0:
             l, u = I.estimateRanges()
         elif isinstance(I, ProbStar):
             l, u = I.getRanges(lp_solver=lp_solver)

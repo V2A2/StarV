@@ -49,6 +49,10 @@ class ReachPRM_NNCS(object):
         self.lpSolver = 'gurobi'
         self.show = True
         self.numCores = 1
+        self.RF = 1.0
+        self.DR = 0
+        self.relu_approx_mode = 'analytic_gaussian'
+        self.cov_mode = 'full'
 
 class ReachPRM_DYNNN_NNCS(object):
     'reachability parameters for NNCS'
@@ -62,6 +66,10 @@ class ReachPRM_DYNNN_NNCS(object):
         self.lpSolver = 'gurobi'
         self.show = True
         self.numCores = 1
+        self.RF = 1.0
+        self.DR = 0
+        self.relu_approx_mode = 'analytic_gaussian'
+        self.cov_mode = 'full'
 
 class VerifyPRM_NNCS(object):
     'reachability parameters for NNCS'
@@ -70,6 +78,7 @@ class VerifyPRM_NNCS(object):
         self.initSet = None
         self.numSteps = 1
         self.refInputs = []
+        self.method = 'exact-probstar'
         self.verifyMethod = 'Q2' # verification method, qualitative (Ql), quantitative (Qt) or Q2 (both Ql and Qt)
         self.pf = 0.0  # filtering probability if p_f> 0 -> approx-method is used
         self.lpSolver = 'gurobi'
@@ -82,6 +91,13 @@ class VerifyPRM_NNCS(object):
         #  self.computeProbMethod = 'approx' return the estimation of lower-bound of probability of satisfaction of a CDNF
         self.timeOut = np.inf # timeout for verification process
         self.MaxLengthCDNF = 11    # maximum allowable length for computing probability of satisfaction of a CDNF
+        self.RF = 1.0
+        self.DR = 0
+        self.relu_approx_mode = 'analytic_gaussian'
+        self.cov_mode = 'full'
+        self.use_lp_tightening = False
+        self.refine_max_splits = 0
+        self.refine_tol = 0.01
 
 class VerifyRes_NNCS(object):
 
@@ -100,6 +116,7 @@ class VerifyRes_NNCS(object):
         self.Qt_min = None # minimum lower bound quantitative result (for unbounded input set)
         self.Qt_max = None # maximum upper bound quantitative result (for unbounded input set)
         self.p_ignored = None # total ignored probability
+        self.num_partitions = 1 # number of initial-space partitions used
         
 
 class NNCS(object):
@@ -315,19 +332,78 @@ def simulate_DLNNCS(ncs, state_vec, ref_input_vec, numSteps):
     return X
 
 
-def stepSim_DLNNCS(ncs, state_vec, ref_input_vec):
+def stepSim_DLNNCS(ncs, state_vec, ref_input_vec=[]):
     'step simulation of DLNNCS'
 
     net = ncs.controller
     plant = ncs.plant
 
-    fb_y = np.matmul((plant.C, state_vec))
-    fb_input = np.vstack(fb_y, ref_input_vec)
-    u = net.evaluate(fb_input)
-    x = np.matmul(plant.A, state_vec) + np.matmul(plant.B, u)
+    x_vec = np.asarray(state_vec, dtype=np.float64).ravel()
+    fb_y = np.matmul(plant.C, x_vec)
+    if ref_input_vec is not None and len(ref_input_vec) > 0:
+        ref_vec = np.asarray(ref_input_vec, dtype=np.float64).ravel()
+        fb_input = np.concatenate([ref_vec, fb_y])
+    else:
+        fb_input = fb_y
+    u = np.asarray(net.evaluate(fb_input), dtype=np.float64).ravel()
+    A_mat = plant.A if hasattr(plant, 'A') and not hasattr(plant, 'gA') else (plant.gA if getattr(plant, 'gA', None) is not None else plant.A)
+    B_mat = plant.B if hasattr(plant, 'B') and not hasattr(plant, 'gB') else (plant.gB if getattr(plant, 'gB', None) is not None else plant.B)
+    x = np.matmul(A_mat, x_vec) + np.matmul(B_mat, u)
 
     return x
 
+
+
+def _eval_single_partition_approx_safety(ncs, init_set, reachPRM_base, verifyPRM):
+    """Run approximate reachability and two-stage spec verification on a single initial ProbStar partition."""
+    reachPRM = copy.deepcopy(reachPRM_base)
+    reachPRM.initSet = init_set
+    if isinstance(ncs, NNCS):
+        RX, p_ignored = reachBFS_DLNNCS(ncs, reachPRM)
+    elif isinstance(ncs, AEBS_NNCS):
+        RX, p_ignored = reachBFS_AEBS(ncs, reachPRM)
+    elif isinstance(ncs, DynNN_NNCS):
+        RX, p_ignored = reachBFS_DynNN_NNCS(ncs, reachPRM)
+    else:
+        raise RuntimeError('Unknown system')
+
+    n = len(RX)
+    p_min_vec = np.zeros(n, dtype=np.float64)
+    p_max_vec = np.zeros(n, dtype=np.float64)
+    p_hat_vec = np.zeros(n, dtype=np.float64)
+    n0 = init_set.nVars0
+    weights_acc = np.zeros(n0, dtype=np.float64)
+
+    unsafe_mat = verifyPRM.unsafeSpec[0]
+    unsafe_vec = verifyPRM.unsafeSpec[1]
+    use_lp = getattr(verifyPRM, 'use_lp_tightening', True)
+
+    for k in range(n):
+        for r_set in RX[k]:
+            spec_res = r_set.verifySpec(
+                unsafe_mat, unsafe_vec,
+                lp_solver=verifyPRM.lpSolver,
+                use_lp_tightening=use_lp
+            )
+            p_min_vec[k] += spec_res['p_min']
+            p_max_vec[k] += spec_res['p_max']
+            p_hat_vec[k] += spec_res['p_hat']
+            gap_k = max(0.0, spec_res['p_max'] - spec_res['p_min'])
+            if 'sensitivity_w0' in spec_res and gap_k > 0.0:
+                w0 = np.asarray(spec_res['sensitivity_w0'], dtype=np.float64).ravel()
+                if len(w0) == n0:
+                    weights_acc += gap_k * w0
+
+    return {
+        'init_set': init_set,
+        'RX': RX,
+        'p_ignored': p_ignored,
+        'p_min_vec': p_min_vec,
+        'p_max_vec': p_max_vec,
+        'p_hat_vec': p_hat_vec,
+        'gap': float(np.max(p_max_vec - p_min_vec)),
+        'weights': weights_acc,
+    }
 
 
 def verifyBFS_DLNNCS(ncs, verifyPRM):
@@ -339,12 +415,89 @@ def verifyBFS_DLNNCS(ncs, verifyPRM):
     reachPRM.initSet = copy.deepcopy(verifyPRM.initSet)
     reachPRM.numSteps = copy.deepcopy(verifyPRM.numSteps)
     reachPRM.refInputs = copy.deepcopy(verifyPRM.refInputs)
+    reachPRM.method = copy.deepcopy(getattr(verifyPRM, 'method', 'exact-probstar'))
     reachPRM.filterProb = copy.deepcopy(verifyPRM.pf)
     reachPRM.lpSolver = copy.deepcopy(verifyPRM.lpSolver)
     reachPRM.show = copy.deepcopy(verifyPRM.show)
     reachPRM.numCores = copy.deepcopy(verifyPRM.numCores)
-    
-   
+    reachPRM.RF = getattr(verifyPRM, 'RF', 0.0)
+    reachPRM.DR = getattr(verifyPRM, 'DR', 0)
+    reachPRM.relu_approx_mode = getattr(verifyPRM, 'relu_approx_mode', 'analytic_gaussian')
+    reachPRM.cov_mode = getattr(verifyPRM, 'cov_mode', 'full')
+
+    if reachPRM.method in ('approx-probstar', 'approx'):
+        pI = reachPRM.initSet.get_input_probability()
+        part0 = _eval_single_partition_approx_safety(ncs, reachPRM.initSet, reachPRM, verifyPRM)
+        partitions = [part0]
+
+        max_splits = int(getattr(verifyPRM, 'refine_max_splits', 0))
+        refine_tol = float(getattr(verifyPRM, 'refine_tol', 0.01))
+        splits_done = 0
+
+        while splits_done < max_splits:
+            total_p_min = sum(p['p_min_vec'] for p in partitions)
+            total_p_max = sum(p['p_max_vec'] for p in partitions)
+            max_total_gap = float(np.max(total_p_max - total_p_min))
+            if max_total_gap <= refine_tol:
+                break
+            # Pick partition with largest uncertainty gap
+            best_idx = int(np.argmax([p['gap'] for p in partitions]))
+            if partitions[best_idx]['gap'] <= 1e-12:
+                break
+            target_part = partitions.pop(best_idx)
+            children_init = target_part['init_set'].splitInitialPredicates(
+                weights=target_part['weights']
+            )
+            if len(children_init) < 2:
+                partitions.append(target_part)
+                break
+            for child_init in children_init:
+                partitions.append(
+                    _eval_single_partition_approx_safety(ncs, child_init, reachPRM, verifyPRM)
+                )
+            splits_done += 1
+
+        n = len(partitions[0]['RX'])
+        RX = []
+        CeIn = []
+        CeOut = []
+        Ql = []
+        Qt = []
+        Qt_lb = []
+        Qt_ub = []
+        Qt_max = []
+        p_ignored = [0.0] * n
+
+        for k in range(n):
+            Rk = []
+            for p in partitions:
+                Rk.extend(p['RX'][k])
+            RX.append(Rk)
+            pk_lb = float(np.clip(sum(p['p_min_vec'][k] for p in partitions), 0.0, pI))
+            pk_ub = float(np.clip(sum(p['p_max_vec'][k] for p in partitions), pk_lb, pI))
+            pk_hat = float(np.clip(sum(p['p_hat_vec'][k] for p in partitions), pk_lb, pk_ub))
+            Qlk = 1 if pk_ub > 0.0 else 0
+            CeIn.append([])
+            CeOut.append([])
+            Ql.append(Qlk)
+            Qt_lb.append(pk_lb)
+            Qt.append(pk_hat)
+            Qt_ub.append(pk_ub)
+            Qt_max.append(min(pk_ub + 1.0 - pI, 1.0))
+
+        res = VerifyRes_NNCS()
+        res.RX = RX
+        res.CeIn = CeIn
+        res.CeOut = CeOut
+        res.Ql = Ql
+        res.Qt = Qt
+        res.Qt_lb = Qt_lb
+        res.Qt_ub = Qt_ub
+        res.Qt_max = Qt_max
+        res.p_ignored = p_ignored
+        res.num_partitions = len(partitions)
+        return res
+
     # perform reachability analysis to compute the reachable sets
 
     if isinstance(ncs, NNCS):  
@@ -359,6 +512,7 @@ def verifyBFS_DLNNCS(ncs, verifyPRM):
     CeOut = [] # counterexample state set
     Ql = []  # qualitative results 0->UNSAT, 1->SAT, 2->Unknown
     Qt = []  # quantitative results, i.e., probability of violation (or SAT)
+    Qt_lb = [] # lower bound of probability of violation
     Qt_ub = [] # upper bound of probability of violation, if pf > 0 is used
     Qt_max = [] # maximum lower bound of probability of violation for unbounded input set (handling the tail)
 
@@ -376,8 +530,7 @@ def verifyBFS_DLNNCS(ncs, verifyPRM):
         p_ign_k = p_ignored[k]
 
         for i in range(0, len(Rk)):
-            Z1 = copy.deepcopy(Rk[i])
-            Z1.addMultipleConstraintsWithoutUpdateBounds(verifyPRM.unsafeSpec[0], verifyPRM.unsafeSpec[1])
+            Z1 = Rk[i].addMultipleConstraints(verifyPRM.unsafeSpec[0], verifyPRM.unsafeSpec[1], tighten_bounds=False)
             Ceki = ProbStar(verifyPRM.initSet.V, Z1.C, Z1.d, Z1.mu, Z1.Sig, Z1.pred_lb, Z1.pred_ub)          
             if not Ceki.isEmptySet():
                 Qlk = 1
@@ -389,6 +542,7 @@ def verifyBFS_DLNNCS(ncs, verifyPRM):
         CeIn.append(Cek)
         CeOut.append(Cok)
         Ql.append(Qlk)
+        Qt_lb.append(pk)
         Qt.append(pk)
         Qt_ub.append(min(pk + p_ign_k,1.0))
         Qt_max.append(min(pk + p_ign_k + 1 - pI, 1.0))
@@ -400,9 +554,11 @@ def verifyBFS_DLNNCS(ncs, verifyPRM):
     res.CeOut = CeOut
     res.Ql = Ql
     res.Qt = Qt
+    res.Qt_lb = Qt_lb
     res.Qt_ub = Qt_ub
     res.Qt_max = Qt_max
     res.p_ignored = p_ignored
+    res.num_partitions = 1
 
     return res
 
@@ -448,6 +604,11 @@ def stepReach_DLNNCS(ncs, Xi, reachPRM):
     filterProb = reachPRM.filterProb
     numCores = reachPRM.numCores
     lp_solver = reachPRM.lpSolver
+    method = getattr(reachPRM, 'method', 'exact-probstar')
+    RF = getattr(reachPRM, 'RF', 0.0)
+    DR = getattr(reachPRM, 'DR', 0)
+    relu_approx_mode = getattr(reachPRM, 'relu_approx_mode', 'analytic_gaussian')
+
     if hasattr(ncs, 'ncs'):
         net = ncs.ncs.controller
         plant = ncs.ncs.plant
@@ -471,16 +632,23 @@ def stepReach_DLNNCS(ncs, Xi, reachPRM):
     fb_I = Yi.concatenate_with_vector(refInputs)
     p_ig = 0.0
 
-    RU = reachExactBFS(net, [fb_I], lp_solver, pool=pool, show=False)
+    if method in ('approx-probstar', 'approx-star', 'approx'):
+        U_approx = reachApproxBFS(
+            net, fb_I, lp_solver=lp_solver, pool=pool, show=False,
+            RF=RF, DR=DR, relu_approx_mode=relu_approx_mode
+        )
+        RU = U_approx if isinstance(U_approx, list) else [U_approx]
+    else:
+        RU = reachExactBFS(net, [fb_I], lp_solver, pool=pool, show=False)
+
     if pool is not None:
         pool.close()
         pool.join()
     for U in RU:
         RX1, _ = plant.stepReach(X0=Xi, U=U, subSetPredicate=True)
-        if filterProb == 0:
+        if filterProb == 0 or method in ('approx-probstar', 'approx-star', 'approx'):
             RX.append(RX1)
         else:
-            
             pi = RX1.estimateProbability()
             if pi > filterProb:
                 RX.append(RX1)
@@ -501,14 +669,14 @@ def stepReach_DLNNCS_extended(ncs, Xi, reachPRM):
 
         if reachPRM.numCores > 1:
             with multiprocessing.Pool(reachPRM.numCores) as pool:
-                Xi1 = stepReach_AEBS(ncs, Xi, pool)
+                Xi1 = stepReach_AEBS(ncs, Xi, pool, reachPRM=reachPRM)
         else:
-            Xi1 = stepReach_AEBS(ncs, Xi, None)
+            Xi1 = stepReach_AEBS(ncs, Xi, None, reachPRM=reachPRM)
       
 
         # Xi1 = stepReach_AEBS(ncs, Xi, pool)    # this is AEBS NNCS
 
-        if reachPRM.filterProb == 0:
+        if reachPRM.filterProb == 0 or getattr(reachPRM, 'method', 'exact-probstar') in ('approx-probstar', 'approx-star', 'approx'):
             RX = Xi1
             p_ignored = 0
         else:
@@ -551,7 +719,7 @@ def reachBFS_AEBS(AEBS, reachPRM):
     X.append([X0])
     p_ignored = [0.]
     for i in range(0, T+1):
-        X1, p_ig1 = stepReach_AEBS_multipleInitSets(AEBS, X[i], pf, pool)         
+        X1, p_ig1 = stepReach_AEBS_multipleInitSets(AEBS, X[i], pf, pool, reachPRM=reachPRM)         
         X.append(X1)
         p_ign1 = p_ig1 + p_ignored[i]
         p_ignored.append(p_ign1)
@@ -562,20 +730,21 @@ def reachBFS_AEBS(AEBS, reachPRM):
 
     return X, p_ignored
 
-def stepReach_AEBS_multipleInitSets(AEBS, X0, pf, pool):
+def stepReach_AEBS_multipleInitSets(AEBS, X0, pf, pool, reachPRM=None):
     'step reach of AEBS with multiple initial sets'
 
     n = len(X0)
     X1 = []
     p_ignored = 0
+    is_approx = reachPRM is not None and getattr(reachPRM, 'method', 'exact-probstar') in ('approx-probstar', 'approx-star', 'approx')
     for i in range(0, n):
-        if pf == 0:
-            X1i = stepReach_AEBS(AEBS, X0[i], pool)
+        if pf == 0 or is_approx:
+            X1i = stepReach_AEBS(AEBS, X0[i], pool, reachPRM=reachPRM)
             X1.extend(X1i)
         else:
             pX = X0[i].estimateProbability()
-            if X0[i].estimateProbability() > pf:
-                X1i = stepReach_AEBS(AEBS, X0[i], pool)
+            if pX > pf:
+                X1i = stepReach_AEBS(AEBS, X0[i], pool, reachPRM=reachPRM)
                 X1.extend(X1i)
 
             else:
@@ -584,7 +753,7 @@ def stepReach_AEBS_multipleInitSets(AEBS, X0, pf, pool):
     return X1, p_ignored
 
 
-def stepReach_AEBS(AEBS, X0, pool):
+def stepReach_AEBS(AEBS, X0, pool, reachPRM=None):
     'step reachability of AEBS system'
     
 
@@ -608,54 +777,71 @@ def stepReach_AEBS(AEBS, X0, pool):
     norm_mat = AEBS.norm_mat
     scale_mat = AEBS.scale_mat
     plant = AEBS.plant
-    
+    method = getattr(reachPRM, 'method', 'exact-probstar') if reachPRM is not None else 'exact-probstar'
+    lp_solver = getattr(reachPRM, 'lpSolver', 'gurobi') if reachPRM is not None else 'gurobi'
+    RF = getattr(reachPRM, 'RF', 0.0) if reachPRM is not None else 0.0
+    DR = getattr(reachPRM, 'DR', 0) if reachPRM is not None else 0
+    relu_approx_mode = getattr(reachPRM, 'relu_approx_mode', 'analytic_gaussian') if reachPRM is not None else 'analytic_gaussian'
+    show = getattr(reachPRM, 'show', True) if reachPRM is not None else True
 
-    
     norm_X = X0.affineMap(norm_mat)
     
-    print('Computing reachable set of RL controller ...\n')
+    if show:
+        print('Computing reachable set of RL controller ...\n')
 
     # step 2: compute brake output of the RL controller
-    brake = reachExactBFS(controller, [norm_X], pool=pool)
+    if method in ('approx-probstar', 'approx-star', 'approx'):
+        b_out = reachApproxBFS(
+            controller, norm_X, lp_solver=lp_solver, pool=pool, show=False,
+            RF=RF, DR=DR, relu_approx_mode=relu_approx_mode
+        )
+        brake = b_out if isinstance(b_out, list) else [b_out]
+    else:
+        brake = reachExactBFS(controller, [norm_X], lp_solver=lp_solver, pool=pool)
     
     m = len(brake)
 
-    print('Geting exact input sets to transformer ...\n')
-    # step 3: compose brake output and normalized speed to get exact inputs to transformer
-    speed_brake = [] # exact inputs to transformer
+    if show:
+        print('Geting input sets to transformer ...\n')
+    # step 3: compose brake output and normalized speed to get inputs to transformer
+    speed_brake = []
     for i in range(0, m):
-        V = np.vstack((norm_X.V[1, :], brake[i].V))
-        if isinstance(brake[i], ProbStar):
-            speed_brake_i = ProbStar(V, brake[i].C, brake[i].d, brake[i].mu, brake[i].Sig, brake[i].pred_lb, brake[i].pred_ub)
-        elif isinstance(brake[i], Star):
-            speed_brake_i = Star(V, brake[i].C, brake[i].d, brake[i].pred_lb, brake[i].pred_ub)
+        if isinstance(brake[i], (ProbStar, Star)):
+            speed_brake_i = norm_X.stackWithSharedPrefix(brake[i], self_rows=[1])
         else:
             raise RuntimeError('unsupported brake set type {}'.format(type(brake[i])))
         speed_brake.append(speed_brake_i)
 
 
-    print('Computing exact transformer output ... \n')
-    # step 4: get exact transformer output
+    if show:
+        print('Computing transformer output ... \n')
+    # step 4: get transformer output
     tf_outs = []
     for i in range(0, m):
-        tf_out = reachExactBFS(transformer, [speed_brake[i]], pool=pool)
-        tf_outs.extend(tf_out)
+        if method in ('approx-probstar', 'approx-star', 'approx'):
+            tf_out = reachApproxBFS(
+                transformer, speed_brake[i], lp_solver=lp_solver, pool=pool, show=False,
+                RF=RF, DR=DR, relu_approx_mode=relu_approx_mode
+            )
+            tf_outs.extend(tf_out if isinstance(tf_out, list) else [tf_out])
+        else:
+            tf_out = reachExactBFS(transformer, [speed_brake[i]], lp_solver=lp_solver, pool=pool)
+            tf_outs.extend(tf_out)
 
-    print('Getting control input set to the plant and scale it ...\n')
+    if show:
+        print('Getting control input set to the plant and scale it ...\n')
     # step 5: get control input to the plant and scale it using scale matrix
     n = len(tf_outs)
     controls = []
     for i in range(0, n):
-        V = np.vstack((norm_X.V[1, :], tf_outs[i].V))
-        if isinstance(tf_outs[i], ProbStar):
-            control = ProbStar(V, tf_outs[i].C, tf_outs[i].d, tf_outs[i].mu, tf_outs[i].Sig, tf_outs[i].pred_lb, tf_outs[i].pred_ub)
-        elif isinstance(tf_outs[i], Star):
-            control = Star(V, tf_outs[i].C, tf_outs[i].d, tf_outs[i].pred_lb, tf_outs[i].pred_ub)
+        if isinstance(tf_outs[i], (ProbStar, Star)):
+            control = norm_X.stackWithSharedPrefix(tf_outs[i], self_rows=[1])
         else:
             raise RuntimeError('unsupported transformer output set type {}'.format(type(tf_outs[i])))
         controls.append(control.affineMap(scale_mat)) # scale the control inputs
 
-    print('Compute the next step reachable set for the plant ...\n')
+    if show:
+        print('Compute the next step reachable set for the plant ...\n')
     # compute the next step reachable set for the plant
     X1 = []
     for i in range(0, n):
@@ -765,15 +951,15 @@ def reachDFS_DLNNCS(ncs, reachPRM):
     for trace in traces:
         n = len(trace)
         trace1 = []
+        last_set = trace[n - 1]
         for i in range(0, n):
-            if isinstance(trace[n-1], ProbStar):
-                R = ProbStar(trace[i].V, trace[n-1].C, trace[n-1].d, trace[n-1].mu, \
-                             trace[n-1].Sig, trace[n-1].pred_lb, trace[n-1].pred_ub)
-            elif isinstance(trace[n-1], Star):
-                R = Star(trace[i].V, trace[n-1].C, trace[n-1].d, \
-                         trace[n-1].pred_lb, trace[n-1].pred_ub)
+            V_pad = trace[i].padBasisMatrix(last_set.nVars)
+            if isinstance(last_set, ProbStar):
+                R = last_set.with_updated_state(V=V_pad, env_dag=trace[i].env_dag if len(trace[i].env_dag) > 0 else last_set.env_dag)
+            elif isinstance(last_set, Star):
+                R = Star(V_pad, last_set.C, last_set.d, last_set.pred_lb, last_set.pred_ub)
             else:
-                raise RuntimeError('unsupported trace set type {}'.format(type(trace[n-1])))
+                raise RuntimeError('unsupported trace set type {}'.format(type(last_set)))
             trace1.append(R)
         traces1.append(trace1)         
     
@@ -815,7 +1001,7 @@ def singleSpecGuidedReachDFS_DLNNCS(ncs, reachPRM, spec_i):
     # get number of time steps needed for checking spec_i, not neccessary equal to reachPRM.numSteps
 
     steps = []
-    for i in len(spec_i):
+    for i in range(len(spec_i)):
         Ci = spec_i[i]
         steps.append(Ci.t)
 
@@ -841,7 +1027,7 @@ def singleSpecGuidedReachDFS_DLNNCS(ncs, reachPRM, spec_i):
             Xi = Ri.pop(0)
 
             # construct new initial set with new constraints for current time step
-            newXi = Xi.addMultipleConstraints(cur_step_pred.A, cur_step_pred.b)  # this may be an empty set
+            newXi = Xi.addMultipleConstraints(cur_step_pred.A, cur_step_pred.b) if cur_step_pred.A is not None else Xi
             T.append(newXi)
 
             Xi_plus_1, pig_i = stepReach_DLNNCS_extended(ncs, newXi, reachPRM)
@@ -868,9 +1054,13 @@ def singleSpecGuidedReachDFS_DLNNCS(ncs, reachPRM, spec_i):
     for trace in traces:
         n = len(trace)
         trace1 = []
+        last_set = trace[n - 1]
         for i in range(0, n):
-            R = ProbStar(trace[i].V, trace[n-1].C, trace[n-1].d, trace[n-1].mu, \
-                         trace[n-1].Sig, trace[n-1].pred_lb, trace[n-1].pred_ub)
+            V_pad = trace[i].padBasisMatrix(last_set.nVars)
+            if isinstance(last_set, ProbStar):
+                R = last_set.with_updated_state(V=V_pad, env_dag=trace[i].env_dag if len(trace[i].env_dag) > 0 else last_set.env_dag)
+            else:
+                R = Star(V_pad, last_set.C, last_set.d, last_set.pred_lb, last_set.pred_ub)
             trace1.append(R)
         traces1.append(trace1)         
     
@@ -937,6 +1127,11 @@ def stepReach_DynNN_NNCS(ncs, Xi, reachPRM):
     filterProb = reachPRM.filterProb
     numCores = reachPRM.numCores
     lp_solver = reachPRM.lpSolver
+    method = getattr(reachPRM, 'method', 'exact-probstar')
+    RF = getattr(reachPRM, 'RF', 0.0)
+    DR = getattr(reachPRM, 'DR', 0)
+    relu_approx_mode = getattr(reachPRM, 'relu_approx_mode', 'analytic_gaussian')
+    show = getattr(reachPRM, 'show', False)
     controller = ncs.controller
     plant = ncs.plant
     Ui = None
@@ -953,57 +1148,52 @@ def stepReach_DynNN_NNCS(ncs, Xi, reachPRM):
     
     # if control input, Ui, is not provided, compute control input with NN controller, i.e, Ui = NN_control(Xi)
     if Ui is None or len(Ui) == 0:
-        # achieve control input from reachability of NN controller
         fb_I = Xi.concatenate_with_vector(refInputs) if len(refInputs) > 0 else Xi
-        Ui = reachExactBFS(controller, [fb_I], lp_solver, pool=pool, show=False)
+        if method in ('approx-probstar', 'approx-star', 'approx'):
+            U_approx = reachApproxBFS(
+                controller, fb_I, lp_solver=lp_solver, pool=pool, show=False,
+                RF=RF, DR=DR, relu_approx_mode=relu_approx_mode
+            )
+            Ui = U_approx if isinstance(U_approx, list) else [U_approx]
+        else:
+            Ui = reachExactBFS(controller, [fb_I], lp_solver, pool=pool, show=False)
     else:
         if not isinstance(Ui, list):
             Ui = [Ui]
     p_ig = 0.0
 
-    print('Xi: \n')
-    print(repr(Xi))
-    print('prob: ', Xi.estimateProbability())
-    print()
-
-    print('fb_I: \n')
-    print(repr(fb_I))
-    print('prob: ', fb_I.estimateProbability())
-    print()
-    
     # concatenate state and control input to construct input for NN plant, i.e., XUi = [Xi, Ui]^T
     XUi = []
     for U in Ui:
-        print('U: \n')
-        print(repr(U))
-        print('prob: ', U.estimateProbability())
-        print()
-        if filterProb > 0:
-            # filter out control input if the probability of control input is less tahn filterProb
-            pi = U.estimateProbability()
-            if pi <= filterProb:
-                p_ig += pi
-                continue
- 
-        XUi.append(Xi.concatenate(U))
-        
+        if method in ('approx-probstar', 'approx-star', 'approx'):
+            XUi.append(Xi.stackWithSharedPrefix(U))
+        else:
+            if filterProb > 0:
+                pi = U.estimateProbability()
+                if pi <= filterProb:
+                    p_ig += pi
+                    continue
+            XUi.append(Xi.concatenate(U))
     
     # reachability of NN plant; yi = NeuralNetwork(xi, ui) = NeuralNetwork([xi, ui])
     Y = []
     for I in XUi:
-        Y1 = reachExactBFS(plant, [I], lp_solver, pool=pool, show=False)
-        for Yi in Y1:
-            print('Yi: \n')
-            print(repr(Yi))
-            print('prob: ', Yi.estimateProbability())
-            print()
-            if filterProb > 0:
-                pi = Yi.estimateProbability()
-                if pi <= filterProb:
-                    p_ig += pi
-                    continue
-        
-        Y.append(Yi)
+        if method in ('approx-probstar', 'approx-star', 'approx'):
+            Y_approx = reachApproxBFS(
+                plant, I, lp_solver=lp_solver, pool=pool, show=False,
+                RF=RF, DR=DR, relu_approx_mode=relu_approx_mode
+            )
+            Y1 = Y_approx if isinstance(Y_approx, list) else [Y_approx]
+            Y.extend(Y1)
+        else:
+            Y1 = reachExactBFS(plant, [I], lp_solver, pool=pool, show=False)
+            for Yi in Y1:
+                if filterProb > 0:
+                    pi = Yi.estimateProbability()
+                    if pi <= filterProb:
+                        p_ig += pi
+                        continue
+                Y.append(Yi)
 
     if pool is not None:
         pool.close()
@@ -1170,10 +1360,81 @@ def verify_temporal_specs_DLNNCS(ncs, verifyPRM):
     reachPRM.initSet = copy.deepcopy(verifyPRM.initSet)
     reachPRM.numSteps = copy.deepcopy(verifyPRM.numSteps)
     reachPRM.refInputs = copy.deepcopy(verifyPRM.refInputs)
+    reachPRM.method = copy.deepcopy(getattr(verifyPRM, 'method', 'exact-probstar'))
     reachPRM.filterProb = copy.deepcopy(verifyPRM.pf)
     reachPRM.lpSolver = copy.deepcopy(verifyPRM.lpSolver)
     reachPRM.show = copy.deepcopy(verifyPRM.show)
     reachPRM.numCores = copy.deepcopy(verifyPRM.numCores)
+    reachPRM.RF = getattr(verifyPRM, 'RF', 0.0)
+    reachPRM.DR = getattr(verifyPRM, 'DR', 0)
+    reachPRM.relu_approx_mode = getattr(verifyPRM, 'relu_approx_mode', 'analytic_gaussian')
+    reachPRM.cov_mode = getattr(verifyPRM, 'cov_mode', 'full')
+
+    if reachPRM.method in ('approx-probstar', 'approx') and int(getattr(verifyPRM, 'refine_max_splits', 0)) > 0:
+        max_splits = int(verifyPRM.refine_max_splits)
+        refine_tol = float(getattr(verifyPRM, 'refine_tol', 0.01))
+        specs = verifyPRM.temporalSpecs
+        dnf_specs = [s.getDynamicFormula() for s in specs]
+        p_input = verifyPRM.initSet.get_input_probability()
+
+        def _eval_part_temporal(init_s):
+            r_prm = copy.deepcopy(reachPRM)
+            r_prm.initSet = init_s
+            t0 = time.time()
+            tr_list, _ = reachDFS_DLNNCS(ncs, r_prm)
+            r_time = time.time() - t0
+            tr = tr_list[0]
+            p_max_arr = np.zeros(len(specs), dtype=np.float64)
+            p_min_arr = np.zeros(len(specs), dtype=np.float64)
+            c_time_arr = np.zeros(len(specs), dtype=np.float64)
+            w0_acc = np.zeros(init_s.nVars0, dtype=np.float64)
+            for idx_s, dnf_s in enumerate(dnf_specs):
+                ts0 = time.time()
+                _, _, w0 = dnf_s.realization_initial_space_duals(tr)
+                _, p_max_k, p_min_k, _ = dnf_s.evaluate_approx(tr)
+                c_time_arr[idx_s] = time.time() - ts0
+                p_max_arr[idx_s] = p_max_k
+                p_min_arr[idx_s] = p_min_k
+                gap_k = max(0.0, p_max_k - p_min_k)
+                if len(w0) == init_s.nVars0:
+                    w0_acc += gap_k * w0
+            return {
+                'init_set': init_s,
+                'trace': tr,
+                'reach_time': r_time,
+                'check_time': c_time_arr,
+                'p_max': p_max_arr,
+                'p_min': p_min_arr,
+                'gap': float(np.max(p_max_arr - p_min_arr)),
+                'weights': w0_acc,
+            }
+
+        parts = [_eval_part_temporal(reachPRM.initSet)]
+        splits_done = 0
+        while splits_done < max_splits:
+            tot_max = sum(p['p_max'] for p in parts)
+            tot_min = sum(p['p_min'] for p in parts)
+            if float(np.max(tot_max - tot_min)) <= refine_tol:
+                break
+            best_i = int(np.argmax([p['gap'] for p in parts]))
+            if parts[best_i]['gap'] <= 1e-12:
+                break
+            target_p = parts.pop(best_i)
+            children = target_p['init_set'].splitInitialPredicates(weights=target_p['weights'])
+            if len(children) < 2:
+                parts.append(target_p)
+                break
+            for c_init in children:
+                parts.append(_eval_part_temporal(c_init))
+            splits_done += 1
+
+        traces = [p['trace'] for p in parts]
+        reachTime = sum(p['reach_time'] for p in parts)
+        checking_time = [float(sum(p['check_time'][k] for p in parts)) for k in range(len(specs))]
+        verifyTime = [ct + reachTime for ct in checking_time]
+        p_SAT_MAX = [float(np.clip(sum(p['p_max'][k] for p in parts), 0.0, p_input)) for k in range(len(specs))]
+        p_SAT_MIN = [float(np.clip(sum(p['p_min'][k] for p in parts), 0.0, p_SAT_MAX[k])) for k in range(len(specs))]
+        return traces, p_SAT_MAX, p_SAT_MIN, reachTime, checking_time, verifyTime
     
 
     # get traces using DFS algorithm
@@ -1244,17 +1505,22 @@ def verify_temporal_specs_DLNNCS_for_full_analysis(ncs, verifyPRM):
     # Dung Tran: 1/14/2024, updated 7/4/2024
     # more analysis can be done using this verification function
 
-    assert isinstance(ncs, NNCS), 'error: ncs is not an NNCS object'
+    assert isinstance(ncs, (NNCS, AEBS_NNCS, DynNN_NNCS)), 'error: ncs is not an NNCS object'
     assert isinstance(verifyPRM, VerifyPRM_NNCS), 'error: verifyPRM is not a VerifyPRM_NNCS object'
 
     reachPRM = ReachPRM_NNCS()
     reachPRM.initSet = copy.deepcopy(verifyPRM.initSet)
     reachPRM.numSteps = copy.deepcopy(verifyPRM.numSteps)
     reachPRM.refInputs = copy.deepcopy(verifyPRM.refInputs)
+    reachPRM.method = copy.deepcopy(getattr(verifyPRM, 'method', 'exact-probstar'))
     reachPRM.filterProb = copy.deepcopy(verifyPRM.pf)
     reachPRM.lpSolver = copy.deepcopy(verifyPRM.lpSolver)
     reachPRM.show = copy.deepcopy(verifyPRM.show)
     reachPRM.numCores = copy.deepcopy(verifyPRM.numCores)
+    reachPRM.RF = getattr(verifyPRM, 'RF', 0.0)
+    reachPRM.DR = getattr(verifyPRM, 'DR', 0)
+    reachPRM.relu_approx_mode = getattr(verifyPRM, 'relu_approx_mode', 'analytic_gaussian')
+    reachPRM.cov_mode = getattr(verifyPRM, 'cov_mode', 'full')
 
     # get traces using DFS algorithm
     print('Get ProbStar traces using DFS-reachability algorithm...')
